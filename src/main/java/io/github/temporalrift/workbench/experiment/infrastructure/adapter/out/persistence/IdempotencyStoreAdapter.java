@@ -4,9 +4,11 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.transaction.annotation.Transactional;
+
 import io.github.temporalrift.workbench.experiment.domain.port.out.IdempotencyStore;
 
-/** JPA-backed idempotency claims. Keys are insert-only; the primary key wins races. */
+/** JPA-backed idempotency claims. A native insert-if-absent wins races without merge hazards. */
 public class IdempotencyStoreAdapter implements IdempotencyStore {
 
     private final IdempotencyKeyJpaRepository repository;
@@ -24,10 +26,8 @@ public class IdempotencyStoreAdapter implements IdempotencyStore {
     }
 
     @Override
-    public void claim(UUID key, String requestHash, UUID experimentId, Instant createdAt) {
-        // Insert-only (Persistable.isNew + flush): a duplicate key surfaces as a constraint
-        // violation inside the caller's transaction instead of merging over the winning claim
-        // or failing at some later commit.
-        repository.saveAndFlush(new IdempotencyKeyEntity(key, requestHash, experimentId, createdAt));
+    @Transactional
+    public boolean saveIfAbsent(UUID key, String requestHash, UUID experimentId, Instant createdAt) {
+        return repository.insertIfAbsent(key, requestHash, experimentId, createdAt) == 1;
     }
 }

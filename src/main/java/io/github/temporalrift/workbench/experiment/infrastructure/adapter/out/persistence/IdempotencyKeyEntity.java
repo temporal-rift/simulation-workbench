@@ -6,15 +6,11 @@ import java.util.UUID;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
-import jakarta.persistence.PostLoad;
-import jakarta.persistence.PostPersist;
 import jakarta.persistence.Table;
-import jakarta.persistence.Transient;
-import org.springframework.data.domain.Persistable;
 
 @Entity
 @Table(name = "idempotency_key")
-class IdempotencyKeyEntity implements Persistable<UUID> {
+class IdempotencyKeyEntity {
 
     @Id
     @Column(name = "idempotency_key", nullable = false)
@@ -29,9 +25,6 @@ class IdempotencyKeyEntity implements Persistable<UUID> {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
-    @Transient
-    private boolean isNew = true;
-
     protected IdempotencyKeyEntity() {}
 
     IdempotencyKeyEntity(UUID key, String requestHash, UUID experimentId, Instant createdAt) {
@@ -39,22 +32,6 @@ class IdempotencyKeyEntity implements Persistable<UUID> {
         this.requestHash = requestHash;
         this.experimentId = experimentId;
         this.createdAt = createdAt;
-    }
-
-    @Override
-    public UUID getId() {
-        return key;
-    }
-
-    @Override
-    public boolean isNew() {
-        return isNew;
-    }
-
-    @PostLoad
-    @PostPersist
-    void markNotNew() {
-        isNew = false;
     }
 
     UUID key() {

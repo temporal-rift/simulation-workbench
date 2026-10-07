@@ -9,7 +9,11 @@ public interface IdempotencyStore {
 
     Optional<Claim> findByKey(UUID key);
 
-    void claim(UUID key, String requestHash, UUID experimentId, Instant createdAt);
+    /**
+     * Inserts the claim, or does nothing when the key is already held. Returns true when this call
+     * won the key.
+     */
+    boolean saveIfAbsent(UUID key, String requestHash, UUID experimentId, Instant createdAt);
 
     record Claim(UUID key, String requestHash, UUID experimentId, Instant createdAt) {}
 }

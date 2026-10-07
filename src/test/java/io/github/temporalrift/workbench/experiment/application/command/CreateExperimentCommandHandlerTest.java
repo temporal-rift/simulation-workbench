@@ -59,6 +59,23 @@ class CreateExperimentCommandHandlerTest {
     }
 
     @Test
+    void lostRaceReturnsWinningExperimentAndRemovesOrphanRow() {
+        var key = UUID.randomUUID();
+        var winnerId = UUID.randomUUID();
+        var manifest = ExperimentManifests.singleSeedSinglePolicySingleVariant();
+        experiments.save(winnerId, "d".repeat(64), manifest.toString(), "threshold experiment", Instant.now());
+        var racing = new RacingIdempotency(winnerId);
+        var racingHandler = new CreateExperimentCommandHandler(
+                experiments, racing, Clock.fixed(Instant.parse("2026-10-07T00:00:00Z"), ZoneOffset.UTC));
+
+        var result = racingHandler.handle(new CreateExperimentUseCase.Command(key, manifest));
+
+        assertThat(result.experimentId()).isEqualTo(winnerId);
+        assertThat(experiments.count()).isEqualTo(1);
+        assertThat(experiments.findById(winnerId)).isPresent();
+    }
+
+    @Test
     void missingKeyIsRejected() {
         var command = new CreateExperimentUseCase.Command(null, ExperimentManifests.valid());
 
@@ -100,8 +117,34 @@ class CreateExperimentCommandHandlerTest {
         }
 
         @Override
-        public void claim(UUID key, String requestHash, UUID experimentId, Instant createdAt) {
-            rows.put(key, new Claim(key, requestHash, experimentId, createdAt));
+        public boolean saveIfAbsent(UUID key, String requestHash, UUID experimentId, Instant createdAt) {
+            return rows.putIfAbsent(key, new Claim(key, requestHash, experimentId, createdAt)) == null;
+        }
+    }
+
+    /** Simulates losing an insert race: the first read is empty, the insert loses, and the re-read
+     * finds the winner's claim carrying the hash this call just computed. */
+    static class RacingIdempotency implements IdempotencyStore {
+
+        private final UUID winnerId;
+        private String requestHash;
+
+        RacingIdempotency(UUID winnerId) {
+            this.winnerId = winnerId;
+        }
+
+        @Override
+        public Optional<Claim> findByKey(UUID key) {
+            if (requestHash == null) {
+                return Optional.empty();
+            }
+            return Optional.of(new Claim(key, requestHash, winnerId, Instant.now()));
+        }
+
+        @Override
+        public boolean saveIfAbsent(UUID key, String requestHash, UUID experimentId, Instant createdAt) {
+            this.requestHash = requestHash;
+            return false;
         }
     }
 }
