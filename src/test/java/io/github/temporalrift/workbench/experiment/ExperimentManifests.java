@@ -8,6 +8,9 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
+import io.github.temporalrift.workbench.policy.domain.baseline.BaselinePolicies;
+import io.github.temporalrift.workbench.policy.domain.baseline.PolicyBundle;
+
 /** Builds valid experiment manifests for tests. Faction vocabulary mirrors the shared enums. */
 public final class ExperimentManifests {
 
@@ -35,8 +38,8 @@ public final class ExperimentManifests {
         contracts.put("action-api", "7.1.0");
         manifest.set("contracts", contracts);
         var policies = MAPPER.createArrayNode();
-        policies.add(policy("random", "1.0.0"));
-        policies.add(policy("heuristic", "2.1.0"));
+        policies.add(policy(BaselinePolicies.RANDOM_V1));
+        policies.add(policy(BaselinePolicies.FACTION_GREEDY_V1));
         manifest.set("policies", policies);
         var seeds = MAPPER.createArrayNode();
         seeds.add(seed);
@@ -65,7 +68,7 @@ public final class ExperimentManifests {
         variants.add(variant("only", "a".repeat(64), "b".repeat(64)));
         manifest.set("variants", variants);
         var policies = MAPPER.createArrayNode();
-        policies.add(policy("random", "1.0.0"));
+        policies.add(policy(BaselinePolicies.RANDOM_V1));
         manifest.set("policies", policies);
         return manifest;
     }
@@ -134,11 +137,13 @@ public final class ExperimentManifests {
         return service;
     }
 
-    private static ObjectNode policy(String id, String version) {
+    private static ObjectNode policy(PolicyBundle bundle) {
+        var id = bundle.id();
+        var version = bundle.version();
         var policy = MAPPER.createObjectNode();
         policy.put("id", id);
         policy.put("version", version);
-        policy.put("artifactDigest", "f".repeat(64));
+        policy.put("artifactDigest", bundle.artifactDigest());
         policy.set("parameters", MAPPER.createObjectNode());
         var seats = MAPPER.createArrayNode();
         var seat = MAPPER.createObjectNode();

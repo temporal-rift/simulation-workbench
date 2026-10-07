@@ -19,6 +19,8 @@ import io.github.temporalrift.workbench.experiment.application.port.in.CreateExp
 import io.github.temporalrift.workbench.experiment.domain.IdempotencyConflictException;
 import io.github.temporalrift.workbench.experiment.domain.port.out.ExperimentRepository;
 import io.github.temporalrift.workbench.experiment.domain.port.out.IdempotencyStore;
+import io.github.temporalrift.workbench.experiment.infrastructure.adapter.out.policy.PolicyReferenceVerifierAdapter;
+import io.github.temporalrift.workbench.policy.application.query.BaselinePolicyCatalog;
 
 class CreateExperimentCommandHandlerTest {
 
@@ -31,7 +33,10 @@ class CreateExperimentCommandHandlerTest {
         experiments = new InMemoryExperiments();
         idempotency = new InMemoryIdempotency();
         handler = new CreateExperimentCommandHandler(
-                experiments, idempotency, Clock.fixed(Instant.parse("2026-10-07T00:00:00Z"), ZoneOffset.UTC));
+                experiments,
+                idempotency,
+                Clock.fixed(Instant.parse("2026-10-07T00:00:00Z"), ZoneOffset.UTC),
+                new PolicyReferenceVerifierAdapter(new BaselinePolicyCatalog()));
     }
 
     @Test
@@ -66,7 +71,10 @@ class CreateExperimentCommandHandlerTest {
         experiments.save(winnerId, "d".repeat(64), manifest.toString(), "threshold experiment", Instant.now());
         var racing = new RacingIdempotency(winnerId);
         var racingHandler = new CreateExperimentCommandHandler(
-                experiments, racing, Clock.fixed(Instant.parse("2026-10-07T00:00:00Z"), ZoneOffset.UTC));
+                experiments,
+                racing,
+                Clock.fixed(Instant.parse("2026-10-07T00:00:00Z"), ZoneOffset.UTC),
+                new PolicyReferenceVerifierAdapter(new BaselinePolicyCatalog()));
 
         var result = racingHandler.handle(new CreateExperimentUseCase.Command(key, manifest));
 

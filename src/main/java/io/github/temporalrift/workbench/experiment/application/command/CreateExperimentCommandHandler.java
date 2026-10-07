@@ -16,6 +16,7 @@ import io.github.temporalrift.workbench.experiment.domain.IdempotencyConflictExc
 import io.github.temporalrift.workbench.experiment.domain.ManifestDigest;
 import io.github.temporalrift.workbench.experiment.domain.port.out.ExperimentRepository;
 import io.github.temporalrift.workbench.experiment.domain.port.out.IdempotencyStore;
+import io.github.temporalrift.workbench.experiment.domain.port.out.PolicyReferenceVerifier;
 
 /**
  * Validates, digests, and freezes an experiment exactly once per idempotency key. A repeated key
@@ -26,11 +27,17 @@ public class CreateExperimentCommandHandler implements CreateExperimentUseCase {
     private final ExperimentRepository experiments;
     private final IdempotencyStore idempotency;
     private final Clock clock;
+    private final PolicyReferenceVerifier policyVerifier;
 
-    public CreateExperimentCommandHandler(ExperimentRepository experiments, IdempotencyStore idempotency, Clock clock) {
+    public CreateExperimentCommandHandler(
+            ExperimentRepository experiments,
+            IdempotencyStore idempotency,
+            Clock clock,
+            PolicyReferenceVerifier policyVerifier) {
         this.experiments = experiments;
         this.idempotency = idempotency;
         this.clock = clock;
+        this.policyVerifier = policyVerifier;
     }
 
     @Override
@@ -38,7 +45,7 @@ public class CreateExperimentCommandHandler implements CreateExperimentUseCase {
         if (command.idempotencyKey() == null) {
             throw new IllegalArgumentException("Idempotency-Key is required");
         }
-        var view = ExperimentValidator.validate(command.manifest());
+        var view = ExperimentValidator.validate(command.manifest(), policyVerifier);
         var digest = ManifestDigest.sha256Hex(command.manifest());
         var requestHash = requestHash(command.idempotencyKey(), digest);
         var existing = idempotency.findByKey(command.idempotencyKey());
