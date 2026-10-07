@@ -184,7 +184,9 @@ public final class ExperimentValidator {
     private static void verifyReference(
             PolicyReferenceVerifier verifier, String id, String version, String artifactDigest, int parameterCount) {
         switch (verifier.verify(id, version, artifactDigest, parameterCount)) {
-            case VALID -> {}
+            case VALID -> {
+                // The reference names a defined bundle; nothing to report.
+            }
             case UNKNOWN_POLICY -> throw invalid("unknown policy " + id + "@" + version);
             case UNSUPPORTED_PARAMETERS -> throw invalid("policy " + id + "@" + version + " accepts no parameters");
             case DIGEST_MISMATCH ->

@@ -39,5 +39,25 @@ public interface PlayDecisionWindowUseCase {
                 rejectionCodes = List.copyOf(rejectionCodes);
             }
         }
+
+        /**
+         * Accepted state is current and shows the candidate was not spent, even after the one allowed
+         * resubmission. Nothing is outstanding for the seat.
+         */
+        record NotAccepted(Candidate candidate, List<String> rejectionCodes) implements DecisionResult {
+            public NotAccepted {
+                rejectionCodes = List.copyOf(rejectionCodes);
+            }
+        }
+
+        /**
+         * Accepted state never became current, so the candidate may or may not have been spent. The caller
+         * must reconcile this seat before submitting for it again; the results of the other seats remain valid.
+         */
+        record ReconciliationPending(Candidate candidate, List<String> rejectionCodes) implements DecisionResult {
+            public ReconciliationPending {
+                rejectionCodes = List.copyOf(rejectionCodes);
+            }
+        }
     }
 }

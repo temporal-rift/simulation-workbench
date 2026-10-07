@@ -12,7 +12,6 @@ import io.github.temporalrift.workbench.policy.domain.decision.CandidateGenerato
 import io.github.temporalrift.workbench.policy.domain.decision.PolicyDecision;
 import io.github.temporalrift.workbench.policy.domain.decision.PolicyEntropy;
 import io.github.temporalrift.workbench.policy.domain.decision.Reconciliation;
-import io.github.temporalrift.workbench.policy.domain.decision.ReconciliationPendingException;
 import io.github.temporalrift.workbench.policy.domain.decision.SubmissionOutcome;
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
 import io.github.temporalrift.workbench.policy.domain.port.out.ParticipantGateway;
@@ -48,62 +47,70 @@ public class DecisionWindowService implements PlayDecisionWindowUseCase {
         for (var i = 0; i < ordered.size(); i++) {
             var seat = ordered.get(i);
             results.add(new SeatResult(
-                    seat.seatIndex(),
-                    submit(seat, frozen.get(i), firstChoices.get(i), maxRejectedCandidatesPerWindow)));
+                    seat.seatIndex(), submit(seat, firstChoices.get(i), maxRejectedCandidatesPerWindow)));
         }
         return results;
     }
 
-    private DecisionResult submit(
-            SeatPolicy seat, EntitledObservation frozen, PolicyDecision first, int maxRejectedCandidates) {
+    private DecisionResult submit(SeatPolicy seat, PolicyDecision first, int maxRejectedCandidates) {
         var excluded = new LinkedHashSet<Candidate>();
         var codes = new ArrayList<String>();
-        var observation = frozen;
         var decision = first;
-        while (true) {
-            if (!(decision instanceof PolicyDecision.Chosen(var candidate))) {
-                return new DecisionResult.PolicyExhausted(codes);
-            }
-            var confirmed = submitConfirmed(seat.seatIndex(), candidate);
-            if (confirmed.outcome() instanceof SubmissionOutcome.Rejected(var code)) {
-                excluded.add(candidate);
-                codes.add(code);
-                observation = gateway.observe(seat.seatIndex());
-                decision = codes.size() >= maxRejectedCandidates
-                        ? fallback(observation, excluded)
-                        : decide(seat, observation, excluded, codes.size());
-            } else {
-                return new DecisionResult.Submitted(confirmed.accepted(), codes, confirmed.recovered());
+        while (decision instanceof PolicyDecision.Chosen(var candidate)) {
+            switch (submitConfirmed(seat.seatIndex(), candidate)) {
+                case Confirmation.Accepted(var accepted, var recovered) -> {
+                    return new DecisionResult.Submitted(accepted, codes, recovered);
+                }
+                case Confirmation.NotAccepted() -> {
+                    return new DecisionResult.NotAccepted(candidate, codes);
+                }
+                case Confirmation.Pending() -> {
+                    return new DecisionResult.ReconciliationPending(candidate, codes);
+                }
+                case Confirmation.Rejected(var code) -> {
+                    excluded.add(candidate);
+                    codes.add(code);
+                    var refreshed = gateway.observe(seat.seatIndex());
+                    decision = codes.size() >= maxRejectedCandidates
+                            ? fallback(refreshed, excluded)
+                            : decide(seat, refreshed, excluded, codes.size());
+                }
             }
         }
+        return new DecisionResult.PolicyExhausted(codes);
     }
 
     /** Submits, reconciling a missing acknowledgement before it will submit the same candidate again. */
-    private Confirmed submitConfirmed(int seatIndex, Candidate candidate) {
+    private Confirmation submitConfirmed(int seatIndex, Candidate candidate) {
         for (var attempt = 0; attempt < MAX_SUBMISSIONS_PER_CANDIDATE; attempt++) {
-            var outcome = gateway.submit(seatIndex, candidate);
-            if (outcome instanceof SubmissionOutcome.Accepted) {
-                return new Confirmed(outcome, candidate, false);
-            }
-            if (outcome instanceof SubmissionOutcome.Rejected) {
-                return new Confirmed(outcome, null, false);
-            }
-            if (reconcile(seatIndex) instanceof Reconciliation.Accepted(var accepted)) {
-                return new Confirmed(new SubmissionOutcome.Accepted(), accepted, true);
+            switch (gateway.submit(seatIndex, candidate)) {
+                case SubmissionOutcome.Accepted() -> {
+                    return new Confirmation.Accepted(candidate, false);
+                }
+                case SubmissionOutcome.Rejected(var code) -> {
+                    return new Confirmation.Rejected(code);
+                }
+                case SubmissionOutcome.Unacknowledged() -> {
+                    var state = reconcile(seatIndex);
+                    if (state instanceof Reconciliation.Accepted(var accepted)) {
+                        return new Confirmation.Accepted(accepted, true);
+                    }
+                    if (state instanceof Reconciliation.Pending) {
+                        return new Confirmation.Pending();
+                    }
+                }
             }
         }
-        throw new ReconciliationPendingException(
-                "seat " + seatIndex + " submission was neither acknowledged nor found in accepted state");
+        return new Confirmation.NotAccepted();
     }
 
+    /** Reads accepted state, polling a bounded number of times while it is not yet current. */
     private Reconciliation reconcile(int seatIndex) {
-        for (var poll = 0; poll < MAX_PENDING_POLLS; poll++) {
-            var state = gateway.reconcile(seatIndex);
-            if (!(state instanceof Reconciliation.Pending)) {
-                return state;
-            }
+        var state = gateway.reconcile(seatIndex);
+        for (var poll = 1; poll < MAX_PENDING_POLLS && state instanceof Reconciliation.Pending; poll++) {
+            state = gateway.reconcile(seatIndex);
         }
-        throw new ReconciliationPendingException("seat " + seatIndex + " accepted state is not yet current");
+        return state;
     }
 
     private static PolicyDecision decide(
@@ -122,5 +129,15 @@ public class DecisionWindowService implements PlayDecisionWindowUseCase {
                 .orElseGet(PolicyDecision.Exhausted::new);
     }
 
-    private record Confirmed(SubmissionOutcome outcome, Candidate accepted, boolean recovered) {}
+    private sealed interface Confirmation {
+        record Accepted(Candidate candidate, boolean recovered) implements Confirmation {}
+
+        record Rejected(String code) implements Confirmation {}
+
+        /** Accepted state is current and shows nothing was spent, even after the one allowed resubmission. */
+        record NotAccepted() implements Confirmation {}
+
+        /** Accepted state never became current, so whether the submission was spent is unknown. */
+        record Pending() implements Confirmation {}
+    }
 }

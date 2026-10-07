@@ -164,8 +164,9 @@ submissions go out in seat order. A rejected candidate is recorded, excluded, an
 refreshed observation, up to the manifest's `maxRejectedCandidatesPerWindow`. After the budget, or when no
 candidate remains, the policy chooses an available pass or decline, or returns `POLICY_EXHAUSTED` (distinct from
 pass and decline); it never invents a legal choice. A missing acknowledgement is reconciled against accepted
-state before any retry, so an accepted action is never spent twice; unconfirmed accepted state surfaces as
-`ReconciliationPendingException` instead of a resubmission.
+state before any retry, so an accepted action is never spent twice; a seat whose accepted state never becomes current is reported as `ReconciliationPending`
+(the runner must reconcile it before submitting again), and a seat shown not to have been spent after one
+resubmission is reported as `NotAccepted`. Either way the results of the other seats are kept.
 
 **Limitations.** Neither policy models authoritative resolution, scoring, or opponents, and terminal readiness has
 no dedicated participant operation in the pinned contracts, so the gateway maps it to the runner's continuation

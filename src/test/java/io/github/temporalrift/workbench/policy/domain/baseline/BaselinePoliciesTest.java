@@ -20,6 +20,7 @@ import io.github.temporalrift.workbench.policy.domain.decision.Candidate;
 import io.github.temporalrift.workbench.policy.domain.decision.CandidateGenerator;
 import io.github.temporalrift.workbench.policy.domain.decision.PolicyDecision;
 import io.github.temporalrift.workbench.policy.domain.decision.PolicyEntropy;
+import io.github.temporalrift.workbench.policy.domain.observation.DealtCard;
 import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow;
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
 import io.github.temporalrift.workbench.policy.domain.observation.Faction;
@@ -110,7 +111,7 @@ class BaselinePoliciesTest {
 
         var keep = (Candidate.KeepHand) ((PolicyDecision.Chosen) decision).candidate();
         assertThat(keep.cardInstanceIds()).hasSize(5).doesNotHaveDuplicates();
-        assertThat(deal.stream().map(card -> card.cardInstanceId())).containsAll(keep.cardInstanceIds());
+        assertThat(deal.stream().map(DealtCard::cardInstanceId)).containsAll(keep.cardInstanceIds());
     }
 
     static Stream<PolicyBundle> bundles() {

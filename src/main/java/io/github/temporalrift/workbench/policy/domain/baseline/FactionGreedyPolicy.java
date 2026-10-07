@@ -21,6 +21,7 @@ import io.github.temporalrift.workbench.policy.domain.observation.DeclarationMod
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
 import io.github.temporalrift.workbench.policy.domain.observation.EventView;
 import io.github.temporalrift.workbench.policy.domain.observation.OutcomeView;
+import io.github.temporalrift.workbench.policy.domain.observation.PlayableCard;
 
 /**
  * {@code faction-greedy-v1}: scores every candidate from the caller's faction preferences and the
@@ -65,42 +66,38 @@ final class FactionGreedyPolicy implements BotPolicy {
             Map<UUID, OutcomeView> outcomes) {
         var faction = observation.faction();
         return switch (candidate) {
-            case Candidate.KeepHand keep ->
-                keep.cardInstanceIds().stream()
+            case Candidate.KeepHand(var cardInstanceIds) ->
+                cardInstanceIds.stream()
                         .mapToLong(id -> (long) FactionPreferences.card(
                                                 faction, cards.get(id).type())
                                         .affinity()
                                 * AFFINITY_SCALE)
                         .sum();
-            case Candidate.Declare declare ->
+            case Candidate.Declare(var mode, var eventId, var outcomeId) ->
                 DECLARATION_SCORE
-                        + (declare.mode() == DeclarationMode.MOMENTUM ? MOMENTUM_BONUS : 0)
-                        + targetScore(
-                                Bias.LEADING,
-                                new Target.EventOutcome(declare.eventId(), declare.outcomeId()),
-                                outcomes);
-            case Candidate.PlayCard play -> {
-                var preference = FactionPreferences.card(
-                        faction, cards.get(play.cardInstanceId()).type());
-                yield preference.affinity() * (long) AFFINITY_SCALE
-                        + targetScore(preference.bias(), play.target(), outcomes);
-            }
-            case Candidate.PlayParadoxCard play -> {
-                var preference = FactionPreferences.card(
-                        faction, cards.get(play.cardInstanceId()).type());
-                yield preference.affinity() * (long) AFFINITY_SCALE
-                        + targetScore(preference.bias(), play.target(), outcomes);
-            }
-            case Candidate.PlaySpecial play -> {
-                var preference = FactionPreferences.special(faction, play.action());
-                yield preference.affinity() * (long) AFFINITY_SCALE
-                        + targetScore(preference.bias(), play.target(), outcomes);
-            }
-            case Candidate.Decline decline -> 0;
-            case Candidate.Pass pass -> 0;
-            case Candidate.PassParadox pass -> 0;
-            case Candidate.ConfirmReady ready -> 0;
+                        + (mode == DeclarationMode.MOMENTUM ? MOMENTUM_BONUS : 0)
+                        + targetScore(Bias.LEADING, new Target.EventOutcome(eventId, outcomeId), outcomes);
+            case Candidate.PlayCard(var cardInstanceId, var target) ->
+                weighted(
+                        FactionPreferences.card(
+                                faction, cards.get(cardInstanceId).type()),
+                        target,
+                        outcomes);
+            case Candidate.PlayParadoxCard(var cardInstanceId, var target) ->
+                weighted(
+                        FactionPreferences.card(
+                                faction, cards.get(cardInstanceId).type()),
+                        target,
+                        outcomes);
+            case Candidate.PlaySpecial(var action, var target) ->
+                weighted(FactionPreferences.special(faction, action), target, outcomes);
+            case Candidate.Decline _, Candidate.Pass _, Candidate.PassParadox _, Candidate.ConfirmReady _ -> 0;
         };
+    }
+
+    private static long weighted(
+            FactionPreferences.Preference preference, Target target, Map<UUID, OutcomeView> outcomes) {
+        return preference.affinity() * (long) AFFINITY_SCALE + targetScore(preference.bias(), target, outcomes);
     }
 
     private static long targetScore(Bias bias, Target target, Map<UUID, OutcomeView> outcomes) {
@@ -108,10 +105,9 @@ final class FactionGreedyPolicy implements BotPolicy {
             return 0;
         }
         return switch (target) {
-            case Target.EventOutcome single -> lean(bias, weight(outcomes, single.outcomeId()));
-            case Target.OutcomePair pair ->
-                (lean(bias, weight(outcomes, pair.targetOutcomeId()))
-                                + lean(flip(bias), weight(outcomes, pair.sourceOutcomeId())))
+            case Target.EventOutcome(var _, var outcomeId) -> lean(bias, weight(outcomes, outcomeId));
+            case Target.OutcomePair(var _, var sourceOutcomeId, var targetOutcomeId) ->
+                (lean(bias, weight(outcomes, targetOutcomeId)) + lean(flip(bias), weight(outcomes, sourceOutcomeId)))
                         / 2;
             default -> 0;
         };
@@ -133,7 +129,7 @@ final class FactionGreedyPolicy implements BotPolicy {
         List<DealtCard> cards = switch (observation.window()) {
             case DecisionWindow.HandSelection window -> window.deal();
             case DecisionWindow.ActionRound window ->
-                window.cards().stream().map(playable -> playable.card()).toList();
+                window.cards().stream().map(PlayableCard::card).toList();
             case DecisionWindow.ParadoxResolution window -> window.offer();
             default -> List.of();
         };

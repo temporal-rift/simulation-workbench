@@ -1,7 +1,6 @@
 package io.github.temporalrift.workbench.policy.application.command;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -17,7 +16,6 @@ import io.github.temporalrift.workbench.policy.domain.baseline.BaselinePolicies;
 import io.github.temporalrift.workbench.policy.domain.decision.BotPolicy;
 import io.github.temporalrift.workbench.policy.domain.decision.Candidate;
 import io.github.temporalrift.workbench.policy.domain.decision.Reconciliation;
-import io.github.temporalrift.workbench.policy.domain.decision.ReconciliationPendingException;
 import io.github.temporalrift.workbench.policy.domain.decision.SubmissionOutcome;
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
 import io.github.temporalrift.workbench.policy.domain.observation.Faction;
@@ -133,9 +131,41 @@ class DecisionWindowServiceTest {
         gateway.loseResponse = true;
         gateway.pendingReconciliation = true;
 
-        assertThatThrownBy(() -> play(gateway, BaselinePolicies.RANDOM_V1.policy()))
-                .isInstanceOf(ReconciliationPendingException.class);
+        var result = play(gateway, BaselinePolicies.RANDOM_V1.policy());
+
+        assertThat(result).isInstanceOf(DecisionResult.ReconciliationPending.class);
         assertThat(gateway.submitted).hasSize(1);
+    }
+
+    @Test
+    void pendingSeatKeepsTheOutcomesOfTheOtherSeats() {
+        var gateway = new FakeGateway();
+        gateway.observations.put(0, PolicyFixtures.actionRound(Faction.ERASERS));
+        gateway.observations.put(1, withSeat(PolicyFixtures.actionRound(Faction.PROPHETS), 1));
+        gateway.loseResponse = true;
+        gateway.lostSeat = 1;
+        gateway.pendingReconciliation = true;
+        var policy = BaselinePolicies.RANDOM_V1.policy();
+
+        var results = new DecisionWindowService(gateway)
+                .play(List.of(new SeatPolicy(0, policy, 1), new SeatPolicy(1, policy, 1)), BUDGET);
+
+        assertThat(results.get(0).result()).isInstanceOf(DecisionResult.Submitted.class);
+        assertThat(results.get(1).result()).isInstanceOf(DecisionResult.ReconciliationPending.class);
+        assertThat(gateway.submitted).hasSize(2);
+    }
+
+    @Test
+    void definiteNonAcceptanceAfterTheRetryIsNotReportedAsPending() {
+        var gateway = new FakeGateway();
+        gateway.observations.put(0, PolicyFixtures.actionRound(Faction.ERASERS));
+        gateway.loseEveryResponse = true;
+
+        var result = play(gateway, BaselinePolicies.RANDOM_V1.policy());
+
+        assertThat(result).isInstanceOf(DecisionResult.NotAccepted.class);
+        assertThat(gateway.submitted).hasSize(2);
+        assertThat(gateway.acceptedCount).isZero();
     }
 
     private static DecisionResult play(FakeGateway gateway, BotPolicy policy) {
@@ -159,6 +189,8 @@ class DecisionWindowServiceTest {
         int rejectFirst;
         boolean rejectAllExceptFallbacks;
         boolean loseResponse;
+        boolean loseEveryResponse;
+        int lostSeat;
         boolean lostSubmissionIsNotAccepted;
         boolean pendingReconciliation;
         int acceptedCount;
@@ -181,7 +213,10 @@ class DecisionWindowServiceTest {
             if (rejectAllExceptFallbacks && !candidate.isFallback()) {
                 return new SubmissionOutcome.Rejected("422-03");
             }
-            if (loseResponse && !lostOnce) {
+            if (loseEveryResponse) {
+                return new SubmissionOutcome.Unacknowledged();
+            }
+            if (loseResponse && seatIndex == lostSeat && !lostOnce) {
                 lostOnce = true;
                 if (!lostSubmissionIsNotAccepted) {
                     accept(seatIndex, candidate);
