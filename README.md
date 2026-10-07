@@ -38,8 +38,8 @@ the human player's client.
 
 | Module | Version | Use |
 |---|---|---|
-| `simulation-api` | `1.0.0` | Workbench boundary: experiments, runs/cases, reports/comparisons, replay/reproduction |
-| `simulation-control-api` | `1.0.0` | Isolated execution boundary: execution context, checkpoints, logical clock |
+| `simulation-api` | `1.0.1` | Workbench boundary: experiments, runs/cases, reports/comparisons, replay/reproduction |
+| `simulation-control-api` | `1.1.1` | Isolated execution boundary: execution context, checkpoints, logical clock |
 | `session-event` / `action-event` / `timeline-event` / `scoring-event` | `7.0.0` / `9.3.0` / `7.1.0` / `3.0.0` | Evidence and result attribution via generated types |
 | `session-api` / `action-api` / `scoring-api` | `3.0.0` / `7.1.0` / `2.0.1` | Authenticated participant play via generated clients |
 
@@ -58,25 +58,6 @@ Pinned versions live as `<*-version>` properties in `pom.xml`, following the sib
   SonarCloud project `temporal-rift_simulation-workbench`, CodeRabbit review on the `review` label.
 - **Container:** root `Dockerfile` follows the sibling-service multi-stage Maven build with a non-root
   runtime user and `/actuator/health` health check.
-
-## Delivery backlog
-
-System-wide coordination stays in the infrastructure epic for the simulation and balance workbench. The
-seven workbench-owned delivery packages are tracked as issues in this repository:
-
-| Order | Package | Focus |
-|---|---|---|
-| 1 | W1 | Freeze experiments and preview the cohort matrix |
-| 2 | W3 | Versioned baseline policies (developed against W1's input model; integrated acceptance uses W2) |
-| 3 | W2 | Durable real-service batches with interruption recovery |
-| 4 | W4 | Evidence retention and saved-case reproduction |
-| 5 | W5 | Balance comparisons with truthful statistics and exports |
-| 6 | W6 | Designer UI and perspective-safe replay inspector |
-| 7 | W7 | Application workflow proof preserving ordinary gameplay |
-
-Foundations (this provisioning, plus both published contract modules) come first; execution inputs and the
-experiment model next; then playable experiments; then the research product; then milestone acceptance. Test
-and documentation obligations land with their own package — never deferred to the last wave.
 
 ## Requirements
 
@@ -106,7 +87,7 @@ mvn validate
 
 - Create a focused branch from current `origin/main` and open a pull request that links its issue.
 - Keep the hexagonal layout (`domain/` plain Java, `application/` independent of `infrastructure/`,
-  Modulith modules communicating only via `ApplicationEvent`) once W1 establishes the bootstrap.
+  Modulith modules communicating only via `ApplicationEvent`) once the experiment package establishes the bootstrap.
 - Add the `review` label when a change needs non-trivial reasoning to judge correct (concurrency,
   ordering, recovery, statistical dependence); leave routine changes unlabeled.
 - Every behavior change ships with its tests and documentation in the same package.

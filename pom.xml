@@ -57,9 +57,9 @@
         <sonar.coverage.exclusions>**/generated-sources/**/*</sonar.coverage.exclusions>
 
         <!-- Workbench-owned boundary (implemented by this application). -->
-        <simulation-api.version>1.0.0</simulation-api.version>
+        <simulation-api.version>1.0.1</simulation-api.version>
         <!-- Isolated execution boundary (consumed operator interface, owned by the game/timeline services). -->
-        <simulation-control-api.version>1.0.0</simulation-control-api.version>
+        <simulation-control-api.version>1.1.1</simulation-control-api.version>
         <!-- Pinned participant/event contracts: consumed via generated clients/interfaces only.
              Never hand-copy engine or player-contract types into this repository. -->
         <session-event.version>7.0.0</session-event.version>
