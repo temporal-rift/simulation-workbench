@@ -181,6 +181,11 @@
         </dependency>
 
         <dependency>
+            <groupId>io.swagger.core.v3</groupId>
+            <artifactId>swagger-annotations-jakarta</artifactId>
+        </dependency>
+
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-devtools</artifactId>
             <scope>runtime</scope>
@@ -197,6 +202,26 @@
             <scope>runtime</scope>
         </dependency>
 
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webmvc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.modulith</groupId>
+            <artifactId>spring-modulith-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-testcontainers</artifactId>
@@ -240,6 +265,52 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.openapitools</groupId>
+                <artifactId>openapi-generator-maven-plugin</artifactId>
+                <configuration>
+                    <importMappings>
+                        <importMapping>ProblemDetail=org.springframework.http.ProblemDetail</importMapping>
+                    </importMappings>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>generate-simulation-api</id>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                        <configuration>
+                            <inputSpec>${project.build.directory}/dependency-specs/simulation-api-${simulation-api.version}-jar/openapi/v1/simulation.yml
+                            </inputSpec>
+                            <output>${project.build.directory}/generated-sources/openapi/simulation</output>
+                            <apiPackage>io.github.temporalrift.workbench.experiment.infrastructure.adapter.in.rest.v1
+                            </apiPackage>
+                            <modelPackage>io.github.temporalrift.workbench.experiment.infrastructure.adapter.in.rest.v1.model
+                            </modelPackage>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>3.6.2</version>
+                <executions>
+                    <execution>
+                        <id>add-openapi-generated-sources</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>add-source</goal>
+                        </goals>
+                        <configuration>
+                            <sources>
+                                <source>${project.build.directory}/generated-sources/openapi/simulation/src/main/java
+                                </source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
             <!-- BOM 1.5.1 configures the compiler output directory globally. Keep test compilation
                  separate so its incremental cleanup cannot remove generated main classes. -->

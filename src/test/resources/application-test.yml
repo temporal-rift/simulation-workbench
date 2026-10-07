@@ -1,0 +1,27 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/temporal_rift
+    username: temporal_rift
+    password: temporal_rift
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.xml
+  kafka:
+    properties:
+      security.protocol: PLAINTEXT
+    consumer:
+      group-id: simulation-workbench
+      auto-offset-reset: earliest
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:9000/default
+
+logging:
+  level:
+    io.github.temporalrift: DEBUG
+    org.springframework.modulith: DEBUG

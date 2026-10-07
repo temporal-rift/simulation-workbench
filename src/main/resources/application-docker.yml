@@ -1,0 +1,10 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${SPRING_DATASOURCE_HOST:postgres}:${SPRING_DATASOURCE_PORT:5432}/${SPRING_DATASOURCE_NAME:temporal_rift}
+    username: ${SPRING_DATASOURCE_USERNAME:temporal_rift}
+    password: ${SPRING_DATASOURCE_PASSWORD:temporal_rift}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+
+server:
+  port: ${PORT:8080}

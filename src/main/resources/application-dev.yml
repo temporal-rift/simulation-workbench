@@ -1,0 +1,21 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/temporal_rift
+    username: temporal_rift
+    password: temporal_rift
+  jpa:
+    show-sql: true
+  kafka:
+    bootstrap-servers: localhost:9092
+    properties:
+      security.protocol: PLAINTEXT
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:9000/default
+
+logging:
+  level:
+    io.github.temporalrift: DEBUG
+    org.springframework.modulith: DEBUG

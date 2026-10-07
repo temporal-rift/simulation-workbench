@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+        Pre-production changelog: changesets are edited in place until the first durable deployment,
+        and are forward-only after it.
+    -->
+
+    <!-- Infrastructure (Spring Modulith) -->
+    <include file="db/changelog/infrastructure/001-create-event-publication.xml"/>
+
+    <!-- Experiment module: frozen manifests and idempotency claims -->
+    <include file="db/changelog/experiment/001-create-experiment.xml"/>
+    <include file="db/changelog/experiment/002-create-idempotency-key.xml"/>
+
+</databaseChangeLog>
