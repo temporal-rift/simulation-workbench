@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+  <changeSet id="002-create-idempotency-key" author="simulation-workbench">
+    <createTable tableName="idempotency_key">
+      <column name="idempotency_key" type="UUID">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="request_hash" type="VARCHAR(64)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="experiment_id" type="UUID">
+        <constraints nullable="false" foreignKeyName="fk_idempotency_experiment" references="experiment(experiment_id)"/>
+      </column>
+      <column name="created_at" type="TIMESTAMP WITH TIME ZONE">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+  </changeSet>
+
+</databaseChangeLog>

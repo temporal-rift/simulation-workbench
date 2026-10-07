@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+  <!--
+      Spring Modulith JPA event publication table.
+      Schema sourced from Spring Modulith appendix:
+      https://docs.spring.io/spring-modulith/reference/appendix.html
+  -->
+  <changeSet id="001-create-event-publication" author="simulation-workbench">
+    <createTable tableName="event_publication">
+      <column name="id" type="UUID">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="listener_id" type="TEXT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="event_type" type="TEXT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="serialized_event" type="TEXT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="publication_date" type="TIMESTAMP WITH TIME ZONE">
+        <constraints nullable="false"/>
+      </column>
+      <column name="completion_date" type="TIMESTAMP WITH TIME ZONE"/>
+      <column name="status" type="TEXT"/>
+      <column name="completion_attempts" type="INT"/>
+      <column name="last_resubmission_date" type="TIMESTAMP WITH TIME ZONE"/>
+    </createTable>
+
+    <sql>CREATE INDEX IF NOT EXISTS event_publication_serialized_event_hash_idx
+      ON event_publication USING hash(serialized_event)</sql>
+
+    <createIndex tableName="event_publication"
+                 indexName="event_publication_by_completion_date_idx">
+      <column name="completion_date"/>
+    </createIndex>
+  </changeSet>
+
+</databaseChangeLog>
