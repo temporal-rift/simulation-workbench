@@ -62,17 +62,17 @@ Pinned versions live as `<*-version>` properties in `pom.xml`, following the sib
 ## Delivery backlog
 
 System-wide coordination stays in the infrastructure epic for the simulation and balance workbench. The
-seven workbench-owned delivery packages are tracked as issues in this repository:
+seven workbench-owned delivery packages are tracked as issues in this repository, in implementation order:
 
-| Order | Package | Focus |
+| Order | Issue | Focus |
 |---|---|---|
-| 1 | W1 | Freeze experiments and preview the cohort matrix |
-| 2 | W3 | Versioned baseline policies (developed against W1's input model; integrated acceptance uses W2) |
-| 3 | W2 | Durable real-service batches with interruption recovery |
-| 4 | W4 | Evidence retention and saved-case reproduction |
-| 5 | W5 | Balance comparisons with truthful statistics and exports |
-| 6 | W6 | Designer UI and perspective-safe replay inspector |
-| 7 | W7 | Application workflow proof preserving ordinary gameplay |
+| 1 | [Freeze experiments and preview the cohort matrix](https://github.com/temporal-rift/simulation-workbench/issues/3) | Attributable experiments and exact case matrix |
+| 2 | [Play all decision windows with versioned baseline policies](https://github.com/temporal-rift/simulation-workbench/issues/2) | Explicit baseline strategies without privileged information |
+| 3 | [Run durable real-service batches with interruption recovery](https://github.com/temporal-rift/simulation-workbench/issues/6) | Launch, cancel and resume without losing completed work |
+| 4 | [Retain evidence and reproduce a saved case](https://github.com/temporal-rift/simulation-workbench/issues/5) | Per-case evidence plus clean-lane reproduction |
+| 5 | [Compare balance variants with truthful statistics and exports](https://github.com/temporal-rift/simulation-workbench/issues/4) | Attributable populations, uncertainty, and exports |
+| 6 | [Deliver the designer UI and perspective-safe replay inspector](https://github.com/temporal-rift/simulation-workbench/issues/7) | Full research workflow without hand-operated endpoints |
+| 7 | [Prove the application workflow while preserving ordinary gameplay](https://github.com/temporal-rift/simulation-workbench/issues/1) | Integrated proof with gameplay regressions green |
 
 Foundations (this provisioning, plus both published contract modules) come first; execution inputs and the
 experiment model next; then playable experiments; then the research product; then milestone acceptance. Test
@@ -106,7 +106,7 @@ mvn validate
 
 - Create a focused branch from current `origin/main` and open a pull request that links its issue.
 - Keep the hexagonal layout (`domain/` plain Java, `application/` independent of `infrastructure/`,
-  Modulith modules communicating only via `ApplicationEvent`) once W1 establishes the bootstrap.
+  Modulith modules communicating only via `ApplicationEvent`) once the experiment package establishes the bootstrap.
 - Add the `review` label when a change needs non-trivial reasoning to judge correct (concurrency,
   ordering, recovery, statistical dependence); leave routine changes unlabeled.
 - Every behavior change ships with its tests and documentation in the same package.
