@@ -30,7 +30,7 @@ the human player's client.
   below. No hand-written copy of the game engine or player contract types may be introduced in this
   repository.
 - Bot policies receive only the facts their participant is entitled to at that step. Raw observer evidence,
-  opposing credentials, and unearned private data never become policy inputs.
+  opposing credentials, execution-control state, and unearned private data never become policy inputs.
 - Operator controls (`simulation:control`) exist only in isolated simulation deployments. Designer access uses
   `simulation:read` / `simulation:write`; observer replay additionally requires `simulation:observe`.
 
@@ -38,8 +38,8 @@ the human player's client.
 
 | Module | Version | Use |
 |---|---|---|
-| `simulation-api` | `1.0.0` | Workbench boundary: experiments, runs/cases, reports/comparisons, replay/reproduction |
-| `simulation-control-api` | `1.0.0` | Isolated execution boundary: execution context, checkpoints, logical clock |
+| `simulation-api` | `1.0.1` | Workbench boundary: experiments, runs/cases, reports/comparisons, replay/reproduction |
+| `simulation-control-api` | `1.1.1` | Isolated execution boundary: execution context, checkpoints, logical clock |
 | `session-event` / `action-event` / `timeline-event` / `scoring-event` | `7.0.0` / `9.3.0` / `7.1.0` / `3.0.0` | Evidence and result attribution via generated types |
 | `session-api` / `action-api` / `scoring-api` | `3.0.0` / `7.1.0` / `2.0.1` | Authenticated participant play via generated clients |
 
