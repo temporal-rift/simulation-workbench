@@ -31,4 +31,9 @@ public class ExperimentRepositoryAdapter implements ExperimentRepository {
                         entity.name(),
                         entity.createdAt()));
     }
+
+    @Override
+    public void delete(UUID experimentId) {
+        repository.deleteById(experimentId);
+    }
 }

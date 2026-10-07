@@ -8,6 +8,7 @@ import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import tools.jackson.databind.JsonNode;
 
 import io.github.temporalrift.workbench.experiment.application.port.in.CreateExperimentUseCase;
@@ -51,17 +52,26 @@ public class CreateExperimentCommandHandler implements CreateExperimentUseCase {
         var experimentId = UUID.randomUUID();
         var createdAt = Instant.now(clock);
         var manifestJson = command.manifest().toString();
+        // The claim references the experiment row, so the experiment is saved first and the claim
+        // is an insert-only flushed write: a racing request surfaces here, inside this call, while
+        // each repository call runs in its own transaction (the controller is not transactional).
         experiments.save(experimentId, digest, manifestJson, view.name(), createdAt);
         try {
             idempotency.claim(command.idempotencyKey(), requestHash, experimentId, createdAt);
-        } catch (RuntimeException duplicate) {
-            var raced = idempotency.findByKey(command.idempotencyKey()).orElseThrow(() -> duplicate);
-            if (!raced.requestHash().equals(requestHash)) {
-                throw new IdempotencyConflictException("Idempotency-Key was reused with a different body");
-            }
-            return stored(raced.experimentId());
+        } catch (DataIntegrityViolationException duplicate) {
+            return recoverFromRace(command.idempotencyKey(), requestHash, experimentId, duplicate);
         }
         return stored(experimentId);
+    }
+
+    private Result recoverFromRace(UUID key, String requestHash, UUID loserId, RuntimeException duplicate) {
+        var raced = idempotency.findByKey(key).orElseThrow(() -> duplicate);
+        if (!raced.requestHash().equals(requestHash)) {
+            throw new IdempotencyConflictException("Idempotency-Key was reused with a different body");
+        }
+        // Our experiment row is unreachable by anyone; remove it so a lost race leaves no orphans.
+        experiments.delete(loserId);
+        return stored(raced.experimentId());
     }
 
     private Result stored(UUID experimentId) {

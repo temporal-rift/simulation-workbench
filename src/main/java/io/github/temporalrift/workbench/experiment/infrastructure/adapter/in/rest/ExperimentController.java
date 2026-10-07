@@ -5,7 +5,6 @@ import java.time.ZoneOffset;
 import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -27,7 +26,6 @@ class ExperimentController implements ExperimentsApi {
     }
 
     @Override
-    @Transactional
     public ResponseEntity<Experiment> createExperiment(UUID idempotencyKey, ExperimentManifest experimentManifest) {
         JsonNode manifest = objectMapper.convertValue(experimentManifest, JsonNode.class);
         var result = createExperimentUseCase.handle(new CreateExperimentUseCase.Command(idempotencyKey, manifest));

@@ -6,7 +6,7 @@ import java.util.UUID;
 
 import io.github.temporalrift.workbench.experiment.domain.port.out.IdempotencyStore;
 
-/** JPA-backed idempotency claims. Keys are inserted once; the unique primary key wins races. */
+/** JPA-backed idempotency claims. Keys are insert-only; the primary key wins races. */
 public class IdempotencyStoreAdapter implements IdempotencyStore {
 
     private final IdempotencyKeyJpaRepository repository;
@@ -25,6 +25,8 @@ public class IdempotencyStoreAdapter implements IdempotencyStore {
 
     @Override
     public void claim(UUID key, String requestHash, UUID experimentId, Instant createdAt) {
-        repository.save(new IdempotencyKeyEntity(key, requestHash, experimentId, createdAt));
+        // saveAndFlush — never merge — so a duplicate key surfaces as a constraint violation
+        // inside the caller's transaction instead of at some later commit.
+        repository.saveAndFlush(new IdempotencyKeyEntity(key, requestHash, experimentId, createdAt));
     }
 }

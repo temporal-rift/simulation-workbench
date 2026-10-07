@@ -21,7 +21,7 @@ class SimulationAccessDeniedHandler implements AccessDeniedHandler {
     @Override
     public void handle(HttpServletRequest request, HttpServletResponse response, AccessDeniedException exception)
             throws IOException {
-        var problem = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, exception.getMessage());
+        var problem = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, "Access denied");
         problem.setProperty("code", "INSUFFICIENT_SCOPE");
         response.setStatus(HttpServletResponse.SC_FORBIDDEN);
         response.setContentType("application/problem+json");

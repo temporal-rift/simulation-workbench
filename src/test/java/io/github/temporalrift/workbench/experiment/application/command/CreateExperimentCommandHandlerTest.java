@@ -49,18 +49,20 @@ class CreateExperimentCommandHandlerTest {
     @Test
     void sameKeyWithChangedBodyConflicts() {
         var key = UUID.randomUUID();
-        handler.handle(new CreateExperimentUseCase.Command(key, ExperimentManifests.valid()));
+        var original = ExperimentManifests.valid();
+        handler.handle(new CreateExperimentUseCase.Command(key, original));
         var changed = ExperimentManifests.valid("43", "a".repeat(64), "b".repeat(64));
+        var replay = new CreateExperimentUseCase.Command(key, changed);
 
-        assertThatThrownBy(() -> handler.handle(new CreateExperimentUseCase.Command(key, changed)))
-                .isInstanceOf(IdempotencyConflictException.class);
+        assertThatThrownBy(() -> handler.handle(replay)).isInstanceOf(IdempotencyConflictException.class);
         assertThat(experiments.count()).isEqualTo(1);
     }
 
     @Test
     void missingKeyIsRejected() {
-        assertThatThrownBy(() -> handler.handle(new CreateExperimentUseCase.Command(null, ExperimentManifests.valid())))
-                .isInstanceOf(IllegalArgumentException.class);
+        var command = new CreateExperimentUseCase.Command(null, ExperimentManifests.valid());
+
+        assertThatThrownBy(() -> handler.handle(command)).isInstanceOf(IllegalArgumentException.class);
     }
 
     static class InMemoryExperiments implements ExperimentRepository {
@@ -76,6 +78,11 @@ class CreateExperimentCommandHandlerTest {
         @Override
         public Optional<StoredExperiment> findById(UUID experimentId) {
             return Optional.ofNullable(rows.get(experimentId));
+        }
+
+        @Override
+        public void delete(UUID experimentId) {
+            rows.remove(experimentId);
         }
 
         int count() {

@@ -6,7 +6,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +26,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import io.github.temporalrift.workbench.WorkbenchIntegrationTest;
 import io.github.temporalrift.workbench.experiment.ExperimentManifests;
+import io.github.temporalrift.workbench.experiment.domain.ManifestDigest;
 
 @WorkbenchIntegrationTest
 class CreateExperimentIT {
@@ -91,10 +98,53 @@ class CreateExperimentIT {
 
         String stored = manifestJsonByDigest(digest);
 
-        assertThat(stored).contains("effectiveRulesDigest");
-        assertThat(stored).contains("gameService");
-        assertThat(stored).contains("seatRotationMode");
+        assertThat(stored)
+                .contains("effectiveRulesDigest")
+                .contains("gameService")
+                .contains("seatRotationMode");
         assertThat(stored.toLowerCase()).doesNotContain("password", "credentials", "/home/", "file://", "c:\\", "c:/");
+    }
+
+    @Test
+    void missingIdempotencyKeyIsRejected() throws Exception {
+        var body = objectMapper.writeValueAsString(ExperimentManifests.valid("105", "a".repeat(64), "b".repeat(64)));
+
+        mockMvc.perform(post("/api/v1/experiments")
+                        .with(jwt().authorities(writeAuthority()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void parallelRequestsWithSameKeyReturnSingleExperiment() throws Exception {
+        var key = UUID.randomUUID();
+        var body = objectMapper.writeValueAsString(ExperimentManifests.singleSeedSinglePolicySingleVariant("106"));
+        var gate = new CountDownLatch(1);
+        Callable<String> request = () -> {
+            gate.await(10, TimeUnit.SECONDS);
+            MvcResult result = mockMvc.perform(post("/api/v1/experiments")
+                            .with(jwt().authorities(writeAuthority()))
+                            .header("Idempotency-Key", key)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isCreated())
+                    .andReturn();
+            return objectMapper
+                    .readTree(result.getResponse().getContentAsString())
+                    .get("experimentId")
+                    .asString();
+        };
+
+        try (var pool = Executors.newFixedThreadPool(2)) {
+            List<Future<String>> futures = List.of(pool.submit(request), pool.submit(request));
+            gate.countDown();
+            var ids = List.of(
+                    futures.get(0).get(30, TimeUnit.SECONDS), futures.get(1).get(30, TimeUnit.SECONDS));
+
+            assertThat(ids.get(0)).isEqualTo(ids.get(1));
+            assertThat(countByDigest(digestOf(body))).isEqualTo(1);
+        }
     }
 
     @Test
@@ -151,8 +201,17 @@ class CreateExperimentIT {
                 .asString();
     }
 
+    private String digestOf(String body) throws Exception {
+        return ManifestDigest.sha256Hex(objectMapper.readTree(body));
+    }
+
     private Long count() {
         return jdbcTemplate.queryForObject("select count(*) from experiment", Long.class);
+    }
+
+    private Long countByDigest(String digest) {
+        return jdbcTemplate.queryForObject(
+                "select count(*) from experiment where manifest_digest = ?", Long.class, digest);
     }
 
     private String manifestJsonByDigest(String digest) {

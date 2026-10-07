@@ -34,4 +34,28 @@ class ManifestDigestTest {
 
         assertThat(ManifestDigest.sha256Hex(threshold22)).isNotEqualTo(ManifestDigest.sha256Hex(threshold20));
     }
+
+    @Test
+    void variantOrderChangesDigest() {
+        var first = (ObjectNode) ExperimentManifests.valid().deepCopy();
+        var reordered = (ObjectNode) ExperimentManifests.valid().deepCopy();
+        var variants = reordered.withArray("variants");
+        var baseline = variants.get(0).deepCopy();
+        variants.remove(0);
+        variants.add(baseline);
+
+        assertThat(ManifestDigest.sha256Hex(reordered)).isNotEqualTo(ManifestDigest.sha256Hex(first));
+    }
+
+    @Test
+    void factionSetOrderDoesNotChangeDigest() {
+        var first = ExperimentManifests.valid();
+        var reordered = (ObjectNode) ExperimentManifests.valid().deepCopy();
+        var sets = reordered.withArray("factionSets");
+        var head = sets.get(0).deepCopy();
+        sets.remove(0);
+        sets.add(head);
+
+        assertThat(ManifestDigest.sha256Hex(reordered)).isEqualTo(ManifestDigest.sha256Hex(first));
+    }
 }

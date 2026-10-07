@@ -11,6 +11,9 @@ public interface ExperimentRepository {
 
     Optional<StoredExperiment> findById(UUID experimentId);
 
+    /** Removes an experiment row. Only used to compensate a lost idempotency race. */
+    void delete(UUID experimentId);
+
     record StoredExperiment(
             UUID experimentId, String manifestDigest, String manifestJson, String name, Instant createdAt) {}
 }

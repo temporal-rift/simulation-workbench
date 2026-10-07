@@ -15,10 +15,10 @@ import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * Canonical manifest digest. Object keys are sorted recursively and semantically order-insensitive
- * collections (seeds, player counts, faction sets, variants, policies, contracts) are normalized
- * before hashing, so the digest changes only when the experiment's meaning changes — never with
- * whitespace or key order.
+ * Canonical manifest digest. Object keys are sorted recursively; array order is significant because
+ * the matrix preview enumerates variants, policies, and seat assignments in manifest order. Only
+ * semantically order-insensitive collections (seeds, player counts, faction sets) are normalized
+ * before hashing, so the digest never changes with whitespace or key order.
  */
 public final class ManifestDigest {
 
@@ -35,8 +35,8 @@ public final class ManifestDigest {
                 hex.append(Character.forDigit(b & 0xF, 16));
             }
             return hex.toString();
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 unavailable", e);
+        } catch (NoSuchAlgorithmException _) {
+            throw new IllegalStateException("SHA-256 unavailable");
         }
     }
 
@@ -58,11 +58,8 @@ public final class ManifestDigest {
             return result;
         }
         if (node instanceof ArrayNode array) {
-            List<JsonNode> items = new ArrayList<>();
-            array.forEach(item -> items.add(canonicalNode(item, false)));
-            items.sort(Comparator.comparing(JsonNode::toString));
             var result = JsonNodeFactory.instance.arrayNode();
-            items.forEach(result::add);
+            array.forEach(item -> result.add(canonicalNode(item, false)));
             return result;
         }
         return node;
@@ -71,6 +68,7 @@ public final class ManifestDigest {
     private static void normalizeSets(ObjectNode root) {
         sortStringArray(root, "seeds", Comparator.comparingLong(ManifestDigest::parseUint64));
         sortIntArray(root, "playerCounts");
+        sortFactionSets(root);
     }
 
     private static void sortStringArray(ObjectNode root, String field, Comparator<String> order) {
@@ -97,6 +95,28 @@ public final class ManifestDigest {
         var sorted = JsonNodeFactory.instance.arrayNode();
         values.forEach(sorted::add);
         root.set(field, sorted);
+    }
+
+    private static void sortFactionSets(ObjectNode root) {
+        var array = root.get("factionSets");
+        if (!(array instanceof ArrayNode sets)) {
+            return;
+        }
+        List<String> normalized = new ArrayList<>();
+        sets.forEach(set -> {
+            List<String> factions = new ArrayList<>();
+            set.forEach(faction -> factions.add(faction.asString()));
+            factions.sort(String::compareTo);
+            normalized.add(String.join(",", factions));
+        });
+        normalized.sort(String::compareTo);
+        var sorted = JsonNodeFactory.instance.arrayNode();
+        normalized.forEach(entry -> {
+            var set = JsonNodeFactory.instance.arrayNode();
+            List.of(entry.split(",")).forEach(set::add);
+            sorted.add(set);
+        });
+        root.set("factionSets", sorted);
     }
 
     private static long parseUint64(String value) {

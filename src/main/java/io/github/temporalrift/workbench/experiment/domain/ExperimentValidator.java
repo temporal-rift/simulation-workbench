@@ -21,9 +21,13 @@ public final class ExperimentValidator {
     private static final Pattern SHA256 = Pattern.compile("^[a-f0-9]{64}$");
     private static final Pattern IMAGE_DIGEST = Pattern.compile("^sha256:[a-f0-9]{64}$");
     private static final Pattern SOURCE_REVISION = Pattern.compile("^[a-f0-9]{7,64}$");
-    private static final Pattern SEMVER = Pattern.compile("^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$");
-    private static final Pattern UINT64 = Pattern.compile("^(0|[1-9][0-9]{0,19})$");
+    private static final Pattern SEMVER = Pattern.compile("^\\d+\\.\\d+\\.\\d+(?:[-+][0-9A-Za-z.-]+)?$");
+    private static final Pattern UINT64 = Pattern.compile("^(0|[1-9]\\d{0,19})$");
     private static final BigInteger MAX_UINT64 = new BigInteger("18446744073709551615");
+    private static final String SERVICES_PREFIX = "services.";
+    private static final String SEAT_INDEX_FIELD = "seatIndex";
+    private static final String POLICY_ID_FIELD = "policyId";
+    private static final String POLICY_VERSION_FIELD = "policyVersion";
     private static final List<String> SECRET_KEYS = List.of(
             "password",
             "passwd",
@@ -113,15 +117,15 @@ public final class ExperimentValidator {
         for (String service : List.of("gameService", "timelineService", "readService")) {
             var node = services.get(service);
             if (node == null || !node.isObject()) {
-                throw invalid("services." + service + " is required");
+                throw invalid(SERVICES_PREFIX + service + " is required");
             }
             var image = text(node, "imageDigest");
             if (image == null || !IMAGE_DIGEST.matcher(image).matches()) {
-                throw mismatch("services." + service + ".imageDigest must match sha256:<hex>");
+                throw mismatch(SERVICES_PREFIX + service + ".imageDigest must match sha256:<hex>");
             }
             var revision = text(node, "sourceRevision");
             if (revision == null || !SOURCE_REVISION.matcher(revision).matches()) {
-                throw mismatch("services." + service + ".sourceRevision must be 7..64 lowercase hex");
+                throw mismatch(SERVICES_PREFIX + service + ".sourceRevision must be 7..64 lowercase hex");
             }
         }
     }
@@ -143,46 +147,50 @@ public final class ExperimentValidator {
             throw invalid("policies must be a nonempty array");
         }
         var refs = new ArrayList<PolicyRef>();
-        policies.forEach(policy -> {
-            var id = text(policy, "id");
-            var version = text(policy, "version");
-            if (id == null || id.isBlank()) {
-                throw invalid("policy id must be a nonempty string");
-            }
-            if (version == null || version.isBlank()) {
-                throw invalid("policy version must be a nonempty string");
-            }
-            digest(text(policy, "artifactDigest"), "policy artifactDigest");
-            var parameters = policy.get("parameters");
-            if (parameters == null || !parameters.isObject()) {
-                throw invalid("policy parameters must be an object");
-            }
-            var seats = policy.get("seatAssignment");
-            if (seats == null || !seats.isArray() || seats.isEmpty()) {
-                throw invalid("policy seatAssignment must be a nonempty array");
-            }
-            var seenSeats = new HashSet<String>();
-            seats.forEach(seat -> {
-                if (!seat.isObject()
-                        || !seat.has("seatIndex")
-                        || seat.get("seatIndex").asInt(-1) < 0) {
-                    throw invalid("seatAssignment seatIndex must be a nonnegative integer");
-                }
-                var key = seat.get("seatIndex").asInt() + "|" + text(seat, "policyId") + "|"
-                        + text(seat, "policyVersion");
-                if (text(seat, "policyId") == null
-                        || text(seat, "policyId").isBlank()
-                        || text(seat, "policyVersion") == null
-                        || text(seat, "policyVersion").isBlank()) {
-                    throw invalid("seatAssignment policyId/policyVersion must be nonempty");
-                }
-                if (!seenSeats.add(key)) {
-                    throw invalid("policy seatAssignment entries must be unique");
-                }
-            });
-            refs.add(new PolicyRef(id, version));
-        });
+        policies.forEach(policy -> refs.add(validatePolicy(policy)));
         return List.copyOf(refs);
+    }
+
+    private static PolicyRef validatePolicy(JsonNode policy) {
+        var id = text(policy, "id");
+        var version = text(policy, "version");
+        if (id == null || id.isBlank()) {
+            throw invalid("policy id must be a nonempty string");
+        }
+        if (version == null || version.isBlank()) {
+            throw invalid("policy version must be a nonempty string");
+        }
+        digest(text(policy, "artifactDigest"), "policy artifactDigest");
+        var parameters = policy.get("parameters");
+        if (parameters == null || !parameters.isObject()) {
+            throw invalid("policy parameters must be an object");
+        }
+        validateSeatAssignment(policy.get("seatAssignment"));
+        return new PolicyRef(id, version);
+    }
+
+    private static void validateSeatAssignment(JsonNode seats) {
+        if (seats == null || !seats.isArray() || seats.isEmpty()) {
+            throw invalid("policy seatAssignment must be a nonempty array");
+        }
+        var seenSeats = new HashSet<String>();
+        seats.forEach(seat -> validateSeat(seat, seenSeats));
+    }
+
+    private static void validateSeat(JsonNode seat, Set<String> seenSeats) {
+        if (!seat.isObject()
+                || !seat.has(SEAT_INDEX_FIELD)
+                || seat.get(SEAT_INDEX_FIELD).asInt(-1) < 0) {
+            throw invalid("seatAssignment seatIndex must be a nonnegative integer");
+        }
+        var policyId = text(seat, POLICY_ID_FIELD);
+        var policyVersion = text(seat, POLICY_VERSION_FIELD);
+        if (policyId == null || policyId.isBlank() || policyVersion == null || policyVersion.isBlank()) {
+            throw invalid("seatAssignment policyId/policyVersion must be nonempty");
+        }
+        if (!seenSeats.add(seat.get(SEAT_INDEX_FIELD).asInt() + "|" + policyId + "|" + policyVersion)) {
+            throw invalid("policy seatAssignment entries must be unique");
+        }
     }
 
     private static List<String> validateSeeds(JsonNode seeds) {
@@ -273,19 +281,47 @@ public final class ExperimentValidator {
     }
 
     static void rejectSecretsAndLocalPaths(JsonNode manifest) {
-        var json = manifest.toString().toLowerCase();
+        inspect(manifest);
+    }
+
+    private static void inspect(JsonNode node) {
+        if (node.isObject()) {
+            for (var entry : node.properties()) {
+                rejectSecretFieldName(entry.getKey());
+                inspectValue(entry.getValue());
+            }
+        } else if (node.isArray()) {
+            node.forEach(ExperimentValidator::inspectValue);
+        }
+    }
+
+    private static void inspectValue(JsonNode value) {
+        if (value.isTextual()) {
+            rejectSecretOrLocalValue(value.asString());
+        } else {
+            inspect(value);
+        }
+    }
+
+    private static void rejectSecretFieldName(String fieldName) {
+        var segments = new HashSet<>(List.of(fieldName.toLowerCase().split("[^a-z0-9]+")));
         for (String key : SECRET_KEYS) {
-            if (json.contains(key)) {
-                throw invalid("manifest must not carry credentials or secrets: " + key);
+            var keySegments = List.of(key.split("[^a-z0-9]+"));
+            if (segments.containsAll(keySegments)) {
+                throw invalid("manifest must not carry credentials or secrets: " + fieldName);
             }
         }
+    }
+
+    private static void rejectSecretOrLocalValue(String value) {
+        var lower = value.toLowerCase();
         for (String marker : SECRET_VALUE_MARKERS) {
-            if (json.contains(marker)) {
+            if (lower.startsWith(marker)) {
                 throw invalid("manifest must not carry credentials or secrets");
             }
         }
         for (String marker : LOCAL_PATH_MARKERS) {
-            if (json.contains(marker)) {
+            if (lower.startsWith(marker)) {
                 throw invalid("manifest must not carry machine-local paths: " + marker);
             }
         }

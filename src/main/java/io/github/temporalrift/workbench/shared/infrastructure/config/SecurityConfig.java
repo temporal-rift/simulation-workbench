@@ -14,6 +14,9 @@ import tools.jackson.databind.ObjectMapper;
 @Configuration
 public class SecurityConfig {
 
+    private static final String WRITE_SCOPE = "SCOPE_simulation:write";
+    private static final String READ_SCOPE = "SCOPE_simulation:read";
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, ObjectMapper objectMapper) throws Exception {
         return http.csrf(AbstractHttpConfigurer::disable)
@@ -21,15 +24,15 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth.requestMatchers("/actuator/health/**", "/actuator/prometheus")
                         .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/experiments", "/api/v1/comparisons")
-                        .hasAuthority("SCOPE_simulation:write")
+                        .hasAuthority(WRITE_SCOPE)
                         .requestMatchers(HttpMethod.POST, "/api/v1/experiments/*/runs")
-                        .hasAuthority("SCOPE_simulation:write")
+                        .hasAuthority(WRITE_SCOPE)
                         .requestMatchers(HttpMethod.POST, "/api/v1/runs/*/cancel", "/api/v1/runs/*/resume")
-                        .hasAuthority("SCOPE_simulation:write")
+                        .hasAuthority(WRITE_SCOPE)
                         .requestMatchers(HttpMethod.POST, "/api/v1/runs/*/cases/*/reproductions")
-                        .hasAuthority("SCOPE_simulation:write")
+                        .hasAuthority(WRITE_SCOPE)
                         .requestMatchers(HttpMethod.GET, "/api/v1/**")
-                        .hasAuthority("SCOPE_simulation:read")
+                        .hasAuthority(READ_SCOPE)
                         .anyRequest()
                         .authenticated())
                 .oauth2ResourceServer(

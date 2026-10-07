@@ -128,4 +128,17 @@ class ExperimentValidatorTest {
                 .isInstanceOf(ExperimentValidationException.class)
                 .matches(ex -> ((ExperimentValidationException) ex).code() == ExperimentErrorCode.INVALID_EXPERIMENT);
     }
+
+    @Test
+    void ordinaryWordsContainingSecretMarkersAreAllowed() {
+        var manifest = (ObjectNode) ExperimentManifests.valid().deepCopy();
+        manifest.put("name", "secret-hitler variant");
+        manifest.withArray("policies")
+                .get(0)
+                .asObject()
+                .withObject("parameters")
+                .put("tokenizer", "risk-averse");
+
+        assertThat(ExperimentValidator.validate(manifest).name()).isEqualTo("secret-hitler variant");
+    }
 }
