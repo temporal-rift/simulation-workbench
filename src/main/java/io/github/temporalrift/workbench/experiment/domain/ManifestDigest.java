@@ -122,7 +122,7 @@ public final class ManifestDigest {
     private static long parseUint64(String value) {
         try {
             return Long.parseUnsignedLong(value);
-        } catch (NumberFormatException e) {
+        } catch (NumberFormatException _) {
             return Long.MAX_VALUE;
         }
     }
