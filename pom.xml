@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xmlns="http://maven.apache.org/POM/4.1.0"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.1.0 https://maven.apache.org/xsd/maven-4.1.0.xsd"
+         root="true">
+    <modelVersion>4.1.0</modelVersion>
+
+    <parent>
+        <groupId>io.github.temporal-rift</groupId>
+        <artifactId>temporal-rift-bom</artifactId>
+        <version>2.0.0</version>
+        <relativePath/>
+    </parent>
+
+    <artifactId>simulation-workbench</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>Temporal Rift Simulation Workbench</name>
+    <description>Designer simulation and balance workbench: reproducible experiments, durable execution, bot policies, evidence, comparisons and designer UI</description>
+    <url/>
+
+    <licenses>
+        <license>
+            <name>GNU General Public License v3.0</name>
+            <url>https://www.gnu.org/licenses/gpl-3.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <id>kronen</id>
+            <name>Alberto Gonzalez Lagos</name>
+            <email>kronenr@gmail.com</email>
+            <url>https://github.com/kronen</url>
+            <roles>
+                <role>architect</role>
+                <role>developer</role>
+            </roles>
+            <timezone>Europe/Madrid</timezone>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:git@github.com:temporal-rift/simulation-workbench.git</connection>
+        <developerConnection>scm:git:git@github.com:temporal-rift/simulation-workbench.git</developerConnection>
+        <url>https://github.com/temporal-rift/simulation-workbench</url>
+        <tag>HEAD</tag>
+    </scm>
+
+    <properties>
+        <sonar.organization>temporal-rift</sonar.organization>
+        <sonar.projectKey>temporal-rift_simulation-workbench</sonar.projectKey>
+        <sonar.host.url>https://sonarcloud.io</sonar.host.url>
+        <sonar.coverage.jacoco.xmlReportPaths>${project.build.directory}/site/jacoco/jacoco.xml
+        </sonar.coverage.jacoco.xmlReportPaths>
+        <sonar.exclusions>**/generated-sources/**/*</sonar.exclusions>
+        <sonar.coverage.exclusions>**/generated-sources/**/*</sonar.coverage.exclusions>
+
+        <!-- Workbench-owned boundary (implemented by this application). -->
+        <simulation-api.version>1.0.0</simulation-api.version>
+        <!-- Isolated execution boundary (consumed operator interface, owned by the game/timeline services). -->
+        <simulation-control-api.version>1.0.0</simulation-control-api.version>
+        <!-- Pinned participant/event contracts: consumed via generated clients/interfaces only.
+             Never hand-copy engine or player-contract types into this repository. -->
+        <session-event.version>7.0.0</session-event.version>
+        <action-event.version>9.3.0</action-event.version>
+        <timeline-event.version>7.1.0</timeline-event.version>
+        <scoring-event.version>3.0.0</scoring-event.version>
+        <session-api.version>3.0.0</session-api.version>
+        <action-api.version>7.1.0</action-api.version>
+        <scoring-api.version>2.0.1</scoring-api.version>
+        <archunit-junit5.version>1.5.1</archunit-junit5.version>
+    </properties>
+
+    <dependencies>
+        <!-- Workbench boundary: frozen experiments, durable runs/cases, reports/comparisons, replay/reproduction. -->
+        <dependency>
+            <groupId>io.github.temporal-rift</groupId>
+            <artifactId>simulation-api</artifactId>
+            <version>${simulation-api.version}</version>
+        </dependency>
+        <!-- Isolated execution boundary: execution context, checkpoints, logical clock. -->
+        <dependency>
+            <groupId>io.github.temporal-rift</groupId>
+            <artifactId>simulation-control-api</artifactId>
+            <version>${simulation-control-api.version}</version>
+        </dependency>
+        <!-- Participant/event contracts: bot play and evidence use generated types only. -->
+        <dependency>
+            <groupId>io.github.temporal-rift</groupId>
+            <artifactId>session-event</artifactId>
+            <version>${session-event.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.github.temporal-rift</groupId>
+            <artifactId>action-event</artifactId>
+            <version>${action-event.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.github.temporal-rift</groupId>
+            <artifactId>timeline-event</artifactId>
+            <version>${timeline-event.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.github.temporal-rift</groupId>
+            <artifactId>scoring-event</artifactId>
+            <version>${scoring-event.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.github.temporal-rift</groupId>
+            <artifactId>session-api</artifactId>
+            <version>${session-api.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.github.temporal-rift</groupId>
+            <artifactId>action-api</artifactId>
+            <version>${action-api.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.github.temporal-rift</groupId>
+            <artifactId>scoring-api</artifactId>
+            <version>${scoring-api.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.mapstruct</groupId>
+            <artifactId>mapstruct</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-kafka</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-liquibase</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.modulith</groupId>
+            <artifactId>spring-modulith-events-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.modulith</groupId>
+            <artifactId>spring-modulith-starter-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.modulith</groupId>
+            <artifactId>spring-modulith-starter-jpa</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-devtools</artifactId>
+            <scope>runtime</scope>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.modulith</groupId>
+            <artifactId>spring-modulith-starter-insight</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-kafka</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.tngtech.archunit</groupId>
+            <artifactId>archunit-junit5</artifactId>
+            <version>${archunit-junit5.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <!-- BOM 1.5.1 configures the compiler output directory globally. Keep test compilation
+                 separate so its incremental cleanup cannot remove generated main classes. -->
+            <plugin>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>default-testCompile</id>
+                        <configuration>
+                            <outputDirectory>${project.build.testOutputDirectory}</outputDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
