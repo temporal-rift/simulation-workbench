@@ -81,7 +81,7 @@ Spring Modulith application (`io.github.temporalrift.workbench`) with hexagonal 
 |---|---|
 | `experiment` | Immutable experiment freeze, idempotent creation, deterministic matrix preview |
 | `execution` | Durable real-service batches with interruption recovery (later package) |
-| `policy` | Versioned baseline bot policies (later package) |
+| `policy` | Versioned baseline bot policies |
 | `analysis` | Balance comparisons with truthful statistics and exports (later package) |
 
 `domain/` is plain Java, `application/` never depends on `infrastructure/`, and modules communicate
@@ -124,3 +124,50 @@ at 3 players, 5 at 4, 1 at 5) under `CYCLIC` rotation place every faction in eve
 policies and two variants. Ordering is stable and every coordinate carries a deterministic `caseKey`;
 the durable runner persists these keys without recomputation. No REST preview endpoint exists in the
 published boundary, so preview is a domain service covered by unit tests, not a controller.
+
+## Bot policies (W3)
+
+Two baseline policies play every normal decision window. Each decision uses one frozen
+`EntitledObservation` per seat: the seat's own faction, the visible events (printed weights, plus an exact
+weight only when the seat earned it, for example through Scan), the other participants' identifiers, and
+the open window. Observer evidence, opposing hands or credentials, and execution-control state have no
+field on the type, so they cannot influence a choice.
+
+| Bundle | Id / version | Behavior |
+|---|---|---|
+| `random-v1` | `random` / `1.0.0` | Uniform seeded draw over the canonically ordered candidates, pass or decline included |
+| `faction-greedy-v1` | `faction-greedy` / `1.0.0` | Scores each candidate as `affinity * 1000 + target lean`, then draws among the top scores with seeded entropy |
+
+A manifest references a bundle by `id`, `version`, and `artifactDigest`. The digest is the SHA-256 of the
+bundle identity and its canonical definition (for `faction-greedy-v1`, the full preference table), so a
+changed preference needs a new bundle version. The baselines accept no parameters. An unknown id/version
+or any parameter yields `INVALID_EXPERIMENT`; a wrong digest yields `MANIFEST_MISMATCH`.
+
+Windows covered: seven-to-five hand selection, declaration or decline, action rounds (every card and
+special target shape, or pass), paradox resolution (card or pass; an empty offer passes), and terminal
+readiness. Candidates are enumerated in one canonical order from published submission shapes and entitled
+state only; the services stay authoritative for legality, resolution, and scoring.
+
+**Entropy.** Each stream is derived from the policy seed, seat, window key, and rejection count under its own
+domain-separation label. Service entropy is never an input, so equal observation, version, and seed always give
+the same choice.
+
+**`faction-greedy-v1` preferences.** Each faction has an affinity per card type and special action, and a lean
+toward the highest or lowest known outcome weight (suppress-style actions by Erasers and raise-style actions by
+the others aim at the leading outcome). Activists prefer declaring over declining; reactive paradox cards rank
+by faction (for example Stabilize for Prophets and Weavers, Detonate for Erasers). Players are targeted by seeded
+tie-break only, since opponents' factions and hands are hidden.
+
+**Window procedure.** The runner implements `ParticipantGateway` over the generated participant clients and drives
+`DecisionWindowService`: every seat's observation is frozen and every choice computed before any submission, then
+submissions go out in seat order. A rejected candidate is recorded, excluded, and the seat reselects from a
+refreshed observation, up to the manifest's `maxRejectedCandidatesPerWindow`. After the budget, or when no
+candidate remains, the policy chooses an available pass or decline, or returns `POLICY_EXHAUSTED` (distinct from
+pass and decline); it never invents a legal choice. A missing acknowledgement is reconciled against accepted
+state before any retry, so an accepted action is never spent twice; a seat whose accepted state never becomes current is reported as `ReconciliationPending`
+(the runner must reconcile it before submitting again), and a seat shown not to have been spent after one
+resubmission is reported as `NotAccepted`. Either way the results of the other seats are kept.
+
+**Limitations.** Neither policy models authoritative resolution, scoring, or opponents, and terminal readiness has
+no dedicated participant operation in the pinned contracts, so the gateway maps it to the runner's continuation
+signal. Bot results characterize these baselines only and do not establish human balance.

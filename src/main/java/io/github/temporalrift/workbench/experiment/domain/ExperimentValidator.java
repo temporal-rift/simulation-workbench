@@ -9,6 +9,8 @@ import java.util.regex.Pattern;
 
 import tools.jackson.databind.JsonNode;
 
+import io.github.temporalrift.workbench.experiment.domain.port.out.PolicyReferenceVerifier;
+
 /**
  * Validates a frozen experiment manifest against the published boundary rules. Structural problems
  * yield {@code INVALID_EXPERIMENT}; malformed portable artifact references (digests, image digests,
@@ -46,7 +48,13 @@ public final class ExperimentValidator {
 
     private ExperimentValidator() {}
 
+    /** Structural validation only; policy references are not resolved against defined bundles. */
     public static ManifestView validate(JsonNode manifest) {
+        return validate(manifest, null);
+    }
+
+    /** Structural validation plus resolution of every policy reference through the verifier. */
+    public static ManifestView validate(JsonNode manifest, PolicyReferenceVerifier policyVerifier) {
         if (manifest == null || !manifest.isObject()) {
             throw invalid("manifest must be a JSON object");
         }
@@ -61,7 +69,7 @@ public final class ExperimentValidator {
         var variants = validateVariants(manifest.get("variants"));
         validateServices(manifest.get("services"));
         validateContracts(manifest.get("contracts"));
-        var policies = validatePolicies(manifest.get("policies"));
+        var policies = validatePolicies(manifest.get("policies"), policyVerifier);
         var seeds = validateSeeds(manifest.get("seeds"));
         var playerCounts = validatePlayerCounts(manifest.get("playerCounts"));
         var factionSets = validateFactionSets(manifest.get("factionSets"), playerCounts);
@@ -104,10 +112,11 @@ public final class ExperimentValidator {
         digest(text(artifact, "digest"), field + ".digest");
     }
 
-    private static void digest(String value, String field) {
+    private static String digest(String value, String field) {
         if (value == null || !SHA256.matcher(value).matches()) {
             throw mismatch(field + " must be a lowercase SHA-256 hex digest");
         }
+        return value;
     }
 
     private static void validateServices(JsonNode services) {
@@ -142,16 +151,16 @@ public final class ExperimentValidator {
         }
     }
 
-    private static List<PolicyRef> validatePolicies(JsonNode policies) {
+    private static List<PolicyRef> validatePolicies(JsonNode policies, PolicyReferenceVerifier verifier) {
         if (policies == null || !policies.isArray() || policies.isEmpty()) {
             throw invalid("policies must be a nonempty array");
         }
         var refs = new ArrayList<PolicyRef>();
-        policies.forEach(policy -> refs.add(validatePolicy(policy)));
+        policies.forEach(policy -> refs.add(validatePolicy(policy, verifier)));
         return List.copyOf(refs);
     }
 
-    private static PolicyRef validatePolicy(JsonNode policy) {
+    private static PolicyRef validatePolicy(JsonNode policy, PolicyReferenceVerifier verifier) {
         var id = text(policy, "id");
         var version = text(policy, "version");
         if (id == null || id.isBlank()) {
@@ -160,13 +169,29 @@ public final class ExperimentValidator {
         if (version == null || version.isBlank()) {
             throw invalid("policy version must be a nonempty string");
         }
-        digest(text(policy, "artifactDigest"), "policy artifactDigest");
+        var artifactDigest = digest(text(policy, "artifactDigest"), "policy artifactDigest");
         var parameters = policy.get("parameters");
         if (parameters == null || !parameters.isObject()) {
             throw invalid("policy parameters must be an object");
         }
+        if (verifier != null) {
+            verifyReference(verifier, id, version, artifactDigest, parameters.size());
+        }
         validateSeatAssignment(policy.get("seatAssignment"));
         return new PolicyRef(id, version);
+    }
+
+    private static void verifyReference(
+            PolicyReferenceVerifier verifier, String id, String version, String artifactDigest, int parameterCount) {
+        switch (verifier.verify(id, version, artifactDigest, parameterCount)) {
+            case VALID -> {
+                // The reference names a defined bundle; nothing to report.
+            }
+            case UNKNOWN_POLICY -> throw invalid("unknown policy " + id + "@" + version);
+            case UNSUPPORTED_PARAMETERS -> throw invalid("policy " + id + "@" + version + " accepts no parameters");
+            case DIGEST_MISMATCH ->
+                throw mismatch("policy " + id + "@" + version + " artifactDigest does not match the defined bundle");
+        }
     }
 
     private static void validateSeatAssignment(JsonNode seats) {

@@ -7,6 +7,9 @@ import org.junit.jupiter.api.Test;
 import tools.jackson.databind.node.ObjectNode;
 
 import io.github.temporalrift.workbench.experiment.ExperimentManifests;
+import io.github.temporalrift.workbench.experiment.domain.port.out.PolicyReferenceVerifier;
+import io.github.temporalrift.workbench.experiment.infrastructure.adapter.out.policy.PolicyReferenceVerifierAdapter;
+import io.github.temporalrift.workbench.policy.application.query.BaselinePolicyCatalog;
 
 class ExperimentValidatorTest {
 
@@ -140,5 +143,48 @@ class ExperimentValidatorTest {
                 .put("tokenizer", "risk-averse");
 
         assertThat(ExperimentValidator.validate(manifest).name()).isEqualTo("secret-hitler variant");
+    }
+
+    private static final PolicyReferenceVerifier VERIFIER =
+            new PolicyReferenceVerifierAdapter(new BaselinePolicyCatalog());
+
+    private static ObjectNode withFirstPolicy(java.util.function.Consumer<ObjectNode> edit) {
+        var manifest = (ObjectNode) ExperimentManifests.valid().deepCopy();
+        edit.accept(manifest.withArray("policies").get(0).asObject());
+        return manifest;
+    }
+
+    @Test
+    void knownBaselinePoliciesResolve() {
+        assertThat(ExperimentValidator.validate(ExperimentManifests.valid(), VERIFIER)
+                        .policies())
+                .hasSize(2);
+    }
+
+    @Test
+    void unknownPolicyIsInvalid() {
+        var manifest = withFirstPolicy(policy -> policy.put("id", "heuristic"));
+
+        assertThatThrownBy(() -> ExperimentValidator.validate(manifest, VERIFIER))
+                .isInstanceOf(ExperimentValidationException.class)
+                .matches(ex -> ((ExperimentValidationException) ex).code() == ExperimentErrorCode.INVALID_EXPERIMENT);
+    }
+
+    @Test
+    void policyDigestMismatchIsAManifestMismatch() {
+        var manifest = withFirstPolicy(policy -> policy.put("artifactDigest", "f".repeat(64)));
+
+        assertThatThrownBy(() -> ExperimentValidator.validate(manifest, VERIFIER))
+                .isInstanceOf(ExperimentValidationException.class)
+                .matches(ex -> ((ExperimentValidationException) ex).code() == ExperimentErrorCode.MANIFEST_MISMATCH);
+    }
+
+    @Test
+    void baselinePolicyWithParametersIsInvalid() {
+        var manifest = withFirstPolicy(policy -> policy.withObject("parameters").put("epsilon", 1));
+
+        assertThatThrownBy(() -> ExperimentValidator.validate(manifest, VERIFIER))
+                .isInstanceOf(ExperimentValidationException.class)
+                .matches(ex -> ((ExperimentValidationException) ex).code() == ExperimentErrorCode.INVALID_EXPERIMENT);
     }
 }
