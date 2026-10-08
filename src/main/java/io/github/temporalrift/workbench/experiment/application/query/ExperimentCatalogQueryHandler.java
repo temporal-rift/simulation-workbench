@@ -32,6 +32,7 @@ public class ExperimentCatalogQueryHandler implements ExperimentCatalog {
             var manifest = parse(stored);
             return new ExperimentBounds(
                     stored.manifestDigest(),
+                    stored.manifestJson(),
                     manifest.get("concurrency").asInt(),
                     manifest.get("caseWallTimeoutSeconds").asInt(),
                     manifest.get("maxRejectedCandidatesPerWindow").asInt());

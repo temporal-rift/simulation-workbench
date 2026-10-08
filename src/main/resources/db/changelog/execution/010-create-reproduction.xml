@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+  <changeSet id="010-create-reproduction" author="simulation-workbench">
+    <!-- A reproduction is its own attempt: it never adds a research sample to the case. -->
+    <createTable tableName="reproduction">
+      <column name="reproduction_id" type="UUID">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="attempt_id" type="UUID">
+        <constraints nullable="false" unique="true" uniqueConstraintName="uq_reproduction_attempt"/>
+      </column>
+      <column name="run_id" type="UUID">
+        <constraints nullable="false" foreignKeyName="fk_reproduction_run" references="run(run_id)"
+                     deleteCascade="true"/>
+      </column>
+      <column name="case_id" type="UUID">
+        <constraints nullable="false" foreignKeyName="fk_reproduction_case" references="run_case(case_id)"
+                     deleteCascade="true"/>
+      </column>
+      <!-- The lane that played the case: its bot identities are part of what the seats observed. -->
+      <column name="lane_id" type="VARCHAR(64)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="idempotency_key" type="UUID">
+        <constraints nullable="false" unique="true" uniqueConstraintName="uq_reproduction_key"/>
+      </column>
+      <column name="request_hash" type="VARCHAR(64)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="state" type="VARCHAR(16)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="divergence_json" type="TEXT"/>
+      <column name="failure_code" type="VARCHAR(32)"/>
+      <column name="failure_message" type="TEXT"/>
+      <column name="lease_owner" type="VARCHAR(64)"/>
+      <column name="lease_expires_at" type="TIMESTAMP WITH TIME ZONE"/>
+      <column name="created_at" type="TIMESTAMP WITH TIME ZONE">
+        <constraints nullable="false"/>
+      </column>
+      <column name="finished_at" type="TIMESTAMP WITH TIME ZONE"/>
+    </createTable>
+
+    <createIndex tableName="reproduction" indexName="reproduction_by_state_idx">
+      <column name="state"/>
+      <column name="created_at"/>
+    </createIndex>
+  </changeSet>
+
+</databaseChangeLog>

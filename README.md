@@ -80,7 +80,7 @@ Spring Modulith application (`io.github.temporalrift.workbench`) with hexagonal 
 | Module | Responsibility |
 |---|---|
 | `experiment` | Immutable experiment freeze, idempotent creation, deterministic matrix preview |
-| `execution` | Durable real-service batches: runs, cases, attempts, leases, command reconciliation, cancel and resume |
+| `execution` | Durable real-service batches: runs, cases, attempts, leases, command reconciliation, cancel and resume; retained evidence, perspective-safe replay, and exact reproduction |
 | `policy` | Versioned baseline bot policies |
 | `analysis` | Balance comparisons with truthful statistics and exports (later package) |
 
@@ -112,8 +112,9 @@ duplicate factions, bad counts/seeds, credentials or machine-local paths), `409 
 
 Retention: the frozen manifest is persisted with its full configuration/content/policy artifacts,
 seeds, faction sets, rotations, and execution bounds — never digests alone, and never credentials
-or machine-local paths. Resolved external bytes (rules bundles, policy artifacts, service images)
-land with the evidence store.
+or machine-local paths. Every case pins its exact manifest as evidence (see "Evidence, replay, and
+reproduction"). Resolved external bytes (rules bundles, policy artifacts, service images) are not
+retained by the runner.
 
 ## Cohort-matrix preview
 
@@ -138,9 +139,10 @@ original run; the same key for another experiment returns `409 IDEMPOTENCY_CONFL
 | `GET /api/v1/runs/{runId}/cases/{caseId}` | The logical case, every attempt, and the reconciled result |
 | `POST /api/v1/runs/{runId}/cancel` | `202` on the first accepted cancel, `200` once the run is already terminal |
 | `POST /api/v1/runs/{runId}/resume` | `202`, legal only from `INTERRUPTED`; any other state returns `409 INVALID_RUN_STATE` |
+| `GET /api/v1/runs/{runId}/cases/{caseId}/replay` | One page of the retained evidence of a case from a player's or the observer's perspective |
+| `POST /api/v1/runs/{runId}/cases/{caseId}/reproductions` | `202`; executes the pinned case again in a clean lane (see below) |
 
-The report, replay, and reproduction operations of the same boundary answer `501 NOT_IMPLEMENTED` until they are
-delivered.
+The report operation of the same boundary answers `501 NOT_IMPLEMENTED` until it is delivered.
 
 ### States
 
@@ -239,6 +241,104 @@ execute against a database.
 **Limitations.** A lobby whose creation response was lost cannot be found again, so that attempt fails and is
 retried on a clean lane. Lane provisioning, cleanup, and image attestation belong to the deployment that owns the
 lanes; the runner detects a case or manifest mismatch but does not provision anything.
+
+## Evidence, replay, and reproduction
+
+### What a case retains
+
+Every game a case plays is retained, including the ones that failed or were abandoned and replaced. Evidence is
+never erased and is kept per game, so a failed attempt stays on record next to the game that counted. For each game:
+
+| Evidence | Content |
+|---|---|
+| Steps | Every command a seat sent, in the order sent: the entitled observation it decided from, the canonical decision, the answer of the service (`ACCEPTED`, `REJECTED` with its code, `UNACKNOWLEDGED` until accepted state resolves it, `NOT_SPENT`), the logical time, and the policy entropy coordinates (stream, policy seed, seat, window, and the draw index, which counts the rejections that preceded it) |
+| Raw events | Every event the game published on the `game.events` and `timeline.events` topics of its lane, with its headers (event type, identifier, aggregate, occurrence time, version) and the payload exactly as delivered |
+| Source offsets | The next offset to read for each topic partition; it only moves forward |
+| Pinned artifacts | The exact manifest the case ran under and, once the case succeeds, its accepted decision transcript and semantic digest |
+
+Raw events are deduplicated by **source and event identifier**: a score or any other event delivered three times is
+one logical event, so it can never inflate a count. The same identifier on another topic is another event. Partition
+and offset locate a record inside its own source only; no order across topics is ever inferred or invented.
+
+A case is complete only when the participant result, the scoring operation, and the published `GameEnded` event agree
+on the end reason and every final score. If `GameEnded` or the final scores arrive late, the case stays running and is
+read as incomplete; it is never recorded as a zero-score game.
+
+Pinned artifacts live in a content-addressed store: each is addressed by the SHA-256 of its bytes and verified again on
+every read. The store is protected: nothing in it is served directly, and only an authorized observer replay shows raw
+events. Evidence never contains credentials.
+
+### Replay
+
+`GET /api/v1/runs/{runId}/cases/{caseId}/replay` pages through the evidence of the game that counts for the case: the
+game of the succeeded attempt, or the latest game while the case is unfinished.
+
+- `perspective=PLAYER&seatIndex=n` returns only the steps of that seat. Each step carries just the observation the seat
+  was entitled to at that moment, so an opponent's hidden hand, hidden faction, and information the seat has not yet
+  earned are absent by construction, and exact weights appear only from the step at which the seat earned them.
+- `perspective=OBSERVER` additionally requires `simulation:observe` (`403 INSUFFICIENT_SCOPE` otherwise), forbids
+  `seatIndex`, and shows the steps of every seat followed by the raw events (phase `EVENT`), listed per source in
+  offset order. It is research data only and is never an input to a policy.
+- A `PLAYER` request without a valid `seatIndex`, or an `OBSERVER` request with one, is `400
+  INVALID_REPLAY_PERSPECTIVE`.
+
+`step` is stable across pages. `afterStep` is the last step already read (omit it to start at the beginning), `limit`
+caps the page, and `nextStep`, present when more remains, is the `afterStep` that continues the replay. Steps are
+numbered from 0; a `PLAYER` replay skips the numbers that belong to other seats.
+
+### Reproduction
+
+`POST /api/v1/runs/{runId}/cases/{caseId}/reproductions` requests an exact reproduction of a succeeded case and returns
+`202` with a `Reproduction` in state `QUEUED`. A worker then executes the pinned manifest and the accepted decision
+transcript in a clean lane, deciding in every window exactly what the transcript accepted. The reproduction has its own
+`reproductionId` and `attemptId`, keeps its own transcript and evidence, and never adds a research sample: the case keeps
+its single result and its attempts unchanged. Repeating a request with the same `Idempotency-Key` returns the same
+reproduction in whatever state it has reached, which is how its outcome is read; the same key for another case is
+`409 IDEMPOTENCY_CONFLICT`.
+
+| State | Meaning |
+|---|---|
+| `QUEUED`, `RUNNING` | Waiting for a free lane, or executing under a renewable lease. A restart or an expired lease queues it again |
+| `MATCH` | The semantic setup, every accepted decision with the observation it was made from, the outcome, the scoring, and the result digest equal those of the saved case |
+| `DIVERGED` | It ran and differed. `firstDivergence` carries the step of the saved case, the `kind`, and the `expected` and `actual` values |
+| `FAILED` | It could not reach an ending (lane unavailable, timeout, contract or configuration mismatch); it says nothing about the case |
+
+Divergence kinds: `OBSERVATION`, `DECISION`, and `WINDOW` (another seat or window at that step), `MISSING_STEP` and
+`UNEXPECTED_STEP` (the reproduction stopped early or went on), `UNEXPECTED_WINDOW` (a window the transcript has no
+decision for), `COMMAND_REJECTED` (the service now refuses a transcript decision; no other choice is substituted), and,
+after the last step, `END_REASON`, `WINNERS`, `FINAL_SCORES`, `ERAS`, `SEMANTIC_DIGEST`. Only accepted commands are
+compared: rejections and lost acknowledgements are transport history and do not change what the game accepted.
+Transport identifiers, timestamps, and offsets are excluded from the comparison but stay inspectable in the evidence.
+
+A reproduction is requested only against intact pinned artifacts. A case with no saved result or transcript, an artifact
+that is missing or no longer matches its content address, or a frozen manifest that differs from the one the case ran
+under returns `409 MANIFEST_MISMATCH` and creates nothing. A changed rules variant is a comparison, not an exact
+reproduction.
+
+A reproduction runs on the lane that played the case, because the bot identities of a lane are part of what the seats
+observe and decide on. It waits, queued, while that lane is busy, shares the worker pool, and is taken after pending
+cases. Because it reuses the logical identities of the original case, that lane must be clean, as for any case. A
+reproduction whose lane is no longer configured stays queued.
+
+### Export
+
+Evidence is exported through the replay operation: an authorized `OBSERVER` replay is the complete record of a game
+(steps, then raw events with their source, partition, offset, and payload), paged and without credentials. Reports and
+their CSV/JSON exports are a separate package.
+
+### Lane event topics
+
+The observer reads each lane from its own event topics, `game.events` and `timeline.events` by default, using the
+workbench Kafka client settings. A lane that publishes elsewhere sets them next to its URLs:
+
+```yaml
+workbench:
+  execution:
+    lanes:
+      - id: lane-1
+        game-events-topic: lane-1.game.events
+        timeline-events-topic: lane-1.timeline.events
+```
 
 ## Bot policies
 

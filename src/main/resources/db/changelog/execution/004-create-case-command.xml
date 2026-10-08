@@ -6,11 +6,12 @@
             https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
 
   <changeSet id="004-create-case-command" author="simulation-workbench">
-    <!-- One row per decision slot of a case; the accepted rows are the case's decision transcript. -->
+    <!-- One row per decision slot of a case; the accepted rows are the case's decision transcript.
+         case_id is the transcript scope: a logical case, or a reproduction of it, which keeps its own
+         transcript beside the original. -->
     <createTable tableName="case_command">
       <column name="case_id" type="UUID">
-        <constraints nullable="false" foreignKeyName="fk_command_case" references="run_case(case_id)"
-                     deleteCascade="true"/>
+        <constraints nullable="false"/>
       </column>
       <column name="seat_index" type="INTEGER">
         <constraints nullable="false"/>

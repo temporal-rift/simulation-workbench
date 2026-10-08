@@ -8,6 +8,9 @@ public sealed interface DecisionWindow {
     /** Stable identifier of the window, used to separate policy entropy streams. */
     String key();
 
+    /** The era the window belongs to. */
+    int era();
+
     /** Choose {@code keepCount} cards from the dealt hand. */
     record HandSelection(int era, List<DealtCard> deal, int keepCount) implements DecisionWindow {
         public HandSelection {

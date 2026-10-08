@@ -14,12 +14,14 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.port.out.CommandLedger;
+import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
 import io.github.temporalrift.workbench.execution.domain.port.out.GameSession;
 import io.github.temporalrift.workbench.execution.domain.port.out.LaneProvider;
 import io.github.temporalrift.workbench.execution.domain.run.EndReason;
 import io.github.temporalrift.workbench.execution.domain.run.FinalScore;
 import io.github.temporalrift.workbench.execution.domain.run.WinType;
 import io.github.temporalrift.workbench.execution.domain.run.Winner;
+import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
 
 /**
  * In-process lanes that host scripted games. A game keeps its state per game id across attempts, exactly
@@ -43,23 +45,41 @@ public class ScriptedLanes implements LaneProvider {
         default boolean loseAcknowledgement(CaseLane.CaseContext context, int seatIndex) {
             return false;
         }
+
+        /** Lets a test change what a seat observes, for example to model a rules drift. */
+        default EntitledObservation observation(CaseLane.CaseContext context, EntitledObservation observation) {
+            return observation;
+        }
+
+        /** A refusal code the service answers a seat's command with, or null to accept it. */
+        default String rejection(CaseLane.CaseContext context, int seatIndex) {
+            return null;
+        }
+
+        /** Whether the ending and final scores are published yet; a test may hold them back. */
+        default boolean endingPublished(CaseLane.CaseContext context) {
+            return true;
+        }
     }
 
     private static final Script DECISIVE = ScriptedLanes::decisive;
 
     private final CommandLedger ledger;
+    private final EvidenceLedger evidence;
     private final Clock clock;
     private final int laneCount;
     private final Set<String> busy = new HashSet<>();
     private final Map<UUID, FakeGame.State> games = new ConcurrentHashMap<>();
+    private final Map<UUID, UUID> gameByCaseKey = new ConcurrentHashMap<>();
     private final List<Opened> opened = Collections.synchronizedList(new ArrayList<>());
     private volatile Script script = DECISIVE;
 
     /** One call to open a game on a lane. */
-    public record Opened(UUID caseKey, UUID attemptId, UUID resumeGameId, UUID gameId) {}
+    public record Opened(UUID caseKey, UUID attemptId, UUID resumeGameId, UUID gameId, String laneId) {}
 
-    public ScriptedLanes(CommandLedger ledger, Clock clock, int laneCount) {
+    public ScriptedLanes(CommandLedger ledger, EvidenceLedger evidence, Clock clock, int laneCount) {
         this.ledger = ledger;
+        this.evidence = evidence;
         this.clock = clock;
         this.laneCount = laneCount;
     }
@@ -68,9 +88,15 @@ public class ScriptedLanes implements LaneProvider {
         this.script = next;
     }
 
+    /** Drops every hosted game, as a lane that was reprovisioned between two attempts would. */
+    public void forgetGames() {
+        games.clear();
+    }
+
     public void reset() {
         script = DECISIVE;
         games.clear();
+        gameByCaseKey.clear();
         opened.clear();
     }
 
@@ -82,7 +108,8 @@ public class ScriptedLanes implements LaneProvider {
 
     /** How many decision submissions reached the service for the case, across every attempt. */
     public int submissionsFor(UUID caseKey) {
-        var state = games.get(gameId(caseKey));
+        var gameId = gameByCaseKey.get(caseKey);
+        var state = gameId == null ? null : games.get(gameId);
         return state == null ? 0 : state.submissions.get();
     }
 
@@ -98,6 +125,28 @@ public class ScriptedLanes implements LaneProvider {
     }
 
     @Override
+    public synchronized Optional<CaseLane> acquireExactly(String laneId) {
+        for (var index = 0; index < laneCount; index++) {
+            var id = "lane-" + index;
+            if (id.equals(laneId) && busy.add(id)) {
+                return Optional.of(new ScriptedLane(id));
+            }
+        }
+        return Optional.empty();
+    }
+
+    @Override
+    public synchronized Set<String> freeLaneIds() {
+        var free = new HashSet<String>();
+        for (var index = 0; index < laneCount; index++) {
+            if (!busy.contains("lane-" + index)) {
+                free.add("lane-" + index);
+            }
+        }
+        return free;
+    }
+
+    @Override
     public synchronized boolean hasFreeLane() {
         return busy.size() < laneCount;
     }
@@ -106,8 +155,9 @@ public class ScriptedLanes implements LaneProvider {
         busy.remove(laneId);
     }
 
-    static UUID gameId(UUID caseKey) {
-        return UUID.nameUUIDFromBytes(("game|" + caseKey).getBytes(StandardCharsets.UTF_8));
+    /** A fresh game gets its own identity, as on a real lane, so a reproduction never reuses the original's. */
+    static UUID gameId(UUID caseKey, UUID attemptId) {
+        return UUID.nameUUIDFromBytes(("game|" + caseKey + "|" + attemptId).getBytes(StandardCharsets.UTF_8));
     }
 
     /** A decisive game: seat 0 wins on score, every seat has a distinct score. */
@@ -147,14 +197,15 @@ public class ScriptedLanes implements LaneProvider {
         @Override
         public GameSession open(CaseContext context, UUID resumeGameId) {
             script.onOpen(context);
-            var gameId = ScriptedLanes.gameId(context.caseKey());
-            opened.add(new Opened(context.caseKey(), context.attemptId(), resumeGameId, gameId));
-            var attach = resumeGameId != null && games.containsKey(gameId);
+            var attach = resumeGameId != null && games.containsKey(resumeGameId);
+            var gameId = attach ? resumeGameId : gameId(context.caseKey(), context.attemptId());
+            opened.add(new Opened(context.caseKey(), context.attemptId(), resumeGameId, gameId, laneId));
             if (!attach) {
                 games.put(gameId, new FakeGame.State());
+                gameByCaseKey.put(context.caseKey(), gameId);
                 ledger.reset(context.caseId());
             }
-            var game = new FakeGame(context, gameId, games.get(gameId), script, ledger, clock);
+            var game = new FakeGame(context, gameId, games.get(gameId), script, ledger, evidence, clock);
             if (attach) {
                 game.recoverInDoubt();
             }

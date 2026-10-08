@@ -3,9 +3,13 @@ package io.github.temporalrift.workbench.execution.infrastructure.adapter.in.res
 import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.github.temporalrift.workbench.execution.application.port.in.GetCaseReplayUseCase;
 import io.github.temporalrift.workbench.execution.application.port.in.GetCaseUseCase;
+import io.github.temporalrift.workbench.execution.application.port.in.ReproduceCaseUseCase;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.CasesApi;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ModelCase;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Replay;
@@ -15,10 +19,17 @@ import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1
 @RestController
 class CaseController implements CasesApi {
 
-    private final GetCaseUseCase getCase;
+    private static final int DEFAULT_LIMIT = 100;
+    private static final String OBSERVE_AUTHORITY = "SCOPE_simulation:observe";
 
-    CaseController(GetCaseUseCase getCase) {
+    private final GetCaseUseCase getCase;
+    private final GetCaseReplayUseCase getCaseReplay;
+    private final ReproduceCaseUseCase reproduceCase;
+
+    CaseController(GetCaseUseCase getCase, GetCaseReplayUseCase getCaseReplay, ReproduceCaseUseCase reproduceCase) {
         this.getCase = getCase;
+        this.getCaseReplay = getCaseReplay;
+        this.reproduceCase = reproduceCase;
     }
 
     @Override
@@ -34,11 +45,33 @@ class CaseController implements CasesApi {
             Integer seatIndex,
             Integer afterStep,
             Integer limit) {
-        throw new OperationNotAvailableException("getCaseReplay");
+        if (perspective == ReplayPerspective.OBSERVER) {
+            requireObserveScope();
+        }
+        var page = getCaseReplay.handle(new GetCaseReplayUseCase.Query(
+                runId,
+                caseId,
+                GetCaseReplayUseCase.Perspective.valueOf(perspective.name()),
+                seatIndex,
+                afterStep,
+                limit == null ? DEFAULT_LIMIT : limit));
+        return ResponseEntity.ok(ReplayApiMapper.toApi(page));
     }
 
     @Override
     public ResponseEntity<Reproduction> reproduceCase(UUID runId, UUID caseId, UUID idempotencyKey) {
-        throw new OperationNotAvailableException("reproduceCase");
+        var reproduction = reproduceCase.handle(new ReproduceCaseUseCase.Command(runId, caseId, idempotencyKey));
+        return ResponseEntity.accepted().body(ReplayApiMapper.toApi(reproduction));
+    }
+
+    /** Observer evidence is a separate entitlement from reading cases. */
+    private static void requireObserveScope() {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        var entitled = authentication != null
+                && authentication.getAuthorities().stream()
+                        .anyMatch(authority -> OBSERVE_AUTHORITY.equals(authority.getAuthority()));
+        if (!entitled) {
+            throw new AccessDeniedException("An OBSERVER replay requires the simulation:observe scope");
+        }
     }
 }

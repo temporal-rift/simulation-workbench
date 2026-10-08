@@ -1,9 +1,12 @@
 package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane;
 
 import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.springframework.web.client.RestClientException;
@@ -11,6 +14,8 @@ import org.springframework.web.client.RestClientResponseException;
 
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.port.out.CommandLedger;
+import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
+import io.github.temporalrift.workbench.execution.domain.port.out.GameEventObserver;
 import io.github.temporalrift.workbench.execution.domain.port.out.GameSession;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
 import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
@@ -34,10 +39,15 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 public class HttpCaseLane implements CaseLane {
 
     private static final int START_RECONCILE_POLLS = 5;
+    /** Allowance for the difference between this clock and the producers' record timestamps. */
+    private static final Duration CLOCK_SKEW = Duration.ofMinutes(1);
 
     private final LaneEndpoints lane;
     private final ApiClients clients;
     private final CommandLedger ledger;
+    private final EvidenceLedger evidence;
+    private final GameEventObservers observers;
+    private final List<GameEventObserver> opened = new CopyOnWriteArrayList<>();
     private final Clock clock;
     private final LaneEndpoints.Barrier barrier;
     private final Sleeper sleeper;
@@ -46,14 +56,16 @@ public class HttpCaseLane implements CaseLane {
     public HttpCaseLane(
             LaneEndpoints lane,
             ApiClients clients,
-            CommandLedger ledger,
+            LaneServices services,
             Clock clock,
             LaneEndpoints.Barrier barrier,
             Sleeper sleeper,
             Runnable release) {
         this.lane = lane;
         this.clients = clients;
-        this.ledger = ledger;
+        this.ledger = services.commands();
+        this.evidence = services.evidence();
+        this.observers = services.observers();
         this.clock = clock;
         this.barrier = barrier;
         this.sleeper = sleeper;
@@ -78,20 +90,26 @@ public class HttpCaseLane implements CaseLane {
                 clients.create(SimulationExecutionApi.class, lane.timelineServiceUrl(), lane.operatorToken());
         var participants = participants(context);
         if (resumeGameId != null && hostsGame(gameControl, context, resumeGameId)) {
-            var attached = session(context, resumeGameId, gameControl, timelineControl, participants);
+            var attached = session(context, resumeGameId, gameControl, timelineControl, participants, null);
             attached.recoverInDoubt();
             return attached.session();
         }
         // A new game: the slots of any abandoned game must neither block nor appear in this transcript.
         ledger.reset(context.caseId());
+        var since = clock.instant().minus(CLOCK_SKEW);
         var gameId = startGame(context, gameControl, timelineControl);
-        return session(context, gameId, gameControl, timelineControl, participants)
+        return session(context, gameId, gameControl, timelineControl, participants, since)
                 .session();
     }
 
     @Override
     public void close() {
-        release.run();
+        try {
+            opened.forEach(GameEventObserver::close);
+            opened.clear();
+        } finally {
+            release.run();
+        }
     }
 
     /** A game session with its durable gateway; recovery of in-doubt slots needs both. */
@@ -110,21 +128,32 @@ public class HttpCaseLane implements CaseLane {
             UUID gameId,
             SimulationExecutionApi gameControl,
             SimulationExecutionApi timelineControl,
-            List<HttpParticipantGateway.Participant> participants) {
+            List<HttpParticipantGateway.Participant> participants,
+            Instant since) {
         var scoring = clients.create(
                 ScoringApi.class, lane.gameServiceUrl(), lane.bots().getFirst().token());
         var sessionRef = new AtomicReference<HttpGameSession>();
         var raw = new HttpParticipantGateway(
                 gameId, participants, () -> sessionRef.get().isSettled());
-        var durable = new LedgerParticipantGateway(raw, raw, ledger, context.caseId(), context.attemptId(), clock);
+        var recorder = new StepRecorder(
+                evidence,
+                context.caseId(),
+                gameId,
+                context.attemptId(),
+                context.seed(),
+                () -> sessionRef.get().logicalTime());
+        var durable =
+                new LedgerParticipantGateway(raw, raw, ledger, recorder, context.caseId(), context.attemptId(), clock);
+        var events = observers.open(lane, context.caseId(), context.attemptId(), gameId, since);
+        opened.add(events);
         var session = new HttpGameSession(
                 context,
                 new HttpGameSession.ServiceControls(gameControl, timelineControl),
                 raw,
                 durable,
                 scoring,
-                barrier,
-                sleeper);
+                new HttpGameSession.Pacing(barrier, sleeper),
+                events);
         sessionRef.set(session);
         return new Attached(session, durable);
     }

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+  <changeSet id="007-create-case-evidence" author="simulation-workbench">
+    <!-- What a scope (a logical case or a reproduction of it) is pinned to; sealed when its game finishes. -->
+    <createTable tableName="case_evidence">
+      <column name="scope_id" type="UUID">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="manifest_digest" type="VARCHAR(64)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="manifest_artifact" type="VARCHAR(64)">
+        <constraints nullable="false" foreignKeyName="fk_evidence_manifest" references="evidence_artifact(digest)"/>
+      </column>
+      <column name="transcript_artifact" type="VARCHAR(64)">
+        <constraints foreignKeyName="fk_evidence_transcript" references="evidence_artifact(digest)"/>
+      </column>
+      <column name="result_digest" type="VARCHAR(64)"/>
+      <column name="created_at" type="TIMESTAMP WITH TIME ZONE">
+        <constraints nullable="false"/>
+      </column>
+      <column name="sealed_at" type="TIMESTAMP WITH TIME ZONE"/>
+    </createTable>
+  </changeSet>
+
+</databaseChangeLog>

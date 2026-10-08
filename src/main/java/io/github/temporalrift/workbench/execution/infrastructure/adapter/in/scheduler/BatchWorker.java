@@ -12,10 +12,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.SmartLifecycle;
 
 import io.github.temporalrift.workbench.execution.application.port.in.RunBatchUseCase;
+import io.github.temporalrift.workbench.execution.application.port.in.RunReproductionUseCase;
 
 /**
  * Drives the runner: on start it interrupts whatever a previous process left running, then keeps one
- * maintenance loop and a pool of case workers going. On stop it interrupts the attempts it still holds so
+ * maintenance loop and a pool of workers going, each taking the next pending case or else the next queued
+ * reproduction. On stop it interrupts the attempts it still holds so
  * the designer can resume them.
  */
 public class BatchWorker implements SmartLifecycle {
@@ -24,14 +26,17 @@ public class BatchWorker implements SmartLifecycle {
     private static final Duration SHUTDOWN_WAIT = Duration.ofSeconds(10);
 
     private final RunBatchUseCase batch;
+    private final RunReproductionUseCase reproductions;
     private final int workers;
     private final Duration pollInterval;
     private final String owner = "workbench-" + UUID.randomUUID();
     private final AtomicBoolean running = new AtomicBoolean();
     private final List<Thread> threads = new ArrayList<>();
 
-    public BatchWorker(RunBatchUseCase batch, int workers, Duration pollInterval) {
+    public BatchWorker(
+            RunBatchUseCase batch, RunReproductionUseCase reproductions, int workers, Duration pollInterval) {
         this.batch = batch;
+        this.reproductions = reproductions;
         this.workers = workers;
         this.pollInterval = pollInterval;
     }
@@ -42,10 +47,14 @@ public class BatchWorker implements SmartLifecycle {
             return;
         }
         batch.recoverAfterRestart();
-        threads.add(loop("maintenance", batch::maintain));
+        reproductions.recoverAfterRestart();
+        threads.add(loop("maintenance", () -> {
+            batch.maintain();
+            reproductions.maintain();
+        }));
         for (var worker = 0; worker < workers; worker++) {
             threads.add(loop("case-worker-" + worker, () -> {
-                if (!batch.runNextCase(owner)) {
+                if (!batch.runNextCase(owner) && !reproductions.runNext(owner)) {
                     pause();
                 }
             }));
@@ -69,6 +78,7 @@ public class BatchWorker implements SmartLifecycle {
         }
         threads.clear();
         batch.shutdown(owner);
+        reproductions.shutdown(owner);
     }
 
     @Override

@@ -46,6 +46,8 @@ public record ExecutionProperties(
             String timelineServiceUrl,
             String readServiceUrl,
             String operatorToken,
+            @DefaultValue("game.events") String gameEventsTopic,
+            @DefaultValue("timeline.events") String timelineEventsTopic,
             @DefaultValue List<Bot> bots) {
 
         @Override

@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Primary;
 
 import io.github.temporalrift.workbench.execution.application.command.ExecutionSettings;
 import io.github.temporalrift.workbench.execution.domain.port.out.CommandLedger;
+import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
 import io.github.temporalrift.workbench.execution.support.ScriptedLanes;
 
 /** Replaces the real lanes with scripted in-process games so runs execute without any deployed service. */
@@ -18,8 +19,8 @@ public class ExecutionTestConfiguration {
 
     @Bean
     @Primary
-    ScriptedLanes scriptedLanes(CommandLedger ledger, Clock clock) {
-        return new ScriptedLanes(ledger, clock, 2);
+    ScriptedLanes scriptedLanes(CommandLedger ledger, EvidenceLedger evidence, Clock clock) {
+        return new ScriptedLanes(ledger, evidence, clock, 2);
     }
 
     /** A heartbeat of one millisecond makes every checkpoint renew the lease and look for cancellation. */

@@ -9,13 +9,15 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import io.github.temporalrift.workbench.execution.support.InMemoryCommandLedger;
+import io.github.temporalrift.workbench.execution.support.InMemoryEvidenceLedger;
+import io.github.temporalrift.workbench.execution.support.StubEventObserver;
 
 class ConfiguredLanePoolTest {
 
     private final ConfiguredLanePool pool = new ConfiguredLanePool(
             List.of(lane("a"), lane("b")),
             new RestApiClients(Duration.ofSeconds(1), Duration.ofSeconds(1)),
-            new InMemoryCommandLedger(),
+            services(),
             Clock.systemUTC(),
             new LaneEndpoints.Barrier(Duration.ZERO, 1, 1),
             _ -> {});
@@ -44,6 +46,20 @@ class ConfiguredLanePoolTest {
     }
 
     @Test
+    void aReproductionAcquiresExactlyTheLaneThatPlayedTheCaseOrNothing() {
+        assertThat(pool.freeLaneIds()).containsExactlyInAnyOrder("a", "b");
+        var exact = pool.acquireExactly("b").orElseThrow();
+
+        assertThat(exact.laneId()).isEqualTo("b");
+        assertThat(pool.acquireExactly("b")).isEmpty();
+        assertThat(pool.freeLaneIds()).containsExactly("a");
+        assertThat(pool.acquireExactly("unknown")).isEmpty();
+
+        exact.close();
+        assertThat(pool.freeLaneIds()).containsExactlyInAnyOrder("a", "b");
+    }
+
+    @Test
     void aLaneWithNoFreeCapacityIsNeverOverCommitted() {
         pool.acquire(null).orElseThrow();
         pool.acquire(null).orElseThrow();
@@ -56,7 +72,7 @@ class ConfiguredLanePoolTest {
         var empty = new ConfiguredLanePool(
                 List.of(),
                 new RestApiClients(Duration.ofSeconds(1), Duration.ofSeconds(1)),
-                new InMemoryCommandLedger(),
+                services(),
                 Clock.systemUTC(),
                 new LaneEndpoints.Barrier(Duration.ZERO, 1, 1),
                 _ -> {});
@@ -65,7 +81,20 @@ class ConfiguredLanePoolTest {
         assertThat(empty.acquire(null)).isEmpty();
     }
 
+    private static LaneServices services() {
+        return new LaneServices(
+                new InMemoryCommandLedger(), new InMemoryEvidenceLedger(), (_, _, _, _, _) -> new StubEventObserver());
+    }
+
     private static LaneEndpoints lane(String id) {
-        return new LaneEndpoints(id, "http://game", "http://timeline", "http://read", "operator", List.of());
+        return new LaneEndpoints(
+                id,
+                "http://game",
+                "http://timeline",
+                "http://read",
+                "operator",
+                "game.events",
+                "timeline.events",
+                List.of());
     }
 }

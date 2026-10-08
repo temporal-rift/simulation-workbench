@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+  <changeSet id="008-create-evidence-step" author="simulation-workbench">
+    <!-- One row per command a seat sent, in order, per game. Failed and abandoned games stay on record. -->
+    <createTable tableName="evidence_step">
+      <column name="scope_id" type="UUID">
+        <constraints nullable="false"/>
+      </column>
+      <column name="game_id" type="UUID">
+        <constraints nullable="false"/>
+      </column>
+      <column name="step" type="INTEGER">
+        <constraints nullable="false"/>
+      </column>
+      <column name="attempt_id" type="UUID">
+        <constraints nullable="false"/>
+      </column>
+      <column name="seat_index" type="INTEGER">
+        <constraints nullable="false"/>
+      </column>
+      <column name="window_key" type="VARCHAR(100)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="phase" type="VARCHAR(40)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="era" type="INTEGER"/>
+      <column name="round" type="INTEGER"/>
+      <column name="logical_time" type="TIMESTAMP WITH TIME ZONE">
+        <constraints nullable="false"/>
+      </column>
+      <column name="observation" type="TEXT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="decision" type="TEXT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="outcome" type="VARCHAR(16)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="outcome_code" type="VARCHAR(64)"/>
+      <column name="entropy" type="TEXT"/>
+      <column name="recorded_at" type="TIMESTAMP WITH TIME ZONE">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <addPrimaryKey tableName="evidence_step" columnNames="scope_id, game_id, step"
+                   constraintName="pk_evidence_step"/>
+  </changeSet>
+
+</databaseChangeLog>

@@ -31,6 +31,7 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.ResourceAccessException;
 
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
+import io.github.temporalrift.workbench.execution.domain.port.out.GameEventObserver;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
 import io.github.temporalrift.workbench.execution.domain.run.EndReason;
 import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
@@ -53,6 +54,7 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.scoring.ScoringApi;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.scoring.model.PlayerScore;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.scoring.model.ScoresResponse;
+import io.github.temporalrift.workbench.execution.support.StubEventObserver;
 
 class HttpGameSessionTest {
 
@@ -68,6 +70,7 @@ class HttpGameSessionTest {
     private final SimulationExecutionApi timelineControl = mock(SimulationExecutionApi.class);
     private final ScoringApi scoring = mock(ScoringApi.class);
     private final AtomicInteger sleeps = new AtomicInteger();
+    private final StubEventObserver events = new StubEventObserver();
     private HttpGameSession session;
 
     @BeforeEach
@@ -90,8 +93,9 @@ class HttpGameSessionTest {
                 gateway,
                 gateway,
                 scoring,
-                new LaneEndpoints.Barrier(Duration.ZERO, 2, 3),
-                _ -> sleeps.incrementAndGet());
+                new HttpGameSession.Pacing(
+                        new LaneEndpoints.Barrier(Duration.ZERO, 2, 3), _ -> sleeps.incrementAndGet()),
+                events);
         checkpoints(true, null);
     }
 
@@ -313,6 +317,46 @@ class HttpGameSessionTest {
     }
 
     @Test
+    void aGameEndedFactThatHasNotBeenObservedYetKeepsTheCaseIncompleteInsteadOfScoringZero() {
+        endGame(GameResult.EndReasonEnum.WIN_CONDITION_MET, List.of(0), 3, 30, 20, 10);
+        events.gameEnded(null);
+        when(scoring.getScores(GAME)).thenReturn(ResponseEntity.ok(scores(30, 20, 10)));
+
+        assertThat(session.ending()).isEmpty();
+
+        published("WIN_CONDITION_MET", 30, 20, 10);
+        assertThat(session.ending()).isPresent();
+    }
+
+    @Test
+    void aGameEndedFactThatDisagreesWithTheParticipantResultKeepsTheEndingOpen() {
+        endGame(GameResult.EndReasonEnum.WIN_CONDITION_MET, List.of(0), 3, 30, 20, 10);
+        when(scoring.getScores(GAME)).thenReturn(ResponseEntity.ok(scores(30, 20, 10)));
+
+        published("WIN_CONDITION_MET", 30, 20, 0);
+        assertThat(session.ending()).isEmpty();
+
+        published("TIMELINE_COLLAPSED", 30, 20, 10);
+        assertThat(session.ending()).isEmpty();
+    }
+
+    @Test
+    void anObserverThatHasNotReachedTheEndOfItsSourcesKeepsTheGameUnsettled() {
+        events.caughtUp(false);
+
+        assertThat(session.isSettled()).isFalse();
+        assertThat(session.poll()).isInstanceOf(GameProgress.Waiting.class);
+
+        events.caughtUp(true);
+        assertThat(session.awaitSettled()).isTrue();
+    }
+
+    @Test
+    void theLogicalTimeComesFromTheGameServiceCheckpoint() {
+        assertThat(session.logicalTime()).isEqualTo(EPOCH.toInstant());
+    }
+
+    @Test
     void resultsThatDifferBetweenSeatsAreNotAuthoritativeYet() {
         endGame(GameResult.EndReasonEnum.WIN_CONDITION_MET, List.of(0), 3, 30, 20, 10);
         states.get(2).getResult().setWinners(List.of(winner(1)));
@@ -366,6 +410,13 @@ class HttpGameSessionTest {
                     GameResult.RevealBoundaryEnum.FACTIONS_AND_SCORES_PUBLIC));
             setState(seat, state);
         }
+        published(reason.name(), first, second, third);
+    }
+
+    /** The GameEnded fact the observer retained from the broker. */
+    private void published(String reason, int first, int second, int third) {
+        events.gameEnded(
+                new GameEventObserver.GameEnded(reason, Map.of(player(0), first, player(1), second, player(2), third)));
     }
 
     private static GameWinner winner(int seat) {

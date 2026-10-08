@@ -12,9 +12,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.port.out.CommandLedger;
+import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
 import io.github.temporalrift.workbench.execution.domain.port.out.GameSession;
 import io.github.temporalrift.workbench.execution.domain.run.GameProgress;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LedgerParticipantGateway;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.StepRecorder;
 import io.github.temporalrift.workbench.policy.domain.decision.Candidate;
 import io.github.temporalrift.workbench.policy.domain.decision.Reconciliation;
 import io.github.temporalrift.workbench.policy.domain.decision.SubmissionOutcome;
@@ -54,6 +56,7 @@ public class FakeGame implements GameSession {
             State state,
             ScriptedLanes.Script script,
             CommandLedger ledger,
+            EvidenceLedger evidence,
             Clock clock) {
         this.context = context;
         this.gameId = gameId;
@@ -63,6 +66,8 @@ public class FakeGame implements GameSession {
                 new Seats(),
                 (seatIndex, windowKey) -> Optional.of(state.accepted.containsKey(seatIndex)),
                 ledger,
+                new StepRecorder(
+                        evidence, context.caseId(), gameId, context.attemptId(), context.seed(), context::logicalEpoch),
                 context.caseId(),
                 context.attemptId(),
                 clock);
@@ -108,7 +113,10 @@ public class FakeGame implements GameSession {
 
     @Override
     public Optional<AuthoritativeEnding> ending() {
-        return undecided().isEmpty() ? Optional.of(script.ending(context)) : Optional.empty();
+        if (!undecided().isEmpty() || !script.endingPublished(context)) {
+            return Optional.empty();
+        }
+        return Optional.of(script.ending(context));
     }
 
     private final class Seats implements ParticipantGateway {
@@ -119,13 +127,18 @@ public class FakeGame implements GameSession {
             var window = state.accepted.containsKey(seatIndex)
                     ? new DecisionWindow.TerminalReadiness(1)
                     : new DecisionWindow.HandSelection(1, deal(seatIndex), 5);
-            return new EntitledObservation(seatIndex, faction, events(), others(seatIndex), window);
+            return script.observation(
+                    context, new EntitledObservation(seatIndex, faction, events(), others(seatIndex), window));
         }
 
         @Override
         public SubmissionOutcome submit(int seatIndex, Candidate candidate) {
             if (candidate instanceof Candidate.ConfirmReady) {
                 return new SubmissionOutcome.Accepted();
+            }
+            var refusal = script.rejection(context, seatIndex);
+            if (refusal != null) {
+                return new SubmissionOutcome.Rejected(refusal);
             }
             state.submissions.incrementAndGet();
             state.accepted.putIfAbsent(seatIndex, candidate);
