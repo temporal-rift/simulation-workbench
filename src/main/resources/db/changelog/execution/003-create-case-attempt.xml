@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+  <changeSet id="003-create-case-attempt" author="simulation-workbench">
+    <createTable tableName="case_attempt">
+      <column name="attempt_id" type="UUID">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="case_id" type="UUID">
+        <constraints nullable="false" foreignKeyName="fk_attempt_case" references="run_case(case_id)"
+                     deleteCascade="true"/>
+      </column>
+      <column name="ordinal" type="INTEGER">
+        <constraints nullable="false"/>
+      </column>
+      <column name="state" type="VARCHAR(16)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="game_id" type="UUID"/>
+      <column name="lane_id" type="VARCHAR(64)"/>
+      <!-- The lease fences every outcome: only the owner of a running attempt may settle it. -->
+      <column name="lease_owner" type="VARCHAR(64)"/>
+      <column name="lease_expires_at" type="TIMESTAMP WITH TIME ZONE"/>
+      <column name="started_at" type="TIMESTAMP WITH TIME ZONE">
+        <constraints nullable="false"/>
+      </column>
+      <column name="finished_at" type="TIMESTAMP WITH TIME ZONE"/>
+      <column name="failure_code" type="VARCHAR(32)"/>
+      <column name="failure_message" type="TEXT"/>
+    </createTable>
+
+    <addUniqueConstraint tableName="case_attempt" columnNames="case_id, ordinal"
+                         constraintName="uq_attempt_ordinal"/>
+    <createIndex tableName="case_attempt" indexName="case_attempt_by_lease_idx">
+      <column name="state"/>
+      <column name="lease_expires_at"/>
+    </createIndex>
+  </changeSet>
+
+</databaseChangeLog>

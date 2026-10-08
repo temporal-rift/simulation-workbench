@@ -71,7 +71,7 @@ mvn validate
 | `simulation-api` | Workbench boundary: experiments, runs/cases, reports/comparisons, replay/reproduction |
 | `simulation-control-api` | Isolated execution boundary: execution context, checkpoints, logical clock |
 | `session-event`, `action-event`, `timeline-event`, `scoring-event` | Evidence and result attribution |
-| `session-api`, `action-api`, `scoring-api` | Authenticated participant play |
+| `session-api`, `action-api`, `scoring-api`, `projection-api` | Authenticated participant play and each seat's own game state |
 
 ## Application layout
 
@@ -80,7 +80,7 @@ Spring Modulith application (`io.github.temporalrift.workbench`) with hexagonal 
 | Module | Responsibility |
 |---|---|
 | `experiment` | Immutable experiment freeze, idempotent creation, deterministic matrix preview |
-| `execution` | Durable real-service batches with interruption recovery (later package) |
+| `execution` | Durable real-service batches: runs, cases, attempts, leases, command reconciliation, cancel and resume |
 | `policy` | Versioned baseline bot policies |
 | `analysis` | Balance comparisons with truthful statistics and exports (later package) |
 
@@ -93,7 +93,7 @@ no hand-written copy of engine or player-contract types may be introduced here.
 OAuth2 resource server (JWT bearer). Reads require `simulation:read`; mutations require
 `simulation:write`; observer replay additionally requires `simulation:observe`.
 
-## Experiments (W1)
+## Experiments
 
 `POST /api/v1/experiments` with an `Idempotency-Key` UUID header freezes a complete
 `ExperimentManifest` and returns `201 Experiment` (`experimentId`, `manifest`, `manifestDigest`
@@ -113,9 +113,9 @@ duplicate factions, bad counts/seeds, credentials or machine-local paths), `409 
 Retention: the frozen manifest is persisted with its full configuration/content/policy artifacts,
 seeds, faction sets, rotations, and execution bounds — never digests alone, and never credentials
 or machine-local paths. Resolved external bytes (rules bundles, policy artifacts, service images)
-land with the durable runner and evidence store in later packages.
+land with the evidence store.
 
-## Cohort-matrix preview (W1)
+## Cohort-matrix preview
 
 `MatrixPreviewService` deterministically enumerates every case coordinate (seed, faction set, seat
 rotation, policy assignment, variant) of a frozen manifest: complete faction sets (10 combinations
@@ -125,7 +125,122 @@ policies and two variants. Ordering is stable and every coordinate carries a det
 the durable runner persists these keys without recomputation. No REST preview endpoint exists in the
 published boundary, so preview is a domain service covered by unit tests, not a controller.
 
-## Bot policies (W3)
+## Runs and durable execution
+
+`POST /api/v1/experiments/{experimentId}/runs` (body `{}`, `Idempotency-Key` header) creates a `Run` over a
+frozen experiment and returns `202` in state `QUEUED` with its counts. One logical case exists per matrix
+coordinate and is persisted up front, so the totals are known before anything executes. A manifest may expand to at most 100,000 cases, with `concurrency` up to 64, `caseWallTimeoutSeconds` up to 86,400 and `maxRejectedCandidatesPerWindow` up to 1,000; larger ones are `INVALID_EXPERIMENT`. The same key returns the
+original run; the same key for another experiment returns `409 IDEMPOTENCY_CONFLICT`.
+
+| Operation | Behavior |
+|---|---|
+| `GET /api/v1/runs/{runId}` | State, timestamps, failure, and case counts (`requested`, `pending`, `running`, `succeeded`, `failed`, `cancelled`) |
+| `GET /api/v1/runs/{runId}/cases/{caseId}` | The logical case, every attempt, and the reconciled result |
+| `POST /api/v1/runs/{runId}/cancel` | `202` on the first accepted cancel, `200` once the run is already terminal |
+| `POST /api/v1/runs/{runId}/resume` | `202`, legal only from `INTERRUPTED`; any other state returns `409 INVALID_RUN_STATE` |
+
+The report, replay, and reproduction operations of the same boundary answer `501 NOT_IMPLEMENTED` until they are
+delivered.
+
+### States
+
+```
+QUEUED ──▶ RUNNING ──▶ COMPLETED          a run with failed cases still COMPLETES; FAILED means its frozen experiment is gone
+   ▲          │
+   │      INTERRUPTED ◀── process stop, crash, or an expired lease
+   └─ resume ─┘
+QUEUED | RUNNING | INTERRUPTED ──▶ CANCELLING ──▶ CANCELLED
+```
+
+Case states are `PENDING`, `RUNNING`, `SUCCEEDED`, `FAILED`, and `CANCELLED`. An attempt is one execution or
+recovery of a case (`RUNNING`, `SUCCEEDED`, `FAILED`, `CANCELLED`, `INTERRUPTED`). A logical case is counted once
+and holds at most one result, however many attempts recovered it; failed and interrupted attempts stay visible on
+the case.
+
+### What a case result is
+
+A case succeeds when its game reached an authoritative ending and the ending, winners, faction reveal, and final
+scores agree across every seat's own view and the scoring operation. Until all of that is reconciled the case stays
+running; it is never recorded with partial or zero scores.
+
+An ending without winners (`RESOLUTION_FAILED`, `ALL_PLAYERS_ABANDONED`, `DECK_EXHAUSTED`) is an authoritative game
+outcome: the case succeeds with that `endReason`, no winners, and its final scores. It is not a failure. For
+`TIMELINE_COLLAPSED` and `TIMELINE_STABILIZED` the winners carry no `winType`, because the participant contract
+assigns one only to a normal victory.
+
+Attempt failures are recorded, never turned into game samples:
+
+| Code | Meaning | Retried |
+|---|---|---|
+| `RUNNER_TIMEOUT` | The case did not reach an authoritative ending within `caseWallTimeoutSeconds` | yes, up to `max-attempts-per-case` |
+| `EXECUTION_FAILED` | A lane or service call failed in a way no reconciliation resolved | yes |
+| `CONTRACT_MISMATCH` | A response or policy reference does not match the pinned contracts | no |
+| `CONFIGURATION_DRIFT` | A service reports another case or manifest than the one configured, or reveals another faction than planned | no |
+| `POLICY_EXHAUSTED` | A seat had no candidate, pass, or decline left | no |
+
+### Leases, recovery, and reconciliation
+
+Pending cases are the jobs. A claim opens a new attempt that owns the case through a lease, renewed on every step
+of the game; every outcome is written only by the lease owner of a still-running attempt. A worker whose attempt was
+interrupted or recovered can therefore never overwrite the case, and a run's concurrency bound holds across
+workers because claims on one run are serialized.
+
+On start, the process interrupts every run a previous process left running; a graceful stop does the same for its
+own attempts; a lease that expires without renewal interrupts its run. Completed results are never touched.
+`resumeRun` re-queues the run, and only the unfinished cases are scheduled. A new attempt attaches to the game its
+predecessor started when the lane still hosts that case, resolves whatever the predecessor left in doubt from the
+service's accepted state, and plays on; otherwise it starts a new game on the lane, which must be clean, and the abandoned game's
+decisions are forgotten.
+
+Every decision a seat sends is recorded in the command ledger before it is sent, one slot per case, seat, and
+window. A slot that was sent and never acknowledged is in doubt: it is reconciled against the seat's own accepted
+state once the services have drained and the projection has stopped changing, and it is sent again only when
+accepted state shows it was not spent. The accepted slots are the case's decision transcript, and the case's
+`semanticDigest` covers the setup, that transcript, and the authoritative ending, so a recovered case digests like
+an uninterrupted one. Starting a game is reconciled against the lobby's start state the same way.
+
+Cancelling cancels pending cases immediately, signals running attempts through the run state (each stops at its
+next step and is recorded as cancelled), and keeps every completed result. Repeating a cancel never reopens a
+terminal run.
+
+### Operating the runner
+
+The runner needs isolated lanes. A lane is an independent deployment of `game-service`, `timeline-service`, and
+`read-service` with the simulation controls enabled, one operator credential holding `simulation:control`, and
+one bot identity per seat (at least five for the largest case). It hosts one case at a time and must be clean when
+a case starts. Lanes and credentials are runtime configuration only; they are never stored with experiments, runs,
+or evidence:
+
+```yaml
+workbench:
+  execution:
+    worker-enabled: true        # false for an API-only instance
+    worker-threads: 2           # defaults to one per lane
+    lease: 60s
+    heartbeat: 10s
+    max-attempts-per-case: 2
+    lanes:
+      - id: lane-1
+        game-service-url: https://lane-1.game.internal
+        timeline-service-url: https://lane-1.timeline.internal
+        read-service-url: https://lane-1.read.internal
+        operator-token: ${LANE_1_OPERATOR_TOKEN}
+        bots:
+          - { player-id: 8a0c…, token: ${LANE_1_BOT_0_TOKEN} }
+```
+
+A case executes only while a lane is free; with none configured, runs start but their cases stay pending. Logical time starts at
+`workbench.execution.logical-epoch` for every attempt and is advanced only to the earliest deadline reported by the
+services' checkpoints, on both services, followed by their drain barrier. A slow projection never moves time.
+
+An interrupted run is resumed with `resumeRun`; there is nothing to repair by hand. Only one runner instance should
+execute against a database.
+
+**Limitations.** A lobby whose creation response was lost cannot be found again, so that attempt fails and is
+retried on a clean lane. Lane provisioning, cleanup, and image attestation belong to the deployment that owns the
+lanes; the runner detects a case or manifest mismatch but does not provision anything.
+
+## Bot policies
 
 Two baseline policies play every normal decision window. Each decision uses one frozen
 `EntitledObservation` per seat: the seat's own faction, the visible events (printed weights, plus an exact
