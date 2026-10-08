@@ -57,7 +57,7 @@
         <sonar.coverage.exclusions>**/generated-sources/**/*</sonar.coverage.exclusions>
 
         <!-- Workbench-owned boundary (implemented by this application). -->
-        <simulation-api.version>1.0.1</simulation-api.version>
+        <simulation-api.version>1.1.0</simulation-api.version>
         <!-- Isolated execution boundary (consumed operator interface, owned by the game/timeline services). -->
         <simulation-control-api.version>1.1.1</simulation-control-api.version>
         <!-- Pinned participant/event contracts: consumed via generated clients/interfaces only.
@@ -69,6 +69,7 @@
         <session-api.version>3.0.0</session-api.version>
         <action-api.version>7.1.0</action-api.version>
         <scoring-api.version>2.0.1</scoring-api.version>
+        <projection-api.version>10.0.0</projection-api.version>
         <archunit-junit5.version>1.5.1</archunit-junit5.version>
     </properties>
 
@@ -120,6 +121,11 @@
             <groupId>io.github.temporal-rift</groupId>
             <artifactId>scoring-api</artifactId>
             <version>${scoring-api.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.github.temporal-rift</groupId>
+            <artifactId>projection-api</artifactId>
+            <version>${projection-api.version}</version>
         </dependency>
 
         <dependency>
@@ -284,10 +290,101 @@
                             <inputSpec>${project.build.directory}/dependency-specs/simulation-api-${simulation-api.version}-jar/openapi/v1/simulation.yml
                             </inputSpec>
                             <output>${project.build.directory}/generated-sources/openapi/simulation</output>
-                            <apiPackage>io.github.temporalrift.workbench.experiment.infrastructure.adapter.in.rest.v1
+                            <apiPackage>io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1
                             </apiPackage>
-                            <modelPackage>io.github.temporalrift.workbench.experiment.infrastructure.adapter.in.rest.v1.model
+                            <modelPackage>io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model
                             </modelPackage>
+                        </configuration>
+                    </execution>
+                    <!-- Participant and execution-control contracts are consumed through generated HTTP clients only. -->
+                    <execution>
+                        <id>generate-session-client</id>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                        <configuration>
+                            <inputSpec>${project.build.directory}/dependency-specs/session-api-${session-api.version}-jar/openapi/v1/session.yml
+                            </inputSpec>
+                            <output>${project.build.directory}/generated-sources/openapi/session</output>
+                            <apiPackage>io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.session
+                            </apiPackage>
+                            <modelPackage>io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.session.model
+                            </modelPackage>
+                            <configOptions>
+                                <library>spring-http-interface</library>
+                            </configOptions>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>generate-action-client</id>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                        <configuration>
+                            <inputSpec>${project.build.directory}/dependency-specs/action-api-${action-api.version}-jar/openapi/v1/action.yml
+                            </inputSpec>
+                            <output>${project.build.directory}/generated-sources/openapi/action</output>
+                            <apiPackage>io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.action
+                            </apiPackage>
+                            <modelPackage>io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.action.model
+                            </modelPackage>
+                            <configOptions>
+                                <library>spring-http-interface</library>
+                            </configOptions>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>generate-scoring-client</id>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                        <configuration>
+                            <inputSpec>${project.build.directory}/dependency-specs/scoring-api-${scoring-api.version}-jar/openapi/v1/scoring.yml
+                            </inputSpec>
+                            <output>${project.build.directory}/generated-sources/openapi/scoring</output>
+                            <apiPackage>io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.scoring
+                            </apiPackage>
+                            <modelPackage>io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.scoring.model
+                            </modelPackage>
+                            <configOptions>
+                                <library>spring-http-interface</library>
+                            </configOptions>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>generate-projection-client</id>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                        <configuration>
+                            <inputSpec>${project.build.directory}/dependency-specs/projection-api-${projection-api.version}-jar/openapi/v1/projection.yml
+                            </inputSpec>
+                            <output>${project.build.directory}/generated-sources/openapi/projection</output>
+                            <apiPackage>io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection
+                            </apiPackage>
+                            <modelPackage>io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model
+                            </modelPackage>
+                            <configOptions>
+                                <library>spring-http-interface</library>
+                            </configOptions>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>generate-simulation-control-client</id>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                        <configuration>
+                            <inputSpec>${project.build.directory}/dependency-specs/simulation-control-api-${simulation-control-api.version}-jar/openapi/v1/simulation-control.yml
+                            </inputSpec>
+                            <output>${project.build.directory}/generated-sources/openapi/control</output>
+                            <apiPackage>io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control
+                            </apiPackage>
+                            <modelPackage>io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.model
+                            </modelPackage>
+                            <configOptions>
+                                <library>spring-http-interface</library>
+                            </configOptions>
                         </configuration>
                     </execution>
                 </executions>
@@ -306,6 +403,16 @@
                         <configuration>
                             <sources>
                                 <source>${project.build.directory}/generated-sources/openapi/simulation/src/main/java
+                                </source>
+                                <source>${project.build.directory}/generated-sources/openapi/session/src/main/java
+                                </source>
+                                <source>${project.build.directory}/generated-sources/openapi/action/src/main/java
+                                </source>
+                                <source>${project.build.directory}/generated-sources/openapi/scoring/src/main/java
+                                </source>
+                                <source>${project.build.directory}/generated-sources/openapi/projection/src/main/java
+                                </source>
+                                <source>${project.build.directory}/generated-sources/openapi/control/src/main/java
                                 </source>
                             </sources>
                         </configuration>

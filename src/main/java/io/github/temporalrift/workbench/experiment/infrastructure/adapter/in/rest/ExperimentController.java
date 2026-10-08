@@ -10,9 +10,9 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import io.github.temporalrift.workbench.experiment.application.port.in.CreateExperimentUseCase;
-import io.github.temporalrift.workbench.experiment.infrastructure.adapter.in.rest.v1.ExperimentsApi;
-import io.github.temporalrift.workbench.experiment.infrastructure.adapter.in.rest.v1.model.Experiment;
-import io.github.temporalrift.workbench.experiment.infrastructure.adapter.in.rest.v1.model.ExperimentManifest;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.ExperimentsApi;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Experiment;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ExperimentManifest;
 
 @RestController
 class ExperimentController implements ExperimentsApi {
