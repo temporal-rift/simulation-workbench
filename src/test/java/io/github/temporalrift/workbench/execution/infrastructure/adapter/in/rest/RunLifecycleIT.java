@@ -114,16 +114,22 @@ class RunLifecycleIT {
     }
 
     @Test
-    void unknownExperimentAndRunAreNotFound() throws Exception {
+    void unknownExperimentRunAndCaseAreNotFound() throws Exception {
         mockMvc.perform(startRun(UUID.randomUUID(), UUID.randomUUID()))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+                .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
         mockMvc.perform(get("/api/v1/runs/{id}", UUID.randomUUID()).with(jwt().authorities(readAuthority())))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
         mockMvc.perform(post("/api/v1/runs/{id}/cancel", UUID.randomUUID())
                         .with(jwt().authorities(writeAuthority()))
                         .header("Idempotency-Key", UUID.randomUUID()))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
+        mockMvc.perform(get("/api/v1/runs/{runId}/cases/{caseId}", UUID.randomUUID(), UUID.randomUUID())
+                        .with(jwt().authorities(readAuthority())))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
     }
 
     @Test

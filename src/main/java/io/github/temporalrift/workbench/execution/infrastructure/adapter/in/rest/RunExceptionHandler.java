@@ -31,7 +31,7 @@ class RunExceptionHandler {
 
     @ExceptionHandler(RunNotFoundException.class)
     ProblemDetail handleNotFound(RunNotFoundException ex) {
-        return ProblemDetails.of(HttpStatus.NOT_FOUND, ex.getMessage(), "NOT_FOUND");
+        return ProblemDetails.of(HttpStatus.NOT_FOUND, ex.getMessage(), "RESOURCE_NOT_FOUND");
     }
 
     @ExceptionHandler(ManifestMismatchException.class)
