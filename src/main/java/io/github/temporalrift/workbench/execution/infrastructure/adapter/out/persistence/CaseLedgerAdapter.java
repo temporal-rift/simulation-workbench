@@ -1,6 +1,8 @@
 package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.persistence;
 
 import java.time.Instant;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -190,43 +192,60 @@ public class CaseLedgerAdapter implements CaseLedger {
 
     @Override
     public int interruptExpired(Instant now) {
-        return interrupt("a.state = 'RUNNING' AND a.lease_expires_at < ?", now, Rows.timestamp(now));
+        return interrupt(
+                jdbc.queryForList(
+                        "SELECT attempt_id FROM case_attempt WHERE state = 'RUNNING' AND lease_expires_at < ?",
+                        UUID.class,
+                        Rows.timestamp(now)),
+                now);
     }
 
     @Override
     public int interruptOwnedBy(String owner, Instant now) {
-        return interrupt("a.state = 'RUNNING' AND a.lease_owner = ?", now, owner);
+        return interrupt(
+                jdbc.queryForList(
+                        "SELECT attempt_id FROM case_attempt WHERE state = 'RUNNING' AND lease_owner = ?",
+                        UUID.class,
+                        owner),
+                now);
     }
 
     @Override
     public int interruptAllRunning(Instant now) {
-        var interrupted = interrupt("a.state = 'RUNNING'", now);
+        var interrupted = interrupt(
+                jdbc.queryForList("SELECT attempt_id FROM case_attempt WHERE state = 'RUNNING'", UUID.class), now);
         var idle = jdbc.update("UPDATE run SET state = 'INTERRUPTED' WHERE state = 'RUNNING'");
         return interrupted + idle;
     }
 
-    /** Interrupts the matching running attempts, frees their cases and interrupts the runs they belong to. */
-    private int interrupt(String attemptFilter, Instant now, Object... args) {
+    /**
+     * Interrupts the given attempts that are still running, frees their cases and interrupts the runs they
+     * belong to. Each attempt is re-checked as it is settled, so one that finished meanwhile is left alone.
+     */
+    private int interrupt(List<UUID> attemptIds, Instant now) {
         return transactions.execute(status -> {
-            var runIds = jdbc.queryForList(
-                    "SELECT DISTINCT c.run_id FROM case_attempt a JOIN run_case c ON c.case_id = a.case_id" + " WHERE "
-                            + attemptFilter,
-                    UUID.class,
-                    args);
-            if (runIds.isEmpty()) {
-                return 0;
+            var interruptedRuns = new HashSet<UUID>();
+            for (var attemptId : attemptIds) {
+                var settled = jdbc.update(
+                        "UPDATE case_attempt SET state = 'INTERRUPTED', finished_at = ?, lease_expires_at = NULL"
+                                + " WHERE attempt_id = ? AND state = 'RUNNING'",
+                        Rows.timestamp(now),
+                        attemptId);
+                if (settled == 1) {
+                    jdbc.update(
+                            "UPDATE run_case SET state = 'PENDING' WHERE state = 'RUNNING' AND case_id = ("
+                                    + "SELECT case_id FROM case_attempt WHERE attempt_id = ?)",
+                            attemptId);
+                    interruptedRuns.addAll(jdbc.queryForList(
+                            "SELECT c.run_id FROM case_attempt a JOIN run_case c ON c.case_id = a.case_id"
+                                    + " WHERE a.attempt_id = ?",
+                            UUID.class,
+                            attemptId));
+                }
             }
-            jdbc.update(
-                    "UPDATE run_case SET state = 'PENDING' WHERE state = 'RUNNING' AND case_id IN ("
-                            + "SELECT a.case_id FROM case_attempt a WHERE " + attemptFilter + ")",
-                    args);
-            jdbc.update(
-                    "UPDATE case_attempt a SET state = 'INTERRUPTED', finished_at = ?, lease_expires_at = NULL"
-                            + " WHERE " + attemptFilter,
-                    prepend(Rows.timestamp(now), args));
-            runIds.forEach(runId ->
+            interruptedRuns.forEach(runId ->
                     jdbc.update("UPDATE run SET state = 'INTERRUPTED' WHERE run_id = ? AND state = 'RUNNING'", runId));
-            return runIds.size();
+            return interruptedRuns.size();
         });
     }
 
@@ -242,12 +261,5 @@ public class CaseLedgerAdapter implements CaseLedger {
                         attemptId,
                         owner)
                 == 1;
-    }
-
-    private static Object[] prepend(Object first, Object[] rest) {
-        var all = new Object[rest.length + 1];
-        all[0] = first;
-        System.arraycopy(rest, 0, all, 1, rest.length);
-        return all;
     }
 }
