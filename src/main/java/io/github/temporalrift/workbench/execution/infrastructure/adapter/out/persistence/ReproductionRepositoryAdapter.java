@@ -3,10 +3,7 @@ package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.pe
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -32,6 +29,10 @@ public class ReproductionRepositoryAdapter implements ReproductionRepository {
     private static final String COLUMNS =
             "reproduction_id, attempt_id, run_id, case_id, lane_id, state, divergence_json,"
                     + " failure_code, failure_message, created_at, finished_at";
+    private static final String CLAIM_NEXT = "UPDATE reproduction SET state = 'RUNNING', lease_owner = ?,"
+            + " lease_expires_at = ? WHERE reproduction_id = (SELECT reproduction_id FROM reproduction"
+            + " WHERE state = 'QUEUED' AND lane_id = ANY (?) ORDER BY created_at LIMIT 1"
+            + " FOR UPDATE SKIP LOCKED) RETURNING " + COLUMNS;
     private static final TypeReference<Map<String, Object>> OBJECT = new TypeReference<>() {};
 
     private final JdbcTemplate jdbc;
@@ -95,18 +96,16 @@ public class ReproductionRepositoryAdapter implements ReproductionRepository {
         if (freeLaneIds.isEmpty()) {
             return Optional.empty();
         }
-        var lanes = String.join(", ", Collections.nCopies(freeLaneIds.size(), "?"));
-        var arguments = new ArrayList<Object>(List.of(owner, Rows.timestamp(leaseUntil)));
-        arguments.addAll(freeLaneIds);
         return jdbc
                 .query(
-                        "UPDATE reproduction SET state = 'RUNNING', lease_owner = ?, lease_expires_at = ?"
-                                + " WHERE reproduction_id = (SELECT reproduction_id FROM reproduction"
-                                + " WHERE state = 'QUEUED' AND lane_id IN (" + lanes + ")"
-                                + " ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED)"
-                                + " RETURNING " + COLUMNS,
-                        (rs, i) -> reproduction(rs),
-                        arguments.toArray())
+                        connection -> {
+                            var statement = connection.prepareStatement(CLAIM_NEXT);
+                            statement.setString(1, owner);
+                            statement.setObject(2, Rows.timestamp(leaseUntil));
+                            statement.setArray(3, connection.createArrayOf("varchar", freeLaneIds.toArray()));
+                            return statement;
+                        },
+                        (rs, i) -> reproduction(rs))
                 .stream()
                 .findFirst();
     }

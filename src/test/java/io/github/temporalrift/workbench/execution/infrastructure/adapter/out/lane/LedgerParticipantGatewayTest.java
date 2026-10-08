@@ -278,7 +278,8 @@ class LedgerParticipantGatewayTest {
     @Test
     void aCommandThatReachedTheServiceIsRetainedEvenIfTheProcessEndsDuringTheSend() {
         // The scripted delegate has no answer queued, so sending fails as a crash would.
-        assertThatThrownBy(() -> gateway.submit(0, keep())).isInstanceOf(NoSuchElementException.class);
+        var candidate = keep();
+        assertThatThrownBy(() -> gateway.submit(0, candidate)).isInstanceOf(NoSuchElementException.class);
         assertThat(evidence.steps(CASE, GAME)).singleElement().satisfies(step -> {
             assertThat(step.outcome()).isEqualTo(StepOutcome.UNACKNOWLEDGED);
             assertThat(step.decision()).isEqualTo(CandidateCodec.encode(keep()));

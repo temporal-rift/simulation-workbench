@@ -130,12 +130,10 @@ class KafkaGameEventObserverIT {
     }
 
     @Test
-    void aFreshGameDoesNotReadTheHistoryOfEarlierGamesOnTheLane() throws Exception {
-        publish(gameTopic, message(GAME, UUID.randomUUID(), "EarlierEvent", "{}"));
-        Thread.sleep(50);
-        var began = Instant.now();
-        Thread.sleep(50);
-        publish(gameTopic, message(GAME, UUID.randomUUID(), "GameStarted", "{}"));
+    void aFreshGameDoesNotReadTheHistoryOfEarlierGamesOnTheLane() {
+        var began = Instant.parse("2026-01-01T00:00:00Z");
+        publish(gameTopic, message(GAME, UUID.randomUUID(), "EarlierEvent", "{}", began.minusSeconds(60)));
+        publish(gameTopic, message(GAME, UUID.randomUUID(), "GameStarted", "{}", began.plusSeconds(60)));
 
         try (var observer = observers.open(lane(), SCOPE, UUID.randomUUID(), GAME, began)) {
             assertThat(observer.drain()).isTrue();
@@ -206,8 +204,18 @@ class KafkaGameEventObserverIT {
     }
 
     private static ProducerRecord<String, byte[]> message(UUID gameId, UUID eventId, String type, String payload) {
+        return message(gameId, eventId, type, payload, null);
+    }
+
+    /** A record created at the given time, so a test controls where a game began without waiting. */
+    private static ProducerRecord<String, byte[]> message(
+            UUID gameId, UUID eventId, String type, String payload, Instant createdAt) {
         var producerRecord = new ProducerRecord<String, byte[]>(
-                "pending", gameId.toString(), payload.getBytes(StandardCharsets.UTF_8));
+                "pending",
+                null,
+                createdAt == null ? null : createdAt.toEpochMilli(),
+                gameId.toString(),
+                payload.getBytes(StandardCharsets.UTF_8));
         header(producerRecord, "eventType", type);
         header(producerRecord, "eventId", eventId.toString());
         header(producerRecord, "aggregateId", gameId.toString());
@@ -232,7 +240,8 @@ class KafkaGameEventObserverIT {
         properties.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, ByteArraySerializer.class);
         try (var producer = new KafkaProducer<String, byte[]>(properties)) {
             for (var pending : records) {
-                var withTopic = new ProducerRecord<>(topic, null, pending.key(), pending.value(), pending.headers());
+                var withTopic = new ProducerRecord<>(
+                        topic, null, pending.timestamp(), pending.key(), pending.value(), pending.headers());
                 producer.send(withTopic);
             }
             producer.flush();
