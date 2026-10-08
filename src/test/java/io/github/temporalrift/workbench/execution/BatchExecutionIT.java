@@ -371,7 +371,7 @@ class BatchExecutionIT {
 
         assertThat(getRun.handle(runId).run().state()).isEqualTo(RunState.COMPLETED);
         var afterCompletion = new ResumeRunUseCase.Command(runId, UUID.randomUUID());
-        assertThatThrownBy(() -> resumeRun.handle(again))
+        assertThatThrownBy(() -> resumeRun.handle(afterCompletion))
                 .isInstanceOf(InvalidRunStateException.class)
                 .hasMessageContaining("COMPLETED");
     }
