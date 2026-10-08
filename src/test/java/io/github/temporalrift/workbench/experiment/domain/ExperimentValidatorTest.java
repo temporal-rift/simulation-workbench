@@ -187,4 +187,40 @@ class ExperimentValidatorTest {
                 .isInstanceOf(ExperimentValidationException.class)
                 .matches(ex -> ((ExperimentValidationException) ex).code() == ExperimentErrorCode.INVALID_EXPERIMENT);
     }
+
+    @Test
+    void aMatrixLargerThanTheCapIsInvalid() {
+        // 55 coordinates per seed, variant and policy: 1,819 seeds exceed the 100,000-case cap.
+        var manifest = (ObjectNode)
+                ExperimentManifests.singleSeedSinglePolicySingleVariant().deepCopy();
+        var seeds = manifest.putArray("seeds");
+        for (var seed = 1; seed <= 1_819; seed++) {
+            seeds.add(String.valueOf(seed));
+        }
+
+        assertThatThrownBy(() -> ExperimentValidator.validate(manifest))
+                .isInstanceOf(ExperimentValidationException.class)
+                .hasMessageContaining("expands to 100045 cases");
+    }
+
+    @Test
+    void aMatrixExactlyAtTheCapIsValid() {
+        var manifest =
+                (ObjectNode) ExperimentManifests.fourPlayerSeeds(5_000, 4).deepCopy();
+
+        assertThat(ExperimentValidator.validate(manifest).seeds()).hasSize(5_000);
+    }
+
+    @Test
+    void executionBoundsAboveTheirCeilingsAreInvalid() {
+        for (var field : new String[] {"concurrency", "caseWallTimeoutSeconds", "maxRejectedCandidatesPerWindow"}) {
+            var manifest = (ObjectNode) ExperimentManifests.valid().deepCopy();
+            manifest.put(field, Integer.MAX_VALUE);
+
+            assertThatThrownBy(() -> ExperimentValidator.validate(manifest))
+                    .as(field)
+                    .isInstanceOf(ExperimentValidationException.class)
+                    .hasMessageContaining(field + " must be an integer from 1 to");
+        }
+    }
 }

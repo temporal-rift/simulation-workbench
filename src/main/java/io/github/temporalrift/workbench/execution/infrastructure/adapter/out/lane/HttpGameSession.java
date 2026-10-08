@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
@@ -230,11 +231,15 @@ public class HttpGameSession implements GameSession {
 
     private static boolean sameResult(GameResult a, GameResult b) {
         return a.getEndReason() == b.getEndReason()
-                && Set.copyOf(a.getWinners().stream().map(w -> w.getPlayerId()).toList())
-                        .equals(Set.copyOf(b.getWinners().stream()
-                                .map(w -> w.getPlayerId())
-                                .toList()))
+                && winnerFacts(a).equals(winnerFacts(b))
                 && scoresByPlayer(a).equals(scoresByPlayer(b));
+    }
+
+    /** Each winner with its revealed faction and win type, so seats must agree on all three. */
+    private static Set<String> winnerFacts(GameResult result) {
+        return result.getWinners().stream()
+                .map(winner -> winner.getPlayerId() + "|" + winner.getFaction() + "|" + winner.getWinType())
+                .collect(Collectors.toSet());
     }
 
     private int seatOf(UUID playerId) {

@@ -15,12 +15,11 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * Builds the generated clients over Spring's {@link RestClient} with bounded connect and read times.
  * Requests omit absent fields entirely: the contracts say optional and mutually exclusive target fields
- * "must be omitted", which an explicit {@code null} would violate.
+ * "must be omitted", which an explicit {@code null} would violate. All clients share one connection pool.
  */
 public class RestApiClients implements ApiClients {
 
-    private final Duration connectTimeout;
-    private final Duration readTimeout;
+    private final JdkClientHttpRequestFactory requestFactory;
     private final JacksonJsonHttpMessageConverter json = new JacksonJsonHttpMessageConverter(JsonMapper.builder()
             .changeDefaultPropertyInclusion(inclusion -> inclusion
                     .withValueInclusion(JsonInclude.Include.NON_NULL)
@@ -28,15 +27,13 @@ public class RestApiClients implements ApiClients {
             .build());
 
     public RestApiClients(Duration connectTimeout, Duration readTimeout) {
-        this.connectTimeout = connectTimeout;
-        this.readTimeout = readTimeout;
+        this.requestFactory = new JdkClientHttpRequestFactory(
+                HttpClient.newBuilder().connectTimeout(connectTimeout).build());
+        this.requestFactory.setReadTimeout(readTimeout);
     }
 
     @Override
     public <T> T create(Class<T> api, String baseUrl, String bearerToken) {
-        var requestFactory = new JdkClientHttpRequestFactory(
-                HttpClient.newBuilder().connectTimeout(connectTimeout).build());
-        requestFactory.setReadTimeout(readTimeout);
         var client = RestClient.builder()
                 .baseUrl(baseUrl)
                 .requestFactory(requestFactory)

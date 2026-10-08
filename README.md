@@ -129,7 +129,7 @@ published boundary, so preview is a domain service covered by unit tests, not a 
 
 `POST /api/v1/experiments/{experimentId}/runs` (body `{}`, `Idempotency-Key` header) creates a `Run` over a
 frozen experiment and returns `202` in state `QUEUED` with its counts. One logical case exists per matrix
-coordinate and is persisted up front, so the totals are known before anything executes. The same key returns the
+coordinate and is persisted up front, so the totals are known before anything executes. A manifest may expand to at most 100,000 cases, with `concurrency` up to 64, `caseWallTimeoutSeconds` up to 86,400 and `maxRejectedCandidatesPerWindow` up to 1,000; larger ones are `INVALID_EXPERIMENT`. The same key returns the
 original run; the same key for another experiment returns `409 IDEMPOTENCY_CONFLICT`.
 
 | Operation | Behavior |
@@ -145,7 +145,7 @@ delivered.
 ### States
 
 ```
-QUEUED ──▶ RUNNING ──▶ COMPLETED          a run with failed cases still COMPLETES; FAILED is a run-level fault
+QUEUED ──▶ RUNNING ──▶ COMPLETED          a run with failed cases still COMPLETES; FAILED means its frozen experiment is gone
    ▲          │
    │      INTERRUPTED ◀── process stop, crash, or an expired lease
    └─ resume ─┘

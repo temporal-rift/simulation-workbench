@@ -46,10 +46,22 @@ public record ExecutionProperties(
             String timelineServiceUrl,
             String readServiceUrl,
             String operatorToken,
-            @DefaultValue List<Bot> bots) {}
+            @DefaultValue List<Bot> bots) {
+
+        @Override
+        public String toString() {
+            return "Lane[id=" + id + ", bots=" + bots.size() + "]";
+        }
+    }
 
     /** A bot's player identity and its bearer token. */
-    public record Bot(UUID playerId, String token) {}
+    public record Bot(UUID playerId, String token) {
+
+        @Override
+        public String toString() {
+            return "Bot[playerId=" + playerId + "]";
+        }
+    }
 
     public int effectiveWorkerThreads() {
         return workerThreads != null ? workerThreads : Math.max(1, lanes.size());

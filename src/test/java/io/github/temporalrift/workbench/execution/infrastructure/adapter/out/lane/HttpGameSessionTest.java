@@ -325,6 +325,15 @@ class HttpGameSessionTest {
     }
 
     @Test
+    void seatsThatDisagreeOnAWinnersTypeAreNotAuthoritativeYet() {
+        endGame(GameResult.EndReasonEnum.WIN_CONDITION_MET, List.of(0), 3, 30, 20, 10);
+        states.get(1).getResult().getWinners().getFirst().setWinType(GameWinner.WinTypeEnum.FACTION_OBJECTIVE);
+        when(scoring.getScores(GAME)).thenReturn(ResponseEntity.ok(scores(30, 20, 10)));
+
+        assertThat(session.ending()).isEmpty();
+    }
+
+    @Test
     void aSeatThatHasNotSeenTheEndYetKeepsTheEndingOpen() {
         endGame(GameResult.EndReasonEnum.WIN_CONDITION_MET, List.of(0), 3, 30, 20, 10);
         setState(1, ProjectionStates.base(Phase.RESOLUTION, 3));

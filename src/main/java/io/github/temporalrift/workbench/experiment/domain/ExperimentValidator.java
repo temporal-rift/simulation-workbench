@@ -26,6 +26,13 @@ public final class ExperimentValidator {
     private static final Pattern SEMVER = Pattern.compile("^\\d+\\.\\d+\\.\\d+(?:[-+][0-9A-Za-z.-]+)?$");
     private static final Pattern UINT64 = Pattern.compile("^(0|[1-9]\\d{0,19})$");
     private static final BigInteger MAX_UINT64 = new BigInteger("18446744073709551615");
+    /** Bounds that keep one manifest from exhausting the scheduler or the database. */
+    static final int MAX_CASES = 100_000;
+
+    static final int MAX_CONCURRENCY = 64;
+    static final int MAX_CASE_TIMEOUT_SECONDS = 86_400;
+    static final int MAX_REJECTED_CANDIDATES = 1_000;
+
     private static final String SERVICES_PREFIX = "services.";
     private static final String SEAT_INDEX_FIELD = "seatIndex";
     private static final String POLICY_ID_FIELD = "policyId";
@@ -75,9 +82,10 @@ public final class ExperimentValidator {
         var factionSets = validateFactionSets(manifest.get("factionSets"), playerCounts);
         validateEnum(manifest, "seatRotationMode", "CYCLIC");
         validateEnum(manifest, "timingMode", "LOGICAL");
-        validatePositiveInt(manifest, "concurrency");
-        validatePositiveInt(manifest, "caseWallTimeoutSeconds");
-        validatePositiveInt(manifest, "maxRejectedCandidatesPerWindow");
+        validateBoundedInt(manifest, "concurrency", MAX_CONCURRENCY);
+        validateBoundedInt(manifest, "caseWallTimeoutSeconds", MAX_CASE_TIMEOUT_SECONDS);
+        validateBoundedInt(manifest, "maxRejectedCandidatesPerWindow", MAX_REJECTED_CANDIDATES);
+        validateMatrixSize(variants, policies, seeds, factionSets);
         rejectSecretsAndLocalPaths(manifest);
         return new ManifestView(name, variants, policies, seeds, playerCounts, factionSets);
     }
@@ -298,10 +306,19 @@ public final class ExperimentValidator {
         }
     }
 
-    private static void validatePositiveInt(JsonNode manifest, String field) {
+    private static void validateMatrixSize(
+            List<String> variants, List<PolicyRef> policies, List<String> seeds, List<List<String>> factionSets) {
+        long coordinatesPerSeed = factionSets.stream().mapToLong(List::size).sum();
+        long cases = (long) seeds.size() * variants.size() * policies.size() * coordinatesPerSeed;
+        if (cases > MAX_CASES) {
+            throw invalid("the manifest expands to " + cases + " cases; at most " + MAX_CASES + " are allowed");
+        }
+    }
+
+    private static void validateBoundedInt(JsonNode manifest, String field, int max) {
         var node = manifest.get(field);
-        if (node == null || !node.isInt() || node.asInt() < 1) {
-            throw invalid(field + " must be a positive integer");
+        if (node == null || !node.isInt() || node.asInt() < 1 || node.asInt() > max) {
+            throw invalid(field + " must be an integer from 1 to " + max);
         }
     }
 

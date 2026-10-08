@@ -79,12 +79,10 @@ public class RunBatchService implements RunBatchUseCase {
         }
         var attempt = claim.get().attempt();
         var previous = claim.get().previous().orElse(null);
-        var experimentId = runs.find(claim.get().logicalCase().runId())
-                .map(Run::experimentId)
-                .orElseThrow();
-        var plan = experiments.plan(experimentId);
+        var run = runs.find(claim.get().logicalCase().runId()).orElseThrow();
+        var plan = experiments.plan(run.experimentId());
         if (plan.isEmpty()) {
-            fail(attempt, owner, new Failure(FailureCode.CONTRACT_MISMATCH, "The frozen experiment is unavailable"));
+            failRun(run, attempt, owner, now);
             return true;
         }
         var lane = lanes.acquire(previous == null ? null : previous.laneId());
@@ -116,6 +114,15 @@ public class RunBatchService implements RunBatchUseCase {
             // Another attempt owns the case now; nothing this worker holds is left to settle.
         } catch (RuntimeException e) {
             fail(attempt, owner, new Failure(FailureCode.EXECUTION_FAILED, describe(e)));
+        }
+    }
+
+    /** The frozen experiment is gone, so no case of the run can ever execute: the run itself fails. */
+    private void failRun(Run run, Attempt attempt, String owner, Instant now) {
+        cases.release(attempt.attemptId(), owner, now);
+        var reason = new Failure(FailureCode.CONTRACT_MISMATCH, "The frozen experiment is unavailable");
+        if (runs.update(RunState.RUNNING, run.fail(now, reason))) {
+            runs.cancelPendingCases(run.runId());
         }
     }
 
@@ -165,6 +172,7 @@ public class RunBatchService implements RunBatchUseCase {
     }
 
     private static String describe(RuntimeException e) {
-        return e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+        var message = e.getMessage();
+        return message != null && !message.isBlank() ? message : e.getClass().getSimpleName();
     }
 }

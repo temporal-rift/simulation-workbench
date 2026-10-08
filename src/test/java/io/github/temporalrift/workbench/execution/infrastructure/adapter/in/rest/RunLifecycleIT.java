@@ -222,6 +222,22 @@ class RunLifecycleIT {
                 .andExpect(jsonPath("$.code").value("NOT_IMPLEMENTED"));
     }
 
+    @Test
+    void aMissingIdempotencyKeyIsABadRequestOnEveryMutation() throws Exception {
+        var experimentId = experiment(ExperimentManifests.threePlayerSingleSet());
+        var runId = start(experimentId);
+
+        mockMvc.perform(post("/api/v1/experiments/{id}/runs", experimentId)
+                        .with(jwt().authorities(writeAuthority()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(post("/api/v1/runs/{id}/cancel", runId).with(jwt().authorities(writeAuthority())))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(post("/api/v1/runs/{id}/resume", runId).with(jwt().authorities(writeAuthority())))
+                .andExpect(status().isBadRequest());
+    }
+
     private MockHttpServletRequestBuilder startRun(UUID experimentId, UUID key) {
         return post("/api/v1/experiments/{id}/runs", experimentId)
                 .with(jwt().authorities(writeAuthority()))
