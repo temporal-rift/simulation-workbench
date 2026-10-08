@@ -73,6 +73,41 @@ public final class ExperimentManifests {
         return manifest;
     }
 
+    /**
+     * A manifest with exactly {@code seeds} x {@value #FOUR_PLAYER_CASES_PER_SEED} cases: one variant, one
+     * policy, four players, every four-faction set under all four cyclic rotations.
+     */
+    public static JsonNode fourPlayerSeeds(int seeds, int concurrency) {
+        var manifest = (ObjectNode) singleSeedSinglePolicySingleVariant().deepCopy();
+        var seedValues = MAPPER.createArrayNode();
+        for (var seed = 1; seed <= seeds; seed++) {
+            seedValues.add(String.valueOf(seed));
+        }
+        manifest.set("seeds", seedValues);
+        var counts = MAPPER.createArrayNode();
+        counts.add(4);
+        manifest.set("playerCounts", counts);
+        var sets = MAPPER.createArrayNode();
+        combinations(FACTIONS, 4).forEach(combo -> sets.add(set(combo)));
+        manifest.set("factionSets", sets);
+        manifest.put("concurrency", concurrency);
+        return manifest;
+    }
+
+    /** One seed of three players in a single faction set: three cases, one per rotation. */
+    public static JsonNode threePlayerSingleSet() {
+        var manifest = (ObjectNode) singleSeedSinglePolicySingleVariant().deepCopy();
+        var counts = MAPPER.createArrayNode();
+        counts.add(3);
+        manifest.set("playerCounts", counts);
+        var sets = MAPPER.createArrayNode();
+        sets.add(set(List.of("ERASERS", "PROPHETS", "WEAVERS")));
+        manifest.set("factionSets", sets);
+        return manifest;
+    }
+
+    public static final int FOUR_PLAYER_CASES_PER_SEED = 20;
+
     public static ArrayNode fullFactionSets() {
         var sets = MAPPER.createArrayNode();
         combinations(FACTIONS, 3).forEach(combo -> sets.add(set(combo)));

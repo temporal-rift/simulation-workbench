@@ -4,10 +4,13 @@ import java.time.Clock;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import tools.jackson.databind.ObjectMapper;
 
+import io.github.temporalrift.workbench.experiment.ExperimentCatalog;
 import io.github.temporalrift.workbench.experiment.application.command.CreateExperimentCommandHandler;
 import io.github.temporalrift.workbench.experiment.application.port.in.CreateExperimentUseCase;
 import io.github.temporalrift.workbench.experiment.application.port.in.PreviewMatrixUseCase;
+import io.github.temporalrift.workbench.experiment.application.query.ExperimentCatalogQueryHandler;
 import io.github.temporalrift.workbench.experiment.application.query.PreviewMatrixQueryHandler;
 import io.github.temporalrift.workbench.experiment.domain.port.out.ExperimentRepository;
 import io.github.temporalrift.workbench.experiment.domain.port.out.IdempotencyStore;
@@ -54,5 +57,10 @@ public class ExperimentConfiguration {
     @Bean
     PreviewMatrixUseCase previewMatrixUseCase(PolicyReferenceVerifier policyVerifier) {
         return new PreviewMatrixQueryHandler(policyVerifier);
+    }
+
+    @Bean
+    ExperimentCatalog experimentCatalog(ExperimentRepository experiments, ObjectMapper objectMapper) {
+        return new ExperimentCatalogQueryHandler(experiments, objectMapper);
     }
 }
