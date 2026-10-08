@@ -34,11 +34,15 @@ public interface EvidenceLedger {
      */
     Optional<PinnedEvidence> pinned(UUID scopeId);
 
-    /** Appends the step to the game's stream and returns its position. */
+    /** Appends the step to the game's stream, before its command is sent, and returns its position. */
     int append(UUID scopeId, UUID gameId, UUID attemptId, StepRecord step);
 
-    /** Resolves the seat's latest unacknowledged step in the window once accepted state is known. */
-    void resolve(UUID scopeId, UUID gameId, int seatIndex, String windowKey, StepOutcome outcome);
+    /**
+     * Resolves the seat's unacknowledged step in the window once the answer is known.
+     *
+     * @param code the refusal code of a rejected command, otherwise null
+     */
+    void resolve(UUID scopeId, UUID gameId, int seatIndex, String windowKey, StepOutcome outcome, String code);
 
     /** The game's steps in the order they were sent. */
     List<StepRecord> steps(UUID scopeId, UUID gameId);
@@ -48,7 +52,7 @@ public interface EvidenceLedger {
      *
      * @return whether the event is new evidence
      */
-    boolean record(UUID scopeId, UUID attemptId, ObservedEvent event);
+    boolean retain(UUID scopeId, UUID attemptId, ObservedEvent event);
 
     /** Moves the source partition's next offset forward; it never moves back. */
     void advance(UUID scopeId, UUID gameId, String source, int partition, long nextOffset);

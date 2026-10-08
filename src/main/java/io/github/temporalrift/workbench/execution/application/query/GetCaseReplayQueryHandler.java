@@ -53,21 +53,18 @@ public class GetCaseReplayQueryHandler implements GetCaseReplayUseCase {
     }
 
     private static void requireFittingSeat(Query query, int seatCount) {
-        switch (query.perspective()) {
-            case PLAYER -> {
-                if (query.seatIndex() == null) {
-                    throw new InvalidReplayPerspectiveException("A PLAYER replay needs a seatIndex");
-                }
-                if (query.seatIndex() < 0 || query.seatIndex() >= seatCount) {
-                    throw new InvalidReplayPerspectiveException(
-                            "Seat " + query.seatIndex() + " does not exist in this case");
-                }
+        var seat = query.seatIndex();
+        if (query.perspective() == Perspective.OBSERVER) {
+            if (seat != null) {
+                throw new InvalidReplayPerspectiveException("An OBSERVER replay follows no seat");
             }
-            case OBSERVER -> {
-                if (query.seatIndex() != null) {
-                    throw new InvalidReplayPerspectiveException("An OBSERVER replay follows no seat");
-                }
-            }
+            return;
+        }
+        if (seat == null) {
+            throw new InvalidReplayPerspectiveException("A PLAYER replay needs a seatIndex");
+        }
+        if (seat < 0 || seat >= seatCount) {
+            throw new InvalidReplayPerspectiveException("Seat " + seat + " does not exist in this case");
         }
     }
 

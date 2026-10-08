@@ -35,6 +35,7 @@ import io.github.temporalrift.workbench.execution.application.port.in.RunBatchUs
 import io.github.temporalrift.workbench.execution.application.port.in.RunReproductionUseCase;
 import io.github.temporalrift.workbench.execution.application.port.in.StartRunUseCase;
 import io.github.temporalrift.workbench.execution.domain.evidence.StepOutcome;
+import io.github.temporalrift.workbench.execution.domain.evidence.StepRecord;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
 import io.github.temporalrift.workbench.execution.domain.port.out.ReproductionRepository;
@@ -44,6 +45,7 @@ import io.github.temporalrift.workbench.execution.domain.run.AttemptState;
 import io.github.temporalrift.workbench.execution.domain.run.CaseState;
 import io.github.temporalrift.workbench.execution.domain.run.EndReason;
 import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
+import io.github.temporalrift.workbench.execution.domain.run.FinalScore;
 import io.github.temporalrift.workbench.execution.support.ScriptedLanes;
 import io.github.temporalrift.workbench.experiment.ExperimentManifests;
 import io.github.temporalrift.workbench.experiment.application.port.in.CreateExperimentUseCase;
@@ -116,10 +118,11 @@ class CaseEvidenceIT {
         var saved = savedCase();
 
         var steps = evidence.steps(saved.caseId(), saved.gameId());
-        assertThat(steps).hasSize(6);
-        assertThat(steps).allSatisfy(step -> assertThat(step.outcome()).isEqualTo(StepOutcome.ACCEPTED));
-        assertThat(steps).extracting(step -> step.phase()).containsOnly("HAND_SELECTION", "TERMINAL_READINESS");
-        assertThat(steps).extracting(step -> step.step()).containsExactly(0, 1, 2, 3, 4, 5);
+        assertThat(steps)
+                .hasSize(6)
+                .allSatisfy(step -> assertThat(step.outcome()).isEqualTo(StepOutcome.ACCEPTED));
+        assertThat(steps).extracting(StepRecord::phase).containsOnly("HAND_SELECTION", "TERMINAL_READINESS");
+        assertThat(steps).extracting(StepRecord::step).containsExactly(0, 1, 2, 3, 4, 5);
         var pinned = evidence.pinned(saved.caseId()).orElseThrow();
         assertThat(pinned.manifestDigest()).isEqualTo(saved.manifestDigest());
         assertThat(pinned.manifestJson()).contains("\"seeds\"");
@@ -267,12 +270,14 @@ class CaseEvidenceIT {
                 saved.runId(), saved.caseId(), GetCaseReplayUseCase.Perspective.OBSERVER, null, null, 4);
 
         var first = getReplay.handle(query);
-        assertThat(first.entries()).extracting(entry -> entry.step()).containsExactly(0, 1, 2, 3);
+        assertThat(first.entries()).extracting(GetCaseReplayUseCase.Entry::step).containsExactly(0, 1, 2, 3);
         assertThat(first.nextStep()).isEqualTo(3);
 
         var second = getReplay.handle(new GetCaseReplayUseCase.Query(
                 saved.runId(), saved.caseId(), GetCaseReplayUseCase.Perspective.OBSERVER, null, first.nextStep(), 4));
-        assertThat(second.entries()).extracting(entry -> entry.step()).containsExactly(4, 5);
+        assertThat(second.entries())
+                .extracting(GetCaseReplayUseCase.Entry::step)
+                .containsExactly(4, 5);
         assertThat(second.nextStep()).isNull();
     }
 
@@ -315,6 +320,33 @@ class CaseEvidenceIT {
     }
 
     @Test
+    void aReproductionRunsOnTheLaneThatPlayedTheCaseAndWaitsWhileItIsBusy() {
+        var saved = savedCase();
+        var lane = jdbc.queryForObject(
+                "SELECT lane_id FROM case_attempt WHERE attempt_id = ?", String.class, saved.attemptId());
+        var reproduction = reproduceCase.handle(
+                new ReproduceCaseUseCase.Command(saved.runId(), saved.caseId(), UUID.randomUUID()));
+        assertThat(reproduction.laneId()).isEqualTo(lane);
+
+        var busy = lanes.acquireExactly(lane).orElseThrow();
+        assertThat(reproductions.runNext(WORKER)).isFalse();
+        assertThat(reproductionRepository
+                        .find(reproduction.reproductionId())
+                        .orElseThrow()
+                        .state())
+                .isEqualTo(ReproductionState.QUEUED);
+
+        busy.close();
+        assertThat(reproductions.runNext(WORKER)).isTrue();
+        assertThat(reproductionRepository
+                        .find(reproduction.reproductionId())
+                        .orElseThrow()
+                        .state())
+                .isEqualTo(ReproductionState.MATCH);
+        assertThat(lanes.opened().getLast().laneId()).isEqualTo(lane);
+    }
+
+    @Test
     void theSameKeyForAnotherCaseConflicts() throws Exception {
         var saved = savedCase();
         var key = UUID.randomUUID();
@@ -341,7 +373,8 @@ class CaseEvidenceIT {
         reproductionRepository.claimNext(
                 "crashed-worker",
                 java.time.Instant.now(),
-                java.time.Instant.now().plusSeconds(60));
+                java.time.Instant.now().plusSeconds(60),
+                lanes.freeLaneIds());
         assertThat(reproductionRepository
                         .find(reproduction.reproductionId())
                         .orElseThrow()
@@ -369,10 +402,9 @@ class CaseEvidenceIT {
             @Override
             public void onPoll(
                     CaseLane.CaseContext context, io.github.temporalrift.workbench.execution.support.FakeGame game) {
-                if (context.caseId().equals(reproduction.reproductionId()) && nested.compareAndSet(false, true)) {
-                    if (batch.runNextCase(WORKER)) {
-                        ranUnrelated.incrementAndGet();
-                    }
+                boolean theReproduction = context.caseId().equals(reproduction.reproductionId());
+                if (theReproduction && nested.compareAndSet(false, true) && batch.runNextCase(WORKER)) {
+                    ranUnrelated.incrementAndGet();
                 }
             }
         });
@@ -564,7 +596,7 @@ class CaseEvidenceIT {
         var done = getCase.handle(runId, caseId);
         assertThat(done.logicalCase().state()).isEqualTo(CaseState.SUCCEEDED);
         assertThat(done.logicalCase().result().finalScores())
-                .extracting(score -> score.score())
+                .extracting(FinalScore::score)
                 .containsExactly(30, 26, 22);
     }
 

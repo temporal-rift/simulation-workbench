@@ -44,7 +44,7 @@ public interface GetCaseReplayUseCase {
 
         int step();
 
-        record Command(int step, StepRecord record) implements Entry {}
+        record Command(int step, StepRecord command) implements Entry {}
 
         /** Events are listed per source in offset order; their position carries no order across sources. */
         record Event(int step, ObservedEvent event) implements Entry {}

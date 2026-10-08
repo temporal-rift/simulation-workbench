@@ -36,6 +36,9 @@ import io.github.temporalrift.workbench.policy.domain.decision.CandidateCodec;
  */
 public final class CaseDriver {
 
+    private static final String SEAT_INDEX = "seatIndex";
+    private static final String WINDOW = "window";
+
     private final DecisionRuntime decisions;
     private final CommandLedger commands;
     private final CaseLedger cases;
@@ -214,22 +217,22 @@ public final class CaseDriver {
             return new Divergence(
                     step,
                     "UNEXPECTED_WINDOW",
-                    java.util.Map.of("seatIndex", seatIndex, "decision", "none retained in the transcript"),
-                    java.util.Map.of("seatIndex", seatIndex, "window", window));
+                    java.util.Map.of(SEAT_INDEX, seatIndex, "decision", "none retained in the transcript"),
+                    java.util.Map.of(SEAT_INDEX, seatIndex, WINDOW, window));
         }
         return new Divergence(
                 step,
                 "COMMAND_REJECTED",
                 java.util.Map.of(
-                        "seatIndex",
+                        SEAT_INDEX,
                         seatIndex,
-                        "window",
+                        WINDOW,
                         window,
                         "decision",
                         CandidateCodec.encode(refused),
                         "outcome",
                         "ACCEPTED"),
-                java.util.Map.of("seatIndex", seatIndex, "window", window, "outcome", "REJECTED", "codes", codes));
+                java.util.Map.of(SEAT_INDEX, seatIndex, WINDOW, window, "outcome", "REJECTED", "codes", codes));
     }
 
     private List<SeatPolicy> seatPolicies(LogicalCase logicalCase) {

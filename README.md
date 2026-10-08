@@ -315,9 +315,10 @@ that is missing or no longer matches its content address, or a frozen manifest t
 under returns `409 MANIFEST_MISMATCH` and creates nothing. A changed rules variant is a comparison, not an exact
 reproduction.
 
-A reproduction needs a free, clean lane exactly like a research case, shares the worker pool, and is taken after pending
-cases. Because it reuses the logical identities of the original case, the lane that runs it must not still hold the
-original game.
+A reproduction runs on the lane that played the case, because the bot identities of a lane are part of what the seats
+observe and decide on. It waits, queued, while that lane is busy, shares the worker pool, and is taken after pending
+cases. Because it reuses the logical identities of the original case, that lane must be clean, as for any case. A
+reproduction whose lane is no longer configured stays queued.
 
 ### Export
 

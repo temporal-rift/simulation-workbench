@@ -20,6 +20,7 @@ import io.github.temporalrift.workbench.execution.domain.run.CaseResult;
  */
 final class DivergenceFinder {
 
+    private static final String DECISION = "decision";
     private static final ObjectMapper JSON = JsonMapper.builder().build();
 
     private DivergenceFinder() {}
@@ -62,8 +63,8 @@ final class DivergenceFinder {
             return Optional.of(new Divergence(
                     saved.step(),
                     "DECISION",
-                    detail(saved, "decision", saved.decision()),
-                    detail(again, "decision", again.decision())));
+                    detail(saved, DECISION, saved.decision()),
+                    detail(again, DECISION, again.decision())));
         }
         return Optional.empty();
     }
@@ -105,7 +106,7 @@ final class DivergenceFinder {
         var summary = new LinkedHashMap<String, Object>();
         summary.put("seatIndex", step.seatIndex());
         summary.put("window", step.windowKey());
-        summary.put("decision", step.decision());
+        summary.put(DECISION, step.decision());
         return summary;
     }
 

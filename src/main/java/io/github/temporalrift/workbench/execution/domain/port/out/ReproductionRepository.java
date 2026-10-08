@@ -1,6 +1,7 @@
 package io.github.temporalrift.workbench.execution.domain.port.out;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -22,8 +23,11 @@ public interface ReproductionRepository {
 
     Optional<Reproduction> find(UUID reproductionId);
 
-    /** Atomically moves the next queued reproduction to running under a lease. */
-    Optional<Reproduction> claimNext(String owner, Instant now, Instant leaseUntil);
+    /**
+     * Atomically moves the oldest queued reproduction whose lane is among {@code freeLaneIds} to running under
+     * a lease.
+     */
+    Optional<Reproduction> claimNext(String owner, Instant now, Instant leaseUntil, Collection<String> freeLaneIds);
 
     /** Extends the lease; false means the reproduction is no longer this owner's to run. */
     boolean extendLease(UUID reproductionId, String owner, Instant leaseUntil);

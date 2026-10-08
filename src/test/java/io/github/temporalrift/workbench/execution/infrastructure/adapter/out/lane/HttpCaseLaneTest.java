@@ -290,9 +290,7 @@ class HttpCaseLaneTest {
         return new HttpCaseLane(
                 endpoints,
                 clients,
-                ledger,
-                evidence,
-                (_, _, _, _) -> events,
+                new LaneServices(ledger, evidence, (_, _, _, _, _) -> events),
                 Clock.fixed(EPOCH, ZoneOffset.UTC),
                 new LaneEndpoints.Barrier(Duration.ZERO, 1, 2),
                 _ -> {},

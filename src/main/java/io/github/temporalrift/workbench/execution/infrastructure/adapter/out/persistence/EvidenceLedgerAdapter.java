@@ -37,8 +37,8 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
             "step, seat_index, window_key, phase, era, round, logical_time, observation, decision, outcome,"
                     + " outcome_code, entropy";
     private static final String EVENT_COLUMNS =
-            "source, partition_no, offset_no, event_id, event_type, aggregate_id, aggregate_type, game_id,"
-                    + " occurred_at, version, payload_artifact";
+            "e.source, e.partition_no, e.offset_no, e.event_id, e.event_type, e.aggregate_id, e.aggregate_type,"
+                    + " e.game_id, e.occurred_at, e.version, e.payload_artifact, a.content AS payload_content";
 
     private final JdbcTemplate jdbc;
     private final TransactionTemplate transactions;
@@ -125,11 +125,12 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
     }
 
     @Override
-    public void resolve(UUID scopeId, UUID gameId, int seatIndex, String windowKey, StepOutcome outcome) {
+    public void resolve(UUID scopeId, UUID gameId, int seatIndex, String windowKey, StepOutcome outcome, String code) {
         jdbc.update(
-                "UPDATE evidence_step SET outcome = ? WHERE scope_id = ? AND game_id = ? AND seat_index = ?"
-                        + " AND window_key = ? AND outcome = 'UNACKNOWLEDGED'",
+                "UPDATE evidence_step SET outcome = ?, outcome_code = ? WHERE scope_id = ? AND game_id = ?"
+                        + " AND seat_index = ? AND window_key = ? AND outcome = 'UNACKNOWLEDGED'",
                 outcome.name(),
+                code,
                 scopeId,
                 gameId,
                 seatIndex,
@@ -146,7 +147,7 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
     }
 
     @Override
-    public boolean record(UUID scopeId, UUID attemptId, ObservedEvent event) {
+    public boolean retain(UUID scopeId, UUID attemptId, ObservedEvent event) {
         return Boolean.TRUE.equals(transactions.execute(status -> {
             var now = clock.instant();
             var payload = putArtifact(event.payload().getBytes(StandardCharsets.UTF_8), JSON, now);
@@ -190,8 +191,9 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
     @Override
     public List<ObservedEvent> events(UUID scopeId, UUID gameId) {
         return jdbc.query(
-                "SELECT " + EVENT_COLUMNS + " FROM evidence_event WHERE scope_id = ? AND game_id = ?"
-                        + " ORDER BY source COLLATE \"C\", partition_no, offset_no",
+                "SELECT " + EVENT_COLUMNS + " FROM evidence_event e LEFT JOIN evidence_artifact a"
+                        + " ON a.digest = e.payload_artifact WHERE e.scope_id = ? AND e.game_id = ?"
+                        + " ORDER BY e.source COLLATE \"C\", e.partition_no, e.offset_no",
                 (rs, i) -> event(rs),
                 scopeId,
                 gameId);
@@ -244,7 +246,15 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
                 .query("SELECT content FROM evidence_artifact WHERE digest = ?", (rs, i) -> rs.getBytes(1), digest)
                 .stream()
                 .findFirst()
-                .orElseThrow(() -> new ManifestMismatchException("Pinned artifact " + digest + " is unavailable"));
+                .orElse(null);
+        return verified(digest, content);
+    }
+
+    /** Refuses content that is missing or no longer hashes to its address. */
+    private static String verified(String digest, byte[] content) {
+        if (content == null) {
+            throw new ManifestMismatchException("Pinned artifact " + digest + " is unavailable");
+        }
         if (!sha256(content).equals(digest)) {
             throw new ManifestMismatchException("Pinned artifact " + digest + " does not match its content address");
         }
@@ -279,7 +289,7 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
                 rs.getObject("game_id", UUID.class),
                 Rows.instant(rs, "occurred_at"),
                 rs.getInt("version"),
-                artifactText(rs.getString("payload_artifact")));
+                verified(rs.getString("payload_artifact"), rs.getBytes("payload_content")));
     }
 
     private static String sha256(byte[] content) {

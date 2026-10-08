@@ -93,8 +93,8 @@ class HttpGameSessionTest {
                 gateway,
                 gateway,
                 scoring,
-                new LaneEndpoints.Barrier(Duration.ZERO, 2, 3),
-                _ -> sleeps.incrementAndGet(),
+                new HttpGameSession.Pacing(
+                        new LaneEndpoints.Barrier(Duration.ZERO, 2, 3), _ -> sleeps.incrementAndGet()),
                 events);
         checkpoints(true, null);
     }

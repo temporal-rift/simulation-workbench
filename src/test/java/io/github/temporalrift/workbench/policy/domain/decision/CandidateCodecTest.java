@@ -44,6 +44,9 @@ class CandidateCodecTest {
                         new Candidate.PlayCard(A, new Target.Players(List.of(B, C))),
                         "card:" + A + ":players:" + B + "," + C),
                 Arguments.of(new Candidate.PlayCard(A, null), "card:" + A + ":-"),
+                Arguments.of(new Candidate.PlayCard(A, new Target.Events(List.of())), "card:" + A + ":events:"),
+                Arguments.of(new Candidate.PlayCard(A, new Target.Players(List.of())), "card:" + A + ":players:"),
+                Arguments.of(new Candidate.KeepHand(List.of()), "keep:"),
                 Arguments.of(
                         new Candidate.PlaySpecial(SpecialAction.SEAL, new Target.Events(List.of(A))),
                         "special:SEAL:events:" + A),

@@ -73,14 +73,15 @@ public class InMemoryEvidenceLedger implements EvidenceLedger {
     }
 
     @Override
-    public synchronized void resolve(UUID scopeId, UUID gameId, int seatIndex, String windowKey, StepOutcome outcome) {
+    public synchronized void resolve(
+            UUID scopeId, UUID gameId, int seatIndex, String windowKey, StepOutcome outcome, String code) {
         var list = steps.getOrDefault(new Game(scopeId, gameId), List.of());
         for (var index = 0; index < list.size(); index++) {
             var step = list.get(index);
             if (step.seatIndex() == seatIndex
                     && step.windowKey().equals(windowKey)
                     && step.outcome() == StepOutcome.UNACKNOWLEDGED) {
-                list.set(index, step.withOutcome(outcome, step.outcomeCode()));
+                list.set(index, step.withOutcome(outcome, code));
             }
         }
     }
@@ -91,7 +92,7 @@ public class InMemoryEvidenceLedger implements EvidenceLedger {
     }
 
     @Override
-    public synchronized boolean record(UUID scopeId, UUID attemptId, ObservedEvent event) {
+    public synchronized boolean retain(UUID scopeId, UUID attemptId, ObservedEvent event) {
         var game = events.computeIfAbsent(new Game(scopeId, event.gameId()), key -> new LinkedHashMap<>());
         return game.putIfAbsent(event.source() + "|" + event.eventId(), event) == null;
     }

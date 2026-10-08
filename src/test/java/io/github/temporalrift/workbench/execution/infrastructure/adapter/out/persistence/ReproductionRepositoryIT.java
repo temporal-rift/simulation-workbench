@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
@@ -30,6 +31,7 @@ import io.github.temporalrift.workbench.experiment.application.port.in.CreateExp
 class ReproductionRepositoryIT {
 
     private static final Instant NOW = Instant.parse("2026-01-01T00:00:00Z");
+    private static final Set<String> LANES = Set.of("lane-1");
 
     @Autowired
     private ReproductionRepository reproductions;
@@ -76,10 +78,10 @@ class ReproductionRepositoryIT {
     @Test
     void theSameKeyReturnsTheOriginalReproductionAndTheRequestThatClaimedIt() {
         var key = UUID.randomUUID();
-        var first = Reproduction.queued(runId, caseId, NOW);
+        var first = Reproduction.queued(runId, caseId, "lane-1", NOW);
 
         assertThat(reproductions.create(key, "hash-a", first)).isInstanceOf(ReproductionCreation.Created.class);
-        var second = reproductions.create(key, "hash-b", Reproduction.queued(runId, caseId, NOW));
+        var second = reproductions.create(key, "hash-b", Reproduction.queued(runId, caseId, "lane-1", NOW));
 
         assertThat(second).isInstanceOfSatisfying(ReproductionCreation.Existing.class, existing -> {
             assertThat(existing.claim().reproduction().reproductionId()).isEqualTo(first.reproductionId());
@@ -93,11 +95,12 @@ class ReproductionRepositoryIT {
     void aClaimIsExclusiveAndOnlyItsOwnerMaySettleIt() {
         var queued = queue();
 
-        var claimed =
-                reproductions.claimNext("worker-a", NOW, NOW.plusSeconds(30)).orElseThrow();
+        var claimed = reproductions
+                .claimNext("worker-a", NOW, NOW.plusSeconds(30), LANES)
+                .orElseThrow();
         assertThat(claimed.reproductionId()).isEqualTo(queued.reproductionId());
         assertThat(claimed.state()).isEqualTo(ReproductionState.RUNNING);
-        assertThat(reproductions.claimNext("worker-b", NOW, NOW.plusSeconds(30)))
+        assertThat(reproductions.claimNext("worker-b", NOW, NOW.plusSeconds(30), LANES))
                 .isEmpty();
 
         assertThat(reproductions.settle(queued.reproductionId(), "worker-b", queued.matched(NOW)))
@@ -115,12 +118,12 @@ class ReproductionRepositoryIT {
     @Test
     void aDivergenceAndAFailureSurviveStorage() {
         var diverged = queue();
-        reproductions.claimNext("worker", NOW, NOW.plusSeconds(30));
+        reproductions.claimNext("worker", NOW, NOW.plusSeconds(30), LANES);
         var divergence = new Divergence(3, "OBSERVATION", Map.of("seatIndex", 1), Map.of("seatIndex", 2));
         reproductions.settle(diverged.reproductionId(), "worker", diverged.diverged(divergence, NOW));
 
         var failed = queue();
-        reproductions.claimNext("worker", NOW, NOW.plusSeconds(30));
+        reproductions.claimNext("worker", NOW, NOW.plusSeconds(30), LANES);
         reproductions.settle(
                 failed.reproductionId(),
                 "worker",
@@ -140,14 +143,14 @@ class ReproductionRepositoryIT {
     @Test
     void anExpiredLeaseQueuesTheReproductionAgainForAnotherWorker() {
         var queued = queue();
-        reproductions.claimNext("worker-a", NOW, NOW.plusSeconds(30));
+        reproductions.claimNext("worker-a", NOW, NOW.plusSeconds(30), LANES);
 
         assertThat(reproductions.requeueExpired(NOW.plusSeconds(10))).isZero();
         assertThat(reproductions.requeueExpired(NOW.plusSeconds(31))).isEqualTo(1);
 
         assertThat(reproductions.settle(queued.reproductionId(), "worker-a", queued.matched(NOW)))
                 .isFalse();
-        assertThat(reproductions.claimNext("worker-b", NOW, NOW.plusSeconds(30)))
+        assertThat(reproductions.claimNext("worker-b", NOW, NOW.plusSeconds(30), LANES))
                 .isPresent();
     }
 
@@ -155,8 +158,8 @@ class ReproductionRepositoryIT {
     void aGracefulStopAndARestartQueueTheHeldReproductionsAgain() {
         queue();
         queue();
-        reproductions.claimNext("worker-a", NOW, NOW.plusSeconds(30));
-        reproductions.claimNext("worker-b", NOW, NOW.plusSeconds(30));
+        reproductions.claimNext("worker-a", NOW, NOW.plusSeconds(30), LANES);
+        reproductions.claimNext("worker-b", NOW, NOW.plusSeconds(30), LANES);
 
         assertThat(reproductions.requeueOwnedBy("worker-a")).isEqualTo(1);
         assertThat(reproductions.requeueAllRunning()).isEqualTo(1);
@@ -168,7 +171,7 @@ class ReproductionRepositoryIT {
     @Test
     void aGivenBackClaimIsQueuedAgain() {
         var queued = queue();
-        reproductions.claimNext("worker-a", NOW, NOW.plusSeconds(30));
+        reproductions.claimNext("worker-a", NOW, NOW.plusSeconds(30), LANES);
 
         reproductions.release(queued.reproductionId(), "worker-a");
 
@@ -177,7 +180,7 @@ class ReproductionRepositoryIT {
     }
 
     private Reproduction queue() {
-        var queued = Reproduction.queued(runId, caseId, NOW);
+        var queued = Reproduction.queued(runId, caseId, "lane-1", NOW);
         reproductions.create(UUID.randomUUID(), "hash", queued);
         return queued;
     }

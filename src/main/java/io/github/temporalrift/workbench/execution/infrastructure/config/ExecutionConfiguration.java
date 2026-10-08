@@ -22,6 +22,7 @@ import io.github.temporalrift.workbench.execution.application.command.CaseDriver
 import io.github.temporalrift.workbench.execution.application.command.ExecutionSettings;
 import io.github.temporalrift.workbench.execution.application.command.ReproduceCaseCommandHandler;
 import io.github.temporalrift.workbench.execution.application.command.ReproductionRunner;
+import io.github.temporalrift.workbench.execution.application.command.ReproductionSources;
 import io.github.temporalrift.workbench.execution.application.command.ResumeRunCommandHandler;
 import io.github.temporalrift.workbench.execution.application.command.RunBatchService;
 import io.github.temporalrift.workbench.execution.application.command.StartRunCommandHandler;
@@ -52,6 +53,7 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.ConfiguredLanePool;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.GameEventObservers;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneEndpoints;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneServices;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.RestApiClients;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.Sleeper;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.persistence.CaseLedgerAdapter;
@@ -154,7 +156,8 @@ public class ExecutionConfiguration {
                 properties.barrier().pollInterval(),
                 properties.barrier().stablePolls(),
                 properties.barrier().maxPolls());
-        return new ConfiguredLanePool(lanes, clients, ledger, evidence, observers, clock, barrier, Sleeper.thread());
+        return new ConfiguredLanePool(
+                lanes, clients, new LaneServices(ledger, evidence, observers), clock, barrier, Sleeper.thread());
     }
 
     @Bean
@@ -185,13 +188,14 @@ public class ExecutionConfiguration {
     }
 
     @Bean
+    ReproductionSources reproductionSources(RunRepository runs, ExperimentSource experiments, EvidenceLedger evidence) {
+        return new ReproductionSources(runs, experiments, evidence);
+    }
+
+    @Bean
     ReproduceCaseUseCase reproduceCaseUseCase(
-            RunRepository runs,
-            ExperimentSource experiments,
-            EvidenceLedger evidence,
-            ReproductionRepository reproductions,
-            Clock clock) {
-        return new ReproduceCaseCommandHandler(runs, experiments, evidence, reproductions, clock);
+            ReproductionSources sources, ReproductionRepository reproductions, Clock clock) {
+        return new ReproduceCaseCommandHandler(sources, reproductions, clock);
     }
 
     @Bean
@@ -218,14 +222,12 @@ public class ExecutionConfiguration {
     @Bean
     RunReproductionUseCase runReproductionUseCase(
             ReproductionRepository reproductions,
-            RunRepository runs,
-            ExperimentSource experiments,
-            EvidenceLedger evidence,
+            ReproductionSources sources,
             LaneProvider lanes,
             CaseDriver driver,
             Clock clock,
             ExecutionSettings settings) {
-        return new ReproductionRunner(reproductions, runs, experiments, evidence, lanes, driver, clock, settings);
+        return new ReproductionRunner(reproductions, sources, lanes, driver, clock, settings);
     }
 
     @Bean

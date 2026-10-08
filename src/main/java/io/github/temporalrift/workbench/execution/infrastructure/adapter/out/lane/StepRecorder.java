@@ -14,9 +14,10 @@ import io.github.temporalrift.workbench.policy.domain.decision.CandidateCodec;
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
 
 /**
- * Retains every command a seat sends, with the entitled observation it decided from. A command whose
- * answer was lost is retained as unacknowledged and resolved once accepted state is known. Rejections are
- * retained too, so the entropy draw a decision used is identified by how many rejections preceded it.
+ * Retains every command a seat sends, with the entitled observation it decided from. The step is appended
+ * as unacknowledged before the command is sent, so a command the service accepted is never missing from the
+ * evidence however the process ends; it is resolved once the answer, or accepted state, is known. Rejections
+ * are retained too, so the entropy draw a decision used is identified by how many rejections preceded it.
  */
 public class StepRecorder {
 
@@ -48,7 +49,8 @@ public class StepRecorder {
         this.logicalTime = logicalTime;
     }
 
-    public void sent(EntitledObservation observation, Candidate candidate, StepOutcome outcome, String code) {
+    /** Retains the command about to be sent, as unacknowledged. */
+    public void sending(EntitledObservation observation, Candidate candidate) {
         var window = observation.window();
         var seat = observation.seatIndex();
         var draws = rejections.getOrDefault(drawKey(seat, window.key()), 0);
@@ -61,21 +63,26 @@ public class StepRecorder {
                         seat,
                         window.key(),
                         ObservationJson.phase(window),
-                        ObservationJson.era(window),
+                        window.era(),
                         ObservationJson.round(window),
                         logicalTime.get(),
                         ObservationJson.of(observation),
                         CandidateCodec.encode(candidate),
-                        outcome,
-                        code,
+                        StepOutcome.UNACKNOWLEDGED,
+                        null,
                         ObservationJson.entropy(policySeed, seat, window.key(), draws)));
-        if (outcome == StepOutcome.REJECTED) {
-            rejections.merge(drawKey(seat, window.key()), 1, Integer::sum);
-        }
     }
 
     public void resolved(int seatIndex, String windowKey, StepOutcome outcome) {
-        evidence.resolve(scopeId, gameId, seatIndex, windowKey, outcome);
+        resolved(seatIndex, windowKey, outcome, null);
+    }
+
+    /** Resolves the unacknowledged step; a rejection advances the entropy draw of the next decision. */
+    public void resolved(int seatIndex, String windowKey, StepOutcome outcome, String code) {
+        evidence.resolve(scopeId, gameId, seatIndex, windowKey, outcome, code);
+        if (outcome == StepOutcome.REJECTED) {
+            rejections.merge(drawKey(seatIndex, windowKey), 1, Integer::sum);
+        }
     }
 
     private static String drawKey(int seatIndex, String windowKey) {

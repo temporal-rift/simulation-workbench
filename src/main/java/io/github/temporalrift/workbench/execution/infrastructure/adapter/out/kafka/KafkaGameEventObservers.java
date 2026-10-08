@@ -1,6 +1,7 @@
 package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.kafka;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,7 +37,7 @@ public class KafkaGameEventObservers implements GameEventObservers {
     }
 
     @Override
-    public GameEventObserver open(LaneEndpoints lane, UUID scopeId, UUID attemptId, UUID gameId) {
+    public GameEventObserver open(LaneEndpoints lane, UUID scopeId, UUID attemptId, UUID gameId, Instant since) {
         var properties = new HashMap<>(clientProperties.get());
         properties.put(ConsumerConfig.GROUP_ID_CONFIG, "workbench-observer-" + attemptId);
         properties.put(ConsumerConfig.CLIENT_ID_CONFIG, "workbench-observer-" + gameId);
@@ -49,10 +50,8 @@ public class KafkaGameEventObservers implements GameEventObservers {
                 List.of(lane.gameEventsTopic(), lane.timelineEventsTopic()),
                 evidence,
                 objectMapper,
-                scopeId,
-                attemptId,
-                gameId,
-                POLL_TIMEOUT,
-                MAX_IDLE_POLLS);
+                new KafkaGameEventObserver.Target(scopeId, attemptId, gameId),
+                new KafkaGameEventObserver.Polling(POLL_TIMEOUT, MAX_IDLE_POLLS),
+                since);
     }
 }

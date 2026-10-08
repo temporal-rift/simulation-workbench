@@ -22,6 +22,10 @@
         <constraints nullable="false" foreignKeyName="fk_reproduction_case" references="run_case(case_id)"
                      deleteCascade="true"/>
       </column>
+      <!-- The lane that played the case: its bot identities are part of what the seats observed. -->
+      <column name="lane_id" type="VARCHAR(64)">
+        <constraints nullable="false"/>
+      </column>
       <column name="idempotency_key" type="UUID">
         <constraints nullable="false" unique="true" uniqueConstraintName="uq_reproduction_key"/>
       </column>

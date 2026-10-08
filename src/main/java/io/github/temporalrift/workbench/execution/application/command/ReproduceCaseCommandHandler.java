@@ -3,10 +3,7 @@ package io.github.temporalrift.workbench.execution.application.command;
 import java.time.Clock;
 
 import io.github.temporalrift.workbench.execution.application.port.in.ReproduceCaseUseCase;
-import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
-import io.github.temporalrift.workbench.execution.domain.port.out.ExperimentSource;
 import io.github.temporalrift.workbench.execution.domain.port.out.ReproductionRepository;
-import io.github.temporalrift.workbench.execution.domain.port.out.RunRepository;
 import io.github.temporalrift.workbench.execution.domain.reproduction.Reproduction;
 import io.github.temporalrift.workbench.execution.domain.reproduction.ReproductionClaim;
 import io.github.temporalrift.workbench.execution.domain.reproduction.ReproductionCreation;
@@ -21,21 +18,12 @@ public class ReproduceCaseCommandHandler implements ReproduceCaseUseCase {
 
     static final String OPERATION = "reproduceCase";
 
-    private final RunRepository runs;
-    private final ExperimentSource experiments;
-    private final EvidenceLedger evidence;
+    private final ReproductionSources sources;
     private final ReproductionRepository reproductions;
     private final Clock clock;
 
-    public ReproduceCaseCommandHandler(
-            RunRepository runs,
-            ExperimentSource experiments,
-            EvidenceLedger evidence,
-            ReproductionRepository reproductions,
-            Clock clock) {
-        this.runs = runs;
-        this.experiments = experiments;
-        this.evidence = evidence;
+    public ReproduceCaseCommandHandler(ReproductionSources sources, ReproductionRepository reproductions, Clock clock) {
+        this.sources = sources;
         this.reproductions = reproductions;
         this.clock = clock;
     }
@@ -50,8 +38,8 @@ public class ReproduceCaseCommandHandler implements ReproduceCaseUseCase {
         if (existing.isPresent()) {
             return replayed(existing.get(), requestHash);
         }
-        ReproductionInputs.verify(command.runId(), command.caseId(), runs, experiments, evidence);
-        var queued = Reproduction.queued(command.runId(), command.caseId(), clock.instant());
+        var inputs = ReproductionInputs.verify(command.runId(), command.caseId(), sources);
+        var queued = Reproduction.queued(command.runId(), command.caseId(), inputs.originalLaneId(), clock.instant());
         return switch (reproductions.create(command.idempotencyKey(), requestHash, queued)) {
             case ReproductionCreation.Created _ -> queued;
             case ReproductionCreation.Existing(var claim) -> replayed(claim, requestHash);

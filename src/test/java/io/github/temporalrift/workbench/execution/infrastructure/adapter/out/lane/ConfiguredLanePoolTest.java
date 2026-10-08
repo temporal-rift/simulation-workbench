@@ -17,9 +17,7 @@ class ConfiguredLanePoolTest {
     private final ConfiguredLanePool pool = new ConfiguredLanePool(
             List.of(lane("a"), lane("b")),
             new RestApiClients(Duration.ofSeconds(1), Duration.ofSeconds(1)),
-            new InMemoryCommandLedger(),
-            new InMemoryEvidenceLedger(),
-            (_, _, _, _) -> new StubEventObserver(),
+            services(),
             Clock.systemUTC(),
             new LaneEndpoints.Barrier(Duration.ZERO, 1, 1),
             _ -> {});
@@ -48,6 +46,20 @@ class ConfiguredLanePoolTest {
     }
 
     @Test
+    void aReproductionAcquiresExactlyTheLaneThatPlayedTheCaseOrNothing() {
+        assertThat(pool.freeLaneIds()).containsExactlyInAnyOrder("a", "b");
+        var exact = pool.acquireExactly("b").orElseThrow();
+
+        assertThat(exact.laneId()).isEqualTo("b");
+        assertThat(pool.acquireExactly("b")).isEmpty();
+        assertThat(pool.freeLaneIds()).containsExactly("a");
+        assertThat(pool.acquireExactly("unknown")).isEmpty();
+
+        exact.close();
+        assertThat(pool.freeLaneIds()).containsExactlyInAnyOrder("a", "b");
+    }
+
+    @Test
     void aLaneWithNoFreeCapacityIsNeverOverCommitted() {
         pool.acquire(null).orElseThrow();
         pool.acquire(null).orElseThrow();
@@ -60,15 +72,18 @@ class ConfiguredLanePoolTest {
         var empty = new ConfiguredLanePool(
                 List.of(),
                 new RestApiClients(Duration.ofSeconds(1), Duration.ofSeconds(1)),
-                new InMemoryCommandLedger(),
-                new InMemoryEvidenceLedger(),
-                (_, _, _, _) -> new StubEventObserver(),
+                services(),
                 Clock.systemUTC(),
                 new LaneEndpoints.Barrier(Duration.ZERO, 1, 1),
                 _ -> {});
 
         assertThat(empty.hasFreeLane()).isFalse();
         assertThat(empty.acquire(null)).isEmpty();
+    }
+
+    private static LaneServices services() {
+        return new LaneServices(
+                new InMemoryCommandLedger(), new InMemoryEvidenceLedger(), (_, _, _, _, _) -> new StubEventObserver());
     }
 
     private static LaneEndpoints lane(String id) {

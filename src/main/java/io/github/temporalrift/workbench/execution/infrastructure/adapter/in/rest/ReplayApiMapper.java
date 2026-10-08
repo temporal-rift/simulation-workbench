@@ -49,29 +49,29 @@ final class ReplayApiMapper {
 
     private static ReplayStep step(GetCaseReplayUseCase.Entry entry) {
         return switch (entry) {
-            case GetCaseReplayUseCase.Entry.Command command -> commandStep(command.step(), command.record());
-            case GetCaseReplayUseCase.Entry.Event event -> eventStep(event.step(), event.event());
+            case GetCaseReplayUseCase.Entry.Command(var number, var command) -> commandStep(number, command);
+            case GetCaseReplayUseCase.Entry.Event(var number, var event) -> eventStep(number, event);
         };
     }
 
-    private static ReplayStep commandStep(int step, StepRecord record) {
+    private static ReplayStep commandStep(int number, StepRecord step) {
         var decision = new LinkedHashMap<String, Object>();
-        decision.put("seatIndex", record.seatIndex());
-        decision.put("window", record.windowKey());
-        decision.put("candidate", record.decision());
-        decision.put("entropy", record.entropy() == null ? null : parse(record.entropy()));
+        decision.put("seatIndex", step.seatIndex());
+        decision.put("window", step.windowKey());
+        decision.put("candidate", step.decision());
+        decision.put("entropy", step.entropy() == null ? null : parse(step.entropy()));
         var result = new LinkedHashMap<String, Object>();
-        result.put("outcome", record.outcome().name());
-        if (record.outcomeCode() != null) {
-            result.put("code", record.outcomeCode());
+        result.put("outcome", step.outcome().name());
+        if (step.outcomeCode() != null) {
+            result.put("code", step.outcomeCode());
         }
         return new ReplayStep(
-                step,
-                record.era(),
-                record.round(),
-                record.phase(),
-                utc(record.logicalTime()),
-                parse(record.observation()),
+                number,
+                step.era(),
+                step.round(),
+                step.phase(),
+                utc(step.logicalTime()),
+                parse(step.observation()),
                 decision,
                 result);
     }

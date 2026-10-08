@@ -7,10 +7,8 @@ import java.util.UUID;
 import io.github.temporalrift.workbench.execution.application.port.in.RunReproductionUseCase;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
-import io.github.temporalrift.workbench.execution.domain.port.out.ExperimentSource;
 import io.github.temporalrift.workbench.execution.domain.port.out.LaneProvider;
 import io.github.temporalrift.workbench.execution.domain.port.out.ReproductionRepository;
-import io.github.temporalrift.workbench.execution.domain.port.out.RunRepository;
 import io.github.temporalrift.workbench.execution.domain.reproduction.ManifestMismatchException;
 import io.github.temporalrift.workbench.execution.domain.reproduction.Reproduction;
 import io.github.temporalrift.workbench.execution.domain.reproduction.TranscriptDivergedException;
@@ -29,8 +27,7 @@ import io.github.temporalrift.workbench.execution.domain.run.RunNotFoundExceptio
 public class ReproductionRunner implements RunReproductionUseCase {
 
     private final ReproductionRepository reproductions;
-    private final RunRepository runs;
-    private final ExperimentSource experiments;
+    private final ReproductionSources sources;
     private final EvidenceLedger evidence;
     private final LaneProvider lanes;
     private final CaseDriver driver;
@@ -39,17 +36,14 @@ public class ReproductionRunner implements RunReproductionUseCase {
 
     public ReproductionRunner(
             ReproductionRepository reproductions,
-            RunRepository runs,
-            ExperimentSource experiments,
-            EvidenceLedger evidence,
+            ReproductionSources sources,
             LaneProvider lanes,
             CaseDriver driver,
             Clock clock,
             ExecutionSettings settings) {
         this.reproductions = reproductions;
-        this.runs = runs;
-        this.experiments = experiments;
-        this.evidence = evidence;
+        this.sources = sources;
+        this.evidence = sources.evidence();
         this.lanes = lanes;
         this.driver = driver;
         this.clock = clock;
@@ -72,21 +66,20 @@ public class ReproductionRunner implements RunReproductionUseCase {
             return false;
         }
         var now = clock.instant();
-        var claimed = reproductions.claimNext(owner, now, now.plus(settings.lease()));
+        var claimed = reproductions.claimNext(owner, now, now.plus(settings.lease()), lanes.freeLaneIds());
         if (claimed.isEmpty()) {
             return false;
         }
         var reproduction = claimed.get();
         ReproductionInputs inputs;
         try {
-            inputs =
-                    ReproductionInputs.verify(reproduction.runId(), reproduction.caseId(), runs, experiments, evidence);
+            inputs = ReproductionInputs.verify(reproduction.runId(), reproduction.caseId(), sources);
         } catch (ManifestMismatchException | RunNotFoundException e) {
             var failure = new Failure(FailureCode.CONTRACT_MISMATCH, e.getMessage());
             settle(reproduction, owner, reproduction.failed(failure, now));
             return true;
         }
-        var lane = lanes.acquire(null);
+        var lane = lanes.acquireExactly(reproduction.laneId());
         if (lane.isEmpty()) {
             reproductions.release(reproduction.reproductionId(), owner);
             return false;

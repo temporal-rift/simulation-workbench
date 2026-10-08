@@ -17,21 +17,21 @@ public final class CandidateCodec {
     private static final String SEPARATOR = ":";
     private static final String LIST_SEPARATOR = ",";
     private static final String NO_TARGET = "-";
+    private static final int KEEP_ALL_FIELDS = -1;
 
     private CandidateCodec() {}
 
     public static String encode(Candidate candidate) {
         return switch (candidate) {
-            case Candidate.KeepHand keep -> "keep" + SEPARATOR + ids(keep.cardInstanceIds());
-            case Candidate.Declare declare ->
-                join("declare", declare.mode().name(), declare.eventId(), declare.outcomeId());
+            case Candidate.KeepHand(var cardInstanceIds) -> "keep" + SEPARATOR + ids(cardInstanceIds);
+            case Candidate.Declare(var mode, var eventId, var outcomeId) ->
+                join("declare", mode.name(), eventId, outcomeId);
             case Candidate.Decline _ -> "decline";
-            case Candidate.PlayCard card -> join("card", card.cardInstanceId(), encode(card.target()));
-            case Candidate.PlaySpecial special ->
-                join("special", special.action().name(), encode(special.target()));
+            case Candidate.PlayCard(var cardInstanceId, var target) -> join("card", cardInstanceId, encode(target));
+            case Candidate.PlaySpecial(var action, var target) -> join("special", action.name(), encode(target));
             case Candidate.Pass _ -> "pass";
-            case Candidate.PlayParadoxCard paradox ->
-                join("paradox-card", paradox.cardInstanceId(), encode(paradox.target()));
+            case Candidate.PlayParadoxCard(var cardInstanceId, var target) ->
+                join("paradox-card", cardInstanceId, encode(target));
             case Candidate.PassParadox _ -> "paradox-pass";
             case Candidate.ConfirmReady _ -> "ready";
         };
@@ -63,7 +63,7 @@ public final class CandidateCodec {
     }
 
     private static Candidate declare(String text) {
-        var parts = text.split(SEPARATOR);
+        var parts = text.split(SEPARATOR, KEEP_ALL_FIELDS);
         return new Candidate.Declare(
                 DeclarationMode.valueOf(parts[1]), UUID.fromString(parts[2]), UUID.fromString(parts[3]));
     }
@@ -71,14 +71,13 @@ public final class CandidateCodec {
     private static String encode(Target target) {
         return switch (target) {
             case null -> NO_TARGET;
-            case Target.Disguise disguise ->
-                join("disguise", disguise.category().name());
-            case Target.EventOutcome outcome -> join("outcome", outcome.eventId(), outcome.outcomeId());
-            case Target.OutcomePair pair ->
-                join("pair", pair.eventId(), pair.sourceOutcomeId(), pair.targetOutcomeId());
-            case Target.Events events -> "events" + SEPARATOR + ids(events.eventIds());
-            case Target.Player player -> join("player", player.playerId());
-            case Target.Players players -> "players" + SEPARATOR + ids(players.playerIds());
+            case Target.Disguise(var category) -> join("disguise", category.name());
+            case Target.EventOutcome(var eventId, var outcomeId) -> join("outcome", eventId, outcomeId);
+            case Target.OutcomePair(var eventId, var sourceOutcomeId, var targetOutcomeId) ->
+                join("pair", eventId, sourceOutcomeId, targetOutcomeId);
+            case Target.Events(var eventIds) -> "events" + SEPARATOR + ids(eventIds);
+            case Target.Player(var playerId) -> join("player", playerId);
+            case Target.Players(var playerIds) -> "players" + SEPARATOR + ids(playerIds);
         };
     }
 
@@ -86,7 +85,7 @@ public final class CandidateCodec {
         if (NO_TARGET.equals(text)) {
             return null;
         }
-        var parts = text.split(SEPARATOR);
+        var parts = text.split(SEPARATOR, KEEP_ALL_FIELDS);
         return switch (parts[0]) {
             case "disguise" -> new Target.Disguise(CardCategory.valueOf(parts[1]));
             case "outcome" -> new Target.EventOutcome(UUID.fromString(parts[1]), UUID.fromString(parts[2]));

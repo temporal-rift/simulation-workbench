@@ -64,6 +64,9 @@ public class HttpGameSession implements GameSession {
     /** The execution controls of the two services that host a game. */
     public record ServiceControls(SimulationExecutionApi game, SimulationExecutionApi timeline) {}
 
+    /** How the session waits for the services and projection to settle. */
+    public record Pacing(LaneEndpoints.Barrier barrier, Sleeper sleeper) {}
+
     /**
      * @param gateway the raw participant operations of the game, which also name its id and seats
      * @param participants the same operations made durable through the command ledger
@@ -74,8 +77,7 @@ public class HttpGameSession implements GameSession {
             HttpParticipantGateway gateway,
             ParticipantGateway participants,
             ScoringApi scoring,
-            LaneEndpoints.Barrier barrier,
-            Sleeper sleeper,
+            Pacing pacing,
             GameEventObserver events) {
         this.context = context;
         this.gameControl = controls.game();
@@ -84,8 +86,8 @@ public class HttpGameSession implements GameSession {
         this.participants = participants;
         this.seats = gateway.seats();
         this.scoring = scoring;
-        this.barrier = barrier;
-        this.sleeper = sleeper;
+        this.barrier = pacing.barrier();
+        this.sleeper = pacing.sleeper();
         this.events = events;
     }
 

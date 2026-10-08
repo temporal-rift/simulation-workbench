@@ -24,6 +24,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import tools.jackson.databind.ObjectMapper;
 
 import io.github.temporalrift.workbench.WorkbenchIntegrationTest;
+import io.github.temporalrift.workbench.execution.domain.evidence.ObservedEvent;
 import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
 import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
@@ -80,14 +81,14 @@ class KafkaGameEventObserverIT {
         var ended = UUID.randomUUID();
         publish(
                 gameTopic,
-                record(GAME, started, "GameStarted", "{\"gameId\":\"" + GAME + "\"}"),
-                record(GAME, started, "GameStarted", "{\"gameId\":\"" + GAME + "\"}"),
-                record(OTHER_GAME, UUID.randomUUID(), "GameStarted", "{}"),
-                record(GAME, ended, "GameEnded", gameEnded("WIN_CONDITION_MET", 30)),
-                record(GAME, started, "GameStarted", "{\"gameId\":\"" + GAME + "\"}"));
-        publish(timelineTopic, record(GAME, resolved, "EraResolutionCompleted", "{}"));
+                message(GAME, started, "GameStarted", "{\"gameId\":\"" + GAME + "\"}"),
+                message(GAME, started, "GameStarted", "{\"gameId\":\"" + GAME + "\"}"),
+                message(OTHER_GAME, UUID.randomUUID(), "GameStarted", "{}"),
+                message(GAME, ended, "GameEnded", gameEnded("WIN_CONDITION_MET", 30)),
+                message(GAME, started, "GameStarted", "{\"gameId\":\"" + GAME + "\"}"));
+        publish(timelineTopic, message(GAME, resolved, "EraResolutionCompleted", "{}"));
 
-        try (var observer = observers.open(lane(), SCOPE, UUID.randomUUID(), GAME)) {
+        try (var observer = observers.open(lane(), SCOPE, UUID.randomUUID(), GAME, null)) {
             assertThat(observer.drain()).isTrue();
 
             assertThat(evidence.events(SCOPE, GAME))
@@ -116,12 +117,12 @@ class KafkaGameEventObserverIT {
 
     @Test
     void anObserverThatAttachesAgainRetainsNothingTwice() {
-        publish(gameTopic, record(GAME, UUID.randomUUID(), "GameStarted", "{}"));
-        try (var first = observers.open(lane(), SCOPE, UUID.randomUUID(), GAME)) {
+        publish(gameTopic, message(GAME, UUID.randomUUID(), "GameStarted", "{}"));
+        try (var first = observers.open(lane(), SCOPE, UUID.randomUUID(), GAME, null)) {
             first.drain();
         }
 
-        try (var second = observers.open(lane(), SCOPE, UUID.randomUUID(), GAME)) {
+        try (var second = observers.open(lane(), SCOPE, UUID.randomUUID(), GAME, null)) {
             assertThat(second.drain()).isTrue();
         }
 
@@ -129,13 +130,50 @@ class KafkaGameEventObserverIT {
     }
 
     @Test
+    void aFreshGameDoesNotReadTheHistoryOfEarlierGamesOnTheLane() throws Exception {
+        publish(gameTopic, message(GAME, UUID.randomUUID(), "EarlierEvent", "{}"));
+        Thread.sleep(50);
+        var began = Instant.now();
+        Thread.sleep(50);
+        publish(gameTopic, message(GAME, UUID.randomUUID(), "GameStarted", "{}"));
+
+        try (var observer = observers.open(lane(), SCOPE, UUID.randomUUID(), GAME, began)) {
+            assertThat(observer.drain()).isTrue();
+        }
+
+        assertThat(evidence.events(SCOPE, GAME))
+                .extracting(ObservedEvent::eventType)
+                .containsExactly("GameStarted");
+        assertThat(evidence.offsets(SCOPE, GAME)).containsEntry(new EvidenceLedger.SourcePartition(gameTopic, 0), 2L);
+    }
+
+    @Test
+    void anObserverThatAttachesAgainResumesFromTheRetainedOffsetsAndStillKnowsTheEnding() {
+        publish(gameTopic, message(GAME, UUID.randomUUID(), "GameEnded", gameEnded("WIN_CONDITION_MET", 30)));
+        try (var first = observers.open(lane(), SCOPE, UUID.randomUUID(), GAME, null)) {
+            first.drain();
+        }
+        publish(gameTopic, message(GAME, UUID.randomUUID(), "ScoresUpdated", "{}"));
+
+        try (var second = observers.open(lane(), SCOPE, UUID.randomUUID(), GAME, null)) {
+            assertThat(second.gameEnded()).isPresent();
+            assertThat(second.drain()).isTrue();
+        }
+
+        assertThat(evidence.events(SCOPE, GAME))
+                .extracting(ObservedEvent::eventType)
+                .containsExactlyInAnyOrder("GameEnded", "ScoresUpdated");
+        assertThat(evidence.offsets(SCOPE, GAME)).containsEntry(new EvidenceLedger.SourcePartition(gameTopic, 0), 2L);
+    }
+
+    @Test
     void eventsPublishedLaterAreRetainedByTheNextDrain() {
-        publish(gameTopic, record(GAME, UUID.randomUUID(), "GameStarted", "{}"));
-        try (var observer = observers.open(lane(), SCOPE, UUID.randomUUID(), GAME)) {
+        publish(gameTopic, message(GAME, UUID.randomUUID(), "GameStarted", "{}"));
+        try (var observer = observers.open(lane(), SCOPE, UUID.randomUUID(), GAME, null)) {
             observer.drain();
             assertThat(observer.gameEnded()).isEmpty();
 
-            publish(gameTopic, record(GAME, UUID.randomUUID(), "GameEnded", gameEnded("ALL_PLAYERS_ABANDONED", 5)));
+            publish(gameTopic, message(GAME, UUID.randomUUID(), "GameEnded", gameEnded("ALL_PLAYERS_ABANDONED", 5)));
 
             assertThat(observer.drain()).isTrue();
             assertThat(observer.gameEnded())
@@ -150,7 +188,7 @@ class KafkaGameEventObserverIT {
                 gameTopic,
                 new ProducerRecord<>(gameTopic, null, GAME.toString(), "{}".getBytes(StandardCharsets.UTF_8)));
 
-        try (var observer = observers.open(lane(), SCOPE, UUID.randomUUID(), GAME)) {
+        try (var observer = observers.open(lane(), SCOPE, UUID.randomUUID(), GAME, null)) {
             assertThatThrownBy(observer::drain)
                     .isInstanceOfSatisfying(
                             AttemptFailedException.class,
@@ -167,7 +205,7 @@ class KafkaGameEventObserverIT {
                 + PLAYER + "\",\"faction\":\"ERASERS\",\"score\":" + score + "}]}";
     }
 
-    private static ProducerRecord<String, byte[]> record(UUID gameId, UUID eventId, String type, String payload) {
+    private static ProducerRecord<String, byte[]> message(UUID gameId, UUID eventId, String type, String payload) {
         var producerRecord = new ProducerRecord<String, byte[]>(
                 "pending", gameId.toString(), payload.getBytes(StandardCharsets.UTF_8));
         header(producerRecord, "eventType", type);
@@ -180,8 +218,8 @@ class KafkaGameEventObserverIT {
         return producerRecord;
     }
 
-    private static void header(ProducerRecord<String, byte[]> record, String name, String value) {
-        record.headers().add(name, value.getBytes(StandardCharsets.UTF_8));
+    private static void header(ProducerRecord<String, byte[]> message, String name, String value) {
+        message.headers().add(name, value.getBytes(StandardCharsets.UTF_8));
     }
 
     @SafeVarargs

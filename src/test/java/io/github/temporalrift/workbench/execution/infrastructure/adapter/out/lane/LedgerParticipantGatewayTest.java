@@ -1,12 +1,14 @@
 package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.UUID;
@@ -266,6 +268,23 @@ class LedgerParticipantGatewayTest {
         gateway.submit(0, keep());
         held.add(Optional.of(true));
 
+        gateway.recoverInDoubt();
+
+        assertThat(evidence.steps(CASE, GAME))
+                .singleElement()
+                .satisfies(step -> assertThat(step.outcome()).isEqualTo(StepOutcome.ACCEPTED));
+    }
+
+    @Test
+    void aCommandThatReachedTheServiceIsRetainedEvenIfTheProcessEndsDuringTheSend() {
+        // The scripted delegate has no answer queued, so sending fails as a crash would.
+        assertThatThrownBy(() -> gateway.submit(0, keep())).isInstanceOf(NoSuchElementException.class);
+        assertThat(evidence.steps(CASE, GAME)).singleElement().satisfies(step -> {
+            assertThat(step.outcome()).isEqualTo(StepOutcome.UNACKNOWLEDGED);
+            assertThat(step.decision()).isEqualTo(CandidateCodec.encode(keep()));
+        });
+
+        held.add(Optional.of(true));
         gateway.recoverInDoubt();
 
         assertThat(evidence.steps(CASE, GAME))

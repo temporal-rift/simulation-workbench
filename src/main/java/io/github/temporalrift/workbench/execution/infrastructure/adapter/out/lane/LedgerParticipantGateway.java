@@ -82,8 +82,9 @@ public class LedgerParticipantGateway implements ParticipantGateway {
     @Override
     public SubmissionOutcome submit(int seatIndex, Candidate candidate) {
         if (candidate instanceof Candidate.ConfirmReady) {
+            recorder.sending(observed.get(seatIndex), candidate);
             var outcome = delegate.submit(seatIndex, candidate);
-            retain(seatIndex, candidate, outcome);
+            retain(seatIndex, outcome);
             return outcome;
         }
         var slot = slot(seatIndex);
@@ -124,6 +125,7 @@ public class LedgerParticipantGateway implements ParticipantGateway {
     }
 
     private SubmissionOutcome send(SlotId slot, int seatIndex, Candidate candidate) {
+        recorder.sending(observed.get(seatIndex), candidate);
         var outcome = delegate.submit(seatIndex, candidate);
         switch (outcome) {
             case SubmissionOutcome.Accepted _ -> ledger.resolve(slot, SlotStatus.ACCEPTED, "ACCEPTED", clock.instant());
@@ -133,18 +135,20 @@ public class LedgerParticipantGateway implements ParticipantGateway {
                 // The slot stays SENT: the service may hold the command, so it is reconciled before any resend.
             }
         }
-        retain(seatIndex, candidate, outcome);
+        retain(seatIndex, outcome);
         return outcome;
     }
 
-    private void retain(int seatIndex, Candidate candidate, SubmissionOutcome outcome) {
-        var observation = observed.get(seatIndex);
+    /** Settles the step sent just before; a lost answer leaves it unacknowledged until accepted state is read. */
+    private void retain(int seatIndex, SubmissionOutcome outcome) {
+        var window = observed.get(seatIndex).window().key();
         switch (outcome) {
-            case SubmissionOutcome.Accepted _ -> recorder.sent(observation, candidate, StepOutcome.ACCEPTED, null);
+            case SubmissionOutcome.Accepted _ -> recorder.resolved(seatIndex, window, StepOutcome.ACCEPTED);
             case SubmissionOutcome.Rejected(var code) ->
-                recorder.sent(observation, candidate, StepOutcome.REJECTED, code);
-            case SubmissionOutcome.Unacknowledged _ ->
-                recorder.sent(observation, candidate, StepOutcome.UNACKNOWLEDGED, null);
+                recorder.resolved(seatIndex, window, StepOutcome.REJECTED, code);
+            case SubmissionOutcome.Unacknowledged _ -> {
+                // The answer is unknown: the step stays unacknowledged.
+            }
         }
     }
 

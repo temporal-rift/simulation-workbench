@@ -50,9 +50,9 @@ class EvidenceLedgerIT {
     void aDuplicateDeliveryOfTheSameSourceAndEventCountsOnce() {
         var event = event(GAME_TOPIC, 0, 7, new UUID(9, 1), "ScoresUpdated", "{\"updates\":[]}");
 
-        assertThat(evidence.record(SCOPE, ATTEMPT, event)).isTrue();
-        assertThat(evidence.record(SCOPE, ATTEMPT, event)).isFalse();
-        assertThat(evidence.record(SCOPE, ATTEMPT, event(GAME_TOPIC, 0, 11, new UUID(9, 1), "ScoresUpdated", "{}")))
+        assertThat(evidence.retain(SCOPE, ATTEMPT, event)).isTrue();
+        assertThat(evidence.retain(SCOPE, ATTEMPT, event)).isFalse();
+        assertThat(evidence.retain(SCOPE, ATTEMPT, event(GAME_TOPIC, 0, 11, new UUID(9, 1), "ScoresUpdated", "{}")))
                 .isFalse();
 
         assertThat(evidence.events(SCOPE, GAME)).singleElement().satisfies(kept -> {
@@ -67,9 +67,9 @@ class EvidenceLedgerIT {
     void theSameEventIdentifierOnAnotherSourceIsAnotherEvent() {
         var id = new UUID(9, 2);
 
-        assertThat(evidence.record(SCOPE, ATTEMPT, event(GAME_TOPIC, 0, 1, id, "A", "{}")))
+        assertThat(evidence.retain(SCOPE, ATTEMPT, event(GAME_TOPIC, 0, 1, id, "A", "{}")))
                 .isTrue();
-        assertThat(evidence.record(SCOPE, ATTEMPT, event(TIMELINE_TOPIC, 0, 1, id, "A", "{}")))
+        assertThat(evidence.retain(SCOPE, ATTEMPT, event(TIMELINE_TOPIC, 0, 1, id, "A", "{}")))
                 .isTrue();
 
         assertThat(evidence.events(SCOPE, GAME)).hasSize(2);
@@ -77,10 +77,10 @@ class EvidenceLedgerIT {
 
     @Test
     void eventsAreListedPerSourceInOffsetOrderWithNoOrderAcrossSourcesImplied() {
-        evidence.record(SCOPE, ATTEMPT, event(TIMELINE_TOPIC, 0, 0, new UUID(9, 3), "T", "{}"));
-        evidence.record(SCOPE, ATTEMPT, event(GAME_TOPIC, 1, 4, new UUID(9, 4), "G2", "{}"));
-        evidence.record(SCOPE, ATTEMPT, event(GAME_TOPIC, 0, 9, new UUID(9, 5), "G1", "{}"));
-        evidence.record(SCOPE, ATTEMPT, event(GAME_TOPIC, 0, 2, new UUID(9, 6), "G0", "{}"));
+        evidence.retain(SCOPE, ATTEMPT, event(TIMELINE_TOPIC, 0, 0, new UUID(9, 3), "T", "{}"));
+        evidence.retain(SCOPE, ATTEMPT, event(GAME_TOPIC, 1, 4, new UUID(9, 4), "G2", "{}"));
+        evidence.retain(SCOPE, ATTEMPT, event(GAME_TOPIC, 0, 9, new UUID(9, 5), "G1", "{}"));
+        evidence.retain(SCOPE, ATTEMPT, event(GAME_TOPIC, 0, 2, new UUID(9, 6), "G0", "{}"));
 
         assertThat(evidence.events(SCOPE, GAME))
                 .extracting(ObservedEvent::eventType)
@@ -107,7 +107,7 @@ class EvidenceLedgerIT {
         assertThat(evidence.append(SCOPE, GAME, ATTEMPT, step(1, "era1/hand-selection", StepOutcome.REJECTED)))
                 .isEqualTo(1);
 
-        evidence.resolve(SCOPE, GAME, 0, "era1/hand-selection", StepOutcome.ACCEPTED);
+        evidence.resolve(SCOPE, GAME, 0, "era1/hand-selection", StepOutcome.ACCEPTED, null);
 
         assertThat(evidence.steps(SCOPE, GAME))
                 .extracting(kept -> kept.seatIndex() + ":" + kept.outcome())
@@ -167,7 +167,7 @@ class EvidenceLedgerIT {
     void purgingAScopeForgetsEverythingRetainedForIt() {
         evidence.pin(SCOPE, "a".repeat(64), "{}", NOW);
         evidence.append(SCOPE, GAME, ATTEMPT, step(0, "era1/hand-selection", StepOutcome.ACCEPTED));
-        evidence.record(SCOPE, ATTEMPT, event(GAME_TOPIC, 0, 1, new UUID(9, 7), "A", "{}"));
+        evidence.retain(SCOPE, ATTEMPT, event(GAME_TOPIC, 0, 1, new UUID(9, 7), "A", "{}"));
         evidence.advance(SCOPE, GAME, GAME_TOPIC, 0, 2);
 
         evidence.purge(SCOPE);

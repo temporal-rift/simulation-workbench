@@ -3,6 +3,10 @@ package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.pe
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -25,8 +29,9 @@ import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 /** PostgreSQL reproductions: claimed under a lease, so a stalled worker can never settle a re-run. */
 public class ReproductionRepositoryAdapter implements ReproductionRepository {
 
-    private static final String COLUMNS = "reproduction_id, attempt_id, run_id, case_id, state, divergence_json,"
-            + " failure_code, failure_message, created_at, finished_at";
+    private static final String COLUMNS =
+            "reproduction_id, attempt_id, run_id, case_id, lane_id, state, divergence_json,"
+                    + " failure_code, failure_message, created_at, finished_at";
     private static final TypeReference<Map<String, Object>> OBJECT = new TypeReference<>() {};
 
     private final JdbcTemplate jdbc;
@@ -44,13 +49,14 @@ public class ReproductionRepositoryAdapter implements ReproductionRepository {
     public ReproductionCreation create(UUID idempotencyKey, String requestHash, Reproduction reproduction) {
         return transactions.execute(status -> {
             var inserted = jdbc.update(
-                    "INSERT INTO reproduction (reproduction_id, attempt_id, run_id, case_id, idempotency_key,"
-                            + " request_hash, state, created_at) VALUES (?, ?, ?, ?, ?, ?, 'QUEUED', ?)"
+                    "INSERT INTO reproduction (reproduction_id, attempt_id, run_id, case_id, lane_id, idempotency_key,"
+                            + " request_hash, state, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'QUEUED', ?)"
                             + " ON CONFLICT (idempotency_key) DO NOTHING",
                     reproduction.reproductionId(),
                     reproduction.attemptId(),
                     reproduction.runId(),
                     reproduction.caseId(),
+                    reproduction.laneId(),
                     idempotencyKey,
                     requestHash,
                     Rows.timestamp(reproduction.createdAt()));
@@ -84,16 +90,23 @@ public class ReproductionRepositoryAdapter implements ReproductionRepository {
     }
 
     @Override
-    public Optional<Reproduction> claimNext(String owner, Instant now, Instant leaseUntil) {
+    public Optional<Reproduction> claimNext(
+            String owner, Instant now, Instant leaseUntil, Collection<String> freeLaneIds) {
+        if (freeLaneIds.isEmpty()) {
+            return Optional.empty();
+        }
+        var lanes = String.join(", ", Collections.nCopies(freeLaneIds.size(), "?"));
+        var arguments = new ArrayList<Object>(List.of(owner, Rows.timestamp(leaseUntil)));
+        arguments.addAll(freeLaneIds);
         return jdbc
                 .query(
                         "UPDATE reproduction SET state = 'RUNNING', lease_owner = ?, lease_expires_at = ?"
                                 + " WHERE reproduction_id = (SELECT reproduction_id FROM reproduction"
-                                + " WHERE state = 'QUEUED' ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED)"
+                                + " WHERE state = 'QUEUED' AND lane_id IN (" + lanes + ")"
+                                + " ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED)"
                                 + " RETURNING " + COLUMNS,
                         (rs, i) -> reproduction(rs),
-                        owner,
-                        Rows.timestamp(leaseUntil))
+                        arguments.toArray())
                 .stream()
                 .findFirst();
     }
@@ -165,6 +178,7 @@ public class ReproductionRepositoryAdapter implements ReproductionRepository {
                 rs.getObject("attempt_id", UUID.class),
                 rs.getObject("run_id", UUID.class),
                 rs.getObject("case_id", UUID.class),
+                rs.getString("lane_id"),
                 ReproductionState.valueOf(rs.getString("state")),
                 divergence == null ? null : divergence(divergence),
                 failureCode == null

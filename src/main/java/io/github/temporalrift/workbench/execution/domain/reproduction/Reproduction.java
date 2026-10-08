@@ -7,14 +7,16 @@ import java.util.UUID;
 import io.github.temporalrift.workbench.execution.domain.run.Failure;
 
 /**
- * One exact re-execution of a saved case. It has its own identifiers and never adds a research sample:
- * the case keeps the single result it already has.
+ * One exact re-execution of a saved case on the lane that played it, whose bot identities are part of what the
+ * seats observe. It has its own identifiers and never adds a research sample: the case keeps the single result
+ * it already has.
  */
 public record Reproduction(
         UUID reproductionId,
         UUID attemptId,
         UUID runId,
         UUID caseId,
+        String laneId,
         ReproductionState state,
         Divergence firstDivergence,
         Failure failure,
@@ -27,9 +29,18 @@ public record Reproduction(
         Objects.requireNonNull(state, "state");
     }
 
-    public static Reproduction queued(UUID runId, UUID caseId, Instant now) {
+    public static Reproduction queued(UUID runId, UUID caseId, String laneId, Instant now) {
         return new Reproduction(
-                UUID.randomUUID(), UUID.randomUUID(), runId, caseId, ReproductionState.QUEUED, null, null, now, null);
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                runId,
+                caseId,
+                laneId,
+                ReproductionState.QUEUED,
+                null,
+                null,
+                now,
+                null);
     }
 
     public Reproduction matched(Instant now) {
@@ -45,6 +56,7 @@ public record Reproduction(
     }
 
     private Reproduction settled(ReproductionState next, Divergence divergence, Failure reason, Instant now) {
-        return new Reproduction(reproductionId, attemptId, runId, caseId, next, divergence, reason, createdAt, now);
+        return new Reproduction(
+                reproductionId, attemptId, runId, caseId, laneId, next, divergence, reason, createdAt, now);
     }
 }

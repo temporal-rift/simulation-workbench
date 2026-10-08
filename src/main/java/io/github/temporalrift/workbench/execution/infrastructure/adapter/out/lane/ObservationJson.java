@@ -57,16 +57,6 @@ public final class ObservationJson {
         };
     }
 
-    public static Integer era(DecisionWindow window) {
-        return switch (window) {
-            case DecisionWindow.HandSelection w -> w.era();
-            case DecisionWindow.Declaration w -> w.era();
-            case DecisionWindow.ActionRound w -> w.era();
-            case DecisionWindow.ParadoxResolution w -> w.era();
-            case DecisionWindow.TerminalReadiness w -> w.era();
-        };
-    }
-
     public static Integer round(DecisionWindow window) {
         return window instanceof DecisionWindow.ActionRound round ? round.round() : null;
     }

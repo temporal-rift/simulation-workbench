@@ -75,7 +75,7 @@ public class ScriptedLanes implements LaneProvider {
     private volatile Script script = DECISIVE;
 
     /** One call to open a game on a lane. */
-    public record Opened(UUID caseKey, UUID attemptId, UUID resumeGameId, UUID gameId) {}
+    public record Opened(UUID caseKey, UUID attemptId, UUID resumeGameId, UUID gameId, String laneId) {}
 
     public ScriptedLanes(CommandLedger ledger, EvidenceLedger evidence, Clock clock, int laneCount) {
         this.ledger = ledger;
@@ -122,6 +122,28 @@ public class ScriptedLanes implements LaneProvider {
             }
         }
         return Optional.empty();
+    }
+
+    @Override
+    public synchronized Optional<CaseLane> acquireExactly(String laneId) {
+        for (var index = 0; index < laneCount; index++) {
+            var id = "lane-" + index;
+            if (id.equals(laneId) && busy.add(id)) {
+                return Optional.of(new ScriptedLane(id));
+            }
+        }
+        return Optional.empty();
+    }
+
+    @Override
+    public synchronized Set<String> freeLaneIds() {
+        var free = new HashSet<String>();
+        for (var index = 0; index < laneCount; index++) {
+            if (!busy.contains("lane-" + index)) {
+                free.add("lane-" + index);
+            }
+        }
+        return free;
     }
 
     @Override
@@ -177,7 +199,7 @@ public class ScriptedLanes implements LaneProvider {
             script.onOpen(context);
             var attach = resumeGameId != null && games.containsKey(resumeGameId);
             var gameId = attach ? resumeGameId : gameId(context.caseKey(), context.attemptId());
-            opened.add(new Opened(context.caseKey(), context.attemptId(), resumeGameId, gameId));
+            opened.add(new Opened(context.caseKey(), context.attemptId(), resumeGameId, gameId, laneId));
             if (!attach) {
                 games.put(gameId, new FakeGame.State());
                 gameByCaseKey.put(context.caseKey(), gameId);
