@@ -3,6 +3,7 @@ package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.la
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
@@ -15,8 +16,11 @@ import org.junit.jupiter.api.Test;
 
 import io.github.temporalrift.workbench.execution.domain.command.SlotId;
 import io.github.temporalrift.workbench.execution.domain.command.SlotStatus;
+import io.github.temporalrift.workbench.execution.domain.evidence.StepOutcome;
 import io.github.temporalrift.workbench.execution.support.InMemoryCommandLedger;
+import io.github.temporalrift.workbench.execution.support.InMemoryEvidenceLedger;
 import io.github.temporalrift.workbench.policy.domain.decision.Candidate;
+import io.github.temporalrift.workbench.policy.domain.decision.CandidateCodec;
 import io.github.temporalrift.workbench.policy.domain.decision.Reconciliation;
 import io.github.temporalrift.workbench.policy.domain.decision.SubmissionOutcome;
 import io.github.temporalrift.workbench.policy.domain.observation.CardCategory;
@@ -32,9 +36,12 @@ class LedgerParticipantGatewayTest {
 
     private static final UUID CASE = new UUID(0, 1);
     private static final UUID ATTEMPT = new UUID(0, 2);
+    private static final UUID GAME = new UUID(0, 3);
+    private static final Instant LOGICAL = Instant.parse("2026-01-01T00:00:00Z");
     private static final String WINDOW = "era1/hand-selection";
 
     private final InMemoryCommandLedger ledger = new InMemoryCommandLedger();
+    private final InMemoryEvidenceLedger evidence = new InMemoryEvidenceLedger();
     private final ScriptedDelegate delegate = new ScriptedDelegate();
     private final List<Optional<Boolean>> held = new ArrayList<>();
     private LedgerParticipantGateway gateway;
@@ -45,6 +52,7 @@ class LedgerParticipantGatewayTest {
                 delegate,
                 (seat, window) -> held.isEmpty() ? Optional.empty() : held.getFirst(),
                 ledger,
+                recorder(),
                 CASE,
                 ATTEMPT,
                 Clock.systemUTC());
@@ -153,7 +161,13 @@ class LedgerParticipantGatewayTest {
         ledger.put(new SlotId(CASE, 0, WINDOW), ATTEMPT, "kept", SlotStatus.SENT);
         ledger.put(new SlotId(CASE, 1, WINDOW), ATTEMPT, "absent", SlotStatus.SENT);
         var recovering = new LedgerParticipantGateway(
-                delegate, (seat, window) -> Optional.of(seat == 0), ledger, CASE, ATTEMPT, Clock.systemUTC());
+                delegate,
+                (seat, window) -> Optional.of(seat == 0),
+                ledger,
+                recorder(),
+                CASE,
+                ATTEMPT,
+                Clock.systemUTC());
 
         recovering.recoverInDoubt();
 
@@ -180,6 +194,107 @@ class LedgerParticipantGatewayTest {
 
         assertThat(ledger.accepted(CASE)).isEmpty();
         assertThat(ledger.inDoubt(CASE)).isEmpty();
+    }
+
+    @Test
+    void everyCommandIsRetainedWithTheObservationItWasDecidedFromAndItsOutcome() {
+        delegate.outcomes.add(new SubmissionOutcome.Accepted());
+
+        gateway.submit(0, keep());
+
+        assertThat(evidence.steps(CASE, GAME)).singleElement().satisfies(step -> {
+            assertThat(step.step()).isZero();
+            assertThat(step.seatIndex()).isZero();
+            assertThat(step.windowKey()).isEqualTo(WINDOW);
+            assertThat(step.phase()).isEqualTo("HAND_SELECTION");
+            assertThat(step.era()).isEqualTo(1);
+            assertThat(step.round()).isNull();
+            assertThat(step.logicalTime()).isEqualTo(LOGICAL);
+            assertThat(step.outcome()).isEqualTo(StepOutcome.ACCEPTED);
+            assertThat(step.decision()).isEqualTo(CandidateCodec.encode(keep()));
+            assertThat(step.observation()).contains("\"seatIndex\":0").contains("\"kind\":\"HandSelection\"");
+            assertThat(step.entropy())
+                    .isEqualTo("{\"drawIndex\":0,\"policySeed\":\"42\",\"seat\":0,"
+                            + "\"stream\":\"policy-entropy/v1\",\"window\":\"era1/hand-selection\"}");
+        });
+    }
+
+    @Test
+    void rejectionsAreRetainedAndEachOneAdvancesTheEntropyDraw() {
+        delegate.outcomes.add(new SubmissionOutcome.Rejected("422-11"));
+        delegate.outcomes.add(new SubmissionOutcome.Accepted());
+
+        gateway.submit(0, keep());
+        gateway.submit(0, new Candidate.KeepHand(List.of(new UUID(0, 9))));
+
+        assertThat(evidence.steps(CASE, GAME))
+                .extracting(step -> step.outcome() + ":" + step.outcomeCode())
+                .containsExactly("REJECTED:422-11", "ACCEPTED:null");
+        assertThat(evidence.steps(CASE, GAME).get(1).entropy()).contains("\"drawIndex\":1");
+    }
+
+    @Test
+    void anUnacknowledgedCommandIsResolvedInTheEvidenceOnceAcceptedStateIsKnown() {
+        delegate.outcomes.add(new SubmissionOutcome.Unacknowledged());
+        gateway.submit(0, keep());
+        assertThat(evidence.steps(CASE, GAME).getFirst().outcome()).isEqualTo(StepOutcome.UNACKNOWLEDGED);
+
+        delegate.reconciliation = new Reconciliation.Accepted(keep());
+        gateway.reconcile(0);
+
+        assertThat(evidence.steps(CASE, GAME))
+                .singleElement()
+                .satisfies(step -> assertThat(step.outcome()).isEqualTo(StepOutcome.ACCEPTED));
+    }
+
+    @Test
+    void aCommandConfirmedAbsentIsRetainedAsNotSpent() {
+        delegate.outcomes.add(new SubmissionOutcome.Unacknowledged());
+        gateway.submit(0, keep());
+
+        delegate.reconciliation = new Reconciliation.NotAccepted();
+        gateway.reconcile(0);
+
+        assertThat(evidence.steps(CASE, GAME))
+                .singleElement()
+                .satisfies(step -> assertThat(step.outcome()).isEqualTo(StepOutcome.NOT_SPENT));
+    }
+
+    @Test
+    void recoveringInDoubtSlotsResolvesTheirRetainedSteps() {
+        delegate.outcomes.add(new SubmissionOutcome.Unacknowledged());
+        gateway.submit(0, keep());
+        held.add(Optional.of(true));
+
+        gateway.recoverInDoubt();
+
+        assertThat(evidence.steps(CASE, GAME))
+                .singleElement()
+                .satisfies(step -> assertThat(step.outcome()).isEqualTo(StepOutcome.ACCEPTED));
+    }
+
+    @Test
+    void terminalReadinessIsRetainedAlthoughItIsNotADecisionSlot() {
+        delegate.outcomes.add(new SubmissionOutcome.Accepted());
+
+        gateway.submit(0, new Candidate.ConfirmReady());
+
+        assertThat(evidence.steps(CASE, GAME))
+                .singleElement()
+                .satisfies(step -> assertThat(step.decision()).isEqualTo("ready"));
+    }
+
+    @Test
+    void aCommandAnotherAttemptAlreadyAcceptedIsNotRetainedAgain() {
+        ledger.put(new SlotId(CASE, 0, WINDOW), new UUID(0, 99), CandidateCodec.encode(keep()), SlotStatus.ACCEPTED);
+
+        gateway.submit(0, keep());
+
+        assertThat(evidence.steps(CASE, GAME)).isEmpty();
+    }
+
+    private StepRecorder recorder() {
+        return new StepRecorder(evidence, CASE, GAME, ATTEMPT, "42", () -> LOGICAL);
     }
 
     private static Candidate keep() {

@@ -6,8 +6,8 @@ import java.util.UUID;
 
 /**
  * One isolated lane: the three services that make up an independent deployment, the operator credential
- * for its execution controls, and the bot identities that play its seats. Credentials come from runtime
- * configuration only and are never stored with experiments, runs or evidence.
+ * for its execution controls, the topics its services publish on, and the bot identities that play its seats.
+ * Credentials come from runtime configuration only and are never stored with experiments, runs or evidence.
  */
 public record LaneEndpoints(
         String id,
@@ -15,6 +15,8 @@ public record LaneEndpoints(
         String timelineServiceUrl,
         String readServiceUrl,
         String operatorToken,
+        String gameEventsTopic,
+        String timelineEventsTopic,
         List<BotIdentity> bots) {
 
     public LaneEndpoints {

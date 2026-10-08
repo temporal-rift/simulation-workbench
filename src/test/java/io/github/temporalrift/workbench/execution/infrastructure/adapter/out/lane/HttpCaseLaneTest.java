@@ -52,6 +52,8 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.session.model.PlayerInLobby;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.session.model.StartGameResponse;
 import io.github.temporalrift.workbench.execution.support.InMemoryCommandLedger;
+import io.github.temporalrift.workbench.execution.support.InMemoryEvidenceLedger;
+import io.github.temporalrift.workbench.execution.support.StubEventObserver;
 
 class HttpCaseLaneTest {
 
@@ -64,6 +66,8 @@ class HttpCaseLaneTest {
 
     private final FakeClients clients = new FakeClients();
     private final InMemoryCommandLedger ledger = new InMemoryCommandLedger();
+    private final InMemoryEvidenceLedger evidence = new InMemoryEvidenceLedger();
+    private final StubEventObserver events = new StubEventObserver();
     private final AtomicInteger released = new AtomicInteger();
     private SimulationExecutionApi gameControl;
     private SimulationExecutionApi timelineControl;
@@ -78,6 +82,8 @@ class HttpCaseLaneTest {
                 "http://timeline",
                 "http://read",
                 "operator-token",
+                "game.events",
+                "timeline.events",
                 List.of(
                         new LaneEndpoints.BotIdentity(ProjectionStates.id(1), "t1"),
                         new LaneEndpoints.BotIdentity(ProjectionStates.id(2), "t2"),
@@ -262,6 +268,8 @@ class HttpCaseLaneTest {
                 "http://timeline",
                 "http://read",
                 "operator-token",
+                "game.events",
+                "timeline.events",
                 List.of(new LaneEndpoints.BotIdentity(ProjectionStates.id(1), "t1"))));
 
         assertThatThrownBy(() -> small.open(context(), null))
@@ -283,6 +291,8 @@ class HttpCaseLaneTest {
                 endpoints,
                 clients,
                 ledger,
+                evidence,
+                (_, _, _, _) -> events,
                 Clock.fixed(EPOCH, ZoneOffset.UTC),
                 new LaneEndpoints.Barrier(Duration.ZERO, 1, 2),
                 _ -> {},

@@ -22,6 +22,7 @@ public class ExperimentSourceAdapter implements ExperimentSource {
         return catalog.bounds(experimentId)
                 .map(bounds -> new Plan(
                         bounds.manifestDigest(),
+                        bounds.manifestJson(),
                         bounds.concurrency(),
                         bounds.caseWallTimeoutSeconds(),
                         bounds.maxRejectedCandidatesPerWindow()));

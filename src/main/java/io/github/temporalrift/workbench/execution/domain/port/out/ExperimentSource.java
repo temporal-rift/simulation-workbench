@@ -16,7 +16,11 @@ public interface ExperimentSource {
     Optional<List<PlannedCase>> cases(UUID experimentId);
 
     record Plan(
-            String manifestDigest, int concurrency, int caseWallTimeoutSeconds, int maxRejectedCandidatesPerWindow) {}
+            String manifestDigest,
+            String manifestJson,
+            int concurrency,
+            int caseWallTimeoutSeconds,
+            int maxRejectedCandidatesPerWindow) {}
 
     record PlannedCase(UUID caseKey, String seed, String variantLabel, int playerCount, List<SeatPlan> seats) {
         public PlannedCase {

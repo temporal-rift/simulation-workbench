@@ -9,6 +9,8 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import io.github.temporalrift.workbench.execution.support.InMemoryCommandLedger;
+import io.github.temporalrift.workbench.execution.support.InMemoryEvidenceLedger;
+import io.github.temporalrift.workbench.execution.support.StubEventObserver;
 
 class ConfiguredLanePoolTest {
 
@@ -16,6 +18,8 @@ class ConfiguredLanePoolTest {
             List.of(lane("a"), lane("b")),
             new RestApiClients(Duration.ofSeconds(1), Duration.ofSeconds(1)),
             new InMemoryCommandLedger(),
+            new InMemoryEvidenceLedger(),
+            (_, _, _, _) -> new StubEventObserver(),
             Clock.systemUTC(),
             new LaneEndpoints.Barrier(Duration.ZERO, 1, 1),
             _ -> {});
@@ -57,6 +61,8 @@ class ConfiguredLanePoolTest {
                 List.of(),
                 new RestApiClients(Duration.ofSeconds(1), Duration.ofSeconds(1)),
                 new InMemoryCommandLedger(),
+                new InMemoryEvidenceLedger(),
+                (_, _, _, _) -> new StubEventObserver(),
                 Clock.systemUTC(),
                 new LaneEndpoints.Barrier(Duration.ZERO, 1, 1),
                 _ -> {});
@@ -66,6 +72,14 @@ class ConfiguredLanePoolTest {
     }
 
     private static LaneEndpoints lane(String id) {
-        return new LaneEndpoints(id, "http://game", "http://timeline", "http://read", "operator", List.of());
+        return new LaneEndpoints(
+                id,
+                "http://game",
+                "http://timeline",
+                "http://read",
+                "operator",
+                "game.events",
+                "timeline.events",
+                List.of());
     }
 }

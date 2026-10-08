@@ -3,9 +3,12 @@ package io.github.temporalrift.workbench.execution.infrastructure.adapter.in.res
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import io.github.temporalrift.workbench.execution.domain.evidence.InvalidReplayPerspectiveException;
+import io.github.temporalrift.workbench.execution.domain.reproduction.ManifestMismatchException;
 import io.github.temporalrift.workbench.execution.domain.run.InvalidRunStateException;
 import io.github.temporalrift.workbench.execution.domain.run.RunIdempotencyConflictException;
 import io.github.temporalrift.workbench.execution.domain.run.RunNotFoundException;
@@ -29,6 +32,21 @@ class RunExceptionHandler {
     @ExceptionHandler(RunNotFoundException.class)
     ProblemDetail handleNotFound(RunNotFoundException ex) {
         return ProblemDetails.of(HttpStatus.NOT_FOUND, ex.getMessage(), "NOT_FOUND");
+    }
+
+    @ExceptionHandler(ManifestMismatchException.class)
+    ProblemDetail handleManifestMismatch(ManifestMismatchException ex) {
+        return ProblemDetails.of(HttpStatus.CONFLICT, ex.getMessage(), "MANIFEST_MISMATCH");
+    }
+
+    @ExceptionHandler(InvalidReplayPerspectiveException.class)
+    ProblemDetail handleInvalidPerspective(InvalidReplayPerspectiveException ex) {
+        return ProblemDetails.of(HttpStatus.BAD_REQUEST, ex.getMessage(), "INVALID_REPLAY_PERSPECTIVE");
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    ProblemDetail handleInsufficientScope(AccessDeniedException ex) {
+        return ProblemDetails.of(HttpStatus.FORBIDDEN, "Access denied", "INSUFFICIENT_SCOPE");
     }
 
     @ExceptionHandler(OperationNotAvailableException.class)

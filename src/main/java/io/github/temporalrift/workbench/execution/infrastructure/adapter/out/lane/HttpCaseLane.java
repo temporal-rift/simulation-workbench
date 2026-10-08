@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.springframework.web.client.RestClientException;
@@ -11,6 +12,8 @@ import org.springframework.web.client.RestClientResponseException;
 
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.port.out.CommandLedger;
+import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
+import io.github.temporalrift.workbench.execution.domain.port.out.GameEventObserver;
 import io.github.temporalrift.workbench.execution.domain.port.out.GameSession;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
 import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
@@ -38,6 +41,9 @@ public class HttpCaseLane implements CaseLane {
     private final LaneEndpoints lane;
     private final ApiClients clients;
     private final CommandLedger ledger;
+    private final EvidenceLedger evidence;
+    private final GameEventObservers observers;
+    private final List<GameEventObserver> opened = new CopyOnWriteArrayList<>();
     private final Clock clock;
     private final LaneEndpoints.Barrier barrier;
     private final Sleeper sleeper;
@@ -47,6 +53,8 @@ public class HttpCaseLane implements CaseLane {
             LaneEndpoints lane,
             ApiClients clients,
             CommandLedger ledger,
+            EvidenceLedger evidence,
+            GameEventObservers observers,
             Clock clock,
             LaneEndpoints.Barrier barrier,
             Sleeper sleeper,
@@ -54,6 +62,8 @@ public class HttpCaseLane implements CaseLane {
         this.lane = lane;
         this.clients = clients;
         this.ledger = ledger;
+        this.evidence = evidence;
+        this.observers = observers;
         this.clock = clock;
         this.barrier = barrier;
         this.sleeper = sleeper;
@@ -91,7 +101,12 @@ public class HttpCaseLane implements CaseLane {
 
     @Override
     public void close() {
-        release.run();
+        try {
+            opened.forEach(GameEventObserver::close);
+            opened.clear();
+        } finally {
+            release.run();
+        }
     }
 
     /** A game session with its durable gateway; recovery of in-doubt slots needs both. */
@@ -116,7 +131,17 @@ public class HttpCaseLane implements CaseLane {
         var sessionRef = new AtomicReference<HttpGameSession>();
         var raw = new HttpParticipantGateway(
                 gameId, participants, () -> sessionRef.get().isSettled());
-        var durable = new LedgerParticipantGateway(raw, raw, ledger, context.caseId(), context.attemptId(), clock);
+        var recorder = new StepRecorder(
+                evidence,
+                context.caseId(),
+                gameId,
+                context.attemptId(),
+                context.seed(),
+                () -> sessionRef.get().logicalTime());
+        var durable =
+                new LedgerParticipantGateway(raw, raw, ledger, recorder, context.caseId(), context.attemptId(), clock);
+        var events = observers.open(lane, context.caseId(), context.attemptId(), gameId);
+        opened.add(events);
         var session = new HttpGameSession(
                 context,
                 new HttpGameSession.ServiceControls(gameControl, timelineControl),
@@ -124,7 +149,8 @@ public class HttpCaseLane implements CaseLane {
                 durable,
                 scoring,
                 barrier,
-                sleeper);
+                sleeper,
+                events);
         sessionRef.set(session);
         return new Attached(session, durable);
     }

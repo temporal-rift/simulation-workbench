@@ -1,6 +1,7 @@
 package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -16,6 +17,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
+import io.github.temporalrift.workbench.execution.domain.port.out.GameEventObserver;
 import io.github.temporalrift.workbench.execution.domain.port.out.GameSession;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
 import io.github.temporalrift.workbench.execution.domain.run.EndReason;
@@ -54,6 +56,7 @@ public class HttpGameSession implements GameSession {
     private final ScoringApi scoring;
     private final LaneEndpoints.Barrier barrier;
     private final Sleeper sleeper;
+    private final GameEventObserver events;
 
     private Map<Integer, Integer> lastRevisions = Map.of();
     private int stableReads;
@@ -72,7 +75,8 @@ public class HttpGameSession implements GameSession {
             ParticipantGateway participants,
             ScoringApi scoring,
             LaneEndpoints.Barrier barrier,
-            Sleeper sleeper) {
+            Sleeper sleeper,
+            GameEventObserver events) {
         this.context = context;
         this.gameControl = controls.game();
         this.timelineControl = controls.timeline();
@@ -82,6 +86,7 @@ public class HttpGameSession implements GameSession {
         this.scoring = scoring;
         this.barrier = barrier;
         this.sleeper = sleeper;
+        this.events = events;
     }
 
     @Override
@@ -108,7 +113,7 @@ public class HttpGameSession implements GameSession {
         }
         stableReads = complete && revisions.equals(lastRevisions) ? stableReads + 1 : 0;
         lastRevisions = revisions;
-        return drained && stableReads >= barrier.stablePolls();
+        return drained && stableReads >= barrier.stablePolls() && events.drain();
     }
 
     @Override
@@ -161,7 +166,7 @@ public class HttpGameSession implements GameSession {
         }
         var scores = scores();
         var finalScores = finalScores(result);
-        if (scores.isEmpty() || !scores.get().equals(scoresByPlayer(result))) {
+        if (scores.isEmpty() || !scores.get().equals(scoresByPlayer(result)) || !published(result)) {
             return Optional.empty();
         }
         var eras = states.stream()
@@ -170,6 +175,22 @@ public class HttpGameSession implements GameSession {
                 .orElse(0);
         return Optional.of(new AuthoritativeEnding(
                 EndReason.valueOf(result.getEndReason().name()), winners(result), finalScores, eras));
+    }
+
+    /** The game's logical time as its game service reports it; it stamps the steps retained as evidence. */
+    public Instant logicalTime() {
+        return checkpoint(gameControl, GAME_SERVICE).getLogicalTime().toInstant();
+    }
+
+    /**
+     * Whether the observed {@code GameEnded} fact agrees with the participant result. Until the observer has
+     * seen it with matching final scores the ending is incomplete, never a zero-score game.
+     */
+    private boolean published(GameResult result) {
+        return events.gameEnded()
+                .filter(fact -> fact.endReason().equals(result.getEndReason().name()))
+                .filter(fact -> fact.finalScores().equals(scoresByPlayer(result)))
+                .isPresent();
     }
 
     /** Waits a bounded number of checks for the services and projection to settle. */
