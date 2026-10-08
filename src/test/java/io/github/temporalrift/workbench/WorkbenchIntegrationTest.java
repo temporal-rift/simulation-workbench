@@ -23,5 +23,5 @@ import org.springframework.test.context.ActiveProfiles;
 @SpringBootTest
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
-@Import({TestcontainersConfiguration.class, TestSecurityConfig.class})
+@Import({TestcontainersConfiguration.class, TestSecurityConfig.class, ExecutionTestConfiguration.class})
 public @interface WorkbenchIntegrationTest {}

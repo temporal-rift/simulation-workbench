@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+  <changeSet id="004-create-case-command" author="simulation-workbench">
+    <!-- One row per decision slot of a case; the accepted rows are the case's decision transcript. -->
+    <createTable tableName="case_command">
+      <column name="case_id" type="UUID">
+        <constraints nullable="false" foreignKeyName="fk_command_case" references="run_case(case_id)"
+                     deleteCascade="true"/>
+      </column>
+      <column name="seat_index" type="INTEGER">
+        <constraints nullable="false"/>
+      </column>
+      <column name="window_key" type="VARCHAR(100)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="attempt_id" type="UUID">
+        <constraints nullable="false"/>
+      </column>
+      <column name="request" type="TEXT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="status" type="VARCHAR(12)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="outcome" type="TEXT"/>
+      <column name="created_at" type="TIMESTAMP WITH TIME ZONE">
+        <constraints nullable="false"/>
+      </column>
+      <column name="updated_at" type="TIMESTAMP WITH TIME ZONE">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <addPrimaryKey tableName="case_command" columnNames="case_id, seat_index, window_key"
+                   constraintName="pk_case_command"/>
+  </changeSet>
+
+</databaseChangeLog>

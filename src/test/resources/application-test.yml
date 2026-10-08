@@ -25,3 +25,7 @@ logging:
   level:
     io.github.temporalrift: DEBUG
     org.springframework.modulith: DEBUG
+
+workbench:
+  execution:
+    worker-enabled: false

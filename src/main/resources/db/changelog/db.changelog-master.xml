@@ -17,4 +17,11 @@
     <include file="db/changelog/experiment/001-create-experiment.xml"/>
     <include file="db/changelog/experiment/002-create-idempotency-key.xml"/>
 
+    <!-- Execution module: runs, logical cases, attempts with leases, command ledger and run idempotency -->
+    <include file="db/changelog/execution/001-create-run.xml"/>
+    <include file="db/changelog/execution/002-create-run-case.xml"/>
+    <include file="db/changelog/execution/003-create-case-attempt.xml"/>
+    <include file="db/changelog/execution/004-create-case-command.xml"/>
+    <include file="db/changelog/execution/005-create-run-command.xml"/>
+
 </databaseChangeLog>
