@@ -27,6 +27,7 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.SubmissionWindow;
 import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow;
 import io.github.temporalrift.workbench.policy.domain.observation.Faction;
+import io.github.temporalrift.workbench.policy.domain.observation.OutcomeView;
 
 class ObservationMapperTest {
 
@@ -52,9 +53,7 @@ class ObservationMapperTest {
                 .containsExactlyInAnyOrder(ProjectionStates.OTHER_A, ProjectionStates.OTHER_B);
         assertThat(observation.events()).singleElement().satisfies(event -> {
             assertThat(event.eventId()).isEqualTo(ProjectionStates.EVENT);
-            assertThat(event.outcomes())
-                    .extracting(outcome -> outcome.printedWeight())
-                    .containsExactly(40, 60);
+            assertThat(event.outcomes()).extracting(OutcomeView::printedWeight).containsExactly(40, 60);
             assertThat(event.outcomes())
                     .allSatisfy(outcome -> assertThat(outcome.scannedWeight()).isNull());
         });

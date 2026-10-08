@@ -11,6 +11,8 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.sun.net.httpserver.HttpExchange;
@@ -260,8 +262,8 @@ class RestApiClientsTest {
                 exchange.getRequestHeaders().getFirst("Authorization"),
                 body));
         try {
-            Thread.sleep(delayMillis);
-        } catch (InterruptedException e) {
+            new CountDownLatch(1).await(delayMillis, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException _) {
             Thread.currentThread().interrupt();
         }
         var bytes = responseBody.getBytes(StandardCharsets.UTF_8);

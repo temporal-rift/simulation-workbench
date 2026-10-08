@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -105,7 +106,8 @@ class HttpParticipantGatewayTest {
 
     @Test
     void submittingWithoutAnObservedWindowIsRefused() {
-        assertThatThrownBy(() -> gateway.submit(1, new Candidate.Pass())).isInstanceOf(WindowClosedException.class);
+        var pass = new Candidate.Pass();
+        assertThatThrownBy(() -> gateway.submit(1, pass)).isInstanceOf(WindowClosedException.class);
     }
 
     @Test
@@ -165,7 +167,7 @@ class HttpParticipantGatewayTest {
         gateway.submit(1, new Candidate.PlaySpecial(SpecialAction.EXPOSE, new Target.Player(ProjectionStates.OTHER_A)));
         gateway.submit(1, new Candidate.Pass());
 
-        verify(action, org.mockito.Mockito.times(3)).submitAction(eq(ProjectionStates.GAME), eq(3), eq(2), any());
+        verify(action, times(3)).submitAction(eq(ProjectionStates.GAME), eq(3), eq(2), any());
         var requests = captureActions(3);
         var annihilate = (SpecialActionRequest) requests.get(0);
         assertThat(annihilate.getSpecialAction())
@@ -203,8 +205,7 @@ class HttpParticipantGatewayTest {
         gateway.submit(1, new Candidate.PassParadox());
 
         var request = ArgumentCaptor.forClass(ParadoxResolutionCardRequest.class);
-        verify(action, org.mockito.Mockito.times(2))
-                .submitParadoxResolutionCard(eq(ProjectionStates.GAME), eq(4), request.capture());
+        verify(action, times(2)).submitParadoxResolutionCard(eq(ProjectionStates.GAME), eq(4), request.capture());
         assertThat(request.getAllValues().get(0).getActionType()).isEqualTo(ActionType.CARD);
         assertThat(request.getAllValues().get(0).getCardInstanceId()).isEqualTo(new UUID(0, 9));
         assertThat(request.getAllValues().get(0).getTargetEventId()).isEqualTo(EVENT);
@@ -315,7 +316,7 @@ class HttpParticipantGatewayTest {
 
     private List<SubmitActionRequest> captureActions(int times) {
         var captor = ArgumentCaptor.forClass(SubmitActionRequest.class);
-        verify(action, org.mockito.Mockito.times(times)).submitAction(any(), any(), any(), captor.capture());
+        verify(action, times(times)).submitAction(any(), any(), any(), captor.capture());
         return captor.getAllValues();
     }
 

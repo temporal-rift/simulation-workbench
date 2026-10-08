@@ -91,14 +91,16 @@ class RunTest {
 
         assertThat(cancelled.state()).isEqualTo(RunState.CANCELLED);
         assertThat(cancelled.finishedAt()).isEqualTo(T1);
-        assertThatThrownBy(() -> queued().finishCancel(T1)).isInstanceOf(InvalidRunStateException.class);
+        var untouched = queued();
+        assertThatThrownBy(() -> untouched.finishCancel(T1)).isInstanceOf(InvalidRunStateException.class);
     }
 
     @Test
     void completionIsLegalOnlyWhileRunning() {
-        assertThatThrownBy(() -> queued().complete(T1)).isInstanceOf(InvalidRunStateException.class);
-        assertThatThrownBy(() -> queued().begin(T1).interrupt().complete(T2))
-                .isInstanceOf(InvalidRunStateException.class);
+        var queuedRun = queued();
+        var interrupted = queued().begin(T1).interrupt();
+        assertThatThrownBy(() -> queuedRun.complete(T1)).isInstanceOf(InvalidRunStateException.class);
+        assertThatThrownBy(() -> interrupted.complete(T2)).isInstanceOf(InvalidRunStateException.class);
     }
 
     @Test

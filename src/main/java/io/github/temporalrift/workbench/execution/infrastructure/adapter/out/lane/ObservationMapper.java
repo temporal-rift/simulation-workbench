@@ -1,6 +1,7 @@
 package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -12,6 +13,7 @@ import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.ActiveEvent;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.MySubmission;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.PlayerGameStateResponse;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.PlayerInGame;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.RevealedIntel;
 import io.github.temporalrift.workbench.policy.domain.observation.CardGrade;
 import io.github.temporalrift.workbench.policy.domain.observation.CardType;
@@ -131,16 +133,16 @@ final class ObservationMapper {
         if (jammedUntil != null && round <= jammedUntil) {
             return List.of();
         }
-        var exhausted = new HashMap<SpecialAction, Boolean>();
+        var exhausted = EnumSet.noneOf(SpecialAction.class);
         for (var budget : state.getMySpecialBudgets()) {
-            exhausted.put(
-                    SpecialAction.valueOf(budget.getSpecialAction().name()),
-                    budget.getRemainingUsesThisEra() == 0 || budget.getRemainingUsesThisGame() == 0);
+            if (budget.getRemainingUsesThisEra() == 0 || budget.getRemainingUsesThisGame() == 0) {
+                exhausted.add(SpecialAction.valueOf(budget.getSpecialAction().name()));
+            }
         }
         var specials = new ArrayList<PlayableSpecial>();
         for (var special : state.getMySpecialActions()) {
             var action = SpecialAction.valueOf(special.name());
-            if (!CardRules.isDeclarationOnly(action) && !exhausted.getOrDefault(action, false)) {
+            if (!CardRules.isDeclarationOnly(action) && !exhausted.contains(action)) {
                 specials.add(new PlayableSpecial(action, CardRules.shape(action)));
             }
         }
@@ -184,7 +186,7 @@ final class ObservationMapper {
                                 .toList()))
                 .toList();
         var others = state.getPlayers().stream()
-                .map(player -> player.getPlayerId())
+                .map(PlayerInGame::getPlayerId)
                 .filter(id -> !id.equals(playerId))
                 .toList();
         return new EntitledObservation(

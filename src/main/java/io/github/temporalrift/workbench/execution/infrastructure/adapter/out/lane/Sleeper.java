@@ -15,7 +15,7 @@ public interface Sleeper {
         return duration -> {
             try {
                 Thread.sleep(duration);
-            } catch (InterruptedException e) {
+            } catch (InterruptedException _) {
                 Thread.currentThread().interrupt();
                 throw new LeaseLostException();
             }

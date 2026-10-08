@@ -86,12 +86,9 @@ class HttpGameSessionTest {
                 new UUID(1, 1), new UUID(2, 2), CASE_KEY, "42", DIGEST, plans, Instant.parse("2026-01-01T00:00:00Z"));
         session = new HttpGameSession(
                 context,
-                GAME,
-                gameControl,
-                timelineControl,
+                new HttpGameSession.ServiceControls(gameControl, timelineControl),
                 gateway,
                 gateway,
-                seats,
                 scoring,
                 new LaneEndpoints.Barrier(Duration.ZERO, 2, 3),
                 _ -> sleeps.incrementAndGet());

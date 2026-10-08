@@ -18,6 +18,7 @@ import io.github.temporalrift.workbench.execution.domain.port.out.CommandLedger;
 public class CommandLedgerAdapter implements CommandLedger {
 
     private static final String COLUMNS = "case_id, seat_index, window_key, attempt_id, request, status, outcome";
+    private static final String SELECT_SLOT = "SELECT " + COLUMNS;
 
     private final JdbcTemplate jdbc;
     private final TransactionTemplate transactions;
@@ -45,7 +46,7 @@ public class CommandLedgerAdapter implements CommandLedger {
                 return new CommandIntent.Send();
             }
             var existing = jdbc.query(
-                            "SELECT " + COLUMNS + " FROM case_command WHERE case_id = ? AND seat_index = ?"
+                            SELECT_SLOT + " FROM case_command WHERE case_id = ? AND seat_index = ?"
                                     + " AND window_key = ? FOR UPDATE",
                             (rs, i) -> slot(rs),
                             slot.caseId(),
@@ -88,8 +89,7 @@ public class CommandLedgerAdapter implements CommandLedger {
     public Optional<Slot> find(SlotId slot) {
         return jdbc
                 .query(
-                        "SELECT " + COLUMNS + " FROM case_command WHERE case_id = ? AND seat_index = ?"
-                                + " AND window_key = ?",
+                        SELECT_SLOT + " FROM case_command WHERE case_id = ? AND seat_index = ?" + " AND window_key = ?",
                         (rs, i) -> slot(rs),
                         slot.caseId(),
                         slot.seatIndex(),
@@ -101,7 +101,7 @@ public class CommandLedgerAdapter implements CommandLedger {
     @Override
     public List<Slot> accepted(UUID caseId) {
         return jdbc.query(
-                "SELECT " + COLUMNS + " FROM case_command WHERE case_id = ? AND status = 'ACCEPTED'"
+                SELECT_SLOT + " FROM case_command WHERE case_id = ? AND status = 'ACCEPTED'"
                         + " ORDER BY window_key COLLATE \"C\", seat_index",
                 (rs, i) -> slot(rs),
                 caseId);
@@ -110,7 +110,7 @@ public class CommandLedgerAdapter implements CommandLedger {
     @Override
     public List<Slot> inDoubt(UUID caseId) {
         return jdbc.query(
-                "SELECT " + COLUMNS + " FROM case_command WHERE case_id = ? AND status = 'SENT'"
+                SELECT_SLOT + " FROM case_command WHERE case_id = ? AND status = 'SENT'"
                         + " ORDER BY window_key COLLATE \"C\", seat_index",
                 (rs, i) -> slot(rs),
                 caseId);

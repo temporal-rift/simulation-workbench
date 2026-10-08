@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.HandCard;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.MySubmission;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.PlayerGameStateResponse;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.SubmissionTargets;
@@ -44,7 +45,7 @@ final class AcceptedState {
     private static Optional<Candidate> hand(PlayerGameStateResponse state, int era) {
         return submission(state, "HAND_SELECTION", era, null).map(_ -> {
             List<UUID> kept = state.getMyHand().stream()
-                    .map(card -> card.getCardInstanceId())
+                    .map(HandCard::getCardInstanceId)
                     .sorted(Comparator.comparing(UUID::toString))
                     .toList();
             return new Candidate.KeepHand(kept);

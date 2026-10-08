@@ -1,8 +1,8 @@
 package io.github.temporalrift.workbench.execution.application.command;
 
 import java.time.Clock;
-import java.util.ArrayList;
 import java.util.UUID;
+import java.util.stream.IntStream;
 
 import io.github.temporalrift.workbench.execution.application.port.in.RunView;
 import io.github.temporalrift.workbench.execution.application.port.in.StartRunUseCase;
@@ -48,20 +48,22 @@ public class StartRunCommandHandler implements StartRunUseCase {
         var planned = experiments
                 .cases(command.experimentId())
                 .orElseThrow(() -> new RunNotFoundException("Experiment", command.experimentId()));
-        var cases = new ArrayList<RunRepository.NewCase>(planned.size());
-        for (var coordinate : planned) {
-            cases.add(new RunRepository.NewCase(
-                    coordinate.caseKey(),
-                    cases.size(),
-                    coordinate.variantLabel(),
-                    coordinate.seed(),
-                    coordinate.playerCount(),
-                    coordinate.seats()));
-        }
+        var cases = IntStream.range(0, planned.size())
+                .mapToObj(ordinal -> {
+                    var coordinate = planned.get(ordinal);
+                    return new RunRepository.NewCase(
+                            coordinate.caseKey(),
+                            ordinal,
+                            coordinate.variantLabel(),
+                            coordinate.seed(),
+                            coordinate.playerCount(),
+                            coordinate.seats());
+                })
+                .toList();
         var run = Run.queued(UUID.randomUUID(), command.experimentId(), clock.instant());
         return switch (runs.create(command.idempotencyKey(), requestHash, run, plan.concurrency(), cases)) {
             case RunCreation.Created _ -> view(run.runId());
-            case RunCreation.Existing existing -> replayed(existing.claim(), requestHash);
+            case RunCreation.Existing(var claim) -> replayed(claim, requestHash);
         };
     }
 

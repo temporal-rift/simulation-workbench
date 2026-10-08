@@ -27,7 +27,7 @@ import io.github.temporalrift.workbench.policy.application.port.in.PlayDecisionW
  * the policy package's window procedure; the services stay authoritative for legality, scoring and the
  * ending, and the driver only decides who acts, when logical time moves, and when to stop waiting.
  */
-final class CaseDriver {
+public final class CaseDriver {
 
     private final DecisionRuntime decisions;
     private final CommandLedger commands;
@@ -35,7 +35,7 @@ final class CaseDriver {
     private final Clock clock;
     private final Instant logicalEpoch;
 
-    CaseDriver(
+    public CaseDriver(
             DecisionRuntime decisions,
             CommandLedger commands,
             CaseLedger cases,
@@ -53,7 +53,7 @@ final class CaseDriver {
      *
      * @throws AttemptFailedException when the attempt cannot reach an authoritative ending
      */
-    CaseResult play(
+    public CaseResult play(
             LogicalCase logicalCase,
             Attempt attempt,
             Attempt previous,
@@ -78,8 +78,8 @@ final class CaseDriver {
         while (!(progress instanceof GameProgress.Ended)) {
             guard.checkpoint();
             requireTime(deadline);
-            if (progress instanceof GameProgress.Open open) {
-                playWindow(player, seats, open.pendingSeats(), plan);
+            if (progress instanceof GameProgress.Open(var pendingSeats)) {
+                playWindow(player, seats, pendingSeats, plan);
             } else {
                 session.advanceClock();
             }
@@ -120,11 +120,11 @@ final class CaseDriver {
             return;
         }
         for (var seatResult : player.play(pending, plan.maxRejectedCandidatesPerWindow())) {
-            if (seatResult.result() instanceof DecisionResult.PolicyExhausted exhausted) {
+            if (seatResult.result() instanceof DecisionResult.PolicyExhausted(var rejectionCodes)) {
                 throw new AttemptFailedException(
                         FailureCode.POLICY_EXHAUSTED,
                         "Seat " + seatResult.seatIndex() + " exhausted its candidates after rejections "
-                                + exhausted.rejectionCodes());
+                                + rejectionCodes);
             }
         }
     }

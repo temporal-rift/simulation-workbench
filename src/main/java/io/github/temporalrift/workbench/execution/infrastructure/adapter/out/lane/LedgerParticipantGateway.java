@@ -110,8 +110,8 @@ public class LedgerParticipantGateway implements ParticipantGateway {
         var outcome = delegate.submit(seatIndex, candidate);
         switch (outcome) {
             case SubmissionOutcome.Accepted _ -> ledger.resolve(slot, SlotStatus.ACCEPTED, "ACCEPTED", clock.instant());
-            case SubmissionOutcome.Rejected rejected ->
-                ledger.resolve(slot, SlotStatus.NOT_SPENT, rejected.code(), clock.instant());
+            case SubmissionOutcome.Rejected(var code) ->
+                ledger.resolve(slot, SlotStatus.NOT_SPENT, code, clock.instant());
             case SubmissionOutcome.Unacknowledged _ -> {
                 // The slot stays SENT: the service may hold the command, so it is reconciled before any resend.
             }

@@ -26,6 +26,7 @@ import io.github.temporalrift.workbench.execution.domain.run.SeatPlan;
 /** Maps result sets and JSON columns of the execution tables to domain values. */
 final class Rows {
 
+    private static final String STATE = "state";
     private static final TypeReference<List<SeatPlan>> SEATS = new TypeReference<>() {};
 
     private final ObjectMapper objectMapper;
@@ -47,7 +48,7 @@ final class Rows {
         return Run.restore(
                 rs.getObject("run_id", UUID.class),
                 rs.getObject("experiment_id", UUID.class),
-                RunState.valueOf(rs.getString("state")),
+                RunState.valueOf(rs.getString(STATE)),
                 instant(rs, "created_at"),
                 instant(rs, "started_at"),
                 instant(rs, "finished_at"),
@@ -65,7 +66,7 @@ final class Rows {
                 rs.getString("seed"),
                 rs.getInt("player_count"),
                 read(rs.getString("seats_json"), SEATS),
-                CaseState.valueOf(rs.getString("state")),
+                CaseState.valueOf(rs.getString(STATE)),
                 resultJson == null ? null : read(resultJson, CaseResult.class));
     }
 
@@ -74,7 +75,7 @@ final class Rows {
                 rs.getObject("attempt_id", UUID.class),
                 rs.getObject("case_id", UUID.class),
                 rs.getInt("ordinal"),
-                AttemptState.valueOf(rs.getString("state")),
+                AttemptState.valueOf(rs.getString(STATE)),
                 rs.getObject("game_id", UUID.class),
                 rs.getString("lane_id"),
                 instant(rs, "started_at"),

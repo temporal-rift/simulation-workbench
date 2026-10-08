@@ -34,6 +34,7 @@ import io.github.temporalrift.workbench.execution.application.port.in.StartRunUs
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLedger;
 import io.github.temporalrift.workbench.execution.domain.port.out.GameSession;
+import io.github.temporalrift.workbench.execution.domain.run.Attempt;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptState;
 import io.github.temporalrift.workbench.execution.domain.run.CaseResult;
@@ -129,12 +130,7 @@ class BatchExecutionIT {
             value = EndReason.class,
             names = {"ALL_PLAYERS_ABANDONED", "RESOLUTION_FAILED"})
     void abnormalEndingsAreVisibleCaseResultsAndNeverAttemptFailures(EndReason reason) {
-        lanes.script(new ScriptedLanes.Script() {
-            @Override
-            public GameSession.AuthoritativeEnding ending(CaseLane.CaseContext context) {
-                return ScriptedLanes.withoutWinners(context, reason);
-            }
-        });
+        lanes.script(context -> ScriptedLanes.withoutWinners(context, reason));
         var runId = start(ExperimentManifests.threePlayerSingleSet());
 
         drain();
@@ -235,7 +231,7 @@ class BatchExecutionIT {
                 .toList();
         assertThat(recovered).hasSize(1);
         assertThat(recovered.getFirst().attempts())
-                .extracting(attempt -> attempt.state())
+                .extracting(Attempt::state)
                 .containsExactly(AttemptState.INTERRUPTED, AttemptState.SUCCEEDED);
         assertThat(recovered.getFirst().attempts().get(1).gameId())
                 .isEqualTo(recovered.getFirst().attempts().get(0).gameId());
@@ -268,8 +264,8 @@ class BatchExecutionIT {
         assertThat(interrupted.counts().running()).isZero();
 
         resumeRun.handle(new ResumeRunUseCase.Command(runId, UUID.randomUUID()));
-        assertThatThrownBy(() -> resumeRun.handle(new ResumeRunUseCase.Command(runId, UUID.randomUUID())))
-                .isInstanceOf(InvalidRunStateException.class);
+        var again = new ResumeRunUseCase.Command(runId, UUID.randomUUID());
+        assertThatThrownBy(() -> resumeRun.handle(again)).isInstanceOf(InvalidRunStateException.class);
         drain();
 
         var finished = getRun.handle(runId);
@@ -278,7 +274,7 @@ class BatchExecutionIT {
         assertThat(finished.counts().requested()).isEqualTo(1000);
         var all = succeededResults(runId);
         assertThat(all).hasSize(1000);
-        kept.forEach((caseId, snapshot) -> assertThat(all.get(caseId)).isEqualTo(snapshot));
+        kept.forEach((caseId, snapshot) -> assertThat(all).containsEntry(caseId, snapshot));
         assertThat(jdbc.queryForObject(
                         "SELECT count(DISTINCT case_key) FROM run_case WHERE run_id = ? AND state = 'SUCCEEDED'",
                         Integer.class,
@@ -286,7 +282,7 @@ class BatchExecutionIT {
                 .isEqualTo(1000);
         var recoveredCase = getCase.handle(runId, inFlight.logicalCase().caseId());
         assertThat(recoveredCase.attempts())
-                .extracting(attempt -> attempt.state())
+                .extracting(Attempt::state)
                 .containsExactly(AttemptState.INTERRUPTED, AttemptState.SUCCEEDED);
     }
 
@@ -313,7 +309,7 @@ class BatchExecutionIT {
                 entered.countDown();
                 try {
                     release.await(10, TimeUnit.SECONDS);
-                } catch (InterruptedException e) {
+                } catch (InterruptedException _) {
                     Thread.currentThread().interrupt();
                 }
             }
@@ -358,22 +354,24 @@ class BatchExecutionIT {
                 .map(caseId -> getCase.handle(runId, caseId))
                 .filter(view -> view.logicalCase().state() == CaseState.CANCELLED)
                 .toList();
-        assertThat(cancelledCases).hasSize(8);
         assertThat(cancelledCases)
+                .hasSize(8)
                 .allSatisfy(view -> assertThat(view.logicalCase().result()).isNull());
     }
 
     @Test
     void resumeIsLegalOnlyFromInterrupted() {
         var runId = start(ExperimentManifests.threePlayerSingleSet());
-        assertThatThrownBy(() -> resumeRun.handle(new ResumeRunUseCase.Command(runId, UUID.randomUUID())))
+        var again = new ResumeRunUseCase.Command(runId, UUID.randomUUID());
+        assertThatThrownBy(() -> resumeRun.handle(again))
                 .isInstanceOf(InvalidRunStateException.class)
                 .hasMessageContaining("QUEUED");
 
         drain();
 
         assertThat(getRun.handle(runId).run().state()).isEqualTo(RunState.COMPLETED);
-        assertThatThrownBy(() -> resumeRun.handle(new ResumeRunUseCase.Command(runId, UUID.randomUUID())))
+        var afterCompletion = new ResumeRunUseCase.Command(runId, UUID.randomUUID());
+        assertThatThrownBy(() -> resumeRun.handle(again))
                 .isInstanceOf(InvalidRunStateException.class)
                 .hasMessageContaining("COMPLETED");
     }
@@ -473,7 +471,7 @@ class BatchExecutionIT {
         var zombieCase = getCase.handle(runId, zombie.logicalCase().caseId());
         assertThat(zombieCase.logicalCase().result().semanticDigest()).isNotEqualTo("f".repeat(64));
         assertThat(zombieCase.attempts())
-                .extracting(attempt -> attempt.state())
+                .extracting(Attempt::state)
                 .containsExactly(AttemptState.INTERRUPTED, AttemptState.SUCCEEDED);
     }
 

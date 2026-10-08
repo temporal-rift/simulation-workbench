@@ -20,8 +20,6 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLedger;
-import io.github.temporalrift.workbench.execution.domain.port.out.CommandLedger;
-import io.github.temporalrift.workbench.execution.domain.port.out.DecisionRuntime;
 import io.github.temporalrift.workbench.execution.domain.port.out.ExperimentSource;
 import io.github.temporalrift.workbench.execution.domain.port.out.LaneProvider;
 import io.github.temporalrift.workbench.execution.domain.port.out.RunRepository;
@@ -45,10 +43,9 @@ class RunBatchServiceTest {
     private final RunBatchService service = new RunBatchService(
             runs,
             cases,
-            mock(CommandLedger.class),
             experiments,
             lanes,
-            mock(DecisionRuntime.class),
+            mock(CaseDriver.class),
             Clock.fixed(NOW, ZoneOffset.UTC),
             new ExecutionSettings(Duration.ofSeconds(30), Duration.ofSeconds(5), 2, NOW));
 

@@ -152,15 +152,10 @@ class LedgerParticipantGatewayTest {
     void recoveryResolvesInDoubtSlotsFromTheServiceAcceptedState() {
         ledger.put(new SlotId(CASE, 0, WINDOW), ATTEMPT, "kept", SlotStatus.SENT);
         ledger.put(new SlotId(CASE, 1, WINDOW), ATTEMPT, "absent", SlotStatus.SENT);
-        var gateway = new LedgerParticipantGateway(
-                delegate,
-                (seat, window) -> seat == 0 ? Optional.of(true) : Optional.of(false),
-                ledger,
-                CASE,
-                ATTEMPT,
-                Clock.systemUTC());
+        var recovering = new LedgerParticipantGateway(
+                delegate, (seat, window) -> Optional.of(seat == 0), ledger, CASE, ATTEMPT, Clock.systemUTC());
 
-        gateway.recoverInDoubt();
+        recovering.recoverInDoubt();
 
         assertThat(ledger.find(new SlotId(CASE, 0, WINDOW)).orElseThrow().status())
                 .isEqualTo(SlotStatus.ACCEPTED);

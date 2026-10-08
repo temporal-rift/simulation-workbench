@@ -7,8 +7,6 @@ import java.util.UUID;
 import io.github.temporalrift.workbench.execution.application.port.in.RunBatchUseCase;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLedger;
-import io.github.temporalrift.workbench.execution.domain.port.out.CommandLedger;
-import io.github.temporalrift.workbench.execution.domain.port.out.DecisionRuntime;
 import io.github.temporalrift.workbench.execution.domain.port.out.ExperimentSource;
 import io.github.temporalrift.workbench.execution.domain.port.out.LaneProvider;
 import io.github.temporalrift.workbench.execution.domain.port.out.RunRepository;
@@ -39,17 +37,16 @@ public class RunBatchService implements RunBatchUseCase {
     public RunBatchService(
             RunRepository runs,
             CaseLedger cases,
-            CommandLedger commands,
             ExperimentSource experiments,
             LaneProvider lanes,
-            DecisionRuntime decisions,
+            CaseDriver driver,
             Clock clock,
             ExecutionSettings settings) {
         this.runs = runs;
         this.cases = cases;
         this.experiments = experiments;
         this.lanes = lanes;
-        this.driver = new CaseDriver(decisions, commands, cases, clock, settings);
+        this.driver = driver;
         this.clock = clock;
         this.settings = settings;
     }

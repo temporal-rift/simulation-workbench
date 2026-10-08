@@ -62,7 +62,7 @@ public class BatchWorker implements SmartLifecycle {
         for (var thread : threads) {
             try {
                 thread.join(Math.max(1, TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime())));
-            } catch (InterruptedException e) {
+            } catch (InterruptedException _) {
                 Thread.currentThread().interrupt();
                 break;
             }
@@ -100,7 +100,7 @@ public class BatchWorker implements SmartLifecycle {
     private void pause() {
         try {
             Thread.sleep(pollInterval);
-        } catch (InterruptedException e) {
+        } catch (InterruptedException _) {
             Thread.currentThread().interrupt();
         }
     }

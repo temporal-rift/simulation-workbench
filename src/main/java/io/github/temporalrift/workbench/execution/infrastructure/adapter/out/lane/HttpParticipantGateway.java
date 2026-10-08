@@ -1,5 +1,6 @@
 package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane;
 
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -58,6 +59,16 @@ public class HttpParticipantGateway implements ParticipantGateway, SlotReconcile
         this.participants = new ConcurrentHashMap<>();
         seats.forEach(seat -> participants.put(seat.seatIndex(), seat));
         this.settled = settled;
+    }
+
+    UUID gameId() {
+        return gameId;
+    }
+
+    List<Participant> seats() {
+        return participants.values().stream()
+                .sorted(Comparator.comparingInt(Participant::seatIndex))
+                .toList();
     }
 
     @Override
@@ -123,31 +134,30 @@ public class HttpParticipantGateway implements ParticipantGateway, SlotReconcile
     private void send(ActionApi action, ObservationMapper.Owed owed, Candidate candidate) {
         var era = owed.era();
         switch (candidate) {
-            case Candidate.KeepHand keep ->
-                action.selectHand(gameId, era, new HandSelectionRequest(new LinkedHashSet<>(keep.cardInstanceIds())));
-            case Candidate.Declare declare ->
+            case Candidate.KeepHand(var cardInstanceIds) ->
+                action.selectHand(gameId, era, new HandSelectionRequest(new LinkedHashSet<>(cardInstanceIds)));
+            case Candidate.Declare(var mode, var eventId, var outcomeId) ->
                 action.recordActivistDeclaration(
                         gameId,
                         era,
                         new ActivistDeclarationRequest(
-                                ActivistDeclarationMode.valueOf(declare.mode().name()),
-                                declare.eventId(),
-                                declare.outcomeId()));
+                                ActivistDeclarationMode.valueOf(mode.name()), eventId, outcomeId));
             case Candidate.Decline _ -> action.declineDeclaration(gameId, era);
-            case Candidate.PlayCard play -> action.submitAction(gameId, era, owed.round(), cardRequest(play));
-            case Candidate.PlaySpecial special ->
-                action.submitAction(gameId, era, owed.round(), specialRequest(special));
+            case Candidate.PlayCard(var cardInstanceId, var target) ->
+                action.submitAction(gameId, era, owed.round(), cardRequest(cardInstanceId, target));
+            case Candidate.PlaySpecial(var special, var target) ->
+                action.submitAction(gameId, era, owed.round(), specialRequest(special, target));
             case Candidate.Pass _ ->
                 action.submitAction(gameId, era, owed.round(), new PassActionRequest(ActionType.PASS));
-            case Candidate.PlayParadoxCard card ->
+            case Candidate.PlayParadoxCard(var cardInstanceId, var target) ->
                 action.submitParadoxResolutionCard(
                         gameId,
                         era,
                         new ParadoxResolutionCardRequest()
                                 .actionType(ActionType.CARD)
-                                .cardInstanceId(card.cardInstanceId())
-                                .targetEventId(card.target().eventId())
-                                .targetOutcomeId(card.target().outcomeId()));
+                                .cardInstanceId(cardInstanceId)
+                                .targetEventId(target.eventId())
+                                .targetOutcomeId(target.outcomeId()));
             case Candidate.PassParadox _ ->
                 action.submitParadoxResolutionCard(
                         gameId, era, new ParadoxResolutionCardRequest().actionType(ActionType.PASS));
@@ -155,37 +165,32 @@ public class HttpParticipantGateway implements ParticipantGateway, SlotReconcile
         }
     }
 
-    private static SubmitActionRequest cardRequest(Candidate.PlayCard play) {
-        var request = new CardActionRequest(play.cardInstanceId(), ActionType.CARD);
-        switch (play.target()) {
-            case Target.Disguise disguise ->
-                request.disguiseCategory(
-                        CardCategory.valueOf(disguise.category().name()));
-            case Target.EventOutcome target ->
-                request.targetEventId(target.eventId()).targetOutcomeId(target.outcomeId());
-            case Target.OutcomePair pair ->
-                request.targetEventId(pair.eventId())
-                        .sourceOutcomeId(pair.sourceOutcomeId())
-                        .targetOutcomeId(pair.targetOutcomeId());
-            case Target.Events events -> request.targetEventIds(events.eventIds());
-            case Target.Player player -> request.targetPlayerId(player.playerId());
-            case Target.Players players -> request.targetPlayerIds(players.playerIds());
+    private static SubmitActionRequest cardRequest(UUID cardInstanceId, Target target) {
+        var request = new CardActionRequest(cardInstanceId, ActionType.CARD);
+        switch (target) {
+            case Target.Disguise(var category) -> request.disguiseCategory(CardCategory.valueOf(category.name()));
+            case Target.EventOutcome(var eventId, var outcomeId) ->
+                request.targetEventId(eventId).targetOutcomeId(outcomeId);
+            case Target.OutcomePair(var eventId, var sourceOutcomeId, var targetOutcomeId) ->
+                request.targetEventId(eventId).sourceOutcomeId(sourceOutcomeId).targetOutcomeId(targetOutcomeId);
+            case Target.Events(var eventIds) -> request.targetEventIds(eventIds);
+            case Target.Player(var playerId) -> request.targetPlayerId(playerId);
+            case Target.Players(var playerIds) -> request.targetPlayerIds(playerIds);
         }
         return request;
     }
 
-    private static SubmitActionRequest specialRequest(Candidate.PlaySpecial special) {
-        var request =
-                new SpecialActionRequest(SpecialAction.valueOf(special.action().name()), ActionType.SPECIAL);
-        switch (special.target()) {
-            case Target.EventOutcome target ->
-                request.targetEventId(target.eventId()).targetOutcomeId(target.outcomeId());
-            case Target.Player player -> request.targetPlayerId(player.playerId());
+    private static SubmitActionRequest specialRequest(Enum<?> special, Target target) {
+        var request = new SpecialActionRequest(SpecialAction.valueOf(special.name()), ActionType.SPECIAL);
+        switch (target) {
+            case Target.EventOutcome(var eventId, var outcomeId) ->
+                request.targetEventId(eventId).targetOutcomeId(outcomeId);
+            case Target.Player(var playerId) -> request.targetPlayerId(playerId);
             default ->
                 throw new AttemptFailedException(
                         FailureCode.CONTRACT_MISMATCH,
                         "A special action cannot take the target "
-                                + special.target().getClass().getSimpleName());
+                                + target.getClass().getSimpleName());
         }
         return request;
     }

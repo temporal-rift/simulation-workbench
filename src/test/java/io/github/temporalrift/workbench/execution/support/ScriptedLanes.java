@@ -45,18 +45,15 @@ public class ScriptedLanes implements LaneProvider {
         }
     }
 
+    private static final Script DECISIVE = ScriptedLanes::decisive;
+
     private final CommandLedger ledger;
     private final Clock clock;
     private final int laneCount;
     private final Set<String> busy = new HashSet<>();
     private final Map<UUID, FakeGame.State> games = new ConcurrentHashMap<>();
     private final List<Opened> opened = Collections.synchronizedList(new ArrayList<>());
-    private volatile Script script = new Script() {
-        @Override
-        public GameSession.AuthoritativeEnding ending(CaseLane.CaseContext context) {
-            return ScriptedLanes.decisive(context);
-        }
-    };
+    private volatile Script script = DECISIVE;
 
     /** One call to open a game on a lane. */
     public record Opened(UUID caseKey, UUID attemptId, UUID resumeGameId, UUID gameId) {}
@@ -72,12 +69,7 @@ public class ScriptedLanes implements LaneProvider {
     }
 
     public void reset() {
-        script = new Script() {
-            @Override
-            public GameSession.AuthoritativeEnding ending(CaseLane.CaseContext context) {
-                return ScriptedLanes.decisive(context);
-            }
-        };
+        script = DECISIVE;
         games.clear();
         opened.clear();
     }

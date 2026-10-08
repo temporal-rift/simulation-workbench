@@ -118,7 +118,13 @@ public class HttpCaseLane implements CaseLane {
                 gameId, participants, () -> sessionRef.get().isSettled());
         var durable = new LedgerParticipantGateway(raw, raw, ledger, context.caseId(), context.attemptId(), clock);
         var session = new HttpGameSession(
-                context, gameId, gameControl, timelineControl, raw, durable, participants, scoring, barrier, sleeper);
+                context,
+                new HttpGameSession.ServiceControls(gameControl, timelineControl),
+                raw,
+                durable,
+                scoring,
+                barrier,
+                sleeper);
         sessionRef.set(session);
         return new Attached(session, durable);
     }
@@ -164,11 +170,12 @@ public class HttpCaseLane implements CaseLane {
     }
 
     private void configure(SimulationExecutionApi control, String service, CaseContext context) {
-        var seats = new ArrayList<SimulationSeat>();
-        for (var seat : context.seats()) {
-            seats.add(new SimulationSeat(
-                    seat.seatIndex(), lane.bots().get(seat.seatIndex()).playerId(), Faction.valueOf(seat.faction())));
-        }
+        var seats = context.seats().stream()
+                .map(seat -> new SimulationSeat(
+                        seat.seatIndex(),
+                        lane.bots().get(seat.seatIndex()).playerId(),
+                        Faction.valueOf(seat.faction())))
+                .toList();
         var request = new ExecutionContext()
                 .schemaVersion(ExecutionContext.SchemaVersionEnum.NUMBER_1)
                 .caseKey(context.caseKey())

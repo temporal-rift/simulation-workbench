@@ -12,6 +12,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
 
 import io.github.temporalrift.workbench.execution.application.command.CancelRunCommandHandler;
+import io.github.temporalrift.workbench.execution.application.command.CaseDriver;
 import io.github.temporalrift.workbench.execution.application.command.ExecutionSettings;
 import io.github.temporalrift.workbench.execution.application.command.ResumeRunCommandHandler;
 import io.github.temporalrift.workbench.execution.application.command.RunBatchService;
@@ -131,16 +132,25 @@ public class ExecutionConfiguration {
     }
 
     @Bean
+    CaseDriver caseDriver(
+            DecisionRuntime decisions,
+            CommandLedger commands,
+            CaseLedger cases,
+            Clock clock,
+            ExecutionSettings settings) {
+        return new CaseDriver(decisions, commands, cases, clock, settings);
+    }
+
+    @Bean
     RunBatchUseCase runBatchUseCase(
             RunRepository runs,
             CaseLedger cases,
-            CommandLedger commands,
             ExperimentSource experiments,
             LaneProvider lanes,
-            DecisionRuntime decisions,
+            CaseDriver driver,
             Clock clock,
             ExecutionSettings settings) {
-        return new RunBatchService(runs, cases, commands, experiments, lanes, decisions, clock, settings);
+        return new RunBatchService(runs, cases, experiments, lanes, driver, clock, settings);
     }
 
     @Bean

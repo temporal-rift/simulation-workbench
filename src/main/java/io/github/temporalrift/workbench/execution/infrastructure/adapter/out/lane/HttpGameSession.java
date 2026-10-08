@@ -42,8 +42,10 @@ public class HttpGameSession implements GameSession {
     private static final String GAME_ENDED = "GAME_ENDED";
     private static final int CLOCK_RETRIES = 2;
 
+    private static final String GAME_SERVICE = "game-service";
+    private static final String TIMELINE_SERVICE = "timeline-service";
+
     private final CaseLane.CaseContext context;
-    private final UUID gameId;
     private final SimulationExecutionApi gameControl;
     private final SimulationExecutionApi timelineControl;
     private final HttpParticipantGateway gateway;
@@ -56,24 +58,27 @@ public class HttpGameSession implements GameSession {
     private Map<Integer, Integer> lastRevisions = Map.of();
     private int stableReads;
 
+    /** The execution controls of the two services that host a game. */
+    public record ServiceControls(SimulationExecutionApi game, SimulationExecutionApi timeline) {}
+
+    /**
+     * @param gateway the raw participant operations of the game, which also name its id and seats
+     * @param participants the same operations made durable through the command ledger
+     */
     public HttpGameSession(
             CaseLane.CaseContext context,
-            UUID gameId,
-            SimulationExecutionApi gameControl,
-            SimulationExecutionApi timelineControl,
+            ServiceControls controls,
             HttpParticipantGateway gateway,
             ParticipantGateway participants,
-            List<HttpParticipantGateway.Participant> seats,
             ScoringApi scoring,
             LaneEndpoints.Barrier barrier,
             Sleeper sleeper) {
         this.context = context;
-        this.gameId = gameId;
-        this.gameControl = gameControl;
-        this.timelineControl = timelineControl;
+        this.gameControl = controls.game();
+        this.timelineControl = controls.timeline();
         this.gateway = gateway;
         this.participants = participants;
-        this.seats = List.copyOf(seats);
+        this.seats = gateway.seats();
         this.scoring = scoring;
         this.barrier = barrier;
         this.sleeper = sleeper;
@@ -81,7 +86,7 @@ public class HttpGameSession implements GameSession {
 
     @Override
     public UUID gameId() {
-        return gameId;
+        return gateway.gameId();
     }
 
     @Override
@@ -91,8 +96,8 @@ public class HttpGameSession implements GameSession {
 
     /** Whether the services and projection have settled; the gateway uses it to judge accepted state current. */
     public boolean isSettled() {
-        var game = checkpoint(gameControl, "game-service");
-        var timeline = checkpoint(timelineControl, "timeline-service");
+        var game = checkpoint(gameControl, GAME_SERVICE);
+        var timeline = checkpoint(timelineControl, TIMELINE_SERVICE);
         var drained = Boolean.TRUE.equals(game.getDrained()) && Boolean.TRUE.equals(timeline.getDrained());
         var revisions = new HashMap<Integer, Integer>();
         var complete = true;
@@ -126,15 +131,15 @@ public class HttpGameSession implements GameSession {
 
     @Override
     public void advanceClock() {
-        var game = checkpoint(gameControl, "game-service");
-        var timeline = checkpoint(timelineControl, "timeline-service");
+        var game = checkpoint(gameControl, GAME_SERVICE);
+        var timeline = checkpoint(timelineControl, TIMELINE_SERVICE);
         var target = earliest(game.getNextDeadline(), timeline.getNextDeadline());
         if (target == null) {
             sleeper.sleep(barrier.pollInterval());
             return;
         }
-        advance(gameControl, "game-service", target);
-        advance(timelineControl, "timeline-service", target);
+        advance(gameControl, GAME_SERVICE, target);
+        advance(timelineControl, TIMELINE_SERVICE, target);
     }
 
     @Override
@@ -180,14 +185,14 @@ public class HttpGameSession implements GameSession {
 
     private Optional<Map<UUID, Integer>> scores() {
         try {
-            var body = scoring.getScores(gameId).getBody();
+            var body = scoring.getScores(gameId()).getBody();
             if (body == null) {
                 return Optional.empty();
             }
             var scores = new HashMap<UUID, Integer>();
             body.getScores().forEach(score -> scores.put(score.getPlayerId(), score.getScore()));
             return Optional.of(scores);
-        } catch (RestClientException e) {
+        } catch (RestClientException _) {
             return Optional.empty();
         }
     }
