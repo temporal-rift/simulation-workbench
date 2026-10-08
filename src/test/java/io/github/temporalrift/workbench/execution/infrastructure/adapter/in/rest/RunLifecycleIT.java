@@ -117,7 +117,7 @@ class RunLifecycleIT {
     void unknownExperimentAndRunAreNotFound() throws Exception {
         mockMvc.perform(startRun(UUID.randomUUID(), UUID.randomUUID()))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+                .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
         mockMvc.perform(get("/api/v1/runs/{id}", UUID.randomUUID()).with(jwt().authorities(readAuthority())))
                 .andExpect(status().isNotFound());
         mockMvc.perform(post("/api/v1/runs/{id}/cancel", UUID.randomUUID())
