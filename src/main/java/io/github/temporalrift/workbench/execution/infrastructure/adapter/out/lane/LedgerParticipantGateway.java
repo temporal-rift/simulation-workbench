@@ -105,9 +105,11 @@ public class LedgerParticipantGateway implements ParticipantGateway {
         }
         var slot = slot(seatIndex);
         switch (reconciliation) {
-            case Reconciliation.Accepted accepted
-            when !(accepted.candidate() instanceof Candidate.ConfirmReady) -> {
-                ledger.resolve(slot, SlotStatus.ACCEPTED, "RECONCILED", clock.instant());
+            case Reconciliation.Accepted accepted -> {
+                // Terminal readiness has no decision slot, but its step is resolved all the same.
+                if (!(accepted.candidate() instanceof Candidate.ConfirmReady)) {
+                    ledger.resolve(slot, SlotStatus.ACCEPTED, "RECONCILED", clock.instant());
+                }
                 recorder.resolved(seatIndex, slot.windowKey(), StepOutcome.ACCEPTED);
             }
             case Reconciliation.NotAccepted _ ->

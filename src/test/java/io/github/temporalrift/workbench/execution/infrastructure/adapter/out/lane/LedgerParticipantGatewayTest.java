@@ -305,6 +305,21 @@ class LedgerParticipantGatewayTest {
     }
 
     @Test
+    void aLostTerminalReadinessAcknowledgementIsResolvedWhenAcceptedStateShowsIt() {
+        delegate.outcomes.add(new SubmissionOutcome.Unacknowledged());
+        gateway.submit(0, new Candidate.ConfirmReady());
+        assertThat(evidence.steps(CASE, GAME).getFirst().outcome()).isEqualTo(StepOutcome.UNACKNOWLEDGED);
+
+        delegate.reconciliation = new Reconciliation.Accepted(new Candidate.ConfirmReady());
+        gateway.reconcile(0);
+
+        assertThat(evidence.steps(CASE, GAME))
+                .singleElement()
+                .satisfies(step -> assertThat(step.outcome()).isEqualTo(StepOutcome.ACCEPTED));
+        assertThat(ledger.accepted(CASE)).isEmpty();
+    }
+
+    @Test
     void aCommandAnotherAttemptAlreadyAcceptedIsNotRetainedAgain() {
         ledger.put(new SlotId(CASE, 0, WINDOW), new UUID(0, 99), CandidateCodec.encode(keep()), SlotStatus.ACCEPTED);
 
