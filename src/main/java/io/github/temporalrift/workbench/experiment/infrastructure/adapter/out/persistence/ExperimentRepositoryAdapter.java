@@ -1,6 +1,7 @@
 package io.github.temporalrift.workbench.experiment.infrastructure.adapter.out.persistence;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -22,14 +23,28 @@ public class ExperimentRepositoryAdapter implements ExperimentRepository {
 
     @Override
     public Optional<StoredExperiment> findById(UUID experimentId) {
-        return repository
-                .findById(experimentId)
-                .map(entity -> new StoredExperiment(
-                        entity.experimentId(),
-                        entity.manifestDigest(),
-                        entity.manifestJson(),
-                        entity.name(),
-                        entity.createdAt()));
+        return repository.findById(experimentId).map(ExperimentRepositoryAdapter::stored);
+    }
+
+    @Override
+    public List<StoredExperiment> findNewest(int limit, int offset) {
+        return repository.findNewest(limit, offset).stream()
+                .map(ExperimentRepositoryAdapter::stored)
+                .toList();
+    }
+
+    @Override
+    public long count() {
+        return repository.count();
+    }
+
+    private static StoredExperiment stored(ExperimentEntity entity) {
+        return new StoredExperiment(
+                entity.experimentId(),
+                entity.manifestDigest(),
+                entity.manifestJson(),
+                entity.name(),
+                entity.createdAt());
     }
 
     @Override

@@ -15,10 +15,12 @@ import io.github.temporalrift.workbench.analysis.application.command.CreateCompa
 import io.github.temporalrift.workbench.analysis.application.port.in.CreateComparisonUseCase;
 import io.github.temporalrift.workbench.analysis.application.port.in.GetComparisonUseCase;
 import io.github.temporalrift.workbench.analysis.application.port.in.GetRunReportUseCase;
+import io.github.temporalrift.workbench.analysis.application.port.in.ListComparisonsUseCase;
 import io.github.temporalrift.workbench.analysis.application.query.CaseFactsProvider;
 import io.github.temporalrift.workbench.analysis.application.query.ComparisonEvaluator;
 import io.github.temporalrift.workbench.analysis.application.query.GetComparisonQueryHandler;
 import io.github.temporalrift.workbench.analysis.application.query.GetRunReportQueryHandler;
+import io.github.temporalrift.workbench.analysis.application.query.ListComparisonsQueryHandler;
 import io.github.temporalrift.workbench.analysis.domain.port.out.CaseFactsRepository;
 import io.github.temporalrift.workbench.analysis.domain.port.out.ComparisonRepository;
 import io.github.temporalrift.workbench.analysis.domain.port.out.ExperimentDefinitions;
@@ -87,6 +89,11 @@ public class AnalysisConfiguration {
     @Bean
     GetComparisonUseCase getComparisonUseCase(ComparisonRepository comparisons, ComparisonEvaluator evaluator) {
         return new GetComparisonQueryHandler(comparisons, evaluator);
+    }
+
+    @Bean
+    ListComparisonsUseCase listComparisonsUseCase(ComparisonRepository comparisons) {
+        return new ListComparisonsQueryHandler(comparisons);
     }
 
     @Bean

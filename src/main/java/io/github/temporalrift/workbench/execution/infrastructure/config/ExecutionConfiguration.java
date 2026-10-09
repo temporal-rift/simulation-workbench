@@ -31,6 +31,8 @@ import io.github.temporalrift.workbench.execution.application.port.in.CancelRunU
 import io.github.temporalrift.workbench.execution.application.port.in.GetCaseReplayUseCase;
 import io.github.temporalrift.workbench.execution.application.port.in.GetCaseUseCase;
 import io.github.temporalrift.workbench.execution.application.port.in.GetRunUseCase;
+import io.github.temporalrift.workbench.execution.application.port.in.ListCasesUseCase;
+import io.github.temporalrift.workbench.execution.application.port.in.ListRunsUseCase;
 import io.github.temporalrift.workbench.execution.application.port.in.ReproduceCaseUseCase;
 import io.github.temporalrift.workbench.execution.application.port.in.ResumeRunUseCase;
 import io.github.temporalrift.workbench.execution.application.port.in.RunBatchUseCase;
@@ -39,6 +41,8 @@ import io.github.temporalrift.workbench.execution.application.port.in.StartRunUs
 import io.github.temporalrift.workbench.execution.application.query.GetCaseQueryHandler;
 import io.github.temporalrift.workbench.execution.application.query.GetCaseReplayQueryHandler;
 import io.github.temporalrift.workbench.execution.application.query.GetRunQueryHandler;
+import io.github.temporalrift.workbench.execution.application.query.ListCasesQueryHandler;
+import io.github.temporalrift.workbench.execution.application.query.ListRunsQueryHandler;
 import io.github.temporalrift.workbench.execution.application.query.RunCatalogQueryHandler;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLedger;
 import io.github.temporalrift.workbench.execution.domain.port.out.CommandLedger;
@@ -176,6 +180,16 @@ public class ExecutionConfiguration {
     @Bean
     GetRunUseCase getRunUseCase(RunRepository runs) {
         return new GetRunQueryHandler(runs);
+    }
+
+    @Bean
+    ListRunsUseCase listRunsUseCase(RunRepository runs) {
+        return new ListRunsQueryHandler(runs);
+    }
+
+    @Bean
+    ListCasesUseCase listCasesUseCase(RunRepository runs) {
+        return new ListCasesQueryHandler(runs);
     }
 
     @Bean

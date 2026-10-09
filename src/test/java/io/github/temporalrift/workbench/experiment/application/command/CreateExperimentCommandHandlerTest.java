@@ -6,7 +6,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -110,7 +112,17 @@ class CreateExperimentCommandHandlerTest {
             rows.remove(experimentId);
         }
 
-        int count() {
+        @Override
+        public List<StoredExperiment> findNewest(int limit, int offset) {
+            return rows.values().stream()
+                    .sorted(Comparator.comparing(StoredExperiment::createdAt).reversed())
+                    .skip(offset)
+                    .limit(limit)
+                    .toList();
+        }
+
+        @Override
+        public long count() {
             return rows.size();
         }
     }

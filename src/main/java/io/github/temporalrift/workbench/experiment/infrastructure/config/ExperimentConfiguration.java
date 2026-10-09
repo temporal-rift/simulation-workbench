@@ -9,8 +9,14 @@ import tools.jackson.databind.ObjectMapper;
 import io.github.temporalrift.workbench.experiment.ExperimentCatalog;
 import io.github.temporalrift.workbench.experiment.application.command.CreateExperimentCommandHandler;
 import io.github.temporalrift.workbench.experiment.application.port.in.CreateExperimentUseCase;
+import io.github.temporalrift.workbench.experiment.application.port.in.GetExperimentUseCase;
+import io.github.temporalrift.workbench.experiment.application.port.in.ListExperimentsUseCase;
+import io.github.temporalrift.workbench.experiment.application.port.in.PreviewExperimentUseCase;
 import io.github.temporalrift.workbench.experiment.application.port.in.PreviewMatrixUseCase;
 import io.github.temporalrift.workbench.experiment.application.query.ExperimentCatalogQueryHandler;
+import io.github.temporalrift.workbench.experiment.application.query.GetExperimentQueryHandler;
+import io.github.temporalrift.workbench.experiment.application.query.ListExperimentsQueryHandler;
+import io.github.temporalrift.workbench.experiment.application.query.PreviewExperimentQueryHandler;
 import io.github.temporalrift.workbench.experiment.application.query.PreviewMatrixQueryHandler;
 import io.github.temporalrift.workbench.experiment.domain.port.out.ExperimentRepository;
 import io.github.temporalrift.workbench.experiment.domain.port.out.IdempotencyStore;
@@ -57,6 +63,21 @@ public class ExperimentConfiguration {
     @Bean
     PreviewMatrixUseCase previewMatrixUseCase(PolicyReferenceVerifier policyVerifier) {
         return new PreviewMatrixQueryHandler(policyVerifier);
+    }
+
+    @Bean
+    PreviewExperimentUseCase previewExperimentUseCase(PreviewMatrixUseCase matrix) {
+        return new PreviewExperimentQueryHandler(matrix);
+    }
+
+    @Bean
+    GetExperimentUseCase getExperimentUseCase(ExperimentRepository experiments, ObjectMapper objectMapper) {
+        return new GetExperimentQueryHandler(experiments, objectMapper);
+    }
+
+    @Bean
+    ListExperimentsUseCase listExperimentsUseCase(ExperimentRepository experiments) {
+        return new ListExperimentsQueryHandler(experiments);
     }
 
     @Bean

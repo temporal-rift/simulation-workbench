@@ -7,10 +7,13 @@ import org.springframework.web.bind.annotation.RestController;
 
 import io.github.temporalrift.workbench.execution.application.port.in.CancelRunUseCase;
 import io.github.temporalrift.workbench.execution.application.port.in.GetRunUseCase;
+import io.github.temporalrift.workbench.execution.application.port.in.ListRunsUseCase;
 import io.github.temporalrift.workbench.execution.application.port.in.ResumeRunUseCase;
 import io.github.temporalrift.workbench.execution.application.port.in.StartRunUseCase;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.RunsApi;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Run;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.RunList;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.RunState;
 
 @RestController
 class RunController implements RunsApi {
@@ -19,13 +22,19 @@ class RunController implements RunsApi {
     private final GetRunUseCase getRun;
     private final CancelRunUseCase cancelRun;
     private final ResumeRunUseCase resumeRun;
+    private final ListRunsUseCase listRuns;
 
     RunController(
-            StartRunUseCase startRun, GetRunUseCase getRun, CancelRunUseCase cancelRun, ResumeRunUseCase resumeRun) {
+            StartRunUseCase startRun,
+            GetRunUseCase getRun,
+            CancelRunUseCase cancelRun,
+            ResumeRunUseCase resumeRun,
+            ListRunsUseCase listRuns) {
         this.startRun = startRun;
         this.getRun = getRun;
         this.cancelRun = cancelRun;
         this.resumeRun = resumeRun;
+        this.listRuns = listRuns;
     }
 
     @Override
@@ -37,6 +46,14 @@ class RunController implements RunsApi {
     @Override
     public ResponseEntity<Run> getRun(UUID runId) {
         return ResponseEntity.ok(RunApiMapper.toApi(getRun.handle(runId)));
+    }
+
+    @Override
+    public ResponseEntity<RunList> listRuns(UUID experimentId, RunState state, Integer limit, Integer offset) {
+        var page =
+                listRuns.handle(new ListRunsUseCase.Query(experimentId, RunApiMapper.toDomain(state), limit, offset));
+        return ResponseEntity.ok(
+                new RunList(page.items().stream().map(RunApiMapper::toApi).toList(), Math.toIntExact(page.total())));
     }
 
     @Override

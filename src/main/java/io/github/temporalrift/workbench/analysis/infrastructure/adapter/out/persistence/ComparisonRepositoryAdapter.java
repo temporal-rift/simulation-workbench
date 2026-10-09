@@ -4,6 +4,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Clock;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -46,6 +47,30 @@ public class ComparisonRepositoryAdapter implements ComparisonRepository {
                         (rs, i) -> definition(rs))
                 .stream()
                 .findFirst();
+    }
+
+    @Override
+    public List<Stored> list(UUID runId, int limit, int offset) {
+        return jdbc.query(
+                "SELECT " + COLUMNS + ", created_at FROM analysis_comparison" + runFilter(runId)
+                        + " ORDER BY created_at DESC, comparison_id DESC LIMIT :limit OFFSET :offset",
+                new MapSqlParameterSource("run", runId).addValue("limit", limit).addValue("offset", offset),
+                (rs, i) -> new Stored(
+                        definition(rs),
+                        rs.getObject("created_at", OffsetDateTime.class).toInstant()));
+    }
+
+    @Override
+    public long count(UUID runId) {
+        var total = jdbc.queryForObject(
+                "SELECT count(*) FROM analysis_comparison" + runFilter(runId),
+                new MapSqlParameterSource("run", runId),
+                Long.class);
+        return total == null ? 0 : total;
+    }
+
+    private static String runFilter(UUID runId) {
+        return runId == null ? "" : " WHERE baseline_run_id = :run OR candidate_run_id = :run";
     }
 
     @Override

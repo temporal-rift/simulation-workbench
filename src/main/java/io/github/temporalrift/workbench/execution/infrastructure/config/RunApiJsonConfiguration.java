@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Configuration;
 
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Attempt;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CaseResult;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CaseSummary;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Failure;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ModelCase;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Run;
@@ -26,7 +27,13 @@ class RunApiJsonConfiguration {
     JsonMapperBuilderCustomizer runApiKeepsNullableFields() {
         var always = JsonInclude.Value.construct(JsonInclude.Include.ALWAYS, JsonInclude.Include.ALWAYS);
         return builder -> List.of(
-                        Run.class, Failure.class, ModelCase.class, Attempt.class, CaseResult.class, Winner.class)
+                        Run.class,
+                        Failure.class,
+                        ModelCase.class,
+                        CaseSummary.class,
+                        Attempt.class,
+                        CaseResult.class,
+                        Winner.class)
                 .forEach(type -> builder.withConfigOverride(type, override -> override.setInclude(always)));
     }
 }

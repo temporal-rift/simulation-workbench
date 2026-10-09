@@ -1,6 +1,7 @@
 package io.github.temporalrift.workbench.experiment.domain.port.out;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -10,6 +11,11 @@ public interface ExperimentRepository {
     void save(UUID experimentId, String manifestDigest, String manifestJson, String name, Instant createdAt);
 
     Optional<StoredExperiment> findById(UUID experimentId);
+
+    /** Experiments newest first; {@code offset} skips that many of them. */
+    List<StoredExperiment> findNewest(int limit, int offset);
+
+    long count();
 
     /** Removes an experiment row. Only used to compensate a lost idempotency race. */
     void delete(UUID experimentId);

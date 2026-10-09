@@ -1,12 +1,15 @@
 package io.github.temporalrift.workbench.execution.domain.port.out;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.execution.domain.run.Attempt;
 import io.github.temporalrift.workbench.execution.domain.run.CaseCounts;
+import io.github.temporalrift.workbench.execution.domain.run.CaseState;
 import io.github.temporalrift.workbench.execution.domain.run.LogicalCase;
 import io.github.temporalrift.workbench.execution.domain.run.Run;
 import io.github.temporalrift.workbench.execution.domain.run.RunCommand;
@@ -35,6 +38,15 @@ public interface RunRepository {
 
     List<Run> findByState(RunState state);
 
+    /** Runs newest first, optionally of one experiment and one state; {@code offset} skips that many. */
+    List<Run> list(UUID experimentId, RunState state, int limit, int offset);
+
+    /** How many runs {@link #list} matches. */
+    long countRuns(UUID experimentId, RunState state);
+
+    /** Totals of each given run's logical cases, counting each case once. */
+    Map<UUID, CaseCounts> countsOf(Collection<UUID> runIds);
+
     /** Marks every pending case of the run cancelled and returns how many were. */
     int cancelPendingCases(UUID runId);
 
@@ -42,6 +54,12 @@ public interface RunRepository {
 
     /** Every logical case of the run in matrix order. */
     List<LogicalCase> cases(UUID runId);
+
+    /** A page of the run's cases in matrix order, optionally of one state and one variant. */
+    List<LogicalCase> listCases(UUID runId, CaseState state, String variantLabel, int limit, int offset);
+
+    /** How many cases {@link #listCases} matches. */
+    long countCases(UUID runId, CaseState state, String variantLabel);
 
     List<Attempt> attemptsOf(UUID caseId);
 

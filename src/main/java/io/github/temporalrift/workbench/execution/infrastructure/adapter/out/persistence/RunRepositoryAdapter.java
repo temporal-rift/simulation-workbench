@@ -1,7 +1,12 @@
 package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.persistence;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -88,13 +93,31 @@ public class RunRepositoryAdapter implements RunRepository {
 
     @Override
     public CaseCounts counts(UUID runId) {
-        var counts = new int[CaseState.values().length];
-        jdbc.query(
-                "SELECT state, count(*) AS total FROM run_case WHERE run_id = ? GROUP BY state",
-                rs -> {
-                    counts[CaseState.valueOf(rs.getString("state")).ordinal()] = rs.getInt("total");
-                },
-                runId);
+        return countsOf(List.of(runId)).get(runId);
+    }
+
+    @Override
+    public Map<UUID, CaseCounts> countsOf(Collection<UUID> runIds) {
+        var perRun = new HashMap<UUID, int[]>();
+        runIds.forEach(runId -> perRun.put(runId, new int[CaseState.values().length]));
+        if (!runIds.isEmpty()) {
+            var placeholders = String.join(",", Collections.nCopies(runIds.size(), "?"));
+            jdbc.query(
+                    "SELECT run_id, state, count(*) AS total FROM run_case WHERE run_id IN (" + placeholders
+                            + ") GROUP BY run_id, state",
+                    rs -> {
+                        perRun.get(rs.getObject("run_id", UUID.class))[
+                                        CaseState.valueOf(rs.getString("state")).ordinal()] =
+                                rs.getInt("total");
+                    },
+                    runIds.toArray());
+        }
+        var result = new HashMap<UUID, CaseCounts>();
+        perRun.forEach((runId, counts) -> result.put(runId, caseCounts(counts)));
+        return result;
+    }
+
+    private static CaseCounts caseCounts(int[] counts) {
         int pending = counts[CaseState.PENDING.ordinal()];
         int running = counts[CaseState.RUNNING.ordinal()];
         int succeeded = counts[CaseState.SUCCEEDED.ordinal()];
@@ -127,6 +150,25 @@ public class RunRepositoryAdapter implements RunRepository {
     }
 
     @Override
+    public List<Run> list(UUID experimentId, RunState state, int limit, int offset) {
+        var filter = new Filter()
+                .and("experiment_id = ?", experimentId)
+                .and("state = ?", state == null ? null : state.name());
+        return jdbc.query(
+                "SELECT * FROM run" + filter.where() + " ORDER BY created_at DESC, run_id DESC LIMIT ? OFFSET ?",
+                (rs, i) -> rows.run(rs),
+                filter.with(limit, offset));
+    }
+
+    @Override
+    public long countRuns(UUID experimentId, RunState state) {
+        var filter = new Filter()
+                .and("experiment_id = ?", experimentId)
+                .and("state = ?", state == null ? null : state.name());
+        return count("SELECT count(*) FROM run" + filter.where(), filter.arguments());
+    }
+
+    @Override
     public int cancelPendingCases(UUID runId) {
         return jdbc.update("UPDATE run_case SET state = 'CANCELLED' WHERE run_id = ? AND state = 'PENDING'", runId);
     }
@@ -149,6 +191,62 @@ public class RunRepositoryAdapter implements RunRepository {
                 "SELECT " + CASE_COLUMNS + " FROM run_case WHERE run_id = ? ORDER BY ordinal",
                 (rs, i) -> rows.logicalCase(rs),
                 runId);
+    }
+
+    @Override
+    public List<LogicalCase> listCases(UUID runId, CaseState state, String variantLabel, int limit, int offset) {
+        var filter = caseFilter(runId, state, variantLabel);
+        return jdbc.query(
+                "SELECT " + CASE_COLUMNS + " FROM run_case" + filter.where() + " ORDER BY ordinal LIMIT ? OFFSET ?",
+                (rs, i) -> rows.logicalCase(rs),
+                filter.with(limit, offset));
+    }
+
+    @Override
+    public long countCases(UUID runId, CaseState state, String variantLabel) {
+        var filter = caseFilter(runId, state, variantLabel);
+        return count("SELECT count(*) FROM run_case" + filter.where(), filter.arguments());
+    }
+
+    private static Filter caseFilter(UUID runId, CaseState state, String variantLabel) {
+        return new Filter()
+                .and("run_id = ?", runId)
+                .and("state = ?", state == null ? null : state.name())
+                .and("variant_label = ?", variantLabel);
+    }
+
+    private long count(String sql, Object[] arguments) {
+        var total = jdbc.queryForObject(sql, Long.class, arguments);
+        return total == null ? 0 : total;
+    }
+
+    /** A conjunction of optional equality conditions; a null value leaves its condition out. */
+    private static final class Filter {
+
+        private final List<String> conditions = new ArrayList<>();
+        private final List<Object> values = new ArrayList<>();
+
+        Filter and(String condition, Object value) {
+            if (value != null) {
+                conditions.add(condition);
+                values.add(value);
+            }
+            return this;
+        }
+
+        String where() {
+            return conditions.isEmpty() ? "" : " WHERE " + String.join(" AND ", conditions);
+        }
+
+        Object[] arguments() {
+            return values.toArray();
+        }
+
+        Object[] with(Object... more) {
+            var all = new ArrayList<>(values);
+            all.addAll(List.of(more));
+            return all.toArray();
+        }
     }
 
     @Override
