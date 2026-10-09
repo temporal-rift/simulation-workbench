@@ -220,15 +220,6 @@ class RunLifecycleIT {
     }
 
     @Test
-    void operationsOwnedByLaterPackagesStayExplicitlyUnavailable() throws Exception {
-        var runId = start(experiment(ExperimentManifests.threePlayerSingleSet()));
-
-        mockMvc.perform(get("/api/v1/runs/{id}/report", runId).with(jwt().authorities(readAuthority())))
-                .andExpect(status().isNotImplemented())
-                .andExpect(jsonPath("$.code").value("NOT_IMPLEMENTED"));
-    }
-
-    @Test
     void aMissingIdempotencyKeyIsABadRequestOnEveryMutation() throws Exception {
         var experimentId = experiment(ExperimentManifests.threePlayerSingleSet());
         var runId = start(experimentId);
