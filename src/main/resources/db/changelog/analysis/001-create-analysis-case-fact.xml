@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+  <changeSet id="001-create-analysis-case-fact" author="simulation-workbench">
+    <!-- The facts of one succeeded case under one analysis version; a case's facts never change once stored. -->
+    <createTable tableName="analysis_case_fact">
+      <column name="case_id" type="UUID">
+        <constraints nullable="false"/>
+      </column>
+      <column name="analysis_version" type="VARCHAR(32)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="facts" type="TEXT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="created_at" type="TIMESTAMP WITH TIME ZONE">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+    <addPrimaryKey tableName="analysis_case_fact" columnNames="case_id, analysis_version"
+                   constraintName="pk_analysis_case_fact"/>
+  </changeSet>
+
+</databaseChangeLog>
