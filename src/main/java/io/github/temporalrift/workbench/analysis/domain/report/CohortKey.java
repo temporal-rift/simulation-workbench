@@ -1,5 +1,6 @@
 package io.github.temporalrift.workbench.analysis.domain.report;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
@@ -36,8 +37,13 @@ public record CohortKey(
     /** The case's factions sorted by name, as the matrix names its faction sets. */
     public static List<Faction> factionSetOf(AnalyzedCase analyzedCase) {
         return analyzedCase.seatFactions().stream()
-                .sorted(java.util.Comparator.comparing(Faction::name))
+                .sorted(Comparator.comparing(Faction::name))
                 .toList();
+    }
+
+    /** The same cohort of another variant. */
+    public CohortKey withVariant(String label) {
+        return new CohortKey(label, policyId, policyVersion, playerCount, factionSet, seatIndex);
     }
 
     /** A stable text identity, used to seed the cohort's resampling. */
