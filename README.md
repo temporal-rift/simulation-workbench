@@ -82,7 +82,7 @@ Spring Modulith application (`io.github.temporalrift.workbench`) with hexagonal 
 | `experiment` | Immutable experiment freeze, idempotent creation, deterministic matrix preview |
 | `execution` | Durable real-service batches: runs, cases, attempts, leases, command reconciliation, cancel and resume; retained evidence, perspective-safe replay, and exact reproduction |
 | `policy` | Versioned baseline bot policies |
-| `analysis` | Balance comparisons with truthful statistics and exports (later package) |
+| `analysis` | Run reports and variant comparisons: attributed metrics, seed-block uncertainty, JSON and CSV exports |
 
 `domain/` is plain Java, `application/` never depends on `infrastructure/`, and modules communicate
 only via `ApplicationEvent`. All service boundaries are generated from the pinned contract modules;
@@ -142,7 +142,6 @@ original run; the same key for another experiment returns `409 IDEMPOTENCY_CONFL
 | `GET /api/v1/runs/{runId}/cases/{caseId}/replay` | One page of the retained evidence of a case from a player's or the observer's perspective |
 | `POST /api/v1/runs/{runId}/cases/{caseId}/reproductions` | `202`; executes the pinned case again in a clean lane (see below) |
 
-The report operation of the same boundary answers `501 NOT_IMPLEMENTED` until it is delivered.
 
 ### States
 
@@ -324,7 +323,7 @@ reproduction whose lane is no longer configured stays queued.
 
 Evidence is exported through the replay operation: an authorized `OBSERVER` replay is the complete record of a game
 (steps, then raw events with their source, partition, offset, and payload), paged and without credentials. Reports and
-their CSV/JSON exports are a separate package.
+comparisons export separately (see "Reports and comparisons").
 
 ### Lane event topics
 
@@ -340,10 +339,119 @@ workbench:
         timeline-events-topic: lane-1.timeline.events
 ```
 
+## Reports and comparisons
+
+`GET /api/v1/runs/{runId}/report` (`simulation:read`) returns a run's report as JSON, or as CSV with
+`Accept: text/csv`. `POST /api/v1/comparisons` (`simulation:write`, `Idempotency-Key`) compares two variants, of one
+run or of two runs, and `GET /api/v1/comparisons/{comparisonId}` reads the comparison as JSON or CSV. Every number
+is computed by analysis version `1` with analysis seed `1`; both are on every report, comparison, and CSV row, and the
+same version, seed, and case results always produce byte-identical documents.
+
+### Populations
+
+Only succeeded cases are games, each counted once however many attempts it took; reproductions never add a game.
+Pending, running, failed, and cancelled cases appear in the case counts and never in a denominator, and a report is
+`complete` only when every requested case succeeded. An ending without winners is still a game.
+
+For every variant, policy, and player count the report holds four cohort levels, in this order:
+
+| Level | `factionSet` | `seatIndex` | Seat-games counted |
+|---|---|---|---|
+| Pooled | `null` | `null` | every seat |
+| Per seat | `null` | seat | that seat |
+| Per faction set | set (matrix order) | `null` | every seat |
+| Per faction set and seat | set | seat | that seat |
+
+Game metrics appear only in cohorts that pool seats.
+
+### Metrics of analysis version 1
+
+Each metric names its `statistic`: `RATE` is numerator over denominator, `MEAN` is a total over its sample size, and
+`QUANTILE` is the smallest observed value whose cumulative share reaches the quantile (0.1, 0.5, 0.9). A metric with
+nothing in its denominator is `NO_DATA`.
+
+| Metric | Statistic | Dimensions | Formula |
+|---|---|---|---|
+| `ending_cause_rate` | RATE | `endReason` (all six) | games ending that way / games |
+| `no_winner_rate`, `shared_win_rate` | RATE | | games with no winner, or with two or more winners / games |
+| `eras`, `rounds`, `decisions` | MEAN, QUANTILE | `quantile` | per game |
+| `paradox_findings` | MEAN | none, or `paradoxType` | findings per game |
+| `paradoxes_resolved`, `paradoxes_cascaded` | MEAN | | resolved or cascaded findings per game |
+| `distinct_cascaded_events` | MEAN | | distinct events cascaded per game |
+| `paradox_resolution_rate`, `paradox_cascade_rate` | RATE | | resolved or cascaded findings / findings |
+| `faction_win_rate` | RATE | `faction` | seat-games of the faction among the winners / seat-games of the faction |
+| `faction_shared_win_rate` | RATE | `faction` | such wins in games with two or more winners / seat-games of the faction |
+| `score` | MEAN, QUANTILE | `faction`, `quantile` | final score of the faction's seat-games |
+| `cards_offered`, `cards_kept`, `cards_played` | MEAN | `cardType`, `cardGrade` | cards dealt, kept, or played in action rounds per seat-game |
+| `reactive_cards_offered`, `reactive_cards_played` | MEAN | `cardType`, `cardGrade` | paradox-resolution cards offered or played per seat-game |
+| `card_keep_rate` | RATE | `cardType`, `cardGrade` | kept / offered |
+| `card_playable_rate` | RATE | `cardType`, `cardGrade` | playable card-rounds / card-rounds of known playability |
+| `card_play_rate_when_playable` | RATE | `cardType`, `cardGrade` | action-round plays / playable card-rounds |
+| `special_attempts`, `special_submission_rejections` | MEAN | `specialAction` | submissions, and those the service refused, per seat-game |
+| `special_accepts`, `special_resolution_rejections` | MEAN | `specialAction` | published plays, and accepted specials rejected at resolution, per seat-game |
+| `declaration_offers` | MEAN | | declaration windows offered per seat-game |
+| `declarations` | MEAN | `specialAction` | declarations in that mode per seat-game |
+| `declaration_rate` | RATE | | declarations / offers |
+
+A shared win counts as a win for every winner, so faction win rates need not sum to one: Erasers present in 10 games
+and winning 4, one of them shared with Weavers, have a win rate of 0.4 and a shared-win rate of 0.1, and the shared
+game is also a win for Weavers. A paradox finding and a cascaded event are different units: three findings, two of
+which cascade on the same event, are 3 findings, 2 cascaded findings, and 1 distinct cascaded event.
+
+A card-round is a card the seat held at the start of an action round. Its playability is known when the seat observed
+that round, because the retained observation holds the whole hand with each card's playability; it is unknown when
+the seat did not (for example while jammed), and those card-rounds are left out of both playability rates and
+reported as `unknownCount`. A seat that held SCAN II for four rounds, observed three with the card playable in two,
+and was jammed in the fourth contributes 2 of 3 to `card_playable_rate` and 1 to its unknown count. Factions are listed
+for every faction of the run's faction sets at that player count; card, special, declaration, and paradox values are
+listed only when they occur somewhere in the run.
+
+### Uncertainty
+
+Services derive every gameplay draw from the case seed, so cases sharing a seed share their deck order and deals
+across faction sets, seat rotations, and variants. A seed is therefore one independent block, and `independentBlocks`
+counts the seeds behind a cohort. Intervals are 95% percentile intervals over 2,000 resamples of the cohort's seeds
+with replacement (`BLOCK_BOOTSTRAP`); every metric of a cohort is recomputed under the same resamples. A cohort with
+fewer than two seeds reports `INSUFFICIENT_SAMPLE` with its value and no interval: one seed's ten faction sets and
+their rotations are one observation, not thirty.
+
+### Comparisons
+
+Each side names a run and one of its variants. The two frozen experiments must be equal in services, contracts,
+policies and their parameters, seeds, player counts, faction sets, seat rotation, timing, and rejection budget;
+otherwise creation answers `422 INCOMPARABLE_RUNS` naming every difference. Concurrency and the case wall timeout
+may differ. `declaredDifferences` lists rules and content whose effective digests differ between the two variants.
+An unknown run is `404 RESOURCE_NOT_FOUND`; an unknown variant, the same side twice, or a malformed request is
+`400 INVALID_COMPARISON`; a reused key with another request is `409 IDEMPOTENCY_CONFLICT`.
+
+A baseline and a candidate case pair when they share seed, player count, policy, and seat-to-faction assignment. In
+each cohort a seed is matched only when every pair of the cohort in that seed succeeded on both sides; only matched
+seeds enter the estimates, so excluding a failed pair never unbalances seats or factions. Each metric is reported for
+both sides over the matched seeds, with their difference (candidate minus baseline) and a 95% block-bootstrap
+interval of the difference that resamples matched seeds identically on both sides. Every pair with a failed or
+cancelled side (`FAILED_COUNTERPART`) or an unfinished side (`UNFINISHED`) is listed in `excludedPairs`, and a
+comparison stays incomplete while any pair has not succeeded. A comparison is stored as its definition and recomputed
+from current results on every read.
+
+### Exports
+
+CSV exports have a header row and repeat the full attribution on every row: the format version, the run or
+comparison, the analysis version and seed, completeness, the cohort, its counts, the metric with its statistic and
+dimensions, and the values. Empty fields are null values. Exports carry no credentials or machine-local paths.
+
+### Limitations
+
+Results characterize the run's bot policies, not human balance, and are stratified by policy for that reason.
+Card, special, and faction associations are observational: they describe how those policies played, not the
+strength of a card or faction. Cases saved before action-round observations kept the whole hand hold the narrower
+observation: their action rounds count as unobserved here, and reproducing them reports an `OBSERVATION`
+divergence.
+
 ## Bot policies
 
 Two baseline policies play every normal decision window. Each decision uses one frozen
-`EntitledObservation` per seat: the seat's own faction, the visible events (printed weights, plus an exact
+`EntitledObservation` per seat: the seat's own faction and hand (in action rounds every card with its
+playability, and the playable ones as candidates), the visible events (printed weights, plus an exact
 weight only when the seat earned it, for example through Scan), the other participants' identifiers, and
 the open window. Observer evidence, opposing hands or credentials, and execution-control state have no
 field on the type, so they cannot influence a choice.
