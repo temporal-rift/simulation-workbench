@@ -18,8 +18,9 @@ import io.github.temporalrift.workbench.policy.domain.port.out.ParticipantGatewa
 
 /**
  * Plays a decision window: observations are frozen and every choice computed before any
- * submission; rejections exclude the rejected candidate and reselect from a refreshed observation
- * within the budget; a lost response is reconciled against accepted state before any retry.
+ * submission; each rejection excludes its candidate, and the policy reselects from a refreshed
+ * observation only while rejections so far are fewer than the budget, then falls back to pass or
+ * decline (or {@code POLICY_EXHAUSTED}); a lost response is reconciled against accepted state before any retry.
  */
 public class DecisionWindowService implements PlayDecisionWindowUseCase {
 
