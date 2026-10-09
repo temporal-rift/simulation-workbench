@@ -31,5 +31,6 @@
 
     <!-- Analysis module: extracted case facts and stored comparison definitions -->
     <include file="db/changelog/analysis/001-create-analysis-case-fact.xml"/>
+    <include file="db/changelog/analysis/002-create-analysis-comparison.xml"/>
 
 </databaseChangeLog>
