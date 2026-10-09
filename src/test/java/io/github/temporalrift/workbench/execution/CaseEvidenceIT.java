@@ -95,6 +95,9 @@ class CaseEvidenceIT {
     private ScriptedLanes lanes;
 
     @Autowired
+    private RunCatalog runCatalog;
+
+    @Autowired
     private JdbcTemplate jdbc;
 
     @BeforeEach
@@ -128,6 +131,27 @@ class CaseEvidenceIT {
         assertThat(pinned.manifestJson()).contains("\"seeds\"");
         assertThat(pinned.resultDigest()).isEqualTo(saved.semanticDigest());
         assertThat(pinned.transcript().lines()).hasSize(3);
+    }
+
+    @Test
+    void theRunCatalogExposesEachCaseResultAndTheCountingGamesEvidence() {
+        var saved = savedCase();
+
+        assertThat(runCatalog.run(saved.runId()))
+                .hasValueSatisfying(run -> assertThat(run.runId()).isEqualTo(saved.runId()));
+        var cases = runCatalog.cases(saved.runId());
+        assertThat(cases).extracting(RunCase::caseId).containsExactlyElementsOf(caseIds(saved.runId()));
+        assertThat(cases).allSatisfy(runCase -> {
+            assertThat(runCase.state()).isEqualTo("SUCCEEDED");
+            assertThat(runCase.seats()).hasSize(3);
+            assertThat(runCase.result().finalScores()).hasSize(3);
+        });
+        var counted = runCatalog.evidence(saved.runId(), saved.caseId()).orElseThrow();
+        assertThat(counted.steps())
+                .hasSize(evidence.steps(saved.caseId(), saved.gameId()).size());
+        assertThat(counted.events())
+                .hasSize(evidence.events(saved.caseId(), saved.gameId()).size());
+        assertThat(runCatalog.evidence(saved.runId(), UUID.randomUUID())).isEmpty();
     }
 
     @Test

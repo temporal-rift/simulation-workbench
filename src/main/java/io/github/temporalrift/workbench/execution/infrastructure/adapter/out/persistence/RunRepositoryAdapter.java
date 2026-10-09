@@ -144,6 +144,14 @@ public class RunRepositoryAdapter implements RunRepository {
     }
 
     @Override
+    public List<LogicalCase> cases(UUID runId) {
+        return jdbc.query(
+                "SELECT " + CASE_COLUMNS + " FROM run_case WHERE run_id = ? ORDER BY ordinal",
+                (rs, i) -> rows.logicalCase(rs),
+                runId);
+    }
+
+    @Override
     public List<Attempt> attemptsOf(UUID caseId) {
         return jdbc.query(
                 "SELECT * FROM case_attempt WHERE case_id = ? ORDER BY ordinal", (rs, i) -> rows.attempt(rs), caseId);
