@@ -1,6 +1,7 @@
 package io.github.temporalrift.workbench.policy.domain.observation;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 /** A normal decision window, carrying only what its participant may act on. */
 public sealed interface DecisionWindow {
@@ -38,12 +39,22 @@ public sealed interface DecisionWindow {
         }
     }
 
-    /** Play a card or special, or pass. */
-    record ActionRound(int era, int round, List<PlayableCard> cards, List<PlayableSpecial> specials)
+    /**
+     * Play a card or special, or pass. {@code hand} is the whole hand the seat holds; {@code cards} are the
+     * playable ones it may choose from.
+     */
+    record ActionRound(
+            int era, int round, List<HandCard> hand, List<PlayableCard> cards, List<PlayableSpecial> specials)
             implements DecisionWindow {
         public ActionRound {
+            hand = List.copyOf(hand);
             cards = List.copyOf(cards);
             specials = List.copyOf(specials);
+            var playable =
+                    hand.stream().filter(HandCard::playable).map(HandCard::card).collect(Collectors.toSet());
+            if (!cards.stream().map(PlayableCard::card).allMatch(playable::contains)) {
+                throw new IllegalArgumentException("every playable card must be a playable card of the hand");
+            }
         }
 
         @Override

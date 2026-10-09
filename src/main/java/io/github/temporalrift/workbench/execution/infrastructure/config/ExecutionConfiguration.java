@@ -17,6 +17,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
 
+import io.github.temporalrift.workbench.execution.RunCatalog;
 import io.github.temporalrift.workbench.execution.application.command.CancelRunCommandHandler;
 import io.github.temporalrift.workbench.execution.application.command.CaseDriver;
 import io.github.temporalrift.workbench.execution.application.command.ExecutionSettings;
@@ -38,6 +39,7 @@ import io.github.temporalrift.workbench.execution.application.port.in.StartRunUs
 import io.github.temporalrift.workbench.execution.application.query.GetCaseQueryHandler;
 import io.github.temporalrift.workbench.execution.application.query.GetCaseReplayQueryHandler;
 import io.github.temporalrift.workbench.execution.application.query.GetRunQueryHandler;
+import io.github.temporalrift.workbench.execution.application.query.RunCatalogQueryHandler;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLedger;
 import io.github.temporalrift.workbench.execution.domain.port.out.CommandLedger;
 import io.github.temporalrift.workbench.execution.domain.port.out.DecisionRuntime;
@@ -185,6 +187,11 @@ public class ExecutionConfiguration {
     GetCaseReplayUseCase getCaseReplayUseCase(
             RunRepository runs, ExperimentSource experiments, EvidenceLedger evidence) {
         return new GetCaseReplayQueryHandler(runs, experiments, evidence);
+    }
+
+    @Bean
+    RunCatalog runCatalog(RunRepository runs, EvidenceLedger evidence) {
+        return new RunCatalogQueryHandler(runs, evidence);
     }
 
     @Bean

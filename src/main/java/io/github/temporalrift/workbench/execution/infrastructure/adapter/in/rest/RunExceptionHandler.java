@@ -48,9 +48,4 @@ class RunExceptionHandler {
     ProblemDetail handleInsufficientScope(AccessDeniedException ex) {
         return ProblemDetails.of(HttpStatus.FORBIDDEN, "Access denied", "INSUFFICIENT_SCOPE");
     }
-
-    @ExceptionHandler(OperationNotAvailableException.class)
-    ProblemDetail handleNotAvailable(OperationNotAvailableException ex) {
-        return ProblemDetails.of(HttpStatus.NOT_IMPLEMENTED, ex.getMessage(), "NOT_IMPLEMENTED");
-    }
 }

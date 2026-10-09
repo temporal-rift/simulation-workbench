@@ -9,8 +9,7 @@ import io.github.temporalrift.workbench.execution.domain.evidence.InvalidReplayP
 import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
 import io.github.temporalrift.workbench.execution.domain.port.out.ExperimentSource;
 import io.github.temporalrift.workbench.execution.domain.port.out.RunRepository;
-import io.github.temporalrift.workbench.execution.domain.run.Attempt;
-import io.github.temporalrift.workbench.execution.domain.run.AttemptState;
+import io.github.temporalrift.workbench.execution.domain.run.CountingGame;
 import io.github.temporalrift.workbench.execution.domain.run.RunNotFoundException;
 
 /**
@@ -42,7 +41,7 @@ public class GetCaseReplayQueryHandler implements GetCaseReplayUseCase {
                 .plan(run.experimentId())
                 .map(ExperimentSource.Plan::manifestDigest)
                 .orElseThrow(() -> new RunNotFoundException("Experiment", run.experimentId()));
-        var entries = countedGame(query.caseId())
+        var entries = CountingGame.of(runs.attemptsOf(query.caseId()))
                 .map(gameId -> entries(query, gameId))
                 .orElse(List.of());
         var after = query.afterStep() == null ? -1 : query.afterStep();
@@ -66,17 +65,6 @@ public class GetCaseReplayQueryHandler implements GetCaseReplayUseCase {
         if (seat < 0 || seat >= seatCount) {
             throw new InvalidReplayPerspectiveException("Seat " + seat + " does not exist in this case");
         }
-    }
-
-    private java.util.Optional<UUID> countedGame(UUID caseId) {
-        var attempts = runs.attemptsOf(caseId);
-        return attempts.stream()
-                .filter(attempt -> attempt.state() == AttemptState.SUCCEEDED && attempt.gameId() != null)
-                .reduce((first, second) -> second)
-                .or(() -> attempts.stream()
-                        .filter(attempt -> attempt.gameId() != null)
-                        .reduce((first, second) -> second))
-                .map(Attempt::gameId);
     }
 
     private List<Entry> entries(Query query, UUID gameId) {

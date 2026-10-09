@@ -40,6 +40,9 @@ public interface RunRepository {
 
     Optional<LogicalCase> findCase(UUID runId, UUID caseId);
 
+    /** Every logical case of the run in matrix order. */
+    List<LogicalCase> cases(UUID runId);
+
     List<Attempt> attemptsOf(UUID caseId);
 
     Optional<RunCommand> findCommand(UUID idempotencyKey);

@@ -23,6 +23,7 @@ import io.github.temporalrift.workbench.policy.domain.observation.DeclarationMod
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
 import io.github.temporalrift.workbench.policy.domain.observation.EventView;
 import io.github.temporalrift.workbench.policy.domain.observation.Faction;
+import io.github.temporalrift.workbench.policy.domain.observation.HandCard;
 import io.github.temporalrift.workbench.policy.domain.observation.OutcomeView;
 import io.github.temporalrift.workbench.policy.domain.observation.PlayableCard;
 import io.github.temporalrift.workbench.policy.domain.observation.PlayableSpecial;
@@ -112,18 +113,21 @@ final class ObservationMapper {
     }
 
     private static Owed actionRound(int seatIndex, UUID playerId, PlayerGameStateResponse state, int round) {
+        var hand = new ArrayList<HandCard>();
         var cards = new ArrayList<PlayableCard>();
         for (var card : state.getMyHand()) {
-            if (Boolean.TRUE.equals(card.getIsPlayableThisRound())) {
-                var dealt = dealt(
-                        card.getCardInstanceId(),
-                        card.getCardType().name(),
-                        card.getGrade().name());
+            var dealt = dealt(
+                    card.getCardInstanceId(),
+                    card.getCardType().name(),
+                    card.getGrade().name());
+            var playable = Boolean.TRUE.equals(card.getIsPlayableThisRound());
+            hand.add(new HandCard(dealt, playable));
+            if (playable) {
                 cards.add(new PlayableCard(
                         dealt, CardRules.shape(dealt.type()), CardRules.targetCount(dealt.type(), dealt.grade())));
             }
         }
-        var window = new DecisionWindow.ActionRound(state.getEraNumber(), round, cards, specials(state, round));
+        var window = new DecisionWindow.ActionRound(state.getEraNumber(), round, hand, cards, specials(state, round));
         return new Owed(
                 observation(seatIndex, playerId, state, window, state.getActiveEvents()), state.getEraNumber(), round);
     }

@@ -18,7 +18,7 @@ class WindowKeysTest {
                 .isEqualTo(new WindowKeys.Ref("HAND_SELECTION", 2, null));
         assertThat(WindowKeys.parse(new DecisionWindow.Declaration(3, List.of()).key()))
                 .isEqualTo(new WindowKeys.Ref("DECLARATION", 3, null));
-        assertThat(WindowKeys.parse(new DecisionWindow.ActionRound(4, 2, List.of(), List.of()).key()))
+        assertThat(WindowKeys.parse(new DecisionWindow.ActionRound(4, 2, List.of(), List.of(), List.of()).key()))
                 .isEqualTo(new WindowKeys.Ref("ACTION", 4, 2));
         assertThat(WindowKeys.parse(new DecisionWindow.ParadoxResolution(5, List.of()).key()))
                 .isEqualTo(new WindowKeys.Ref("PARADOX_RESOLUTION", 5, null));

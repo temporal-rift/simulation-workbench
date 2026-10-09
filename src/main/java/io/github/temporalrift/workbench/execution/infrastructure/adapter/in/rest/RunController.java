@@ -10,7 +10,6 @@ import io.github.temporalrift.workbench.execution.application.port.in.GetRunUseC
 import io.github.temporalrift.workbench.execution.application.port.in.ResumeRunUseCase;
 import io.github.temporalrift.workbench.execution.application.port.in.StartRunUseCase;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.RunsApi;
-import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Report;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Run;
 
 @RestController
@@ -51,10 +50,5 @@ class RunController implements RunsApi {
     public ResponseEntity<Run> resumeRun(UUID runId, UUID idempotencyKey) {
         var view = resumeRun.handle(new ResumeRunUseCase.Command(runId, idempotencyKey));
         return ResponseEntity.accepted().body(RunApiMapper.toApi(view));
-    }
-
-    @Override
-    public ResponseEntity<Report> getRunReport(UUID runId) {
-        throw new OperationNotAvailableException("getRunReport");
     }
 }

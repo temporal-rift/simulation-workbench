@@ -1,12 +1,9 @@
 package io.github.temporalrift.workbench.execution;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.not;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -95,6 +92,9 @@ class CaseEvidenceIT {
     private ScriptedLanes lanes;
 
     @Autowired
+    private RunCatalog runCatalog;
+
+    @Autowired
     private JdbcTemplate jdbc;
 
     @BeforeEach
@@ -128,6 +128,27 @@ class CaseEvidenceIT {
         assertThat(pinned.manifestJson()).contains("\"seeds\"");
         assertThat(pinned.resultDigest()).isEqualTo(saved.semanticDigest());
         assertThat(pinned.transcript().lines()).hasSize(3);
+    }
+
+    @Test
+    void theRunCatalogExposesEachCaseResultAndTheCountingGamesEvidence() {
+        var saved = savedCase();
+
+        assertThat(runCatalog.run(saved.runId()))
+                .hasValueSatisfying(run -> assertThat(run.runId()).isEqualTo(saved.runId()));
+        var cases = runCatalog.cases(saved.runId());
+        assertThat(cases).extracting(RunCase::caseId).containsExactlyElementsOf(caseIds(saved.runId()));
+        assertThat(cases).allSatisfy(runCase -> {
+            assertThat(runCase.state()).isEqualTo("SUCCEEDED");
+            assertThat(runCase.seats()).hasSize(3);
+            assertThat(runCase.result().finalScores()).hasSize(3);
+        });
+        var counted = runCatalog.evidence(saved.runId(), saved.caseId()).orElseThrow();
+        assertThat(counted.steps())
+                .hasSize(evidence.steps(saved.caseId(), saved.gameId()).size());
+        assertThat(counted.events())
+                .hasSize(evidence.events(saved.caseId(), saved.gameId()).size());
+        assertThat(runCatalog.evidence(saved.runId(), UUID.randomUUID())).isEmpty();
     }
 
     @Test
@@ -212,7 +233,10 @@ class CaseEvidenceIT {
                 .isEqualTo(-1);
         assertThat(last.at("/observations/events/0/outcomes/0/scannedWeight").asInt(-1))
                 .isEqualTo(77);
-        seat1.andExpect(content().string(not(containsString("77"))));
+        // Seat 1 never earned an exact weight, so none of its steps may carry one.
+        assertThat(steps(seat1))
+                .flatExtracting(step -> step.findValues("scannedWeight"))
+                .isEmpty();
         for (var seat : List.of(0, 1)) {
             var body = replay(saved, "PLAYER", seat, "simulation:read")
                     .andReturn()
