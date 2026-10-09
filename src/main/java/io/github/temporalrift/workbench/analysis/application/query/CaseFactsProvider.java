@@ -23,16 +23,24 @@ public class CaseFactsProvider {
         this.facts = facts;
     }
 
-    public Map<UUID, CaseFacts> factsOf(UUID runId, List<AnalyzedCase> cases) {
+    /**
+     * @param analysis the version the caller computes under, such as the one a comparison pinned at creation
+     * @throws IllegalStateException when the version is not the one this workbench implements, rather than
+     *     answering a pinned version with another version's facts
+     */
+    public Map<UUID, CaseFacts> factsOf(UUID runId, List<AnalyzedCase> cases, AnalysisVersion analysis) {
+        if (!AnalysisVersion.CURRENT.equals(analysis)) {
+            throw new IllegalStateException("Analysis version " + analysis.version() + " is not implemented");
+        }
         var succeeded = cases.stream().filter(AnalyzedCase::succeeded).toList();
         var stored = new HashMap<>(
-                facts.find(succeeded.stream().map(AnalyzedCase::caseId).toList(), AnalysisVersion.CURRENT.version()));
+                facts.find(succeeded.stream().map(AnalyzedCase::caseId).toList(), analysis.version()));
         for (var analyzedCase : succeeded) {
             if (!stored.containsKey(analyzedCase.caseId())) {
                 runs.record(runId, analyzedCase).ifPresent(record -> {
                     var extracted = FactExtractor.extract(
                             analyzedCase.caseId(), analyzedCase.seatFactions(), analyzedCase.outcome(), record);
-                    facts.save(extracted, AnalysisVersion.CURRENT.version());
+                    facts.save(extracted, analysis.version());
                     stored.put(analyzedCase.caseId(), extracted);
                 });
             }

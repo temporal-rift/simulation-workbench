@@ -32,6 +32,10 @@ public class GetRunReportQueryHandler implements GetRunReportUseCase {
                 .orElseThrow(() -> new AnalysisResourceNotFoundException("Experiment", experimentId));
         var cases = runs.cases(runId);
         return ReportCalculator.report(
-                runId, experiment.manifestDigest(), AnalysisVersion.CURRENT, cases, facts.factsOf(runId, cases));
+                runId,
+                experiment.manifestDigest(),
+                AnalysisVersion.CURRENT,
+                cases,
+                facts.factsOf(runId, cases, AnalysisVersion.CURRENT));
     }
 }

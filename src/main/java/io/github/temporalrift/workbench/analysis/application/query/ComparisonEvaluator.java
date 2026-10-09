@@ -24,8 +24,8 @@ public class ComparisonEvaluator {
     public ComparisonResult evaluate(ComparisonDefinition definition) {
         var baseline = side(definition.baseline());
         var candidate = side(definition.candidate());
-        var known = new HashMap<>(facts.factsOf(definition.baseline().runId(), baseline));
-        known.putAll(facts.factsOf(definition.candidate().runId(), candidate));
+        var known = new HashMap<>(facts.factsOf(definition.baseline().runId(), baseline, definition.analysis()));
+        known.putAll(facts.factsOf(definition.candidate().runId(), candidate, definition.analysis()));
         return ComparisonCalculator.compare(definition, baseline, candidate, known);
     }
 
