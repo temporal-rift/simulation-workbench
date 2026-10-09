@@ -4,8 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
@@ -15,8 +17,10 @@ import io.github.temporalrift.workbench.policy.application.port.in.PlayDecisionW
 import io.github.temporalrift.workbench.policy.domain.baseline.BaselinePolicies;
 import io.github.temporalrift.workbench.policy.domain.decision.BotPolicy;
 import io.github.temporalrift.workbench.policy.domain.decision.Candidate;
+import io.github.temporalrift.workbench.policy.domain.decision.PolicyDecision;
 import io.github.temporalrift.workbench.policy.domain.decision.Reconciliation;
 import io.github.temporalrift.workbench.policy.domain.decision.SubmissionOutcome;
+import io.github.temporalrift.workbench.policy.domain.decision.Target;
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
 import io.github.temporalrift.workbench.policy.domain.observation.Faction;
 import io.github.temporalrift.workbench.policy.domain.port.out.ParticipantGateway;
@@ -70,6 +74,69 @@ class DecisionWindowServiceTest {
         var submitted = (DecisionResult.Submitted) result;
         assertThat(submitted.candidate()).isEqualTo(new Candidate.Pass());
         assertThat(submitted.rejectionCodes()).hasSize(BUDGET);
+    }
+
+    @Test
+    void rejectionBudgetOfOneSkipsPolicyReselectionAndSubmitsFallback() {
+        var gateway = new FakeGateway();
+        gateway.observations.put(0, PolicyFixtures.actionRound(Faction.ERASERS));
+        gateway.rejectFirst = 1;
+        var first = new Candidate.PlayCard(PolicyFixtures.id(0x2001), new Target.Player(PolicyFixtures.id(0x01)));
+        var decideCalls = new ArrayList<Set<Candidate>>();
+        BotPolicy stub = (observation, excluded, entropy) -> {
+            decideCalls.add(new HashSet<>(excluded));
+            return new PolicyDecision.Chosen(first);
+        };
+
+        var result = play(gateway, stub, 1);
+
+        var submitted = (DecisionResult.Submitted) result;
+        assertThat(submitted.candidate()).isEqualTo(new Candidate.Pass());
+        assertThat(submitted.rejectionCodes()).hasSize(1);
+        assertThat(decideCalls).hasSize(1);
+        assertThat(gateway.submitted).containsExactly(first, new Candidate.Pass());
+    }
+
+    @Test
+    void rejectionBudgetOfTwoReselectsOnceThenSubmitsFallback() {
+        var gateway = new FakeGateway();
+        gateway.observations.put(0, PolicyFixtures.actionRound(Faction.ERASERS));
+        gateway.rejectFirst = 2;
+        var first = new Candidate.PlayCard(PolicyFixtures.id(0x2001), new Target.Player(PolicyFixtures.id(0x01)));
+        var second = new Candidate.PlayCard(PolicyFixtures.id(0x2002), new Target.Player(PolicyFixtures.id(0x01)));
+        var decideCalls = new ArrayList<Set<Candidate>>();
+        BotPolicy stub = (observation, excluded, entropy) -> {
+            decideCalls.add(new HashSet<>(excluded));
+            return new PolicyDecision.Chosen(decideCalls.size() == 1 ? first : second);
+        };
+
+        var result = play(gateway, stub, 2);
+
+        var submitted = (DecisionResult.Submitted) result;
+        assertThat(submitted.candidate()).isEqualTo(new Candidate.Pass());
+        assertThat(submitted.rejectionCodes()).hasSize(2);
+        assertThat(decideCalls).hasSize(2);
+        assertThat(decideCalls.get(1)).containsExactly(first);
+        assertThat(gateway.submitted).containsExactly(first, second, new Candidate.Pass());
+    }
+
+    @Test
+    void spentBudgetWithoutFallbackReturnsPolicyExhausted() {
+        var gateway = new FakeGateway();
+        gateway.observations.put(0, PolicyFixtures.terminal(Faction.ERASERS));
+        gateway.rejectFirst = 1;
+        var decideCalls = new ArrayList<Set<Candidate>>();
+        BotPolicy stub = (observation, excluded, entropy) -> {
+            decideCalls.add(new HashSet<>(excluded));
+            return new PolicyDecision.Chosen(new Candidate.ConfirmReady());
+        };
+
+        var result = play(gateway, stub, 1);
+
+        assertThat(result).isInstanceOf(DecisionResult.PolicyExhausted.class);
+        assertThat(((DecisionResult.PolicyExhausted) result).rejectionCodes()).hasSize(1);
+        assertThat(decideCalls).hasSize(1);
+        assertThat(gateway.submitted).hasSize(1);
     }
 
     @Test
@@ -169,8 +236,12 @@ class DecisionWindowServiceTest {
     }
 
     private static DecisionResult play(FakeGateway gateway, BotPolicy policy) {
+        return play(gateway, policy, BUDGET);
+    }
+
+    private static DecisionResult play(FakeGateway gateway, BotPolicy policy, int budget) {
         return new DecisionWindowService(gateway)
-                .play(List.of(new SeatPolicy(0, policy, 99)), BUDGET)
+                .play(List.of(new SeatPolicy(0, policy, 99)), budget)
                 .getFirst()
                 .result();
     }
