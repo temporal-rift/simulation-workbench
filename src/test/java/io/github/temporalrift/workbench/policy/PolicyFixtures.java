@@ -13,6 +13,7 @@ import io.github.temporalrift.workbench.policy.domain.observation.DeclarationMod
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
 import io.github.temporalrift.workbench.policy.domain.observation.EventView;
 import io.github.temporalrift.workbench.policy.domain.observation.Faction;
+import io.github.temporalrift.workbench.policy.domain.observation.HandCard;
 import io.github.temporalrift.workbench.policy.domain.observation.OutcomeView;
 import io.github.temporalrift.workbench.policy.domain.observation.PlayableCard;
 import io.github.temporalrift.workbench.policy.domain.observation.PlayableSpecial;
@@ -110,7 +111,8 @@ public final class PolicyFixtures {
                 new PlayableCard(card(4, CardType.DECOY), TargetShape.DISGUISE, 1),
                 new PlayableCard(card(5, CardType.AMPLIFY), TargetShape.PLAYER, 1),
                 new PlayableCard(card(6, CardType.NULLIFY), TargetShape.PLAYER_LIST, 2));
-        return observation(faction, new DecisionWindow.ActionRound(1, 2, cards, SPECIALS.get(faction)));
+        var hand = cards.stream().map(card -> new HandCard(card.card(), true)).toList();
+        return observation(faction, new DecisionWindow.ActionRound(1, 2, hand, cards, SPECIALS.get(faction)));
     }
 
     public static EntitledObservation paradox(Faction faction, boolean emptyOffer) {

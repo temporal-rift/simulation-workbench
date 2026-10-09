@@ -56,7 +56,11 @@ class FactionGreedyPolicyTest {
                 observation.events(),
                 observation.otherPlayerIds(),
                 new DecisionWindow.ActionRound(
-                        1, 1, ((DecisionWindow.ActionRound) observation.window()).cards(), List.of()));
+                        1,
+                        1,
+                        ((DecisionWindow.ActionRound) observation.window()).hand(),
+                        ((DecisionWindow.ActionRound) observation.window()).cards(),
+                        List.of()));
 
         var choice = (Candidate.PlayCard) decide(withoutSpecials, 5);
 

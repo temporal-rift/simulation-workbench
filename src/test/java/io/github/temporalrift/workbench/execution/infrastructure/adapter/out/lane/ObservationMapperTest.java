@@ -111,6 +111,16 @@ class ObservationMapperTest {
                         "NULLIFY:PLAYER_LIST:2",
                         "DECOY:DISGUISE:1",
                         "JAM:PLAYER:1");
+        assertThat(window.hand())
+                .extracting(card -> card.card().type().name() + ":" + card.playable())
+                .containsExactly(
+                        "PUSH:true",
+                        "SWING:true",
+                        "SCAN:true",
+                        "NULLIFY:true",
+                        "DECOY:true",
+                        "JAM:true",
+                        "TRACE:false");
     }
 
     @Test
