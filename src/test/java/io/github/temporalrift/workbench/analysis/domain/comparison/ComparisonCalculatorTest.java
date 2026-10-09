@@ -24,6 +24,7 @@ import io.github.temporalrift.workbench.analysis.domain.game.Faction;
 import io.github.temporalrift.workbench.analysis.domain.game.GameRecord;
 import io.github.temporalrift.workbench.analysis.domain.report.Interval;
 import io.github.temporalrift.workbench.analysis.domain.report.MetricStatus;
+import io.github.temporalrift.workbench.analysis.domain.report.ReportCalculator;
 
 class ComparisonCalculatorTest {
 
@@ -149,6 +150,78 @@ class ComparisonCalculatorTest {
         assertThat(winRate.status()).isEqualTo(MetricStatus.AVAILABLE);
         assertThat(winRate.interval()).isEqualTo(new Interval(0.5, 0.5));
         assertThat(compare()).isEqualTo(result);
+    }
+
+    @Test
+    void aSucceededBaselineCaseWithoutFactsIsSkippedWithoutException() {
+        pair("1", EPW, Set.of(0), Set.of(0));
+        pair("2", EPW, Set.of(0), Set.of(0));
+        facts.remove(baselineCases.getFirst().caseId());
+
+        var result = compare();
+        var pooled = result.cohorts().getFirst();
+        var winRate = erasersWinRate(result);
+
+        assertThat(result.complete()).isTrue();
+        assertThat(pooled.matchedBlocks()).isEqualTo(1);
+        assertThat(pooled.excludedBlocks()).isEqualTo(1);
+        assertThat(winRate.baselineValue()).isEqualTo(1.0);
+        assertThat(winRate.candidateValue()).isEqualTo(1.0);
+    }
+
+    @Test
+    void aSucceededCandidateCaseWithoutFactsIsSkippedWithoutException() {
+        pair("1", EPW, Set.of(0), Set.of(0));
+        pair("2", EPW, Set.of(0), Set.of(0));
+        facts.remove(candidateCases.getFirst().caseId());
+
+        var result = compare();
+        var pooled = result.cohorts().getFirst();
+        var winRate = erasersWinRate(result);
+
+        assertThat(result.complete()).isTrue();
+        assertThat(pooled.matchedBlocks()).isEqualTo(1);
+        assertThat(pooled.excludedBlocks()).isEqualTo(1);
+        assertThat(winRate.baselineValue()).isEqualTo(1.0);
+        assertThat(winRate.candidateValue()).isEqualTo(1.0);
+    }
+
+    @Test
+    void missingFactsOnBothSidesStillProducesNoDataWithoutException() {
+        pair("1", EPW, Set.of(0), Set.of(0));
+        facts.remove(baselineCases.getFirst().caseId());
+        facts.remove(candidateCases.getFirst().caseId());
+
+        var result = compare();
+        var winRate = erasersWinRate(result);
+
+        assertThat(result.complete()).isTrue();
+        assertThat(result.cohorts().getFirst().matchedBlocks()).isZero();
+        assertThat(winRate.status()).isEqualTo(MetricStatus.NO_DATA);
+        assertThat(winRate.baselineValue()).isNull();
+        assertThat(winRate.candidateValue()).isNull();
+    }
+
+    @Test
+    void reportAndComparisonOmitTheSameMissingCase() {
+        pair("1", EPW, Set.of(0), Set.of(0));
+        pair("2", EPW, Set.of(0), Set.of(0));
+        facts.remove(baselineCases.getFirst().caseId());
+
+        var report = ReportCalculator.report(RUN, "a".repeat(64), AnalysisVersion.CURRENT, baselineCases, facts);
+        var pooledReport = report.cohorts().getFirst();
+        var reportWinRate = pooledReport.metrics().stream()
+                .filter(metric -> metric.name().equals("faction_win_rate")
+                        && metric.dimensions().faction() == Faction.ERASERS)
+                .findFirst()
+                .orElseThrow();
+
+        var comparison = compare();
+        var winRate = erasersWinRate(comparison);
+
+        assertThat(pooledReport.eligibleGames()).isEqualTo(1);
+        assertThat(reportWinRate.value()).isEqualTo(1.0);
+        assertThat(winRate.baselineValue()).isEqualTo(reportWinRate.value());
     }
 
     private MetricDifference erasersWinRate(ComparisonResult result) {

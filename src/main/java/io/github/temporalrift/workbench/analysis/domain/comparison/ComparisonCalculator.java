@@ -99,13 +99,24 @@ public final class ComparisonCalculator {
         var baselineGames = new LinkedHashMap<String, List<CaseFacts>>();
         var candidateGames = new LinkedHashMap<String, List<CaseFacts>>();
         members.stream().filter(pair -> !incomplete.contains(pair.seed())).forEach(pair -> {
-            baselineGames
-                    .computeIfAbsent(pair.seed(), seed -> new ArrayList<>())
-                    .add(facts.get(pair.baseline().caseId()));
-            candidateGames
-                    .computeIfAbsent(pair.seed(), seed -> new ArrayList<>())
-                    .add(facts.get(pair.candidate().caseId()));
+            var baselineFacts = facts.get(pair.baseline().caseId());
+            if (baselineFacts != null) {
+                baselineGames
+                        .computeIfAbsent(pair.seed(), seed -> new ArrayList<>())
+                        .add(baselineFacts);
+            }
+            var candidateFacts = facts.get(pair.candidate().caseId());
+            if (candidateFacts != null) {
+                candidateGames
+                        .computeIfAbsent(pair.seed(), seed -> new ArrayList<>())
+                        .add(candidateFacts);
+            }
         });
+        // A paired block needs evidence on both sides to stay aligned by seed.
+        var pairedSeeds = new HashSet<>(baselineGames.keySet());
+        pairedSeeds.retainAll(candidateGames.keySet());
+        baselineGames.keySet().retainAll(pairedSeeds);
+        candidateGames.keySet().retainAll(pairedSeeds);
         var definitions = MetricCatalog.definitions(key, vocabulary);
         var baseline = BlockTallies.collect(definitions, baselineGames, key.seatIndex());
         var candidate = BlockTallies.collect(definitions, candidateGames, key.seatIndex());
