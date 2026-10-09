@@ -17,5 +17,5 @@ public interface RunSource {
     List<AnalyzedCase> cases(UUID runId);
 
     /** The counting game of a succeeded case, or empty when the case has not succeeded. */
-    Optional<GameRecord> record(UUID runId, AnalyzedCase analyzedCase);
+    Optional<GameRecord> countingGame(UUID runId, AnalyzedCase analyzedCase);
 }

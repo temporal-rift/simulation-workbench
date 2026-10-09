@@ -1,6 +1,7 @@
 package io.github.temporalrift.workbench.analysis.infrastructure.adapter.out.execution;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -77,8 +78,8 @@ public class RunSourceAdapter implements RunSource {
     }
 
     @Override
-    public Optional<GameRecord> record(UUID runId, AnalyzedCase analyzedCase) {
-        return catalog.evidence(runId, analyzedCase.caseId()).map(evidence -> record(analyzedCase, evidence));
+    public Optional<GameRecord> countingGame(UUID runId, AnalyzedCase analyzedCase) {
+        return catalog.evidence(runId, analyzedCase.caseId()).map(evidence -> gameRecord(analyzedCase, evidence));
     }
 
     private static AnalyzedCase analyzed(RunCase runCase) {
@@ -111,8 +112,8 @@ public class RunSourceAdapter implements RunSource {
                 result.decisions());
     }
 
-    private GameRecord record(AnalyzedCase analyzedCase, CaseEvidence evidence) {
-        var seatByFaction = new HashMap<Faction, Integer>();
+    private GameRecord gameRecord(AnalyzedCase analyzedCase, CaseEvidence evidence) {
+        var seatByFaction = new EnumMap<Faction, Integer>(Faction.class);
         for (var seat = 0; seat < analyzedCase.seatFactions().size(); seat++) {
             seatByFaction.put(analyzedCase.seatFactions().get(seat), seat);
         }

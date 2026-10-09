@@ -87,11 +87,11 @@ class RunSourceAdapterTest {
                 step("ACTION_ROUND", "special:THREAD:-", "REJECTED", observation(true)),
                 step("ACTION_ROUND", "special:THREAD:-", "NOT_SPENT", observation(true)));
 
-        var record = adapter(new CaseEvidence(steps, events))
-                .record(RUN, adapter(null).cases(RUN).getFirst())
+        var gameRecord = adapter(new CaseEvidence(steps, events))
+                .countingGame(RUN, adapter(null).cases(RUN).getFirst())
                 .orElseThrow();
 
-        assertThat(record.events())
+        assertThat(gameRecord.events())
                 .containsExactly(
                         new GameEvent.HandKept(
                                 1,
@@ -105,21 +105,21 @@ class RunSourceAdapterTest {
                         new GameEvent.ActionRoundStarted(1, 1),
                         new GameEvent.CardPlayed(1, 1, 1, SCAN, SCAN_II),
                         new GameEvent.SpecialRejected(1, 1, SpecialAction.THREAD));
-        assertThat(record.observations())
+        assertThat(gameRecord.observations())
                 .containsExactly(new GameRecord.RoundObservation(
                         1, 1, 1, List.of(new GameRecord.HeldCard(SCAN, SCAN_II, true))));
-        assertThat(record.submissions())
+        assertThat(gameRecord.submissions())
                 .containsExactly(new GameRecord.SpecialSubmission(1, SpecialAction.THREAD, true));
     }
 
     @Test
     void anObservationRetainedWithoutItsHandLeavesTheRoundUnobserved() {
-        var record = adapter(new CaseEvidence(
+        var gameRecord = adapter(new CaseEvidence(
                         List.of(step("ACTION_ROUND", "pass", "ACCEPTED", "{\"window\":{\"cards\":[]}}")), List.of()))
-                .record(RUN, adapter(null).cases(RUN).getFirst())
+                .countingGame(RUN, adapter(null).cases(RUN).getFirst())
                 .orElseThrow();
 
-        assertThat(record.observations()).isEmpty();
+        assertThat(gameRecord.observations()).isEmpty();
     }
 
     @Test

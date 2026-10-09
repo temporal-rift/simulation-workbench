@@ -124,8 +124,9 @@ class AnalysisIT {
         var report = objectMapper.readTree(read(report(runId, MediaType.APPLICATION_JSON)));
 
         var lines = csv.split("\r\n");
-        assertThat(lines[0]).startsWith("formatVersion,runId,manifestDigest,analysisVersion,analysisSeed,complete,");
-        assertThat(lines[0]).endsWith(",value,numerator,denominator,status,intervalLower,intervalUpper,unknownCount");
+        assertThat(lines[0])
+                .startsWith("formatVersion,runId,manifestDigest,analysisVersion,analysisSeed,complete,")
+                .endsWith(",value,numerator,denominator,status,intervalLower,intervalUpper,unknownCount");
         var metrics = 0;
         for (var cohort : report.path("cohorts")) {
             metrics += cohort.path("metrics").size();

@@ -37,9 +37,9 @@ public class CaseFactsProvider {
                 facts.find(succeeded.stream().map(AnalyzedCase::caseId).toList(), analysis.version()));
         for (var analyzedCase : succeeded) {
             if (!stored.containsKey(analyzedCase.caseId())) {
-                runs.record(runId, analyzedCase).ifPresent(record -> {
+                runs.countingGame(runId, analyzedCase).ifPresent(gameRecord -> {
                     var extracted = FactExtractor.extract(
-                            analyzedCase.caseId(), analyzedCase.seatFactions(), analyzedCase.outcome(), record);
+                            analyzedCase.caseId(), analyzedCase.seatFactions(), analyzedCase.outcome(), gameRecord);
                     facts.save(extracted, analysis.version());
                     stored.put(analyzedCase.caseId(), extracted);
                 });

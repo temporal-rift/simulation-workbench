@@ -45,7 +45,7 @@ class CaseFactsProviderTest {
                 }
 
                 @Override
-                public Optional<GameRecord> record(UUID runId, AnalyzedCase analyzedCase) {
+                public Optional<GameRecord> countingGame(UUID runId, AnalyzedCase analyzedCase) {
                     records.incrementAndGet();
                     return Optional.of(new GameRecord(List.of(), List.of(), List.of()));
                 }

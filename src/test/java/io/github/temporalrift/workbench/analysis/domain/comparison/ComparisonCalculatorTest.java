@@ -30,6 +30,8 @@ class ComparisonCalculatorTest {
     private static final UUID RUN = new UUID(0, 1);
     private static final ComparisonSide BASELINE = new ComparisonSide(RUN, "threshold-20");
     private static final ComparisonSide CANDIDATE = new ComparisonSide(RUN, "threshold-22");
+    private static final ComparisonSide UNKNOWN_VARIANT = new ComparisonSide(RUN, "threshold-99");
+    private static final UUID COMPARISON = new UUID(0, 9);
     private static final List<Faction> EPW = List.of(Faction.ERASERS, Faction.PROPHETS, Faction.WEAVERS);
     private static final List<Faction> PWE = List.of(Faction.PROPHETS, Faction.WEAVERS, Faction.ERASERS);
 
@@ -42,7 +44,7 @@ class ComparisonCalculatorTest {
         var experiment = experiment(Map.of("seeds", "[1,2]"));
 
         assertThatThrownBy(() -> ComparisonDefinition.define(
-                        new UUID(0, 9), BASELINE, experiment, BASELINE, experiment, AnalysisVersion.CURRENT))
+                        COMPARISON, BASELINE, experiment, BASELINE, experiment, AnalysisVersion.CURRENT))
                 .isInstanceOf(InvalidComparisonException.class);
     }
 
@@ -51,12 +53,7 @@ class ComparisonCalculatorTest {
         var experiment = experiment(Map.of("seeds", "[1,2]"));
 
         assertThatThrownBy(() -> ComparisonDefinition.define(
-                        new UUID(0, 9),
-                        BASELINE,
-                        experiment,
-                        new ComparisonSide(RUN, "threshold-99"),
-                        experiment,
-                        AnalysisVersion.CURRENT))
+                        COMPARISON, BASELINE, experiment, UNKNOWN_VARIANT, experiment, AnalysisVersion.CURRENT))
                 .isInstanceOf(InvalidComparisonException.class);
     }
 
@@ -66,7 +63,7 @@ class ComparisonCalculatorTest {
         var candidate = experiment(Map.of("seeds", "[1,2,3]", "policies", "[random]"));
 
         assertThatThrownBy(() -> ComparisonDefinition.define(
-                        new UUID(0, 9), BASELINE, baseline, CANDIDATE, candidate, AnalysisVersion.CURRENT))
+                        COMPARISON, BASELINE, baseline, CANDIDATE, candidate, AnalysisVersion.CURRENT))
                 .isInstanceOfSatisfying(
                         IncomparableRunsException.class,
                         error -> assertThat(error.differences()).containsExactly("seeds"));
@@ -169,7 +166,7 @@ class ComparisonCalculatorTest {
 
     private static ComparisonDefinition definition(ExperimentDefinition experiment) {
         return ComparisonDefinition.define(
-                new UUID(0, 9), BASELINE, experiment, CANDIDATE, experiment, AnalysisVersion.CURRENT);
+                COMPARISON, BASELINE, experiment, CANDIDATE, experiment, AnalysisVersion.CURRENT);
     }
 
     private static ExperimentDefinition experiment(Map<String, String> gameplay) {

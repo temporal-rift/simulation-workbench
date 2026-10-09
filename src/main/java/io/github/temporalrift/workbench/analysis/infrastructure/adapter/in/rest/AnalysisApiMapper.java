@@ -90,7 +90,7 @@ final class AnalysisApiMapper {
                 .policyVersion(key.policyVersion())
                 .playerCount(io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Cohort
                         .PlayerCountEnum.fromValue(key.playerCount()))
-                .factionSet(factions(key.factionSet()))
+                .factionSet(key.factionSet() == null ? null : factions(key.factionSet()))
                 .seatIndex(key.seatIndex())
                 .caseCounts(counts(cohort.caseCounts()))
                 .eligibleGames(cohort.eligibleGames())
@@ -122,7 +122,7 @@ final class AnalysisApiMapper {
                 .policyVersion(key.policyVersion())
                 .playerCount(io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model
                         .ComparisonCohort.PlayerCountEnum.fromValue(key.playerCount()))
-                .factionSet(factions(key.factionSet()))
+                .factionSet(key.factionSet() == null ? null : factions(key.factionSet()))
                 .seatIndex(key.seatIndex())
                 .matchedBlocks(cohort.matchedBlocks())
                 .excludedBlocks(cohort.excludedBlocks())
@@ -218,9 +218,6 @@ final class AnalysisApiMapper {
     private static LinkedHashSet<
                     io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Faction>
             factions(List<Faction> factions) {
-        if (factions == null) {
-            return null;
-        }
         var set = new LinkedHashSet<
                 io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Faction>();
         factions.forEach(faction -> set.add(faction(faction)));

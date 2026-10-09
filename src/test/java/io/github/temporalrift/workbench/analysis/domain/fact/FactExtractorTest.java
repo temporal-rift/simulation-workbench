@@ -43,7 +43,7 @@ class FactExtractorTest {
         var second = id(2);
         var third = id(3);
         var event = id(9);
-        var record = new GameRecord(
+        var gameRecord = new GameRecord(
                 List.of(
                         new GameEvent.ParadoxesDetected(
                                 1,
@@ -57,8 +57,8 @@ class FactExtractorTest {
                 List.of(),
                 List.of());
 
-        var game =
-                FactExtractor.extract(CASE, SEATS, outcome(Set.of(0)), record).game();
+        var game = FactExtractor.extract(CASE, SEATS, outcome(Set.of(0)), gameRecord)
+                .game();
 
         assertThat(game.totalFindings()).isEqualTo(3);
         assertThat(game.findings()).isEqualTo(Map.of(ParadoxType.DEAD_HEAT, 2, ParadoxType.CHAIN_CONFLICT, 1));
@@ -71,7 +71,7 @@ class FactExtractorTest {
     void anUnobservedRoundCountsItsHeldCardsAsUnknownPlayability() {
         var scan = id(10);
         var push = id(11);
-        var record = new GameRecord(
+        var gameRecord = new GameRecord(
                 List.of(
                         new GameEvent.HandKept(
                                 0, 1, List.of(new GameEvent.Card(scan, SCAN_II), new GameEvent.Card(push, PUSH_I))),
@@ -86,7 +86,7 @@ class FactExtractorTest {
                         observed(3, List.of(held(scan, SCAN_II, true)))),
                 List.of());
 
-        var seat = FactExtractor.extract(CASE, SEATS, outcome(Set.of(0)), record)
+        var seat = FactExtractor.extract(CASE, SEATS, outcome(Set.of(0)), gameRecord)
                 .seats()
                 .getFirst();
 
@@ -99,7 +99,7 @@ class FactExtractorTest {
 
     @Test
     void specialsAndDeclarationsAreCountedPerSeatAndSource() {
-        var record = new GameRecord(
+        var gameRecord = new GameRecord(
                 List.of(
                         new GameEvent.SpecialPlayed(1, 1, SpecialAction.THREAD),
                         new GameEvent.SpecialRejected(1, 1, SpecialAction.THREAD),
@@ -111,8 +111,8 @@ class FactExtractorTest {
                         new GameRecord.SpecialSubmission(1, SpecialAction.THREAD, true),
                         new GameRecord.SpecialSubmission(1, SpecialAction.THREAD, false)));
 
-        var seats =
-                FactExtractor.extract(CASE, SEATS, outcome(Set.of(0)), record).seats();
+        var seats = FactExtractor.extract(CASE, SEATS, outcome(Set.of(0)), gameRecord)
+                .seats();
 
         assertThat(seats.get(1).specialAttempts()).containsExactlyEntriesOf(Map.of(SpecialAction.THREAD, 2));
         assertThat(seats.get(1).specialSubmissionRejections())

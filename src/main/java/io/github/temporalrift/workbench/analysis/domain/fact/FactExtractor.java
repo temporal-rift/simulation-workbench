@@ -25,12 +25,13 @@ public final class FactExtractor {
 
     private FactExtractor() {}
 
-    public static CaseFacts extract(UUID caseId, List<Faction> seatFactions, CaseOutcome outcome, GameRecord record) {
+    public static CaseFacts extract(
+            UUID caseId, List<Faction> seatFactions, CaseOutcome outcome, GameRecord gameRecord) {
         var seats = new ArrayList<SeatFacts>();
         for (var seat = 0; seat < seatFactions.size(); seat++) {
-            seats.add(seat(seat, seatFactions.get(seat), outcome, record));
+            seats.add(seat(seat, seatFactions.get(seat), outcome, gameRecord));
         }
-        return new CaseFacts(caseId, game(outcome, record.events()), seats);
+        return new CaseFacts(caseId, game(outcome, gameRecord.events()), seats);
     }
 
     private static GameFacts game(CaseOutcome outcome, List<GameEvent> events) {
@@ -68,7 +69,7 @@ public final class FactExtractor {
                 cascadedEvents.size());
     }
 
-    private static SeatFacts seat(int seat, Faction faction, CaseOutcome outcome, GameRecord record) {
+    private static SeatFacts seat(int seat, Faction faction, CaseOutcome outcome, GameRecord gameRecord) {
         var offered = new TreeMap<CardKey, Integer>();
         var kept = new TreeMap<CardKey, Integer>();
         var played = new TreeMap<CardKey, Integer>();
@@ -78,7 +79,7 @@ public final class FactExtractor {
         var resolutionRejections = new EnumMap<SpecialAction, Integer>(SpecialAction.class);
         var declarations = new EnumMap<SpecialAction, Integer>(SpecialAction.class);
         var declarationOffers = 0;
-        for (var event : record.events()) {
+        for (var event : gameRecord.events()) {
             switch (event) {
                 case GameEvent.HandDealt dealt
                 when dealt.seat() == seat -> dealt.cards().forEach(key -> add(offered, key));
@@ -101,7 +102,7 @@ public final class FactExtractor {
         }
         var attempts = new EnumMap<SpecialAction, Integer>(SpecialAction.class);
         var submissionRejections = new EnumMap<SpecialAction, Integer>(SpecialAction.class);
-        for (var submission : record.submissions()) {
+        for (var submission : gameRecord.submissions()) {
             if (submission.seat() == seat) {
                 add(attempts, submission.action());
                 if (submission.rejected()) {
@@ -109,7 +110,7 @@ public final class FactExtractor {
                 }
             }
         }
-        var cardRounds = CardRounds.of(seat, record);
+        var cardRounds = CardRounds.of(seat, gameRecord);
         var won = outcome.winnerSeats().contains(seat);
         return new SeatFacts(
                 seat,
@@ -145,47 +146,37 @@ public final class FactExtractor {
     private record CardRounds(
             Map<CardKey, Integer> known, Map<CardKey, Integer> playable, Map<CardKey, Integer> unknown) {
 
-        static CardRounds of(int seat, GameRecord record) {
-            var rounds = new TreeSet<Round>();
-            var keptByEra = new HashMap<Integer, List<GameEvent.Card>>();
-            var playsByEra = new HashMap<Integer, List<GameEvent.CardPlayed>>();
-            for (var event : record.events()) {
-                switch (event) {
-                    case GameEvent.ActionRoundStarted started -> rounds.add(new Round(started.era(), started.round()));
-                    case GameEvent.HandKept hand when hand.seat() == seat -> keptByEra.put(hand.era(), hand.cards());
-                    case GameEvent.CardPlayed play
-                    when play.seat() == seat ->
-                        playsByEra
-                                .computeIfAbsent(play.era(), era -> new ArrayList<>())
-                                .add(play);
-                    default -> {
-                        // not part of the seat's hand
-                    }
-                }
-            }
-            var observed = new HashMap<Round, GameRecord.RoundObservation>();
-            for (var observation : record.observations()) {
-                if (observation.seat() == seat) {
-                    observed.putIfAbsent(new Round(observation.era(), observation.round()), observation);
-                }
-            }
+        static CardRounds of(int seat, GameRecord gameRecord) {
+            var hand = SeatHand.of(seat, gameRecord.events());
+            var observed = observed(seat, gameRecord.observations());
             var known = new TreeMap<CardKey, Integer>();
             var playable = new TreeMap<CardKey, Integer>();
             var unknown = new TreeMap<CardKey, Integer>();
-            for (var round : rounds) {
+            for (var round : hand.rounds()) {
                 var observation = observed.get(round);
-                if (observation != null) {
-                    for (var card : observation.hand()) {
+                if (observation == null) {
+                    held(round, hand.keptByEra(), hand.playsByEra()).forEach(card -> add(unknown, card.key()));
+                } else {
+                    observation.hand().forEach(card -> {
                         add(known, card.key());
                         if (card.playable()) {
                             add(playable, card.key());
                         }
-                    }
-                } else {
-                    held(round, keptByEra, playsByEra).forEach(card -> add(unknown, card.key()));
+                    });
                 }
             }
             return new CardRounds(known, playable, unknown);
+        }
+
+        /** The first observation of each action round the seat played. */
+        private static Map<Round, GameRecord.RoundObservation> observed(
+                int seat, List<GameRecord.RoundObservation> observations) {
+            var observed = new HashMap<Round, GameRecord.RoundObservation>();
+            observations.stream()
+                    .filter(observation -> observation.seat() == seat)
+                    .forEach(observation ->
+                            observed.putIfAbsent(new Round(observation.era(), observation.round()), observation));
+            return observed;
         }
 
         private static List<GameEvent.Card> held(
@@ -199,6 +190,34 @@ public final class FactExtractor {
             return keptByEra.getOrDefault(round.era(), List.of()).stream()
                     .filter(card -> !spent.contains(card.cardInstanceId()))
                     .toList();
+        }
+    }
+
+    /** The action rounds of a game and the seat's kept hand and plays per era. */
+    private record SeatHand(
+            TreeSet<Round> rounds,
+            Map<Integer, List<GameEvent.Card>> keptByEra,
+            Map<Integer, List<GameEvent.CardPlayed>> playsByEra) {
+
+        static SeatHand of(int seat, List<GameEvent> events) {
+            var hand = new SeatHand(new TreeSet<>(), new HashMap<>(), new HashMap<>());
+            for (var event : events) {
+                switch (event) {
+                    case GameEvent.ActionRoundStarted(var era, var round) ->
+                        hand.rounds().add(new Round(era, round));
+                    case GameEvent.HandKept(var owner, var era, var cards)
+                    when owner == seat -> hand.keptByEra().put(era, cards);
+                    case GameEvent.CardPlayed play
+                    when play.seat() == seat ->
+                        hand.playsByEra()
+                                .computeIfAbsent(play.era(), era -> new ArrayList<>())
+                                .add(play);
+                    default -> {
+                        // not part of the seat's hand
+                    }
+                }
+            }
+            return hand;
         }
     }
 
