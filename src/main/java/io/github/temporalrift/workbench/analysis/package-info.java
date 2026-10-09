@@ -1,5 +1,5 @@
 /**
- * Balance comparisons with truthful statistics and exports. Reads durable run evidence and reports
- * denominators, uncertainty, and attribution. Not implemented yet.
+ * Run reports and variant comparisons with denominators, uncertainty, and attribution,
+ * exported as JSON and CSV.
  */
 package io.github.temporalrift.workbench.analysis;
