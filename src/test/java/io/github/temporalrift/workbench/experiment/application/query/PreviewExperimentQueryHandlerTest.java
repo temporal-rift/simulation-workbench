@@ -12,9 +12,8 @@ import io.github.temporalrift.workbench.policy.application.query.BaselinePolicyC
 
 class PreviewExperimentQueryHandlerTest {
 
-    private final PreviewMatrixQueryHandler matrix =
-            new PreviewMatrixQueryHandler(new PolicyReferenceVerifierAdapter(new BaselinePolicyCatalog()));
-    private final PreviewExperimentQueryHandler handler = new PreviewExperimentQueryHandler(matrix);
+    private final PreviewExperimentQueryHandler handler =
+            new PreviewExperimentQueryHandler(new PolicyReferenceVerifierAdapter(new BaselinePolicyCatalog()));
 
     @Test
     void theDigestIsTheOneFreezingWouldAssign() {

@@ -22,6 +22,16 @@ class MatrixPreviewServiceTest {
     }
 
     @Test
+    void enumeratingVisitsTheSameCoordinatesInTheSameOrderAsPreviewing() {
+        var manifest = ExperimentManifests.valid();
+        var visited = new java.util.ArrayList<MatrixPreviewService.CaseCoordinate>();
+
+        MatrixPreviewService.enumerate(manifest, "a".repeat(64), visited::add);
+
+        assertThat(visited).containsExactlyElementsOf(MatrixPreviewService.preview(manifest, "a".repeat(64)));
+    }
+
+    @Test
     void twoPoliciesTwoVariantsEnumerate220Cases() {
         var manifest = ExperimentManifests.valid();
 

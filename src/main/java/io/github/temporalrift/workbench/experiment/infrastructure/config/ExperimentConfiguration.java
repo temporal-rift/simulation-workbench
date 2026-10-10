@@ -66,8 +66,8 @@ public class ExperimentConfiguration {
     }
 
     @Bean
-    PreviewExperimentUseCase previewExperimentUseCase(PreviewMatrixUseCase matrix) {
-        return new PreviewExperimentQueryHandler(matrix);
+    PreviewExperimentUseCase previewExperimentUseCase(PolicyReferenceVerifier policyVerifier) {
+        return new PreviewExperimentQueryHandler(policyVerifier);
     }
 
     @Bean
