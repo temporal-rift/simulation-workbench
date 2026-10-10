@@ -1,9 +1,7 @@
 package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.persistence;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,8 +25,20 @@ import io.github.temporalrift.workbench.execution.domain.run.RunState;
 /** PostgreSQL storage of runs and their logical cases; state changes are compare-and-set. */
 public class RunRepositoryAdapter implements RunRepository {
 
+    private static final String RUN_FILTER =
+            " WHERE (CAST(? AS uuid) IS NULL OR experiment_id = ?) AND (CAST(? AS text) IS NULL OR state = ?)";
+    private static final String LIST_RUNS =
+            "SELECT * FROM run" + RUN_FILTER + " ORDER BY created_at DESC, run_id DESC LIMIT ? OFFSET ?";
+    private static final String COUNT_RUNS = "SELECT count(*) FROM run" + RUN_FILTER;
+    private static final String COUNT_BY_STATE =
+            "SELECT run_id, state, count(*) AS total FROM run_case WHERE run_id = ANY (?) GROUP BY run_id, state";
+    private static final String CASE_FILTER = " WHERE run_id = ? AND (CAST(? AS text) IS NULL OR state = ?)"
+            + " AND (CAST(? AS text) IS NULL OR variant_label = ?)";
     private static final String CASE_COLUMNS =
             "case_id, run_id, case_key, ordinal, variant_label, seed, player_count, seats_json, state, result_json";
+    private static final String SELECT_CASES = "SELECT " + CASE_COLUMNS + " FROM run_case";
+    private static final String LIST_CASES = SELECT_CASES + CASE_FILTER + " ORDER BY ordinal LIMIT ? OFFSET ?";
+    private static final String COUNT_CASES = "SELECT count(*) FROM run_case" + CASE_FILTER;
 
     private final JdbcTemplate jdbc;
     private final TransactionTemplate transactions;
@@ -101,16 +111,18 @@ public class RunRepositoryAdapter implements RunRepository {
         var perRun = new HashMap<UUID, int[]>();
         runIds.forEach(runId -> perRun.put(runId, new int[CaseState.values().length]));
         if (!runIds.isEmpty()) {
-            var placeholders = String.join(",", Collections.nCopies(runIds.size(), "?"));
+            var ids = runIds.toArray(UUID[]::new);
             jdbc.query(
-                    "SELECT run_id, state, count(*) AS total FROM run_case WHERE run_id IN (" + placeholders
-                            + ") GROUP BY run_id, state",
+                    connection -> {
+                        var statement = connection.prepareStatement(COUNT_BY_STATE);
+                        statement.setArray(1, connection.createArrayOf("uuid", ids));
+                        return statement;
+                    },
                     rs -> {
                         perRun.get(rs.getObject("run_id", UUID.class))[
                                         CaseState.valueOf(rs.getString("state")).ordinal()] =
                                 rs.getInt("total");
-                    },
-                    runIds.toArray());
+                    });
         }
         var result = new HashMap<UUID, CaseCounts>();
         perRun.forEach((runId, counts) -> result.put(runId, caseCounts(counts)));
@@ -151,21 +163,15 @@ public class RunRepositoryAdapter implements RunRepository {
 
     @Override
     public List<Run> list(UUID experimentId, RunState state, int limit, int offset) {
-        var filter = new Filter()
-                .and("experiment_id = ?", experimentId)
-                .and("state = ?", state == null ? null : state.name());
+        var stateName = state == null ? null : state.name();
         return jdbc.query(
-                "SELECT * FROM run" + filter.where() + " ORDER BY created_at DESC, run_id DESC LIMIT ? OFFSET ?",
-                (rs, i) -> rows.run(rs),
-                filter.with(limit, offset));
+                LIST_RUNS, (rs, i) -> rows.run(rs), experimentId, experimentId, stateName, stateName, limit, offset);
     }
 
     @Override
     public long countRuns(UUID experimentId, RunState state) {
-        var filter = new Filter()
-                .and("experiment_id = ?", experimentId)
-                .and("state = ?", state == null ? null : state.name());
-        return count("SELECT count(*) FROM run" + filter.where(), filter.arguments());
+        var stateName = state == null ? null : state.name();
+        return total(jdbc.queryForObject(COUNT_RUNS, Long.class, experimentId, experimentId, stateName, stateName));
     }
 
     @Override
@@ -177,7 +183,7 @@ public class RunRepositoryAdapter implements RunRepository {
     public Optional<LogicalCase> findCase(UUID runId, UUID caseId) {
         return jdbc
                 .query(
-                        "SELECT " + CASE_COLUMNS + " FROM run_case WHERE run_id = ? AND case_id = ?",
+                        SELECT_CASES + " WHERE run_id = ? AND case_id = ?",
                         (rs, i) -> rows.logicalCase(rs),
                         runId,
                         caseId)
@@ -187,66 +193,33 @@ public class RunRepositoryAdapter implements RunRepository {
 
     @Override
     public List<LogicalCase> cases(UUID runId) {
-        return jdbc.query(
-                "SELECT " + CASE_COLUMNS + " FROM run_case WHERE run_id = ? ORDER BY ordinal",
-                (rs, i) -> rows.logicalCase(rs),
-                runId);
+        return jdbc.query(SELECT_CASES + " WHERE run_id = ? ORDER BY ordinal", (rs, i) -> rows.logicalCase(rs), runId);
     }
 
     @Override
     public List<LogicalCase> listCases(UUID runId, CaseState state, String variantLabel, int limit, int offset) {
-        var filter = caseFilter(runId, state, variantLabel);
+        var stateName = state == null ? null : state.name();
         return jdbc.query(
-                "SELECT " + CASE_COLUMNS + " FROM run_case" + filter.where() + " ORDER BY ordinal LIMIT ? OFFSET ?",
+                LIST_CASES,
                 (rs, i) -> rows.logicalCase(rs),
-                filter.with(limit, offset));
+                runId,
+                stateName,
+                stateName,
+                variantLabel,
+                variantLabel,
+                limit,
+                offset);
     }
 
     @Override
     public long countCases(UUID runId, CaseState state, String variantLabel) {
-        var filter = caseFilter(runId, state, variantLabel);
-        return count("SELECT count(*) FROM run_case" + filter.where(), filter.arguments());
+        var stateName = state == null ? null : state.name();
+        return total(
+                jdbc.queryForObject(COUNT_CASES, Long.class, runId, stateName, stateName, variantLabel, variantLabel));
     }
 
-    private static Filter caseFilter(UUID runId, CaseState state, String variantLabel) {
-        return new Filter()
-                .and("run_id = ?", runId)
-                .and("state = ?", state == null ? null : state.name())
-                .and("variant_label = ?", variantLabel);
-    }
-
-    private long count(String sql, Object[] arguments) {
-        var total = jdbc.queryForObject(sql, Long.class, arguments);
-        return total == null ? 0 : total;
-    }
-
-    /** A conjunction of optional equality conditions; a null value leaves its condition out. */
-    private static final class Filter {
-
-        private final List<String> conditions = new ArrayList<>();
-        private final List<Object> values = new ArrayList<>();
-
-        Filter and(String condition, Object value) {
-            if (value != null) {
-                conditions.add(condition);
-                values.add(value);
-            }
-            return this;
-        }
-
-        String where() {
-            return conditions.isEmpty() ? "" : " WHERE " + String.join(" AND ", conditions);
-        }
-
-        Object[] arguments() {
-            return values.toArray();
-        }
-
-        Object[] with(Object... more) {
-            var all = new ArrayList<>(values);
-            all.addAll(List.of(more));
-            return all.toArray();
-        }
+    private static long total(Long count) {
+        return count == null ? 0 : count;
     }
 
     @Override

@@ -25,7 +25,13 @@ import io.github.temporalrift.workbench.analysis.domain.port.out.ComparisonRepos
 public class ComparisonRepositoryAdapter implements ComparisonRepository {
 
     private static final String COLUMNS = "comparison_id, request_hash, baseline_run_id, baseline_variant,"
-            + " candidate_run_id, candidate_variant, declared_differences, analysis_version, analysis_seed";
+            + " candidate_run_id, candidate_variant, declared_differences, analysis_version, analysis_seed, created_at";
+    private static final String SELECT_ALL = "SELECT " + COLUMNS + " FROM analysis_comparison";
+    private static final String RUN_FILTER =
+            " WHERE (CAST(:run AS uuid) IS NULL OR baseline_run_id = :run OR candidate_run_id = :run)";
+    private static final String LIST =
+            SELECT_ALL + RUN_FILTER + " ORDER BY created_at DESC, comparison_id DESC LIMIT :limit OFFSET :offset";
+    private static final String COUNT = "SELECT count(*) FROM analysis_comparison" + RUN_FILTER;
     private static final TypeReference<List<DeclaredDifference>> DIFFERENCES = new TypeReference<>() {};
 
     private final NamedParameterJdbcTemplate jdbc;
@@ -42,7 +48,7 @@ public class ComparisonRepositoryAdapter implements ComparisonRepository {
     public Optional<ComparisonDefinition> find(UUID comparisonId) {
         return jdbc
                 .query(
-                        "SELECT " + COLUMNS + " FROM analysis_comparison WHERE comparison_id = :id",
+                        SELECT_ALL + " WHERE comparison_id = :id",
                         new MapSqlParameterSource("id", comparisonId),
                         (rs, i) -> definition(rs))
                 .stream()
@@ -52,8 +58,7 @@ public class ComparisonRepositoryAdapter implements ComparisonRepository {
     @Override
     public List<Stored> list(UUID runId, int limit, int offset) {
         return jdbc.query(
-                "SELECT " + COLUMNS + ", created_at FROM analysis_comparison" + runFilter(runId)
-                        + " ORDER BY created_at DESC, comparison_id DESC LIMIT :limit OFFSET :offset",
+                LIST,
                 new MapSqlParameterSource("run", runId).addValue("limit", limit).addValue("offset", offset),
                 (rs, i) -> new Stored(
                         definition(rs),
@@ -62,22 +67,15 @@ public class ComparisonRepositoryAdapter implements ComparisonRepository {
 
     @Override
     public long count(UUID runId) {
-        var total = jdbc.queryForObject(
-                "SELECT count(*) FROM analysis_comparison" + runFilter(runId),
-                new MapSqlParameterSource("run", runId),
-                Long.class);
+        var total = jdbc.queryForObject(COUNT, new MapSqlParameterSource("run", runId), Long.class);
         return total == null ? 0 : total;
-    }
-
-    private static String runFilter(UUID runId) {
-        return runId == null ? "" : " WHERE baseline_run_id = :run OR candidate_run_id = :run";
     }
 
     @Override
     public Optional<Claim> findByKey(UUID idempotencyKey) {
         return jdbc
                 .query(
-                        "SELECT " + COLUMNS + " FROM analysis_comparison WHERE idempotency_key = :key",
+                        SELECT_ALL + " WHERE idempotency_key = :key",
                         new MapSqlParameterSource("key", idempotencyKey),
                         (rs, i) -> new Claim(rs.getString("request_hash"), definition(rs)))
                 .stream()
