@@ -1,16 +1,13 @@
 package io.github.temporalrift.workbench.analysis.infrastructure.adapter.out.persistence;
 
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Timestamp;
 import java.time.Clock;
-import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
-import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.stereotype.Component;
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
@@ -20,103 +17,84 @@ import io.github.temporalrift.workbench.analysis.domain.comparison.ComparisonDef
 import io.github.temporalrift.workbench.analysis.domain.comparison.ComparisonSide;
 import io.github.temporalrift.workbench.analysis.domain.comparison.DeclaredDifference;
 import io.github.temporalrift.workbench.analysis.domain.port.out.ComparisonRepository;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.InsertOnce;
 
-/** PostgreSQL comparison definitions; a unique idempotency key makes a concurrent repeat lose the insert. */
+/** Stored comparison definitions; a unique idempotency key makes a concurrent repeat lose the insert. */
+@Component
 public class ComparisonRepositoryAdapter implements ComparisonRepository {
 
-    private static final String COLUMNS = "comparison_id, request_hash, baseline_run_id, baseline_variant,"
-            + " candidate_run_id, candidate_variant, declared_differences, analysis_version, analysis_seed, created_at";
-    private static final String SELECT_ALL = "SELECT " + COLUMNS + " FROM analysis_comparison";
-    private static final String RUN_FILTER =
-            " WHERE (CAST(:run AS uuid) IS NULL OR baseline_run_id = :run OR candidate_run_id = :run)";
-    private static final String LIST =
-            SELECT_ALL + RUN_FILTER + " ORDER BY created_at DESC, comparison_id DESC LIMIT :limit OFFSET :offset";
-    private static final String COUNT = "SELECT count(*) FROM analysis_comparison" + RUN_FILTER;
     private static final TypeReference<List<DeclaredDifference>> DIFFERENCES = new TypeReference<>() {};
 
-    private final NamedParameterJdbcTemplate jdbc;
+    private final AnalysisComparisonJpaRepository comparisons;
+    private final ComparisonListingQueries listing;
+    private final InsertOnce insertOnce;
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
-    public ComparisonRepositoryAdapter(NamedParameterJdbcTemplate jdbc, ObjectMapper objectMapper, Clock clock) {
-        this.jdbc = jdbc;
+    ComparisonRepositoryAdapter(
+            AnalysisComparisonJpaRepository comparisons,
+            ComparisonListingQueries listing,
+            InsertOnce insertOnce,
+            ObjectMapper objectMapper,
+            Clock clock) {
+        this.comparisons = comparisons;
+        this.listing = listing;
+        this.insertOnce = insertOnce;
         this.objectMapper = objectMapper;
         this.clock = clock;
     }
 
     @Override
     public Optional<ComparisonDefinition> find(UUID comparisonId) {
-        return jdbc
-                .query(
-                        SELECT_ALL + " WHERE comparison_id = :id",
-                        new MapSqlParameterSource("id", comparisonId),
-                        (rs, i) -> definition(rs))
-                .stream()
-                .findFirst();
+        return comparisons.findById(comparisonId).map(this::definition);
     }
 
     @Override
     public List<Stored> list(UUID runId, int limit, int offset) {
-        return jdbc.query(
-                LIST,
-                new MapSqlParameterSource("run", runId).addValue("limit", limit).addValue("offset", offset),
-                (rs, i) -> new Stored(
-                        definition(rs),
-                        rs.getObject("created_at", OffsetDateTime.class).toInstant()));
+        var ids = listing.ids(runId, limit, offset);
+        var byId = comparisons.findAllById(ids).stream()
+                .collect(Collectors.toMap(AnalysisComparisonJpaEntity::comparisonId, Function.identity()));
+        return ids.stream()
+                .map(byId::get)
+                .map(entity -> new Stored(definition(entity), entity.createdAt()))
+                .toList();
     }
 
     @Override
     public long count(UUID runId) {
-        var total = jdbc.queryForObject(COUNT, new MapSqlParameterSource("run", runId), Long.class);
-        return total == null ? 0 : total;
+        return listing.count(runId);
     }
 
     @Override
     public Optional<Claim> findByKey(UUID idempotencyKey) {
-        return jdbc
-                .query(
-                        SELECT_ALL + " WHERE idempotency_key = :key",
-                        new MapSqlParameterSource("key", idempotencyKey),
-                        (rs, i) -> new Claim(rs.getString("request_hash"), definition(rs)))
-                .stream()
-                .findFirst();
+        return comparisons
+                .findByIdempotencyKey(idempotencyKey)
+                .map(entity -> new Claim(entity.requestHash(), definition(entity)));
     }
 
     @Override
     public boolean create(UUID idempotencyKey, String requestHash, ComparisonDefinition definition) {
-        return jdbc.update(
-                        "INSERT INTO analysis_comparison (comparison_id, idempotency_key, request_hash,"
-                                + " baseline_run_id, baseline_variant, candidate_run_id, candidate_variant,"
-                                + " declared_differences, analysis_version, analysis_seed, created_at)"
-                                + " VALUES (:id, :key, :hash, :baselineRun, :baselineVariant, :candidateRun,"
-                                + " :candidateVariant, :differences, :version, :seed, :at)"
-                                + " ON CONFLICT (idempotency_key) DO NOTHING",
-                        new MapSqlParameterSource()
-                                .addValue("id", definition.comparisonId())
-                                .addValue("key", idempotencyKey)
-                                .addValue("hash", requestHash)
-                                .addValue("baselineRun", definition.baseline().runId())
-                                .addValue(
-                                        "baselineVariant", definition.baseline().variantLabel())
-                                .addValue("candidateRun", definition.candidate().runId())
-                                .addValue(
-                                        "candidateVariant",
-                                        definition.candidate().variantLabel())
-                                .addValue("differences", write(definition.declaredDifferences()))
-                                .addValue("version", definition.analysis().version())
-                                .addValue("seed", definition.analysis().seedText())
-                                .addValue("at", Timestamp.from(clock.instant())))
-                == 1;
+        return insertOnce.insert(() -> comparisons.saveAndFlush(new AnalysisComparisonJpaEntity(
+                definition.comparisonId(),
+                idempotencyKey,
+                requestHash,
+                definition.baseline().runId(),
+                definition.baseline().variantLabel(),
+                definition.candidate().runId(),
+                definition.candidate().variantLabel(),
+                write(definition.declaredDifferences()),
+                definition.analysis().version(),
+                definition.analysis().seedText(),
+                clock.instant())));
     }
 
-    private ComparisonDefinition definition(ResultSet rs) throws SQLException {
+    private ComparisonDefinition definition(AnalysisComparisonJpaEntity entity) {
         return new ComparisonDefinition(
-                rs.getObject("comparison_id", UUID.class),
-                new ComparisonSide(rs.getObject("baseline_run_id", UUID.class), rs.getString("baseline_variant")),
-                new ComparisonSide(rs.getObject("candidate_run_id", UUID.class), rs.getString("candidate_variant")),
-                read(rs.getString("declared_differences")),
-                new AnalysisVersion(
-                        rs.getString("analysis_version"), Long.parseUnsignedLong(rs.getString("analysis_seed"))));
+                entity.comparisonId(),
+                new ComparisonSide(entity.baselineRunId(), entity.baselineVariant()),
+                new ComparisonSide(entity.candidateRunId(), entity.candidateVariant()),
+                read(entity.declaredDifferences()),
+                new AnalysisVersion(entity.analysisVersion(), Long.parseUnsignedLong(entity.analysisSeed())));
     }
 
     private String write(List<DeclaredDifference> differences) {

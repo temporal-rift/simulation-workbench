@@ -1,6 +1,5 @@
 package io.github.temporalrift.workbench.analysis.infrastructure.adapter.out.persistence;
 
-import java.sql.Timestamp;
 import java.time.Clock;
 import java.util.Collection;
 import java.util.HashMap;
@@ -10,8 +9,7 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.stereotype.Component;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
@@ -24,18 +22,23 @@ import io.github.temporalrift.workbench.analysis.domain.game.CardType;
 import io.github.temporalrift.workbench.analysis.domain.game.Faction;
 import io.github.temporalrift.workbench.analysis.domain.game.SpecialAction;
 import io.github.temporalrift.workbench.analysis.domain.port.out.CaseFactsRepository;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.InsertOnce;
 
-/** PostgreSQL case facts, one JSON document per case and analysis version. */
+/** Case facts, one JSON document per case and analysis version. */
+@Component
 public class CaseFactsRepositoryAdapter implements CaseFactsRepository {
 
     private static final String CARD_SEPARATOR = "/";
 
-    private final NamedParameterJdbcTemplate jdbc;
+    private final AnalysisCaseFactJpaRepository stored;
+    private final InsertOnce insertOnce;
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
-    public CaseFactsRepositoryAdapter(NamedParameterJdbcTemplate jdbc, ObjectMapper objectMapper, Clock clock) {
-        this.jdbc = jdbc;
+    CaseFactsRepositoryAdapter(
+            AnalysisCaseFactJpaRepository stored, InsertOnce insertOnce, ObjectMapper objectMapper, Clock clock) {
+        this.stored = stored;
+        this.insertOnce = insertOnce;
         this.objectMapper = objectMapper;
         this.clock = clock;
     }
@@ -46,26 +49,20 @@ public class CaseFactsRepositoryAdapter implements CaseFactsRepository {
             return Map.of();
         }
         var found = new HashMap<UUID, CaseFacts>();
-        jdbc.query(
-                        "SELECT facts FROM analysis_case_fact WHERE analysis_version = :version AND case_id IN (:ids)",
-                        new MapSqlParameterSource()
-                                .addValue("version", analysisVersion)
-                                .addValue("ids", caseIds),
-                        (rs, i) -> read(rs.getString("facts")))
-                .forEach(facts -> found.put(facts.caseId(), facts));
+        stored.findAllByCaseIdInAndAnalysisVersion(caseIds, analysisVersion).forEach(row -> {
+            var facts = read(row.facts());
+            found.put(facts.caseId(), facts);
+        });
         return found;
     }
 
     @Override
     public void save(CaseFacts facts, String analysisVersion) {
-        jdbc.update(
-                "INSERT INTO analysis_case_fact (case_id, analysis_version, facts, created_at)"
-                        + " VALUES (:id, :version, :facts, :at) ON CONFLICT DO NOTHING",
-                new MapSqlParameterSource()
-                        .addValue("id", facts.caseId())
-                        .addValue("version", analysisVersion)
-                        .addValue("facts", write(facts))
-                        .addValue("at", Timestamp.from(clock.instant())));
+        var key = new AnalysisCaseFactJpaEntity.Key(facts.caseId(), analysisVersion);
+        if (!stored.existsById(key)) {
+            insertOnce.insert(() -> stored.saveAndFlush(
+                    new AnalysisCaseFactJpaEntity(facts.caseId(), analysisVersion, write(facts), clock.instant())));
+        }
     }
 
     private String write(CaseFacts facts) {

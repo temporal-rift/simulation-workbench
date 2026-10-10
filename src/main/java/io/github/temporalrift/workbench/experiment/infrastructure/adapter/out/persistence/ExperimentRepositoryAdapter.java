@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.experiment.domain.port.out.ExperimentRepository;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.OffsetLimit;
 
 /** JPA-backed frozen experiment storage. Rows are inserted once and never updated. */
 public class ExperimentRepositoryAdapter implements ExperimentRepository {
@@ -28,7 +29,7 @@ public class ExperimentRepositoryAdapter implements ExperimentRepository {
 
     @Override
     public List<StoredExperiment> findNewest(int limit, int offset) {
-        return repository.findNewest(limit, offset).stream()
+        return repository.findAllByOrderByCreatedAtDescExperimentIdDesc(new OffsetLimit(offset, limit)).stream()
                 .map(ExperimentRepositoryAdapter::stored)
                 .toList();
     }

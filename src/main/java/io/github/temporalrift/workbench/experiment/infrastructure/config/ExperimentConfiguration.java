@@ -27,6 +27,7 @@ import io.github.temporalrift.workbench.experiment.infrastructure.adapter.out.pe
 import io.github.temporalrift.workbench.experiment.infrastructure.adapter.out.persistence.IdempotencyStoreAdapter;
 import io.github.temporalrift.workbench.experiment.infrastructure.adapter.out.policy.PolicyReferenceVerifierAdapter;
 import io.github.temporalrift.workbench.policy.PolicyCatalog;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.InsertOnce;
 
 @Configuration
 public class ExperimentConfiguration {
@@ -42,8 +43,8 @@ public class ExperimentConfiguration {
     }
 
     @Bean
-    IdempotencyStore idempotencyStore(IdempotencyKeyJpaRepository repository) {
-        return new IdempotencyStoreAdapter(repository);
+    IdempotencyStore idempotencyStore(IdempotencyKeyJpaRepository repository, InsertOnce insertOnce) {
+        return new IdempotencyStoreAdapter(repository, insertOnce);
     }
 
     @Bean
