@@ -11,24 +11,11 @@ import jakarta.persistence.IdClass;
 import jakarta.persistence.Table;
 
 import io.github.temporalrift.workbench.execution.domain.evidence.ObservedEvent;
-import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.AssignedIdJpaEntity;
 
 @Entity
 @Table(name = "evidence_event")
 @IdClass(EvidenceEventJpaEntity.Key.class)
-class EvidenceEventJpaEntity extends AssignedIdJpaEntity<EvidenceEventJpaEntity.Key> {
-
-    @Id
-    @Column(name = "scope_id", nullable = false)
-    private UUID scopeId;
-
-    @Id
-    @Column(name = "game_id", nullable = false)
-    private UUID gameId;
-
-    @Id
-    @Column(name = "source", nullable = false, length = 249)
-    private String source;
+class EvidenceEventJpaEntity extends SourceScopedJpaEntity<EvidenceEventJpaEntity.Key> {
 
     @Id
     @Column(name = "event_id", nullable = false)
@@ -68,9 +55,7 @@ class EvidenceEventJpaEntity extends AssignedIdJpaEntity<EvidenceEventJpaEntity.
 
     EvidenceEventJpaEntity(
             UUID scopeId, UUID attemptId, ObservedEvent event, String payloadArtifact, Instant observedAt) {
-        this.scopeId = scopeId;
-        this.gameId = event.gameId();
-        this.source = event.source();
+        super(scopeId, event.gameId(), event.source());
         this.eventId = event.eventId();
         this.attemptId = attemptId;
         this.eventType = event.eventType();
@@ -86,11 +71,7 @@ class EvidenceEventJpaEntity extends AssignedIdJpaEntity<EvidenceEventJpaEntity.
 
     @Override
     public Key getId() {
-        return new Key(scopeId, gameId, source, eventId);
-    }
-
-    String source() {
-        return source;
+        return new Key(scopeId(), gameId(), source(), eventId);
     }
 
     UUID eventId() {
@@ -107,10 +88,6 @@ class EvidenceEventJpaEntity extends AssignedIdJpaEntity<EvidenceEventJpaEntity.
 
     String aggregateType() {
         return aggregateType;
-    }
-
-    UUID gameId() {
-        return gameId;
     }
 
     Instant occurredAt() {

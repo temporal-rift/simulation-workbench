@@ -71,22 +71,23 @@ class EvidenceStepJpaEntity extends AssignedIdJpaEntity<EvidenceStepJpaEntity.Ke
 
     protected EvidenceStepJpaEntity() {}
 
-    EvidenceStepJpaEntity(UUID scopeId, UUID gameId, int step, UUID attemptId, StepRecord record, Instant recordedAt) {
+    EvidenceStepJpaEntity(
+            UUID scopeId, UUID gameId, int step, UUID attemptId, StepRecord stepRecord, Instant recordedAt) {
         this.scopeId = scopeId;
         this.gameId = gameId;
         this.step = step;
         this.attemptId = attemptId;
-        this.seatIndex = record.seatIndex();
-        this.windowKey = record.windowKey();
-        this.phase = record.phase();
-        this.era = record.era();
-        this.round = record.round();
-        this.logicalTime = record.logicalTime();
-        this.observation = record.observation();
-        this.decision = record.decision();
-        this.outcome = record.outcome().name();
-        this.outcomeCode = record.outcomeCode();
-        this.entropy = record.entropy();
+        this.seatIndex = stepRecord.seatIndex();
+        this.windowKey = stepRecord.windowKey();
+        this.phase = stepRecord.phase();
+        this.era = stepRecord.era();
+        this.round = stepRecord.round();
+        this.logicalTime = stepRecord.logicalTime();
+        this.observation = stepRecord.observation();
+        this.decision = stepRecord.decision();
+        this.outcome = stepRecord.outcome().name();
+        this.outcomeCode = stepRecord.outcomeCode();
+        this.entropy = stepRecord.entropy();
         this.recordedAt = recordedAt;
     }
 
