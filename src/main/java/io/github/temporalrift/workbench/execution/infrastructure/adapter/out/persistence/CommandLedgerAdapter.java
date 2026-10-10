@@ -27,33 +27,23 @@ public class CommandLedgerAdapter implements CommandLedger {
 
     private final CaseCommandJpaRepository commands;
     private final InsertOnce insertOnce;
+    private final CommandSlots slots;
 
-    CommandLedgerAdapter(CaseCommandJpaRepository commands, InsertOnce insertOnce) {
+    CommandLedgerAdapter(CaseCommandJpaRepository commands, InsertOnce insertOnce, CommandSlots slots) {
         this.commands = commands;
         this.insertOnce = insertOnce;
+        this.slots = slots;
     }
 
     @Override
-    @Transactional
     public CommandIntent begin(SlotId slot, UUID attemptId, String request, Instant now) {
-        var existing = lock(slot);
-        if (existing.isEmpty()) {
-            var claimed = insertOnce.insert(() -> commands.saveAndFlush(new CaseCommandJpaEntity(
-                    slot.caseId(), slot.seatIndex(), slot.windowKey(), attemptId, request, "SENT", now)));
-            if (claimed) {
-                return new CommandIntent.Send();
-            }
-            existing = lock(slot);
+        var key = new CaseCommandJpaEntity.Key(slot.caseId(), slot.seatIndex(), slot.windowKey());
+        if (!commands.existsById(key)
+                && insertOnce.insert(() -> commands.saveAndFlush(new CaseCommandJpaEntity(
+                        slot.caseId(), slot.seatIndex(), slot.windowKey(), attemptId, request, "SENT", now)))) {
+            return new CommandIntent.Send();
         }
-        var command = existing.orElseThrow(() -> new IllegalStateException("Command slot vanished: " + slot));
-        return switch (SlotStatus.valueOf(command.status())) {
-            case ACCEPTED -> new CommandIntent.AlreadyAccepted(slot(command));
-            case SENT -> new CommandIntent.InDoubt(slot(command));
-            case NOT_SPENT -> {
-                command.resend(attemptId, request, now);
-                yield new CommandIntent.Send();
-            }
-        };
+        return slots.decide(slot, attemptId, request, now);
     }
 
     @Override
@@ -85,10 +75,6 @@ public class CommandLedgerAdapter implements CommandLedger {
         commands.deleteAllByCaseId(caseId);
     }
 
-    private Optional<CaseCommandJpaEntity> lock(SlotId slot) {
-        return commands.findWithLockByCaseIdAndSeatIndexAndWindowKey(slot.caseId(), slot.seatIndex(), slot.windowKey());
-    }
-
     private List<Slot> withStatus(UUID caseId, SlotStatus status) {
         return commands.findAllByCaseIdAndStatus(caseId, status.name()).stream()
                 .map(CommandLedgerAdapter::slot)
@@ -96,7 +82,7 @@ public class CommandLedgerAdapter implements CommandLedger {
                 .toList();
     }
 
-    private static Slot slot(CaseCommandJpaEntity command) {
+    static Slot slot(CaseCommandJpaEntity command) {
         return new Slot(
                 new SlotId(command.caseId(), command.seatIndex(), command.windowKey()),
                 command.attemptId(),

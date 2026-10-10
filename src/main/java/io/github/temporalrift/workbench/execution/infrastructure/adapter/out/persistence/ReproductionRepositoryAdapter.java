@@ -40,15 +40,8 @@ public class ReproductionRepositoryAdapter implements ReproductionRepository {
     @Override
     public ReproductionCreation create(UUID idempotencyKey, String requestHash, Reproduction reproduction) {
         if (reproductions.findByIdempotencyKey(idempotencyKey).isEmpty()) {
-            var stored = insertOnce.insert(() -> reproductions.saveAndFlush(new ReproductionJpaEntity(
-                    reproduction.reproductionId(),
-                    reproduction.attemptId(),
-                    reproduction.runId(),
-                    reproduction.caseId(),
-                    reproduction.laneId(),
-                    idempotencyKey,
-                    requestHash,
-                    reproduction.createdAt())));
+            var stored = insertOnce.insert(() ->
+                    reproductions.saveAndFlush(new ReproductionJpaEntity(reproduction, idempotencyKey, requestHash)));
             if (stored) {
                 return new ReproductionCreation.Created();
             }

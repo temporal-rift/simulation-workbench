@@ -49,6 +49,7 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
     private final EvidenceEventJpaRepository events;
     private final EvidenceSourceOffsetJpaRepository offsets;
     private final InsertOnce insertOnce;
+    private final EvidenceUpdates updates;
     private final Clock clock;
 
     EvidenceLedgerAdapter(
@@ -58,6 +59,7 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
             EvidenceEventJpaRepository events,
             EvidenceSourceOffsetJpaRepository offsets,
             InsertOnce insertOnce,
+            EvidenceUpdates updates,
             Clock clock) {
         this.artifacts = artifacts;
         this.evidence = evidence;
@@ -65,6 +67,7 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
         this.events = events;
         this.offsets = offsets;
         this.insertOnce = insertOnce;
+        this.updates = updates;
         this.clock = clock;
     }
 
@@ -78,13 +81,8 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
     }
 
     @Override
-    @Transactional
     public void seal(UUID scopeId, String transcript, String resultDigest, Instant now) {
-        var artifact = putArtifact(transcript.getBytes(StandardCharsets.UTF_8), TEXT, now);
-        evidence.findById(scopeId)
-                .orElseThrow(
-                        () -> new IllegalStateException("Evidence of " + scopeId + " was sealed before it was pinned"))
-                .seal(artifact, resultDigest, now);
+        updates.seal(scopeId, putArtifact(transcript.getBytes(StandardCharsets.UTF_8), TEXT, now), resultDigest, now);
     }
 
     @Override
@@ -103,23 +101,7 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
         var next = steps.findFirstByScopeIdAndGameIdOrderByStepDesc(scopeId, gameId)
                 .map(latest -> latest.step() + 1)
                 .orElse(0);
-        steps.saveAndFlush(new EvidenceStepJpaEntity(
-                scopeId,
-                gameId,
-                next,
-                attemptId,
-                step.seatIndex(),
-                step.windowKey(),
-                step.phase(),
-                step.era(),
-                step.round(),
-                step.logicalTime(),
-                step.observation(),
-                step.decision(),
-                step.outcome().name(),
-                step.outcomeCode(),
-                step.entropy(),
-                clock.instant()));
+        steps.saveAndFlush(new EvidenceStepJpaEntity(scopeId, gameId, next, attemptId, step, clock.instant()));
         return next;
     }
 
@@ -146,37 +128,18 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
         }
         var now = clock.instant();
         var payload = putArtifact(event.payload().getBytes(StandardCharsets.UTF_8), JSON, now);
-        return insertOnce.insert(() -> events.saveAndFlush(new EvidenceEventJpaEntity(
-                scopeId,
-                event.gameId(),
-                event.source(),
-                event.eventId(),
-                attemptId,
-                event.eventType(),
-                event.aggregateId(),
-                event.aggregateType(),
-                event.occurredAt(),
-                event.version(),
-                event.partition(),
-                event.offset(),
-                payload,
-                now)));
+        return insertOnce.insert(
+                () -> events.saveAndFlush(new EvidenceEventJpaEntity(scopeId, attemptId, event, payload, now)));
     }
 
     @Override
-    @Transactional
     public void advance(UUID scopeId, UUID gameId, String source, int partition, long nextOffset) {
-        var existing = lockOffset(scopeId, gameId, source, partition);
-        if (existing.isEmpty()) {
-            var inserted = insertOnce.insert(() -> offsets.saveAndFlush(
+        var key = new EvidenceSourceOffsetJpaEntity.Key(scopeId, gameId, source, partition);
+        if (!offsets.existsById(key)) {
+            insertOnce.insert(() -> offsets.saveAndFlush(
                     new EvidenceSourceOffsetJpaEntity(scopeId, gameId, source, partition, nextOffset)));
-            if (inserted) {
-                return;
-            }
-            existing = lockOffset(scopeId, gameId, source, partition);
         }
-        existing.orElseThrow(() -> new IllegalStateException("Source offset vanished: " + source + "/" + partition))
-                .advanceTo(nextOffset);
+        updates.raiseOffset(scopeId, gameId, source, partition, nextOffset);
     }
 
     @Override
@@ -220,11 +183,6 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
         events.deleteAllByScopeId(scopeId);
         offsets.deleteAllByScopeId(scopeId);
         evidence.deleteById(scopeId);
-    }
-
-    private Optional<EvidenceSourceOffsetJpaEntity> lockOffset(
-            UUID scopeId, UUID gameId, String source, int partition) {
-        return offsets.findWithLockByScopeIdAndGameIdAndSourceAndPartitionNo(scopeId, gameId, source, partition);
     }
 
     private String putArtifact(byte[] content, String mediaType, Instant now) {

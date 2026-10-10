@@ -18,14 +18,13 @@ import org.springframework.stereotype.Component;
 @Component
 class ComparisonListingQueries {
 
-    private static final Table<?> COMPARISON = DSL.table(DSL.name("analysis_comparison"));
-    private static final Field<UUID> ID = DSL.field(DSL.name("analysis_comparison", "comparison_id"), SQLDataType.UUID);
-    private static final Field<UUID> BASELINE =
-            DSL.field(DSL.name("analysis_comparison", "baseline_run_id"), SQLDataType.UUID);
-    private static final Field<UUID> CANDIDATE =
-            DSL.field(DSL.name("analysis_comparison", "candidate_run_id"), SQLDataType.UUID);
+    private static final String TABLE = "analysis_comparison";
+    private static final Table<?> COMPARISON = DSL.table(DSL.name(TABLE));
+    private static final Field<UUID> ID = DSL.field(DSL.name(TABLE, "comparison_id"), SQLDataType.UUID);
+    private static final Field<UUID> BASELINE = DSL.field(DSL.name(TABLE, "baseline_run_id"), SQLDataType.UUID);
+    private static final Field<UUID> CANDIDATE = DSL.field(DSL.name(TABLE, "candidate_run_id"), SQLDataType.UUID);
     private static final Field<java.time.OffsetDateTime> CREATED =
-            DSL.field(DSL.name("analysis_comparison", "created_at"), SQLDataType.TIMESTAMPWITHTIMEZONE);
+            DSL.field(DSL.name(TABLE, "created_at"), SQLDataType.TIMESTAMPWITHTIMEZONE);
 
     private final DSLContext dsl;
 

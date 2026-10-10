@@ -11,7 +11,7 @@ import org.springframework.data.domain.Persistable;
  * entity from a detached one and reads the row first, which would cost a query per inserted row.
  */
 @MappedSuperclass
-public abstract class AssignedIdJpaEntity<ID> implements Persistable<ID> {
+public abstract class AssignedIdJpaEntity<I> implements Persistable<I> {
 
     @Transient
     private boolean fresh = true;

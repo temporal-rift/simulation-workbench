@@ -22,7 +22,7 @@ public class InsertOnce {
         try {
             transaction.run(insert);
             return true;
-        } catch (DataIntegrityViolationException alreadyThere) {
+        } catch (DataIntegrityViolationException _) {
             return false;
         }
     }

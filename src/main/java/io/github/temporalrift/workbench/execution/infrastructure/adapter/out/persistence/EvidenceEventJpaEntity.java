@@ -10,6 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
 import jakarta.persistence.Table;
 
+import io.github.temporalrift.workbench.execution.domain.evidence.ObservedEvent;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.AssignedIdJpaEntity;
 
 @Entity
@@ -65,34 +66,20 @@ class EvidenceEventJpaEntity extends AssignedIdJpaEntity<EvidenceEventJpaEntity.
 
     protected EvidenceEventJpaEntity() {}
 
-    @SuppressWarnings("java:S107")
     EvidenceEventJpaEntity(
-            UUID scopeId,
-            UUID gameId,
-            String source,
-            UUID eventId,
-            UUID attemptId,
-            String eventType,
-            UUID aggregateId,
-            String aggregateType,
-            Instant occurredAt,
-            Integer version,
-            int partitionNo,
-            long offsetNo,
-            String payloadArtifact,
-            Instant observedAt) {
+            UUID scopeId, UUID attemptId, ObservedEvent event, String payloadArtifact, Instant observedAt) {
         this.scopeId = scopeId;
-        this.gameId = gameId;
-        this.source = source;
-        this.eventId = eventId;
+        this.gameId = event.gameId();
+        this.source = event.source();
+        this.eventId = event.eventId();
         this.attemptId = attemptId;
-        this.eventType = eventType;
-        this.aggregateId = aggregateId;
-        this.aggregateType = aggregateType;
-        this.occurredAt = occurredAt;
-        this.version = version;
-        this.partitionNo = partitionNo;
-        this.offsetNo = offsetNo;
+        this.eventType = event.eventType();
+        this.aggregateId = event.aggregateId();
+        this.aggregateType = event.aggregateType();
+        this.occurredAt = event.occurredAt();
+        this.version = event.version();
+        this.partitionNo = event.partition();
+        this.offsetNo = event.offset();
         this.payloadArtifact = payloadArtifact;
         this.observedAt = observedAt;
     }

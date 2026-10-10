@@ -10,6 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
 import jakarta.persistence.Table;
 
+import io.github.temporalrift.workbench.execution.domain.evidence.StepRecord;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.AssignedIdJpaEntity;
 
 @Entity
@@ -70,39 +71,22 @@ class EvidenceStepJpaEntity extends AssignedIdJpaEntity<EvidenceStepJpaEntity.Ke
 
     protected EvidenceStepJpaEntity() {}
 
-    @SuppressWarnings("java:S107")
-    EvidenceStepJpaEntity(
-            UUID scopeId,
-            UUID gameId,
-            int step,
-            UUID attemptId,
-            int seatIndex,
-            String windowKey,
-            String phase,
-            Integer era,
-            Integer round,
-            Instant logicalTime,
-            String observation,
-            String decision,
-            String outcome,
-            String outcomeCode,
-            String entropy,
-            Instant recordedAt) {
+    EvidenceStepJpaEntity(UUID scopeId, UUID gameId, int step, UUID attemptId, StepRecord record, Instant recordedAt) {
         this.scopeId = scopeId;
         this.gameId = gameId;
         this.step = step;
         this.attemptId = attemptId;
-        this.seatIndex = seatIndex;
-        this.windowKey = windowKey;
-        this.phase = phase;
-        this.era = era;
-        this.round = round;
-        this.logicalTime = logicalTime;
-        this.observation = observation;
-        this.decision = decision;
-        this.outcome = outcome;
-        this.outcomeCode = outcomeCode;
-        this.entropy = entropy;
+        this.seatIndex = record.seatIndex();
+        this.windowKey = record.windowKey();
+        this.phase = record.phase();
+        this.era = record.era();
+        this.round = record.round();
+        this.logicalTime = record.logicalTime();
+        this.observation = record.observation();
+        this.decision = record.decision();
+        this.outcome = record.outcome().name();
+        this.outcomeCode = record.outcomeCode();
+        this.entropy = record.entropy();
         this.recordedAt = recordedAt;
     }
 

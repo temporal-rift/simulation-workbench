@@ -8,6 +8,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+import io.github.temporalrift.workbench.analysis.domain.comparison.ComparisonDefinition;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.AssignedIdJpaEntity;
 
 @Entity
@@ -50,29 +51,22 @@ class AnalysisComparisonJpaEntity extends AssignedIdJpaEntity<UUID> {
 
     protected AnalysisComparisonJpaEntity() {}
 
-    @SuppressWarnings("java:S107")
     AnalysisComparisonJpaEntity(
-            UUID comparisonId,
+            ComparisonDefinition definition,
             UUID idempotencyKey,
             String requestHash,
-            UUID baselineRunId,
-            String baselineVariant,
-            UUID candidateRunId,
-            String candidateVariant,
             String declaredDifferences,
-            String analysisVersion,
-            String analysisSeed,
             Instant createdAt) {
-        this.comparisonId = comparisonId;
+        this.comparisonId = definition.comparisonId();
         this.idempotencyKey = idempotencyKey;
         this.requestHash = requestHash;
-        this.baselineRunId = baselineRunId;
-        this.baselineVariant = baselineVariant;
-        this.candidateRunId = candidateRunId;
-        this.candidateVariant = candidateVariant;
+        this.baselineRunId = definition.baseline().runId();
+        this.baselineVariant = definition.baseline().variantLabel();
+        this.candidateRunId = definition.candidate().runId();
+        this.candidateVariant = definition.candidate().variantLabel();
         this.declaredDifferences = declaredDifferences;
-        this.analysisVersion = analysisVersion;
-        this.analysisSeed = analysisSeed;
+        this.analysisVersion = definition.analysis().version();
+        this.analysisSeed = definition.analysis().seedText();
         this.createdAt = createdAt;
     }
 

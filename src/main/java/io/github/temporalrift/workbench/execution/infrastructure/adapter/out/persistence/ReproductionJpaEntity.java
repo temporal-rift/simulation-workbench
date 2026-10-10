@@ -8,6 +8,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+import io.github.temporalrift.workbench.execution.domain.reproduction.Reproduction;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.AssignedIdJpaEntity;
 
 @Entity
@@ -62,25 +63,16 @@ class ReproductionJpaEntity extends AssignedIdJpaEntity<UUID> {
 
     protected ReproductionJpaEntity() {}
 
-    @SuppressWarnings("java:S107")
-    ReproductionJpaEntity(
-            UUID reproductionId,
-            UUID attemptId,
-            UUID runId,
-            UUID caseId,
-            String laneId,
-            UUID idempotencyKey,
-            String requestHash,
-            Instant createdAt) {
-        this.reproductionId = reproductionId;
-        this.attemptId = attemptId;
-        this.runId = runId;
-        this.caseId = caseId;
-        this.laneId = laneId;
+    ReproductionJpaEntity(Reproduction queued, UUID idempotencyKey, String requestHash) {
+        this.reproductionId = queued.reproductionId();
+        this.attemptId = queued.attemptId();
+        this.runId = queued.runId();
+        this.caseId = queued.caseId();
+        this.laneId = queued.laneId();
         this.idempotencyKey = idempotencyKey;
         this.requestHash = requestHash;
         this.state = "QUEUED";
-        this.createdAt = createdAt;
+        this.createdAt = queued.createdAt();
     }
 
     @Override

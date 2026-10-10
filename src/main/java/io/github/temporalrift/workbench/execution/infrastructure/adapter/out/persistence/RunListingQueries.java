@@ -18,20 +18,22 @@ import org.springframework.stereotype.Component;
 @Component
 class RunListingQueries {
 
-    private static final Table<?> RUN = DSL.table(DSL.name("run"));
-    private static final Field<UUID> RUN_ID = DSL.field(DSL.name("run", "run_id"), SQLDataType.UUID);
-    private static final Field<UUID> RUN_EXPERIMENT = DSL.field(DSL.name("run", "experiment_id"), SQLDataType.UUID);
-    private static final Field<String> RUN_STATE = DSL.field(DSL.name("run", "state"), SQLDataType.VARCHAR);
+    private static final String RUN_TABLE = "run";
+    private static final String CASE_TABLE = "run_case";
+    private static final Table<?> RUN = DSL.table(DSL.name(RUN_TABLE));
+    private static final Field<UUID> RUN_ID = DSL.field(DSL.name(RUN_TABLE, "run_id"), SQLDataType.UUID);
+    private static final Field<UUID> RUN_EXPERIMENT = DSL.field(DSL.name(RUN_TABLE, "experiment_id"), SQLDataType.UUID);
+    private static final Field<String> RUN_STATE = DSL.field(DSL.name(RUN_TABLE, "state"), SQLDataType.VARCHAR);
     private static final Field<java.time.OffsetDateTime> RUN_CREATED =
-            DSL.field(DSL.name("run", "created_at"), SQLDataType.TIMESTAMPWITHTIMEZONE);
+            DSL.field(DSL.name(RUN_TABLE, "created_at"), SQLDataType.TIMESTAMPWITHTIMEZONE);
 
-    private static final Table<?> CASE = DSL.table(DSL.name("run_case"));
-    private static final Field<UUID> CASE_ID = DSL.field(DSL.name("run_case", "case_id"), SQLDataType.UUID);
-    private static final Field<UUID> CASE_RUN = DSL.field(DSL.name("run_case", "run_id"), SQLDataType.UUID);
-    private static final Field<String> CASE_STATE = DSL.field(DSL.name("run_case", "state"), SQLDataType.VARCHAR);
+    private static final Table<?> CASE = DSL.table(DSL.name(CASE_TABLE));
+    private static final Field<UUID> CASE_ID = DSL.field(DSL.name(CASE_TABLE, "case_id"), SQLDataType.UUID);
+    private static final Field<UUID> CASE_RUN = DSL.field(DSL.name(CASE_TABLE, "run_id"), SQLDataType.UUID);
+    private static final Field<String> CASE_STATE = DSL.field(DSL.name(CASE_TABLE, "state"), SQLDataType.VARCHAR);
     private static final Field<String> CASE_VARIANT =
-            DSL.field(DSL.name("run_case", "variant_label"), SQLDataType.VARCHAR);
-    private static final Field<Integer> CASE_ORDINAL = DSL.field(DSL.name("run_case", "ordinal"), SQLDataType.INTEGER);
+            DSL.field(DSL.name(CASE_TABLE, "variant_label"), SQLDataType.VARCHAR);
+    private static final Field<Integer> CASE_ORDINAL = DSL.field(DSL.name(CASE_TABLE, "ordinal"), SQLDataType.INTEGER);
 
     private final DSLContext dsl;
 

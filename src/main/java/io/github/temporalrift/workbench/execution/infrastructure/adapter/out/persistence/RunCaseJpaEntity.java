@@ -7,6 +7,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+import io.github.temporalrift.workbench.execution.domain.port.out.RunRepository.NewCase;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.AssignedIdJpaEntity;
 
 @Entity
@@ -46,25 +47,16 @@ class RunCaseJpaEntity extends AssignedIdJpaEntity<UUID> {
 
     protected RunCaseJpaEntity() {}
 
-    RunCaseJpaEntity(
-            UUID caseId,
-            UUID runId,
-            UUID caseKey,
-            int ordinal,
-            String variantLabel,
-            String seed,
-            int playerCount,
-            String seatsJson,
-            String state) {
+    RunCaseJpaEntity(UUID caseId, UUID runId, NewCase plan, String seatsJson) {
         this.caseId = caseId;
         this.runId = runId;
-        this.caseKey = caseKey;
-        this.ordinal = ordinal;
-        this.variantLabel = variantLabel;
-        this.seed = seed;
-        this.playerCount = playerCount;
+        this.caseKey = plan.caseKey();
+        this.ordinal = plan.ordinal();
+        this.variantLabel = plan.variantLabel();
+        this.seed = plan.seed();
+        this.playerCount = plan.playerCount();
         this.seatsJson = seatsJson;
-        this.state = state;
+        this.state = "PENDING";
     }
 
     @Override

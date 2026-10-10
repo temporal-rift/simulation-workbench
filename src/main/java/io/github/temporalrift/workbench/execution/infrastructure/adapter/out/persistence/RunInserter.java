@@ -52,15 +52,6 @@ class RunInserter {
     }
 
     private RunCaseJpaEntity entity(UUID runId, NewCase newCase) {
-        return new RunCaseJpaEntity(
-                UUID.randomUUID(),
-                runId,
-                newCase.caseKey(),
-                newCase.ordinal(),
-                newCase.variantLabel(),
-                newCase.seed(),
-                newCase.playerCount(),
-                json.write(newCase.seats()),
-                "PENDING");
+        return new RunCaseJpaEntity(UUID.randomUUID(), runId, newCase, json.write(newCase.seats()));
     }
 }

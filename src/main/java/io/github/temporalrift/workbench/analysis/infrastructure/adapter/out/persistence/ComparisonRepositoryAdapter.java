@@ -75,17 +75,7 @@ public class ComparisonRepositoryAdapter implements ComparisonRepository {
     @Override
     public boolean create(UUID idempotencyKey, String requestHash, ComparisonDefinition definition) {
         return insertOnce.insert(() -> comparisons.saveAndFlush(new AnalysisComparisonJpaEntity(
-                definition.comparisonId(),
-                idempotencyKey,
-                requestHash,
-                definition.baseline().runId(),
-                definition.baseline().variantLabel(),
-                definition.candidate().runId(),
-                definition.candidate().variantLabel(),
-                write(definition.declaredDifferences()),
-                definition.analysis().version(),
-                definition.analysis().seedText(),
-                clock.instant())));
+                definition, idempotencyKey, requestHash, write(definition.declaredDifferences()), clock.instant())));
     }
 
     private ComparisonDefinition definition(AnalysisComparisonJpaEntity entity) {

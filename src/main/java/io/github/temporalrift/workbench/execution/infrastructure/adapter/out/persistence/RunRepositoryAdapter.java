@@ -69,7 +69,7 @@ public class RunRepositoryAdapter implements RunRepository {
         try {
             inserter.insert(idempotencyKey, requestHash, run, concurrency, newCases);
             return new RunCreation.Created();
-        } catch (DataIntegrityViolationException claimedMeanwhile) {
+        } catch (DataIntegrityViolationException _) {
             return existing(idempotencyKey);
         }
     }
