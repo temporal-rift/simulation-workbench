@@ -1,5 +1,8 @@
 package io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest;
 
+import java.util.stream.Collectors;
+
+import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.annotation.Order;
@@ -15,6 +18,20 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    /** A request parameter outside the bounds its published contract declares is the caller's error. */
+    @ExceptionHandler(ConstraintViolationException.class)
+    ProblemDetail handleInvalidParameter(ConstraintViolationException ex) {
+        var violations = ex.getConstraintViolations().stream()
+                .map(violation -> parameterName(violation.getPropertyPath().toString()) + " " + violation.getMessage())
+                .sorted()
+                .collect(Collectors.joining("; "));
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Invalid request parameter: " + violations);
+    }
+
+    private static String parameterName(String propertyPath) {
+        return propertyPath.substring(propertyPath.lastIndexOf('.') + 1);
+    }
 
     @ExceptionHandler(Exception.class)
     ProblemDetail handleUnexpected(Exception ex) {

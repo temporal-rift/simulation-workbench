@@ -3,19 +3,20 @@ package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.pe
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import io.github.temporalrift.workbench.execution.domain.evidence.ObservedEvent;
 import io.github.temporalrift.workbench.execution.domain.evidence.PinnedEvidence;
@@ -23,217 +24,173 @@ import io.github.temporalrift.workbench.execution.domain.evidence.StepOutcome;
 import io.github.temporalrift.workbench.execution.domain.evidence.StepRecord;
 import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
 import io.github.temporalrift.workbench.execution.domain.reproduction.ManifestMismatchException;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.InsertOnce;
 
 /**
- * PostgreSQL evidence: pinned artifacts in a content-addressed store whose digests are re-checked on every
- * read, per-game step streams, and raw events deduplicated by source and event identifier.
+ * Evidence: pinned artifacts in a content-addressed store whose digests are re-checked on every read, per-game
+ * step streams, and raw events deduplicated by source and event identifier.
  */
+@Component
 public class EvidenceLedgerAdapter implements EvidenceLedger {
 
     private static final String JSON = "application/json";
     private static final String TEXT = "text/plain";
+    private static final String UNACKNOWLEDGED = "UNACKNOWLEDGED";
 
-    private static final String STEP_COLUMNS =
-            "step, seat_index, window_key, phase, era, round, logical_time, observation, decision, outcome,"
-                    + " outcome_code, entropy";
-    private static final String EVENT_COLUMNS =
-            "e.source, e.partition_no, e.offset_no, e.event_id, e.event_type, e.aggregate_id, e.aggregate_type,"
-                    + " e.game_id, e.occurred_at, e.version, e.payload_artifact, a.content AS payload_content";
+    /** Sources are topic names, so their natural order is the byte order the ledger always listed them in. */
+    private static final Comparator<EvidenceEventJpaEntity> EVENT_ORDER = Comparator.comparing(
+                    EvidenceEventJpaEntity::source)
+            .thenComparingInt(EvidenceEventJpaEntity::partitionNo)
+            .thenComparingLong(EvidenceEventJpaEntity::offsetNo);
 
-    private final JdbcTemplate jdbc;
-    private final TransactionTemplate transactions;
+    private final EvidenceArtifactJpaRepository artifacts;
+    private final CaseEvidenceJpaRepository evidence;
+    private final EvidenceStepJpaRepository steps;
+    private final EvidenceEventJpaRepository events;
+    private final EvidenceSourceOffsetJpaRepository offsets;
+    private final InsertOnce insertOnce;
+    private final EvidenceUpdates updates;
     private final Clock clock;
 
-    public EvidenceLedgerAdapter(JdbcTemplate jdbc, TransactionTemplate transactions, Clock clock) {
-        this.jdbc = jdbc;
-        this.transactions = transactions;
+    EvidenceLedgerAdapter(
+            EvidenceArtifactJpaRepository artifacts,
+            CaseEvidenceJpaRepository evidence,
+            EvidenceStepJpaRepository steps,
+            EvidenceEventJpaRepository events,
+            EvidenceSourceOffsetJpaRepository offsets,
+            InsertOnce insertOnce,
+            EvidenceUpdates updates,
+            Clock clock) {
+        this.artifacts = artifacts;
+        this.evidence = evidence;
+        this.steps = steps;
+        this.events = events;
+        this.offsets = offsets;
+        this.insertOnce = insertOnce;
+        this.updates = updates;
         this.clock = clock;
     }
 
     @Override
     public void pin(UUID scopeId, String manifestDigest, String manifestJson, Instant now) {
-        transactions.executeWithoutResult(status -> {
-            var artifact = putArtifact(manifestJson.getBytes(StandardCharsets.UTF_8), JSON, now);
-            jdbc.update(
-                    "INSERT INTO case_evidence (scope_id, manifest_digest, manifest_artifact, created_at)"
-                            + " VALUES (?, ?, ?, ?) ON CONFLICT (scope_id) DO NOTHING",
-                    scopeId,
-                    manifestDigest,
-                    artifact,
-                    Rows.timestamp(now));
-        });
+        var artifact = putArtifact(manifestJson.getBytes(StandardCharsets.UTF_8), JSON, now);
+        if (!evidence.existsById(scopeId)) {
+            insertOnce.insert(
+                    () -> evidence.saveAndFlush(new CaseEvidenceJpaEntity(scopeId, manifestDigest, artifact, now)));
+        }
     }
 
     @Override
     public void seal(UUID scopeId, String transcript, String resultDigest, Instant now) {
-        transactions.executeWithoutResult(status -> {
-            var artifact = putArtifact(transcript.getBytes(StandardCharsets.UTF_8), TEXT, now);
-            var sealed = jdbc.update(
-                    "UPDATE case_evidence SET transcript_artifact = ?, result_digest = ?, sealed_at = ?"
-                            + " WHERE scope_id = ?",
-                    artifact,
-                    resultDigest,
-                    Rows.timestamp(now),
-                    scopeId);
-            if (sealed == 0) {
-                throw new IllegalStateException("Evidence of " + scopeId + " was sealed before it was pinned");
-            }
-        });
+        updates.seal(scopeId, putArtifact(transcript.getBytes(StandardCharsets.UTF_8), TEXT, now), resultDigest, now);
     }
 
     @Override
     public Optional<PinnedEvidence> pinned(UUID scopeId) {
-        return jdbc
-                .query(
-                        "SELECT manifest_digest, manifest_artifact, transcript_artifact, result_digest"
-                                + " FROM case_evidence WHERE scope_id = ? AND sealed_at IS NOT NULL",
-                        (rs, i) -> new PinnedEvidence(
-                                rs.getString("manifest_digest"),
-                                artifactText(rs.getString("manifest_artifact")),
-                                artifactText(rs.getString("transcript_artifact")),
-                                rs.getString("result_digest")),
-                        scopeId)
-                .stream()
-                .findFirst();
+        return evidence.findByScopeIdAndSealedAtIsNotNull(scopeId)
+                .map(row -> new PinnedEvidence(
+                        row.manifestDigest(),
+                        artifactText(row.manifestArtifact()),
+                        artifactText(row.transcriptArtifact()),
+                        row.resultDigest()));
     }
 
     @Override
+    @Transactional
     public int append(UUID scopeId, UUID gameId, UUID attemptId, StepRecord step) {
-        return jdbc.queryForObject(
-                "INSERT INTO evidence_step (scope_id, game_id, step, attempt_id, seat_index, window_key, phase, era,"
-                        + " round, logical_time, observation, decision, outcome, outcome_code, entropy, recorded_at)"
-                        + " SELECT ?, ?, COALESCE(MAX(step) + 1, 0), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?"
-                        + " FROM evidence_step WHERE scope_id = ? AND game_id = ? RETURNING step",
-                Integer.class,
-                scopeId,
-                gameId,
-                attemptId,
-                step.seatIndex(),
-                step.windowKey(),
-                step.phase(),
-                step.era(),
-                step.round(),
-                Rows.timestamp(step.logicalTime()),
-                step.observation(),
-                step.decision(),
-                step.outcome().name(),
-                step.outcomeCode(),
-                step.entropy(),
-                Rows.timestamp(clock.instant()),
-                scopeId,
-                gameId);
+        var next = steps.findFirstByScopeIdAndGameIdOrderByStepDesc(scopeId, gameId)
+                .map(latest -> latest.step() + 1)
+                .orElse(0);
+        steps.saveAndFlush(new EvidenceStepJpaEntity(scopeId, gameId, next, attemptId, step, clock.instant()));
+        return next;
     }
 
     @Override
+    @Transactional
     public void resolve(UUID scopeId, UUID gameId, int seatIndex, String windowKey, StepOutcome outcome, String code) {
-        jdbc.update(
-                "UPDATE evidence_step SET outcome = ?, outcome_code = ? WHERE scope_id = ? AND game_id = ?"
-                        + " AND seat_index = ? AND window_key = ? AND outcome = 'UNACKNOWLEDGED'",
-                outcome.name(),
-                code,
-                scopeId,
-                gameId,
-                seatIndex,
-                windowKey);
+        steps.findAllWithLockByScopeIdAndGameIdAndSeatIndexAndWindowKeyAndOutcome(
+                        scopeId, gameId, seatIndex, windowKey, UNACKNOWLEDGED)
+                .forEach(step -> step.resolve(outcome.name(), code));
     }
 
     @Override
     public List<StepRecord> steps(UUID scopeId, UUID gameId) {
-        return jdbc.query(
-                "SELECT " + STEP_COLUMNS + " FROM evidence_step WHERE scope_id = ? AND game_id = ? ORDER BY step",
-                (rs, i) -> step(rs),
-                scopeId,
-                gameId);
+        return steps.findAllByScopeIdAndGameIdOrderByStep(scopeId, gameId).stream()
+                .map(EvidenceLedgerAdapter::stepRecord)
+                .toList();
     }
 
     @Override
     public boolean retain(UUID scopeId, UUID attemptId, ObservedEvent event) {
-        return Boolean.TRUE.equals(transactions.execute(status -> {
-            var now = clock.instant();
-            var payload = putArtifact(event.payload().getBytes(StandardCharsets.UTF_8), JSON, now);
-            var inserted = jdbc.update(
-                    "INSERT INTO evidence_event (scope_id, game_id, source, event_id, attempt_id, event_type,"
-                            + " aggregate_id, aggregate_type, occurred_at, version, partition_no, offset_no,"
-                            + " payload_artifact, observed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-                            + " ON CONFLICT (scope_id, game_id, source, event_id) DO NOTHING",
-                    scopeId,
-                    event.gameId(),
-                    event.source(),
-                    event.eventId(),
-                    attemptId,
-                    event.eventType(),
-                    event.aggregateId(),
-                    event.aggregateType(),
-                    Rows.timestamp(event.occurredAt()),
-                    event.version(),
-                    event.partition(),
-                    event.offset(),
-                    payload,
-                    Rows.timestamp(now));
-            return inserted == 1;
-        }));
+        var key = new EvidenceEventJpaEntity.Key(scopeId, event.gameId(), event.source(), event.eventId());
+        if (events.existsById(key)) {
+            return false;
+        }
+        var now = clock.instant();
+        var payload = putArtifact(event.payload().getBytes(StandardCharsets.UTF_8), JSON, now);
+        return insertOnce.insert(
+                () -> events.saveAndFlush(new EvidenceEventJpaEntity(scopeId, attemptId, event, payload, now)));
     }
 
     @Override
     public void advance(UUID scopeId, UUID gameId, String source, int partition, long nextOffset) {
-        jdbc.update(
-                "INSERT INTO evidence_source_offset (scope_id, game_id, source, partition_no, next_offset)"
-                        + " VALUES (?, ?, ?, ?, ?) ON CONFLICT (scope_id, game_id, source, partition_no)"
-                        + " DO UPDATE SET next_offset = GREATEST(evidence_source_offset.next_offset,"
-                        + " EXCLUDED.next_offset)",
-                scopeId,
-                gameId,
-                source,
-                partition,
-                nextOffset);
+        var key = new EvidenceSourceOffsetJpaEntity.Key(scopeId, gameId, source, partition);
+        if (!offsets.existsById(key)) {
+            insertOnce.insert(() -> offsets.saveAndFlush(
+                    new EvidenceSourceOffsetJpaEntity(scopeId, gameId, source, partition, nextOffset)));
+        }
+        updates.raiseOffset(scopeId, gameId, source, partition, nextOffset);
     }
 
     @Override
     public List<ObservedEvent> events(UUID scopeId, UUID gameId) {
-        return jdbc.query(
-                "SELECT " + EVENT_COLUMNS + " FROM evidence_event e LEFT JOIN evidence_artifact a"
-                        + " ON a.digest = e.payload_artifact WHERE e.scope_id = ? AND e.game_id = ?"
-                        + " ORDER BY e.source COLLATE \"C\", e.partition_no, e.offset_no",
-                (rs, i) -> event(rs),
-                scopeId,
-                gameId);
+        var retained = events.findAllByScopeIdAndGameId(scopeId, gameId).stream()
+                .sorted(EVENT_ORDER)
+                .toList();
+        var payloads = artifacts
+                .findAllById(retained.stream()
+                        .map(EvidenceEventJpaEntity::payloadArtifact)
+                        .distinct()
+                        .toList())
+                .stream()
+                .collect(Collectors.toMap(EvidenceArtifactJpaEntity::getId, Function.identity()));
+        return retained.stream()
+                .map(event -> observed(
+                        event,
+                        verified(
+                                event.payloadArtifact(),
+                                Optional.ofNullable(payloads.get(event.payloadArtifact()))
+                                        .map(EvidenceArtifactJpaEntity::content)
+                                        .orElse(null))))
+                .toList();
     }
 
     @Override
     public Map<SourcePartition, Long> offsets(UUID scopeId, UUID gameId) {
-        var offsets = new LinkedHashMap<SourcePartition, Long>();
-        jdbc.query(
-                "SELECT source, partition_no, next_offset FROM evidence_source_offset WHERE scope_id = ?"
-                        + " AND game_id = ? ORDER BY source COLLATE \"C\", partition_no",
-                rs -> {
-                    offsets.put(
-                            new SourcePartition(rs.getString("source"), rs.getInt("partition_no")),
-                            rs.getLong("next_offset"));
-                },
-                scopeId,
-                gameId);
-        return offsets;
+        var result = new LinkedHashMap<SourcePartition, Long>();
+        offsets.findAllByScopeIdAndGameId(scopeId, gameId).stream()
+                .sorted(Comparator.comparing(EvidenceSourceOffsetJpaEntity::source)
+                        .thenComparingInt(EvidenceSourceOffsetJpaEntity::partitionNo))
+                .forEach(offset ->
+                        result.put(new SourcePartition(offset.source(), offset.partitionNo()), offset.nextOffset()));
+        return result;
     }
 
     @Override
+    @Transactional
     public void purge(UUID scopeId) {
-        transactions.executeWithoutResult(status -> {
-            jdbc.update("DELETE FROM evidence_step WHERE scope_id = ?", scopeId);
-            jdbc.update("DELETE FROM evidence_event WHERE scope_id = ?", scopeId);
-            jdbc.update("DELETE FROM evidence_source_offset WHERE scope_id = ?", scopeId);
-            jdbc.update("DELETE FROM case_evidence WHERE scope_id = ?", scopeId);
-        });
+        steps.deleteAllByScopeId(scopeId);
+        events.deleteAllByScopeId(scopeId);
+        offsets.deleteAllByScopeId(scopeId);
+        evidence.deleteById(scopeId);
     }
 
     private String putArtifact(byte[] content, String mediaType, Instant now) {
         var digest = sha256(content);
-        jdbc.update(
-                "INSERT INTO evidence_artifact (digest, media_type, content, created_at) VALUES (?, ?, ?, ?)"
-                        + " ON CONFLICT (digest) DO NOTHING",
-                digest,
-                mediaType,
-                content,
-                Rows.timestamp(now));
+        if (!artifacts.existsById(digest)) {
+            insertOnce.insert(
+                    () -> artifacts.saveAndFlush(new EvidenceArtifactJpaEntity(digest, mediaType, content, now)));
+        }
         return digest;
     }
 
@@ -242,12 +199,12 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
         if (digest == null) {
             throw new ManifestMismatchException("A pinned artifact is missing");
         }
-        var content = jdbc
-                .query("SELECT content FROM evidence_artifact WHERE digest = ?", (rs, i) -> rs.getBytes(1), digest)
-                .stream()
-                .findFirst()
-                .orElse(null);
-        return verified(digest, content);
+        return verified(
+                digest,
+                artifacts
+                        .findById(digest)
+                        .map(EvidenceArtifactJpaEntity::content)
+                        .orElse(null));
     }
 
     /** Refuses content that is missing or no longer hashes to its address. */
@@ -261,35 +218,35 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
         return new String(content, StandardCharsets.UTF_8);
     }
 
-    private StepRecord step(ResultSet rs) throws SQLException {
+    private static StepRecord stepRecord(EvidenceStepJpaEntity step) {
         return new StepRecord(
-                rs.getInt("step"),
-                rs.getInt("seat_index"),
-                rs.getString("window_key"),
-                rs.getString("phase"),
-                (Integer) rs.getObject("era"),
-                (Integer) rs.getObject("round"),
-                Rows.instant(rs, "logical_time"),
-                rs.getString("observation"),
-                rs.getString("decision"),
-                StepOutcome.valueOf(rs.getString("outcome")),
-                rs.getString("outcome_code"),
-                rs.getString("entropy"));
+                step.step(),
+                step.seatIndex(),
+                step.windowKey(),
+                step.phase(),
+                step.era(),
+                step.round(),
+                step.logicalTime(),
+                step.observation(),
+                step.decision(),
+                StepOutcome.valueOf(step.outcome()),
+                step.outcomeCode(),
+                step.entropy());
     }
 
-    private ObservedEvent event(ResultSet rs) throws SQLException {
+    private static ObservedEvent observed(EvidenceEventJpaEntity event, String payload) {
         return new ObservedEvent(
-                rs.getString("source"),
-                rs.getInt("partition_no"),
-                rs.getLong("offset_no"),
-                rs.getObject("event_id", UUID.class),
-                rs.getString("event_type"),
-                rs.getObject("aggregate_id", UUID.class),
-                rs.getString("aggregate_type"),
-                rs.getObject("game_id", UUID.class),
-                Rows.instant(rs, "occurred_at"),
-                rs.getInt("version"),
-                verified(rs.getString("payload_artifact"), rs.getBytes("payload_content")));
+                event.source(),
+                event.partitionNo(),
+                event.offsetNo(),
+                event.eventId(),
+                event.eventType(),
+                event.aggregateId(),
+                event.aggregateType(),
+                event.gameId(),
+                event.occurredAt(),
+                event.version() == null ? 0 : event.version(),
+                payload);
     }
 
     private static String sha256(byte[] content) {

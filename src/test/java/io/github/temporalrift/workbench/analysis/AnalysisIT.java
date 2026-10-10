@@ -179,6 +179,41 @@ class AnalysisIT {
     }
 
     @Test
+    void storedComparisonsAreListedNewestFirstAsSummariesAndFilteredByRun() throws Exception {
+        lanes.script(this::thresholdDecides);
+        var runId = finishedRun(experiment(List.of("1", "2")));
+        var other = startedRun(experiment(List.of("1", "2")));
+        var first = objectMapper
+                .readTree(read(compare(UUID.randomUUID(), side(runId, BASELINE), side(runId, CANDIDATE))))
+                .path("comparisonId")
+                .asString();
+        var second = objectMapper
+                .readTree(read(compare(UUID.randomUUID(), side(runId, CANDIDATE), side(runId, BASELINE))))
+                .path("comparisonId")
+                .asString();
+
+        var listed = objectMapper.readTree(read(mockMvc.perform(get("/api/v1/comparisons")
+                        .param("runId", runId.toString())
+                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:read"))))
+                .andExpect(status().isOk())));
+        var unrelated = objectMapper.readTree(read(mockMvc.perform(get("/api/v1/comparisons")
+                        .param("runId", other.toString())
+                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:read"))))
+                .andExpect(status().isOk())));
+
+        assertThat(listed.path("total").asInt()).isEqualTo(2);
+        assertThat(listed.path("items").get(0).path("comparisonId").asString()).isEqualTo(second);
+        assertThat(listed.path("items").get(1).path("comparisonId").asString()).isEqualTo(first);
+        var summary = listed.path("items").get(1);
+        assertThat(summary.path("baseline").path("variantLabel").asString()).isEqualTo(BASELINE);
+        assertThat(summary.path("candidate").path("runId").asString()).isEqualTo(runId.toString());
+        assertThat(summary.path("analysisVersion").asString()).isEqualTo("1");
+        assertThat(summary.path("createdAt").asString()).isNotBlank();
+        assertThat(summary.has("cohorts")).isFalse();
+        assertThat(unrelated.path("total").asInt()).isZero();
+    }
+
+    @Test
     void aComparisonIsIdempotentByKey() throws Exception {
         lanes.script(this::thresholdDecides);
         var runId = finishedRun(experiment(List.of("1")));

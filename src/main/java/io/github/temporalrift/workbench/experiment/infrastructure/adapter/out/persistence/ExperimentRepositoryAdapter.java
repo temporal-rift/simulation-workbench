@@ -1,10 +1,12 @@
 package io.github.temporalrift.workbench.experiment.infrastructure.adapter.out.persistence;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.experiment.domain.port.out.ExperimentRepository;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.OffsetLimit;
 
 /** JPA-backed frozen experiment storage. Rows are inserted once and never updated. */
 public class ExperimentRepositoryAdapter implements ExperimentRepository {
@@ -22,14 +24,28 @@ public class ExperimentRepositoryAdapter implements ExperimentRepository {
 
     @Override
     public Optional<StoredExperiment> findById(UUID experimentId) {
-        return repository
-                .findById(experimentId)
-                .map(entity -> new StoredExperiment(
-                        entity.experimentId(),
-                        entity.manifestDigest(),
-                        entity.manifestJson(),
-                        entity.name(),
-                        entity.createdAt()));
+        return repository.findById(experimentId).map(ExperimentRepositoryAdapter::stored);
+    }
+
+    @Override
+    public List<StoredExperiment> findNewest(int limit, int offset) {
+        return repository.findAllByOrderByCreatedAtDescExperimentIdDesc(new OffsetLimit(offset, limit)).stream()
+                .map(ExperimentRepositoryAdapter::stored)
+                .toList();
+    }
+
+    @Override
+    public long count() {
+        return repository.count();
+    }
+
+    private static StoredExperiment stored(ExperimentEntity entity) {
+        return new StoredExperiment(
+                entity.experimentId(),
+                entity.manifestDigest(),
+                entity.manifestJson(),
+                entity.name(),
+                entity.createdAt());
     }
 
     @Override

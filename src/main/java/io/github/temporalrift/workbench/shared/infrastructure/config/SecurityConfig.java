@@ -23,7 +23,11 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth.requestMatchers("/actuator/health/**", "/actuator/prometheus")
                         .permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/v1/experiments", "/api/v1/comparisons")
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/experiments",
+                                "/api/v1/experiment-previews",
+                                "/api/v1/comparisons")
                         .hasAuthority(WRITE_SCOPE)
                         .requestMatchers(HttpMethod.POST, "/api/v1/experiments/*/runs")
                         .hasAuthority(WRITE_SCOPE)

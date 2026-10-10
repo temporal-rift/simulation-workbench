@@ -13,8 +13,6 @@ import org.springframework.boot.kafka.autoconfigure.KafkaConnectionDetails;
 import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
 
 import io.github.temporalrift.workbench.execution.RunCatalog;
@@ -31,6 +29,8 @@ import io.github.temporalrift.workbench.execution.application.port.in.CancelRunU
 import io.github.temporalrift.workbench.execution.application.port.in.GetCaseReplayUseCase;
 import io.github.temporalrift.workbench.execution.application.port.in.GetCaseUseCase;
 import io.github.temporalrift.workbench.execution.application.port.in.GetRunUseCase;
+import io.github.temporalrift.workbench.execution.application.port.in.ListCasesUseCase;
+import io.github.temporalrift.workbench.execution.application.port.in.ListRunsUseCase;
 import io.github.temporalrift.workbench.execution.application.port.in.ReproduceCaseUseCase;
 import io.github.temporalrift.workbench.execution.application.port.in.ResumeRunUseCase;
 import io.github.temporalrift.workbench.execution.application.port.in.RunBatchUseCase;
@@ -39,6 +39,8 @@ import io.github.temporalrift.workbench.execution.application.port.in.StartRunUs
 import io.github.temporalrift.workbench.execution.application.query.GetCaseQueryHandler;
 import io.github.temporalrift.workbench.execution.application.query.GetCaseReplayQueryHandler;
 import io.github.temporalrift.workbench.execution.application.query.GetRunQueryHandler;
+import io.github.temporalrift.workbench.execution.application.query.ListCasesQueryHandler;
+import io.github.temporalrift.workbench.execution.application.query.ListRunsQueryHandler;
 import io.github.temporalrift.workbench.execution.application.query.RunCatalogQueryHandler;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLedger;
 import io.github.temporalrift.workbench.execution.domain.port.out.CommandLedger;
@@ -58,11 +60,6 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneServices;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.RestApiClients;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.Sleeper;
-import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.persistence.CaseLedgerAdapter;
-import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.persistence.CommandLedgerAdapter;
-import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.persistence.EvidenceLedgerAdapter;
-import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.persistence.ReproductionRepositoryAdapter;
-import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.persistence.RunRepositoryAdapter;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.policy.DecisionRuntimeAdapter;
 import io.github.temporalrift.workbench.experiment.ExperimentCatalog;
 import io.github.temporalrift.workbench.policy.PolicyRuntime;
@@ -70,32 +67,6 @@ import io.github.temporalrift.workbench.policy.PolicyRuntime;
 @Configuration
 @EnableConfigurationProperties(ExecutionProperties.class)
 public class ExecutionConfiguration {
-
-    @Bean
-    RunRepository runRepository(JdbcTemplate jdbc, TransactionTemplate transactions, ObjectMapper objectMapper) {
-        return new RunRepositoryAdapter(jdbc, transactions, objectMapper);
-    }
-
-    @Bean
-    CaseLedger caseLedger(JdbcTemplate jdbc, TransactionTemplate transactions, ObjectMapper objectMapper) {
-        return new CaseLedgerAdapter(jdbc, transactions, objectMapper);
-    }
-
-    @Bean
-    CommandLedger commandLedger(JdbcTemplate jdbc, TransactionTemplate transactions) {
-        return new CommandLedgerAdapter(jdbc, transactions);
-    }
-
-    @Bean
-    EvidenceLedger evidenceLedger(JdbcTemplate jdbc, TransactionTemplate transactions, Clock clock) {
-        return new EvidenceLedgerAdapter(jdbc, transactions, clock);
-    }
-
-    @Bean
-    ReproductionRepository reproductionRepository(
-            JdbcTemplate jdbc, TransactionTemplate transactions, ObjectMapper objectMapper) {
-        return new ReproductionRepositoryAdapter(jdbc, transactions, objectMapper);
-    }
 
     @Bean
     GameEventObservers gameEventObservers(
@@ -176,6 +147,16 @@ public class ExecutionConfiguration {
     @Bean
     GetRunUseCase getRunUseCase(RunRepository runs) {
         return new GetRunQueryHandler(runs);
+    }
+
+    @Bean
+    ListRunsUseCase listRunsUseCase(RunRepository runs) {
+        return new ListRunsQueryHandler(runs);
+    }
+
+    @Bean
+    ListCasesUseCase listCasesUseCase(RunRepository runs) {
+        return new ListCasesQueryHandler(runs);
     }
 
     @Bean
