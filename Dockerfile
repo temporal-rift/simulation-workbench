@@ -6,6 +6,7 @@ COPY .mvn .mvn
 RUN --mount=type=secret,id=maven_settings,target=/root/.m2/settings.xml \
     mvn dependency:go-offline -q -Dspotless.skip=true -Dcheckstyle.skip=true -Denforcer.skip=true
 COPY src ./src
+COPY ui ./ui
 RUN --mount=type=secret,id=maven_settings,target=/root/.m2/settings.xml \
     mvn package -DskipTests -q -Dspotless.skip=true -Dcheckstyle.skip=true
 

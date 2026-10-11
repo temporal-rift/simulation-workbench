@@ -25,7 +25,12 @@ import io.github.temporalrift.workbench.experiment.application.port.in.ListExper
 import io.github.temporalrift.workbench.experiment.application.port.in.PreviewExperimentUseCase;
 import io.github.temporalrift.workbench.shared.infrastructure.config.SecurityConfig;
 
-@WebMvcTest(controllers = ExperimentController.class)
+@WebMvcTest(
+        controllers = ExperimentController.class,
+        properties = {
+            "workbench.ui.oidc-issuer-url=http://localhost:9000/default",
+            "workbench.ui.oidc-client-id=simulation-workbench-ui"
+        })
 @Import({SecurityConfig.class, TestSecurityConfig.class})
 class ExperimentSecurityIT {
 
