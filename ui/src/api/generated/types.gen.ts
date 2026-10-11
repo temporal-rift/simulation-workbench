@@ -554,7 +554,7 @@ export type ProblemDetail = {
     detail?: string;
     instance?: string;
     /**
-     * Path of the offending manifest value, such as `seeds` or `policies[0].seatAssignment`. Present on `INVALID_EXPERIMENT` when the refusal is attributable to one value; absent otherwise.
+     * Path of the offending manifest value, such as `seeds` or `policies[0].seatAssignment`. Present on `INVALID_EXPERIMENT` and `MANIFEST_MISMATCH` when the refusal is attributable to one value; absent otherwise.
      */
     field?: string;
     code: 'INVALID_EXPERIMENT' | 'INVALID_REPLAY_PERSPECTIVE' | 'INVALID_COMPARISON' | 'IDEMPOTENCY_CONFLICT' | 'EXPERIMENT_IMMUTABLE' | 'INVALID_RUN_STATE' | 'MANIFEST_MISMATCH' | 'INCOMPARABLE_RUNS' | 'UNAUTHORIZED' | 'INSUFFICIENT_SCOPE' | 'RESOURCE_NOT_FOUND';

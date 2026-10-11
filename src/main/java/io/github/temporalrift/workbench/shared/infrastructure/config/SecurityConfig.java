@@ -22,8 +22,7 @@ public class SecurityConfig {
     private static final String READ_SCOPE = "SCOPE_simulation:read";
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, ObjectMapper objectMapper, UiProperties ui)
-            throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, ObjectMapper objectMapper, UiProperties ui) {
         return http.csrf(AbstractHttpConfigurer::disable)
                 .headers(headers ->
                         headers.contentSecurityPolicy(csp -> csp.policyDirectives(contentSecurityPolicy(ui))))

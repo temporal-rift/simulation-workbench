@@ -34,6 +34,8 @@ public final class ExperimentValidator {
     static final int MAX_REJECTED_CANDIDATES = 1_000;
 
     private static final String SERVICES_PREFIX = "services.";
+    private static final String SCHEMA_VERSION_FIELD = "schemaVersion";
+    private static final String LABEL_FIELD = "label";
     private static final String SEAT_INDEX_FIELD = "seatIndex";
     private static final String POLICY_ID_FIELD = "policyId";
     private static final String POLICY_VERSION_FIELD = "policyVersion";
@@ -65,11 +67,11 @@ public final class ExperimentValidator {
         if (manifest == null || !manifest.isObject()) {
             throw invalid("manifest must be a JSON object");
         }
-        if (!manifest.has("schemaVersion")) {
-            throw invalid("schemaVersion", "schemaVersion is required");
+        if (!manifest.has(SCHEMA_VERSION_FIELD)) {
+            throw invalid(SCHEMA_VERSION_FIELD, "schemaVersion is required");
         }
-        if (manifest.get("schemaVersion").asInt(-1) != 1) {
-            throw invalid("schemaVersion", "schemaVersion must be 1");
+        if (manifest.get(SCHEMA_VERSION_FIELD).asInt(-1) != 1) {
+            throw invalid(SCHEMA_VERSION_FIELD, "schemaVersion must be 1");
         }
         var name = text(manifest, "name");
         if (name == null || name.isBlank() || name.length() > 120) {
@@ -101,12 +103,12 @@ public final class ExperimentValidator {
         for (int i = 0; i < variants.size(); i++) {
             var variant = variants.get(i);
             var path = "variants[" + i + "].";
-            var label = text(variant, "label");
+            var label = text(variant, LABEL_FIELD);
             if (label == null || label.isBlank()) {
-                throw invalid(path + "label", "variant label must be a nonempty string");
+                throw invalid(path + LABEL_FIELD, "variant label must be a nonempty string");
             }
             if (!seen.add(label)) {
-                throw invalid(path + "label", "variant labels must be unique: " + label);
+                throw invalid(path + LABEL_FIELD, "variant labels must be unique: " + label);
             }
             labels.add(label);
             artifact(variant.get("rulesArtifact"), path + "rulesArtifact");

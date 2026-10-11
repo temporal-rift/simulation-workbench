@@ -7,6 +7,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import tools.jackson.databind.ObjectMapper;
 
 import io.github.temporalrift.workbench.shared.infrastructure.config.UiProperties;
@@ -44,7 +45,7 @@ class UiController {
     @GetMapping(
             value = {ROUTE, ROUTE + "/**"},
             produces = MediaType.TEXT_HTML_VALUE)
-    String route() {
+    String route(@PathVariable("first") String first) {
         return "forward:/index.html";
     }
 }
