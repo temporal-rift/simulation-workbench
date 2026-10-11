@@ -20,6 +20,15 @@ class BaselinePolicyCatalogTest {
     }
 
     @Test
+    void everyListedBundleResolvesAsAReference() {
+        assertThat(catalog.list()).hasSize(2).allSatisfy(entry -> {
+            assertThat(entry.description()).isNotBlank();
+            assertThat(catalog.verify(entry.id(), entry.version(), entry.artifactDigest(), 0))
+                    .isEqualTo(PolicyReferenceVerdict.VALID);
+        });
+    }
+
+    @Test
     void unknownIdOrVersionIsUnknown() {
         var digest = BaselinePolicies.RANDOM_V1.artifactDigest();
 

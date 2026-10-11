@@ -123,8 +123,31 @@ rotation, policy assignment, variant) of a frozen manifest: complete faction set
 at 3 players, 5 at 4, 1 at 5) under `CYCLIC` rotation place every faction in every seat, giving
 30 + 20 + 5 = 55 base cases per seed, policy, and variant — 220 cases per seed with two homogeneous
 policies and two variants. Ordering is stable and every coordinate carries a deterministic `caseKey`;
-the durable runner persists these keys without recomputation. No REST preview endpoint exists in the
-published boundary, so preview is a domain service covered by unit tests, not a controller.
+the durable runner persists these keys without recomputation.
+
+`POST /api/v1/experiment-previews` (`simulation:write`, no `Idempotency-Key`) previews a manifest without
+freezing it: the same validation as `createExperiment`, then `manifestDigest`, `caseCount`, a `breakdown` by
+variant and player count, and a page of `cases` (`limit` up to 500, default 100, and `offset`). The digest and
+the case keys and order equal those of the experiment frozen from the same manifest and of any run started
+from it. Nothing is stored.
+
+## Discovery
+
+Reads for finding and reopening what the workbench holds need `simulation:read`. Lists return `{ items, total }`
+and take `limit` (1 to 500, default 50) and `offset`; a missing run for a case list is
+`404 RESOURCE_NOT_FOUND`.
+
+| Operation | Path | Order and filters |
+|---|---|---|
+| `getExperiment` | `GET /api/v1/experiments/{experimentId}` | The experiment exactly as frozen |
+| `listExperiments` | `GET /api/v1/experiments` | Newest first |
+| `listRuns` | `GET /api/v1/runs` | Newest first; `experimentId`, `state` |
+| `listCases` | `GET /api/v1/runs/{runId}/cases` | Matrix order; `state`, `variantLabel` |
+| `listComparisons` | `GET /api/v1/comparisons` | Newest first; `runId` (either side). Summaries only: `getComparison` computes the result |
+| `listPolicies` | `GET /api/v1/policies` | The bundles a manifest may reference, with `id`, `version`, `artifactDigest`, `description` and `parameters` (none for the baselines) |
+
+A case summary carries `caseId`, `caseKey`, `runId`, `variantLabel`, `seed`, `playerCount`, `state` and a
+nullable `endReason` (present once the case has a result).
 
 ## Runs and durable execution
 

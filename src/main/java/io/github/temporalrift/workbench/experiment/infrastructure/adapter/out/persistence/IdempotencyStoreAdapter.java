@@ -4,17 +4,18 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
-import org.springframework.transaction.annotation.Transactional;
-
 import io.github.temporalrift.workbench.experiment.domain.port.out.IdempotencyStore;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.InsertOnce;
 
-/** JPA-backed idempotency claims. A native insert-if-absent wins races without merge hazards. */
+/** JPA-backed idempotency claims; the primary key decides a race between two requests with the same key. */
 public class IdempotencyStoreAdapter implements IdempotencyStore {
 
     private final IdempotencyKeyJpaRepository repository;
+    private final InsertOnce insertOnce;
 
-    public IdempotencyStoreAdapter(IdempotencyKeyJpaRepository repository) {
+    public IdempotencyStoreAdapter(IdempotencyKeyJpaRepository repository, InsertOnce insertOnce) {
         this.repository = repository;
+        this.insertOnce = insertOnce;
     }
 
     @Override
@@ -26,8 +27,9 @@ public class IdempotencyStoreAdapter implements IdempotencyStore {
     }
 
     @Override
-    @Transactional
     public boolean saveIfAbsent(UUID key, String requestHash, UUID experimentId, Instant createdAt) {
-        return repository.insertIfAbsent(key, requestHash, experimentId, createdAt) == 1;
+        return !repository.existsById(key)
+                && insertOnce.insert(() ->
+                        repository.saveAndFlush(new IdempotencyKeyEntity(key, requestHash, experimentId, createdAt)));
     }
 }

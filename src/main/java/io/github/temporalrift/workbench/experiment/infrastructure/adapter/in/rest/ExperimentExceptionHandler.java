@@ -6,6 +6,7 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import io.github.temporalrift.workbench.experiment.domain.ExperimentNotFoundException;
 import io.github.temporalrift.workbench.experiment.domain.ExperimentValidationException;
 import io.github.temporalrift.workbench.experiment.domain.IdempotencyConflictException;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.ProblemDetails;
@@ -30,6 +31,11 @@ class ExperimentExceptionHandler {
     @ExceptionHandler(IdempotencyConflictException.class)
     ProblemDetail handleIdempotencyConflict(IdempotencyConflictException ex) {
         return ProblemDetails.of(HttpStatus.CONFLICT, ex.getMessage(), "IDEMPOTENCY_CONFLICT");
+    }
+
+    @ExceptionHandler(ExperimentNotFoundException.class)
+    ProblemDetail handleNotFound(ExperimentNotFoundException ex) {
+        return ProblemDetails.of(HttpStatus.NOT_FOUND, ex.getMessage(), "RESOURCE_NOT_FOUND");
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

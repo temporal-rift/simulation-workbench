@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 import tools.jackson.databind.JsonNode;
 
@@ -18,6 +19,16 @@ public final class MatrixPreviewService {
     private MatrixPreviewService() {}
 
     public static List<CaseCoordinate> preview(JsonNode manifest, String manifestDigest) {
+        var cases = new ArrayList<CaseCoordinate>();
+        enumerate(manifest, manifestDigest, cases::add);
+        return List.copyOf(cases);
+    }
+
+    /**
+     * Visits every case coordinate in the stable order without retaining any, so a caller can count the matrix
+     * and keep only the window it needs.
+     */
+    public static void enumerate(JsonNode manifest, String manifestDigest, Consumer<CaseCoordinate> visitor) {
         var view = ExperimentValidator.validate(manifest);
         var seeds = view.seeds().stream()
                 .sorted(MatrixPreviewService::compareUint64)
@@ -25,15 +36,13 @@ public final class MatrixPreviewService {
         var sets = view.factionSets().stream()
                 .sorted(MatrixPreviewService::compareSets)
                 .toList();
-        var cases = new ArrayList<CaseCoordinate>();
         for (String seed : seeds) {
             for (String variant : view.variantLabels()) {
                 for (var policy : view.policies()) {
-                    cases.addAll(baseCases(manifestDigest, seed, variant, policy, sets));
+                    baseCases(manifestDigest, seed, variant, policy, sets).forEach(visitor);
                 }
             }
         }
-        return List.copyOf(cases);
     }
 
     private static List<CaseCoordinate> baseCases(

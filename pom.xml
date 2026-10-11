@@ -57,7 +57,7 @@
         <sonar.coverage.exclusions>**/generated-sources/**/*</sonar.coverage.exclusions>
 
         <!-- Workbench-owned boundary (implemented by this application). -->
-        <simulation-api.version>2.0.0</simulation-api.version>
+        <simulation-api.version>3.0.0</simulation-api.version>
         <!-- Isolated execution boundary (consumed operator interface, owned by the game/timeline services). -->
         <simulation-control-api.version>1.1.1</simulation-control-api.version>
         <!-- Pinned participant/event contracts: consumed via generated clients/interfaces only.
@@ -144,6 +144,10 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jooq</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

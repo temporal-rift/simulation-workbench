@@ -1,9 +1,11 @@
 package io.github.temporalrift.workbench.analysis.infrastructure.adapter.in.rest;
 
 import java.math.BigDecimal;
+import java.time.ZoneOffset;
 import java.util.LinkedHashSet;
 import java.util.List;
 
+import io.github.temporalrift.workbench.analysis.application.port.in.ListComparisonsUseCase;
 import io.github.temporalrift.workbench.analysis.domain.comparison.ComparisonCohort;
 import io.github.temporalrift.workbench.analysis.domain.comparison.ComparisonResult;
 import io.github.temporalrift.workbench.analysis.domain.comparison.ExcludedPair;
@@ -20,6 +22,7 @@ import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CaseState;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Comparison;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ComparisonSide;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ComparisonSummary;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ConfidenceInterval;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.DeclaredDifference;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.MetricDimensions;
@@ -51,6 +54,17 @@ final class AnalysisApiMapper {
                 .caseCounts(counts(report.caseCounts()))
                 .cohorts(
                         report.cohorts().stream().map(AnalysisApiMapper::cohort).toList());
+    }
+
+    static ComparisonSummary summary(ListComparisonsUseCase.Listed listed) {
+        var definition = listed.definition();
+        return new ComparisonSummary(
+                definition.comparisonId(),
+                side(definition.baseline()),
+                side(definition.candidate()),
+                definition.analysis().version(),
+                definition.analysis().seedText(),
+                listed.createdAt().atOffset(ZoneOffset.UTC));
     }
 
     static Comparison comparison(ComparisonResult result) {

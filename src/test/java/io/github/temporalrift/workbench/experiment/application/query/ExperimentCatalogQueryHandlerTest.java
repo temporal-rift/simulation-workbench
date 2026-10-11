@@ -3,6 +3,7 @@ package io.github.temporalrift.workbench.experiment.application.query;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -73,6 +74,16 @@ class ExperimentCatalogQueryHandlerTest {
                         }
                         return Optional.of(new StoredExperiment(
                                 ID, ManifestDigest.sha256Hex(manifest), manifest.toString(), "x", Instant.now()));
+                    }
+
+                    @Override
+                    public List<StoredExperiment> findNewest(int limit, int offset) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public long count() {
+                        throw new UnsupportedOperationException();
                     }
 
                     @Override

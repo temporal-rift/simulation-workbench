@@ -20,6 +20,9 @@ import tools.jackson.databind.ObjectMapper;
 
 import io.github.temporalrift.workbench.TestSecurityConfig;
 import io.github.temporalrift.workbench.experiment.application.port.in.CreateExperimentUseCase;
+import io.github.temporalrift.workbench.experiment.application.port.in.GetExperimentUseCase;
+import io.github.temporalrift.workbench.experiment.application.port.in.ListExperimentsUseCase;
+import io.github.temporalrift.workbench.experiment.application.port.in.PreviewExperimentUseCase;
 import io.github.temporalrift.workbench.shared.infrastructure.config.SecurityConfig;
 
 @WebMvcTest(controllers = ExperimentController.class)
@@ -34,6 +37,15 @@ class ExperimentSecurityIT {
 
     @MockitoBean
     private CreateExperimentUseCase createExperimentUseCase;
+
+    @MockitoBean
+    private GetExperimentUseCase getExperimentUseCase;
+
+    @MockitoBean
+    private ListExperimentsUseCase listExperimentsUseCase;
+
+    @MockitoBean
+    private PreviewExperimentUseCase previewExperimentUseCase;
 
     @Test
     @DisplayName("Given no Authorization header, when createExperiment is called, then returns 401")

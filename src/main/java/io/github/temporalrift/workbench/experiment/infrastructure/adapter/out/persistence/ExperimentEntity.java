@@ -8,9 +8,11 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.AssignedIdJpaEntity;
+
 @Entity
 @Table(name = "experiment")
-class ExperimentEntity {
+class ExperimentEntity extends AssignedIdJpaEntity<UUID> {
 
     @Id
     @Column(name = "experiment_id", nullable = false)
@@ -36,6 +38,11 @@ class ExperimentEntity {
         this.manifestJson = manifestJson;
         this.name = name;
         this.createdAt = createdAt;
+    }
+
+    @Override
+    public UUID getId() {
+        return experimentId;
     }
 
     UUID experimentId() {

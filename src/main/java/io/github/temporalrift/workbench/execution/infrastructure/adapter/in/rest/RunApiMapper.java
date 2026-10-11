@@ -7,11 +7,13 @@ import java.util.List;
 
 import io.github.temporalrift.workbench.execution.application.port.in.CaseView;
 import io.github.temporalrift.workbench.execution.application.port.in.RunView;
+import io.github.temporalrift.workbench.execution.domain.run.LogicalCase;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Attempt;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.AttemptState;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CaseCounts;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CaseResult;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CaseState;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CaseSummary;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Faction;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Failure;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.FinalScore;
@@ -67,6 +69,33 @@ final class RunApiMapper {
                 CaseState.valueOf(logicalCase.state().name()),
                 view.attempts().stream().map(RunApiMapper::attempt).toList(),
                 result == null ? null : result(result));
+    }
+
+    static io.github.temporalrift.workbench.execution.domain.run.RunState toDomain(RunState state) {
+        return state == null
+                ? null
+                : io.github.temporalrift.workbench.execution.domain.run.RunState.valueOf(state.name());
+    }
+
+    static io.github.temporalrift.workbench.execution.domain.run.CaseState toDomain(CaseState state) {
+        return state == null
+                ? null
+                : io.github.temporalrift.workbench.execution.domain.run.CaseState.valueOf(state.name());
+    }
+
+    static CaseSummary toSummary(LogicalCase logicalCase) {
+        var result = logicalCase.result();
+        return new CaseSummary(
+                logicalCase.caseId(),
+                logicalCase.caseKey(),
+                logicalCase.runId(),
+                logicalCase.variantLabel(),
+                logicalCase.seed(),
+                CaseSummary.PlayerCountEnum.fromValue(logicalCase.playerCount()),
+                CaseState.valueOf(logicalCase.state().name()),
+                result == null
+                        ? null
+                        : CaseSummary.EndReasonEnum.fromValue(result.endReason().name()));
     }
 
     private static Attempt attempt(io.github.temporalrift.workbench.execution.domain.run.Attempt attempt) {

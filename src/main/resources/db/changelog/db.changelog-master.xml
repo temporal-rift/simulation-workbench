@@ -28,6 +28,7 @@
     <include file="db/changelog/execution/008-create-evidence-step.xml"/>
     <include file="db/changelog/execution/009-create-evidence-event.xml"/>
     <include file="db/changelog/execution/010-create-reproduction.xml"/>
+    <include file="db/changelog/execution/011-create-run-progress-view.xml"/>
 
     <!-- Analysis module: extracted case facts and stored comparison definitions -->
     <include file="db/changelog/analysis/001-create-analysis-case-fact.xml"/>

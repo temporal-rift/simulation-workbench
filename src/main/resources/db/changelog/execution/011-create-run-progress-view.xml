@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+  <changeSet id="011-create-run-progress-view" author="simulation-workbench">
+    <!-- How many of each run's logical cases are in each state; one row per run that has cases. -->
+    <createView viewName="run_progress">
+      SELECT run_id,
+             count(*) FILTER (WHERE state = 'PENDING') AS pending,
+             count(*) FILTER (WHERE state = 'RUNNING') AS running,
+             count(*) FILTER (WHERE state = 'SUCCEEDED') AS succeeded,
+             count(*) FILTER (WHERE state = 'FAILED') AS failed,
+             count(*) FILTER (WHERE state = 'CANCELLED') AS cancelled
+      FROM run_case
+      GROUP BY run_id
+    </createView>
+  </changeSet>
+</databaseChangeLog>
