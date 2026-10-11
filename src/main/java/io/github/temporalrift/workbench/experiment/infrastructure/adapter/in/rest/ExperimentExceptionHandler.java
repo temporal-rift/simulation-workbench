@@ -18,7 +18,7 @@ class ExperimentExceptionHandler {
 
     @ExceptionHandler(ExperimentValidationException.class)
     ProblemDetail handleValidation(ExperimentValidationException ex) {
-        return switch (ex.code()) {
+        var problem = switch (ex.code()) {
             case INVALID_EXPERIMENT -> ProblemDetails.of(HttpStatus.BAD_REQUEST, ex.getMessage(), "INVALID_EXPERIMENT");
             case MANIFEST_MISMATCH -> ProblemDetails.of(HttpStatus.CONFLICT, ex.getMessage(), "MANIFEST_MISMATCH");
             case EXPERIMENT_IMMUTABLE ->
@@ -26,6 +26,8 @@ class ExperimentExceptionHandler {
             case IDEMPOTENCY_CONFLICT ->
                 ProblemDetails.of(HttpStatus.CONFLICT, ex.getMessage(), "IDEMPOTENCY_CONFLICT");
         };
+        ex.field().ifPresent(field -> problem.setProperty("field", field));
+        return problem;
     }
 
     @ExceptionHandler(IdempotencyConflictException.class)

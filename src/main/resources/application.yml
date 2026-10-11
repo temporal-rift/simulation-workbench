@@ -48,6 +48,13 @@ spring:
     runtime:
       verification-enabled: true
 
+workbench:
+  ui:
+    # The application signs designers in with the identity provider that issues the bearer tokens this service accepts.
+    oidc-issuer-url: ${spring.security.oauth2.resourceserver.jwt.issuer-uri}
+    oidc-client-id: ${WORKBENCH_UI_OIDC_CLIENT_ID:simulation-workbench-ui}
+    oidc-audience: ${WORKBENCH_UI_OIDC_AUDIENCE:}
+
 management:
   endpoints:
     web:

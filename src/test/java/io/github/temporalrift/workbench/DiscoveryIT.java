@@ -110,6 +110,7 @@ class DiscoveryIT {
     void anInvalidManifestIsRefusedLikeFreezingAndNothingIsStored() throws Exception {
         var experiments = count("experiment");
         var manifest = (ObjectNode) ExperimentManifests.valid().deepCopy();
+        var index = manifest.withArray("factionSets").size();
         var set = manifest.withArray("factionSets").addArray();
         set.add("WEAVERS");
         set.add("WEAVERS");
@@ -117,7 +118,8 @@ class DiscoveryIT {
 
         preview(manifest, 10, 0)
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("INVALID_EXPERIMENT"));
+                .andExpect(jsonPath("$.code").value("INVALID_EXPERIMENT"))
+                .andExpect(jsonPath("$.field").value("factionSets[" + index + "]"));
 
         assertThat(count("experiment")).isEqualTo(experiments);
     }

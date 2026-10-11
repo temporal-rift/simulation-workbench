@@ -34,6 +34,8 @@ public final class ExperimentValidator {
     static final int MAX_REJECTED_CANDIDATES = 1_000;
 
     private static final String SERVICES_PREFIX = "services.";
+    private static final String SCHEMA_VERSION_FIELD = "schemaVersion";
+    private static final String LABEL_FIELD = "label";
     private static final String SEAT_INDEX_FIELD = "seatIndex";
     private static final String POLICY_ID_FIELD = "policyId";
     private static final String POLICY_VERSION_FIELD = "policyVersion";
@@ -65,13 +67,15 @@ public final class ExperimentValidator {
         if (manifest == null || !manifest.isObject()) {
             throw invalid("manifest must be a JSON object");
         }
-        require(manifest.has("schemaVersion"), "schemaVersion is required");
-        if (manifest.get("schemaVersion").asInt(-1) != 1) {
-            throw invalid("schemaVersion must be 1");
+        if (!manifest.has(SCHEMA_VERSION_FIELD)) {
+            throw invalid(SCHEMA_VERSION_FIELD, "schemaVersion is required");
+        }
+        if (manifest.get(SCHEMA_VERSION_FIELD).asInt(-1) != 1) {
+            throw invalid(SCHEMA_VERSION_FIELD, "schemaVersion must be 1");
         }
         var name = text(manifest, "name");
         if (name == null || name.isBlank() || name.length() > 120) {
-            throw invalid("name must be 1..120 characters");
+            throw invalid("name", "name must be 1..120 characters");
         }
         var variants = validateVariants(manifest.get("variants"));
         validateServices(manifest.get("services"));
@@ -92,217 +96,246 @@ public final class ExperimentValidator {
 
     private static List<String> validateVariants(JsonNode variants) {
         if (variants == null || !variants.isArray() || variants.isEmpty()) {
-            throw invalid("variants must be a nonempty array");
+            throw invalid("variants", "variants must be a nonempty array");
         }
         var labels = new ArrayList<String>();
         var seen = new HashSet<String>();
-        variants.forEach(variant -> {
-            var label = text(variant, "label");
+        for (int i = 0; i < variants.size(); i++) {
+            var variant = variants.get(i);
+            var path = "variants[" + i + "].";
+            var label = text(variant, LABEL_FIELD);
             if (label == null || label.isBlank()) {
-                throw invalid("variant label must be a nonempty string");
+                throw invalid(path + LABEL_FIELD, "variant label must be a nonempty string");
             }
             if (!seen.add(label)) {
-                throw invalid("variant labels must be unique: " + label);
+                throw invalid(path + LABEL_FIELD, "variant labels must be unique: " + label);
             }
             labels.add(label);
-            artifact(variant.get("rulesArtifact"), "rulesArtifact");
-            artifact(variant.get("contentArtifact"), "contentArtifact");
-            digest(text(variant, "effectiveRulesDigest"), "effectiveRulesDigest");
-            digest(text(variant, "effectiveContentDigest"), "effectiveContentDigest");
-        });
+            artifact(variant.get("rulesArtifact"), path + "rulesArtifact");
+            artifact(variant.get("contentArtifact"), path + "contentArtifact");
+            digest(text(variant, "effectiveRulesDigest"), path + "effectiveRulesDigest");
+            digest(text(variant, "effectiveContentDigest"), path + "effectiveContentDigest");
+        }
         return List.copyOf(labels);
     }
 
     private static void artifact(JsonNode artifact, String field) {
         if (artifact == null || !artifact.isObject()) {
-            throw invalid(field + " is required");
+            throw invalid(field, field + " is required");
         }
         digest(text(artifact, "digest"), field + ".digest");
     }
 
     private static String digest(String value, String field) {
         if (value == null || !SHA256.matcher(value).matches()) {
-            throw mismatch(field + " must be a lowercase SHA-256 hex digest");
+            throw mismatch(field, field + " must be a lowercase SHA-256 hex digest");
         }
         return value;
     }
 
     private static void validateServices(JsonNode services) {
         if (services == null || !services.isObject()) {
-            throw invalid("services is required");
+            throw invalid("services", "services is required");
         }
         for (String service : List.of("gameService", "timelineService", "readService")) {
+            var path = SERVICES_PREFIX + service;
             var node = services.get(service);
             if (node == null || !node.isObject()) {
-                throw invalid(SERVICES_PREFIX + service + " is required");
+                throw invalid(path, path + " is required");
             }
             var image = text(node, "imageDigest");
             if (image == null || !IMAGE_DIGEST.matcher(image).matches()) {
-                throw mismatch(SERVICES_PREFIX + service + ".imageDigest must match sha256:<hex>");
+                throw mismatch(path + ".imageDigest", path + ".imageDigest must match sha256:<hex>");
             }
             var revision = text(node, "sourceRevision");
             if (revision == null || !SOURCE_REVISION.matcher(revision).matches()) {
-                throw mismatch(SERVICES_PREFIX + service + ".sourceRevision must be 7..64 lowercase hex");
+                throw mismatch(path + ".sourceRevision", path + ".sourceRevision must be 7..64 lowercase hex");
             }
         }
     }
 
     private static void validateContracts(JsonNode contracts) {
         if (contracts == null || !contracts.isObject() || contracts.isEmpty()) {
-            throw invalid("contracts must carry at least one pinned module version");
+            throw invalid("contracts", "contracts must carry at least one pinned module version");
         }
         for (var entry : contracts.properties()) {
             if (!entry.getValue().isTextual()
                     || !SEMVER.matcher(entry.getValue().asString()).matches()) {
-                throw mismatch("contracts." + entry.getKey() + " must be an exact semantic version");
+                var path = "contracts." + entry.getKey();
+                throw mismatch(path, path + " must be an exact semantic version");
             }
         }
     }
 
     private static List<PolicyRef> validatePolicies(JsonNode policies, PolicyReferenceVerifier verifier) {
         if (policies == null || !policies.isArray() || policies.isEmpty()) {
-            throw invalid("policies must be a nonempty array");
+            throw invalid("policies", "policies must be a nonempty array");
         }
         var refs = new ArrayList<PolicyRef>();
-        policies.forEach(policy -> refs.add(validatePolicy(policy, verifier)));
+        for (int i = 0; i < policies.size(); i++) {
+            refs.add(validatePolicy(policies.get(i), "policies[" + i + "]", verifier));
+        }
         return List.copyOf(refs);
     }
 
-    private static PolicyRef validatePolicy(JsonNode policy, PolicyReferenceVerifier verifier) {
+    private static PolicyRef validatePolicy(JsonNode policy, String path, PolicyReferenceVerifier verifier) {
         var id = text(policy, "id");
         var version = text(policy, "version");
         if (id == null || id.isBlank()) {
-            throw invalid("policy id must be a nonempty string");
+            throw invalid(path + ".id", "policy id must be a nonempty string");
         }
         if (version == null || version.isBlank()) {
-            throw invalid("policy version must be a nonempty string");
+            throw invalid(path + ".version", "policy version must be a nonempty string");
         }
-        var artifactDigest = digest(text(policy, "artifactDigest"), "policy artifactDigest");
+        var artifactDigest = digest(text(policy, "artifactDigest"), path + ".artifactDigest");
         var parameters = policy.get("parameters");
         if (parameters == null || !parameters.isObject()) {
-            throw invalid("policy parameters must be an object");
+            throw invalid(path + ".parameters", "policy parameters must be an object");
         }
         if (verifier != null) {
-            verifyReference(verifier, id, version, artifactDigest, parameters.size());
+            verifyReference(verifier, path, id, version, artifactDigest, parameters.size());
         }
-        validateSeatAssignment(policy.get("seatAssignment"));
+        validateSeatAssignment(policy.get("seatAssignment"), path + ".seatAssignment");
         return new PolicyRef(id, version);
     }
 
     private static void verifyReference(
-            PolicyReferenceVerifier verifier, String id, String version, String artifactDigest, int parameterCount) {
+            PolicyReferenceVerifier verifier,
+            String path,
+            String id,
+            String version,
+            String artifactDigest,
+            int parameterCount) {
         switch (verifier.verify(id, version, artifactDigest, parameterCount)) {
             case VALID -> {
                 // The reference names a defined bundle; nothing to report.
             }
-            case UNKNOWN_POLICY -> throw invalid("unknown policy " + id + "@" + version);
-            case UNSUPPORTED_PARAMETERS -> throw invalid("policy " + id + "@" + version + " accepts no parameters");
+            case UNKNOWN_POLICY -> throw invalid(path + ".id", "unknown policy " + id + "@" + version);
+            case UNSUPPORTED_PARAMETERS ->
+                throw invalid(path + ".parameters", "policy " + id + "@" + version + " accepts no parameters");
             case DIGEST_MISMATCH ->
-                throw mismatch("policy " + id + "@" + version + " artifactDigest does not match the defined bundle");
+                throw mismatch(
+                        path + ".artifactDigest",
+                        "policy " + id + "@" + version + " artifactDigest does not match the defined bundle");
         }
     }
 
-    private static void validateSeatAssignment(JsonNode seats) {
+    private static void validateSeatAssignment(JsonNode seats, String path) {
         if (seats == null || !seats.isArray() || seats.isEmpty()) {
-            throw invalid("policy seatAssignment must be a nonempty array");
+            throw invalid(path, "policy seatAssignment must be a nonempty array");
         }
         var seenSeats = new HashSet<String>();
-        seats.forEach(seat -> validateSeat(seat, seenSeats));
+        for (int i = 0; i < seats.size(); i++) {
+            validateSeat(seats.get(i), path + "[" + i + "]", seenSeats);
+        }
     }
 
-    private static void validateSeat(JsonNode seat, Set<String> seenSeats) {
+    private static void validateSeat(JsonNode seat, String path, Set<String> seenSeats) {
         if (!seat.isObject()
                 || !seat.has(SEAT_INDEX_FIELD)
                 || seat.get(SEAT_INDEX_FIELD).asInt(-1) < 0) {
-            throw invalid("seatAssignment seatIndex must be a nonnegative integer");
+            throw invalid(path + "." + SEAT_INDEX_FIELD, "seatAssignment seatIndex must be a nonnegative integer");
         }
         var policyId = text(seat, POLICY_ID_FIELD);
         var policyVersion = text(seat, POLICY_VERSION_FIELD);
-        if (policyId == null || policyId.isBlank() || policyVersion == null || policyVersion.isBlank()) {
-            throw invalid("seatAssignment policyId/policyVersion must be nonempty");
+        if (policyId == null || policyId.isBlank()) {
+            throw invalid(path + "." + POLICY_ID_FIELD, "seatAssignment policyId must be nonempty");
+        }
+        if (policyVersion == null || policyVersion.isBlank()) {
+            throw invalid(path + "." + POLICY_VERSION_FIELD, "seatAssignment policyVersion must be nonempty");
         }
         if (!seenSeats.add(seat.get(SEAT_INDEX_FIELD).asInt() + "|" + policyId + "|" + policyVersion)) {
-            throw invalid("policy seatAssignment entries must be unique");
+            throw invalid(path, "policy seatAssignment entries must be unique");
         }
     }
 
     private static List<String> validateSeeds(JsonNode seeds) {
         if (seeds == null || !seeds.isArray() || seeds.isEmpty()) {
-            throw invalid("seeds must be a nonempty array");
+            throw invalid("seeds", "seeds must be a nonempty array");
         }
         var values = new ArrayList<String>();
         var seen = new HashSet<String>();
-        seeds.forEach(seed -> {
+        for (int i = 0; i < seeds.size(); i++) {
+            var seed = seeds.get(i);
+            var path = "seeds[" + i + "]";
             if (!seed.isTextual()) {
-                throw invalid("seeds must be decimal uint64 strings");
+                throw invalid(path, "seeds must be decimal uint64 strings");
             }
             var value = seed.asString();
             if (!UINT64.matcher(value).matches() || new BigInteger(value).compareTo(MAX_UINT64) > 0) {
-                throw invalid("seed out of uint64 range: " + value);
+                throw invalid(path, "seed out of uint64 range: " + value);
             }
             if (!seen.add(value)) {
-                throw invalid("seeds must be unique: " + value);
+                throw invalid(path, "seeds must be unique: " + value);
             }
             values.add(value);
-        });
+        }
         return List.copyOf(values);
     }
 
     private static Set<Integer> validatePlayerCounts(JsonNode counts) {
         if (counts == null || !counts.isArray() || counts.isEmpty()) {
-            throw invalid("playerCounts must be a nonempty array");
+            throw invalid("playerCounts", "playerCounts must be a nonempty array");
         }
         var values = new HashSet<Integer>();
-        counts.forEach(count -> {
+        for (int i = 0; i < counts.size(); i++) {
+            var count = counts.get(i);
+            var path = "playerCounts[" + i + "]";
             if (!count.isInt() && !count.isLong()) {
-                throw invalid("playerCounts must be integers");
+                throw invalid(path, "playerCounts must be integers");
             }
             int value = count.asInt();
             if (!PLAYER_COUNTS.contains(value)) {
-                throw invalid("playerCounts must be a subset of [3, 4, 5]: " + value);
+                throw invalid(path, "playerCounts must be a subset of [3, 4, 5]: " + value);
             }
             if (!values.add(value)) {
-                throw invalid("playerCounts must be unique: " + value);
+                throw invalid(path, "playerCounts must be unique: " + value);
             }
-        });
+        }
         return Set.copyOf(values);
     }
 
     private static List<List<String>> validateFactionSets(JsonNode sets, Set<Integer> playerCounts) {
         if (sets == null || !sets.isArray() || sets.isEmpty()) {
-            throw invalid("factionSets must be a nonempty array");
+            throw invalid("factionSets", "factionSets must be a nonempty array");
         }
         var normalized = new ArrayList<List<String>>();
         var seen = new HashSet<String>();
-        sets.forEach(set -> {
-            if (set == null || !set.isArray() || set.size() < 3 || set.size() > 5) {
-                throw invalid("every faction set must carry 3..5 factions");
-            }
-            var factions = new ArrayList<String>();
-            set.forEach(faction -> {
-                if (!faction.isTextual() || !FACTIONS.contains(faction.asString())) {
-                    throw invalid("unknown faction: " + faction);
-                }
-                factions.add(faction.asString());
-            });
-            if (new HashSet<>(factions).size() != factions.size()) {
-                throw invalid("faction set carries a duplicate faction: " + factions);
-            }
-            if (!playerCounts.contains(factions.size())) {
-                throw invalid("faction set size " + factions.size() + " is not a selected player count");
-            }
-            var sorted = factions.stream().sorted().toList();
-            if (!seen.add(String.join(",", sorted))) {
-                throw invalid("factionSets must be unique: " + factions);
-            }
-            normalized.add(sorted);
-        });
+        for (int i = 0; i < sets.size(); i++) {
+            normalized.add(validateFactionSet(sets.get(i), "factionSets[" + i + "]", playerCounts, seen));
+        }
         return List.copyOf(normalized);
+    }
+
+    private static List<String> validateFactionSet(
+            JsonNode set, String path, Set<Integer> playerCounts, Set<String> seen) {
+        if (set == null || !set.isArray() || set.size() < 3 || set.size() > 5) {
+            throw invalid(path, "every faction set must carry 3..5 factions");
+        }
+        var factions = new ArrayList<String>();
+        for (int j = 0; j < set.size(); j++) {
+            var faction = set.get(j);
+            if (!faction.isTextual() || !FACTIONS.contains(faction.asString())) {
+                throw invalid(path + "[" + j + "]", "unknown faction: " + faction);
+            }
+            factions.add(faction.asString());
+        }
+        if (new HashSet<>(factions).size() != factions.size()) {
+            throw invalid(path, "faction set carries a duplicate faction: " + factions);
+        }
+        if (!playerCounts.contains(factions.size())) {
+            throw invalid(path, "faction set size " + factions.size() + " is not a selected player count");
+        }
+        var sorted = factions.stream().sorted().toList();
+        if (!seen.add(String.join(",", sorted))) {
+            throw invalid(path, "factionSets must be unique: " + factions);
+        }
+        return sorted;
     }
 
     private static void validateEnum(JsonNode manifest, String field, String expected) {
         if (!manifest.has(field) || !expected.equals(text(manifest, field))) {
-            throw invalid(field + " must be " + expected);
+            throw invalid(field, field + " must be " + expected);
         }
     }
 
@@ -318,53 +351,56 @@ public final class ExperimentValidator {
     private static void validateBoundedInt(JsonNode manifest, String field, int max) {
         var node = manifest.get(field);
         if (node == null || !node.isInt() || node.asInt() < 1 || node.asInt() > max) {
-            throw invalid(field + " must be an integer from 1 to " + max);
+            throw invalid(field, field + " must be an integer from 1 to " + max);
         }
     }
 
     static void rejectSecretsAndLocalPaths(JsonNode manifest) {
-        inspect(manifest);
+        inspect(manifest, "");
     }
 
-    private static void inspect(JsonNode node) {
+    private static void inspect(JsonNode node, String path) {
         if (node.isObject()) {
             for (var entry : node.properties()) {
-                rejectSecretFieldName(entry.getKey());
-                inspectValue(entry.getValue());
+                var child = path.isEmpty() ? entry.getKey() : path + "." + entry.getKey();
+                rejectSecretFieldName(entry.getKey(), child);
+                inspectValue(entry.getValue(), child);
             }
         } else if (node.isArray()) {
-            node.forEach(ExperimentValidator::inspectValue);
+            for (int i = 0; i < node.size(); i++) {
+                inspectValue(node.get(i), path + "[" + i + "]");
+            }
         }
     }
 
-    private static void inspectValue(JsonNode value) {
+    private static void inspectValue(JsonNode value, String path) {
         if (value.isTextual()) {
-            rejectSecretOrLocalValue(value.asString());
+            rejectSecretOrLocalValue(value.asString(), path);
         } else {
-            inspect(value);
+            inspect(value, path);
         }
     }
 
-    private static void rejectSecretFieldName(String fieldName) {
+    private static void rejectSecretFieldName(String fieldName, String path) {
         var segments = new HashSet<>(List.of(fieldName.toLowerCase().split("[^a-z0-9]+")));
         for (String key : SECRET_KEYS) {
             var keySegments = List.of(key.split("[^a-z0-9]+"));
             if (segments.containsAll(keySegments)) {
-                throw invalid("manifest must not carry credentials or secrets: " + fieldName);
+                throw invalid(path, "manifest must not carry credentials or secrets: " + fieldName);
             }
         }
     }
 
-    private static void rejectSecretOrLocalValue(String value) {
+    private static void rejectSecretOrLocalValue(String value, String path) {
         var lower = value.toLowerCase();
         for (String marker : SECRET_VALUE_MARKERS) {
             if (lower.startsWith(marker)) {
-                throw invalid("manifest must not carry credentials or secrets");
+                throw invalid(path, "manifest must not carry credentials or secrets");
             }
         }
         for (String marker : LOCAL_PATH_MARKERS) {
             if (lower.startsWith(marker)) {
-                throw invalid("manifest must not carry machine-local paths: " + marker);
+                throw invalid(path, "manifest must not carry machine-local paths: " + marker);
             }
         }
     }
@@ -377,18 +413,16 @@ public final class ExperimentValidator {
         return value.isTextual() ? value.asString() : null;
     }
 
-    private static void require(boolean condition, String message) {
-        if (!condition) {
-            throw invalid(message);
-        }
-    }
-
     private static ExperimentValidationException invalid(String message) {
         return new ExperimentValidationException(ExperimentErrorCode.INVALID_EXPERIMENT, message);
     }
 
-    private static ExperimentValidationException mismatch(String message) {
-        return new ExperimentValidationException(ExperimentErrorCode.MANIFEST_MISMATCH, message);
+    private static ExperimentValidationException invalid(String field, String message) {
+        return new ExperimentValidationException(ExperimentErrorCode.INVALID_EXPERIMENT, message, field);
+    }
+
+    private static ExperimentValidationException mismatch(String field, String message) {
+        return new ExperimentValidationException(ExperimentErrorCode.MANIFEST_MISMATCH, message, field);
     }
 
     /** Validated, normalized view of a manifest for freeze and matrix enumeration. */

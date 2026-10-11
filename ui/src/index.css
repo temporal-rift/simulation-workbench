@@ -1,0 +1,294 @@
+:root {
+  color-scheme: light dark;
+  --bg: #fafbfc;
+  --fg: #16202e;
+  --muted: #4a5568;
+  --border: #c5ccd6;
+  --accent: #1f4fb3;
+  --error: #9b1c1c;
+  --error-bg: #fdecec;
+  --warning: #7a4b00;
+  --warning-bg: #fff4dc;
+  --surface: #ffffff;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  line-height: 1.5;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111722;
+    --fg: #e6ebf2;
+    --muted: #a9b4c4;
+    --border: #3a475b;
+    --accent: #8fb3ff;
+    --error: #ffb4b4;
+    --error-bg: #3a1b1b;
+    --warning: #ffd88a;
+    --warning-bg: #3a2b0e;
+    --surface: #182030;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+a {
+  color: var(--accent);
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.skip-link {
+  position: absolute;
+  left: 0.5rem;
+  top: -4rem;
+  background: var(--surface);
+  padding: 0.5rem 1rem;
+}
+
+.skip-link:focus {
+  top: 0.5rem;
+}
+
+.shell-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem 2rem;
+  padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.shell-header p {
+  margin: 0;
+}
+
+.brand {
+  font-weight: 700;
+}
+
+.shell-header nav {
+  display: flex;
+  gap: 1rem;
+}
+
+.session {
+  margin-left: auto !important;
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  color: var(--muted);
+}
+
+main {
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: 1rem 1.5rem 4rem;
+}
+
+main.centered {
+  text-align: center;
+  padding-top: 4rem;
+}
+
+h1 {
+  font-size: 1.6rem;
+}
+
+h2 {
+  font-size: 1.25rem;
+  margin-top: 2rem;
+}
+
+button,
+select,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+button[aria-disabled='true'],
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+input[type='text'],
+textarea,
+select {
+  width: 100%;
+  max-width: 40rem;
+  box-sizing: border-box;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+}
+
+select {
+  width: auto;
+}
+
+.mono,
+code {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 0.9em;
+  overflow-wrap: anywhere;
+}
+
+fieldset {
+  margin: 1rem 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.field {
+  margin: 0.75rem 0;
+}
+
+.field label {
+  display: block;
+  font-weight: 600;
+}
+
+.field-invalid input,
+.field-invalid textarea,
+.field-invalid select {
+  border-color: var(--error);
+  border-width: 2px;
+}
+
+.field-error {
+  color: var(--error);
+  margin: 0.25rem 0 0;
+}
+
+.hint {
+  color: var(--muted);
+  margin: 0.25rem 0 0;
+  font-size: 0.9rem;
+}
+
+.scoped-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-right: 1.25rem;
+}
+
+.inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.notice {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  margin: 1rem 0;
+}
+
+.notice p {
+  margin: 0.25rem 0;
+}
+
+.notice-error {
+  border-color: var(--error);
+  background: var(--error-bg);
+  color: var(--error);
+}
+
+.notice-warning {
+  border-color: var(--warning);
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.stale,
+.partial {
+  color: var(--warning);
+  font-weight: 600;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+
+caption {
+  text-align: left;
+  font-weight: 600;
+  padding: 0.25rem 0;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.35rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.pager {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.summary:focus {
+  outline: none;
+}
+
+dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 1.5rem;
+}
+
+dt {
+  font-weight: 600;
+}
+
+dd {
+  margin: 0;
+}
