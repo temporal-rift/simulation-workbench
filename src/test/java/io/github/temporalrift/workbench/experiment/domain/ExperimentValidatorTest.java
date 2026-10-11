@@ -75,6 +75,43 @@ class ExperimentValidatorTest {
     }
 
     @Test
+    void aRefusalNamesTheOffendingValue() {
+        var duplicateSeed = (ObjectNode) ExperimentManifests.valid().deepCopy();
+        duplicateSeed.withArray("seeds").add("42");
+        var badSeat = (ObjectNode) ExperimentManifests.valid().deepCopy();
+        badSeat.withArray("policies")
+                .get(0)
+                .withArray("seatAssignment")
+                .get(0)
+                .asObject()
+                .put("seatIndex", -1);
+        var badDigest = (ObjectNode) ExperimentManifests.valid().deepCopy();
+        badDigest.withArray("variants").get(1).asObject().put("effectiveContentDigest", "nope");
+
+        var duplicateFaction = (ObjectNode) ExperimentManifests.valid().deepCopy();
+        var sets = duplicateFaction.withArray("factionSets");
+        var expectedIndex = sets.size();
+        var repeated = sets.addArray();
+        repeated.add("WEAVERS");
+        repeated.add("WEAVERS");
+        repeated.add("WEAVERS");
+
+        assertThat(fieldOf(duplicateFaction)).isEqualTo("factionSets[" + expectedIndex + "]");
+        assertThat(fieldOf(duplicateSeed)).isEqualTo("seeds[1]");
+        assertThat(fieldOf(badSeat)).isEqualTo("policies[0].seatAssignment[0].seatIndex");
+        assertThat(fieldOf(badDigest)).isEqualTo("variants[1].effectiveContentDigest");
+    }
+
+    private static String fieldOf(ObjectNode manifest) {
+        try {
+            ExperimentValidator.validate(manifest);
+        } catch (ExperimentValidationException ex) {
+            return ex.field().orElseThrow();
+        }
+        throw new AssertionError("the manifest was accepted");
+    }
+
+    @Test
     void duplicateVariantLabelsAreInvalid() {
         var manifest = (ObjectNode) ExperimentManifests.valid().deepCopy();
         manifest.withArray("variants").get(1).asObject().put("label", "baseline");
