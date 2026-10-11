@@ -49,6 +49,8 @@ export function ExperimentFormPage() {
   const [blocked, setBlocked] = useState<string | null>(null)
   const summary = useRef<HTMLDivElement>(null)
   const confirmation = useRef<HTMLDivElement>(null)
+  // Kept until the freeze succeeds or the draft changes, so retrying a freeze whose answer was lost cannot freeze twice.
+  const freezeIntent = useRef<{ readonly fingerprint: string; readonly key: string } | null>(null)
 
   const catalog = useQuery(policiesQuery(client))
   const manifest = useMemo(() => draftToManifest(draft), [draft])
@@ -81,6 +83,7 @@ export function ExperimentFormPage() {
   const freeze = useMutation({
     mutationFn: ({ idempotencyKey }: { readonly idempotencyKey: string }) => freezeManifest(client, manifest, idempotencyKey),
     onSuccess: async (experiment) => {
+      freezeIntent.current = null
       clearDraft()
       await queryClient.invalidateQueries({ queryKey: ['experiments'] })
       announce('Experiment frozen.')
@@ -124,6 +127,13 @@ export function ExperimentFormPage() {
     }
     setBlocked(null)
     preview.mutate({ offset })
+  }
+
+  function openConfirmation() {
+    if (freezeIntent.current?.fingerprint !== current) {
+      freezeIntent.current = { fingerprint: current, key: crypto.randomUUID() }
+    }
+    setConfirming({ idempotencyKey: freezeIntent.current.key })
   }
 
   function confirmFreeze() {
@@ -170,7 +180,7 @@ export function ExperimentFormPage() {
         <h2 id="freeze-heading">Freeze</h2>
         {confirming === null || !taken || !upToDate ? (
           <>
-            <ScopedButton scope={WRITE_SCOPE} disabled={!upToDate} onAction={() => setConfirming({ idempotencyKey: crypto.randomUUID() })}>
+            <ScopedButton scope={WRITE_SCOPE} disabled={!upToDate} onAction={openConfirmation}>
               Freeze this experiment…
             </ScopedButton>
             {!upToDate && <p className="hint">Preview the current draft first; only a previewed matrix can be frozen.</p>}

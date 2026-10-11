@@ -87,6 +87,8 @@ export const caseQuery = (client: Client, runId: string, caseId: string) =>
   queryOptions({
     queryKey: ['case', runId, caseId],
     queryFn: () => unwrap(() => getCase({ client, path: { runId, caseId } })),
+    // A page of failed cases reads one case each; a refocus or remount should not repeat them all.
+    staleTime: 30_000,
   })
 
 export const previewManifest = (client: Client, manifest: ExperimentManifest, offset: number) =>

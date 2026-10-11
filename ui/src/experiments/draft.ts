@@ -258,7 +258,11 @@ export function loadDraft(): StoredDraft | null {
 }
 
 export function clearDraft(): void {
-  window.sessionStorage.removeItem(STORAGE_KEY)
+  try {
+    window.sessionStorage.removeItem(STORAGE_KEY)
+  } catch {
+    // Storage is blocked: nothing was persisted to clear.
+  }
 }
 
 export function hasUnsentDraft(): boolean {

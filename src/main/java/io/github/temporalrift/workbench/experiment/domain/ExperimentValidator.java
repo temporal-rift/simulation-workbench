@@ -236,8 +236,11 @@ public final class ExperimentValidator {
         }
         var policyId = text(seat, POLICY_ID_FIELD);
         var policyVersion = text(seat, POLICY_VERSION_FIELD);
-        if (policyId == null || policyId.isBlank() || policyVersion == null || policyVersion.isBlank()) {
-            throw invalid(path, "seatAssignment policyId/policyVersion must be nonempty");
+        if (policyId == null || policyId.isBlank()) {
+            throw invalid(path + "." + POLICY_ID_FIELD, "seatAssignment policyId must be nonempty");
+        }
+        if (policyVersion == null || policyVersion.isBlank()) {
+            throw invalid(path + "." + POLICY_VERSION_FIELD, "seatAssignment policyVersion must be nonempty");
         }
         if (!seenSeats.add(seat.get(SEAT_INDEX_FIELD).asInt() + "|" + policyId + "|" + policyVersion)) {
             throw invalid(path, "policy seatAssignment entries must be unique");

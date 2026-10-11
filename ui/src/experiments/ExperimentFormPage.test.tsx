@@ -54,6 +54,24 @@ describe('configuring an experiment', () => {
     expect(loadDraft()).toBeNull()
   })
 
+  it('retries a freeze whose answer was lost under the same key, so it cannot freeze twice', async () => {
+    const user = userEvent.setup()
+    service.failOnce('POST', EXPERIMENTS, () => problem(503, 'UNAVAILABLE', 'try later'))
+    await renderApp('/experiments/new', service)
+    await previewTheDraft(user)
+
+    await user.click(screen.getByRole('button', { name: 'Freeze this experiment…' }))
+    await user.click(screen.getByRole('button', { name: 'Confirm and freeze' }))
+    await screen.findByRole('alert')
+    await user.click(screen.getByRole('button', { name: 'Freeze this experiment…' }))
+    await user.click(screen.getByRole('button', { name: 'Confirm and freeze' }))
+
+    await screen.findByRole('heading', { name: 'threshold experiment' })
+    const keys = service.requests.filter((request) => request.method === 'POST' && EXPERIMENTS.test(request.path)).map((request) => request.headers.get('Idempotency-Key'))
+    expect(keys).toHaveLength(2)
+    expect(keys[0]).toBe(keys[1])
+  })
+
   it('shows freeze and preview unavailable, naming the missing scope, to a read-only designer', async () => {
     const user = userEvent.setup()
     await renderApp('/experiments/new', service, { scopes: [READ_SCOPE] })

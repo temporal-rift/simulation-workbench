@@ -13,8 +13,8 @@ export default defineConfig({
         // Libraries change far less often than the application: separate chunks keep them cached across releases.
         codeSplitting: {
           groups: [
-            { name: 'react', test: /node_modules[\/](react|react-dom|scheduler)[\/]/ },
-            { name: 'tanstack', test: /node_modules[\/]@tanstack[\/]/ },
+            { name: 'react', test: /node_modules[/\](react|react-dom|scheduler)[/\]/ },
+            { name: 'tanstack', test: /node_modules[/\]@tanstack[/\]/ },
             { name: 'vendor', test: /node_modules/ },
           ],
         },

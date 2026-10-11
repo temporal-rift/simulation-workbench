@@ -97,6 +97,16 @@ class ExperimentValidatorTest {
         repeated.add("WEAVERS");
 
         assertThat(fieldOf(duplicateFaction)).isEqualTo("factionSets[" + expectedIndex + "]");
+        var emptySeatVersion = (ObjectNode) ExperimentManifests.valid().deepCopy();
+        emptySeatVersion
+                .withArray("policies")
+                .get(0)
+                .withArray("seatAssignment")
+                .get(0)
+                .asObject()
+                .put("policyVersion", "");
+
+        assertThat(fieldOf(emptySeatVersion)).isEqualTo("policies[0].seatAssignment[0].policyVersion");
         assertThat(fieldOf(duplicateSeed)).isEqualTo("seeds[1]");
         assertThat(fieldOf(badSeat)).isEqualTo("policies[0].seatAssignment[0].seatIndex");
         assertThat(fieldOf(badDigest)).isEqualTo("variants[1].effectiveContentDigest");

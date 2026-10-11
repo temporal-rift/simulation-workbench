@@ -7,6 +7,7 @@
     "node": ">=22.12.0"
   },
   "scripts": {
+    "predev": "node scripts/ensure-deps.mjs",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
