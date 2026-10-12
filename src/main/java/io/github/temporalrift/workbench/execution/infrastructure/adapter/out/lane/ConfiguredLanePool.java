@@ -1,36 +1,44 @@
 package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane;
 
 import java.time.Clock;
-import java.util.HashSet;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.port.out.LaneProvider;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 
-/** The lanes this deployment was configured with; each hosts one case at a time of the bundle it serves. */
+/**
+ * The lanes this deployment was configured with; each hosts one case at a time of the bundle it serves, and a lane
+ * with a reset hook is reset through it between cases.
+ */
 public class ConfiguredLanePool implements LaneProvider {
 
-    private final List<LaneEndpoints> lanes;
+    private final Map<String, LaneEndpoints> lanes;
+    private final LaneRoster roster;
     private final ApiClients clients;
     private final LaneServices services;
     private final Clock clock;
     private final LaneEndpoints.Barrier barrier;
     private final Sleeper sleeper;
-    private final Set<String> busy = new HashSet<>();
 
+    /** @param roster the availability of exactly these lanes, each as its {@link LaneEndpoints#member() member} */
     public ConfiguredLanePool(
             List<LaneEndpoints> lanes,
+            LaneRoster roster,
             ApiClients clients,
             LaneServices services,
             Clock clock,
             LaneEndpoints.Barrier barrier,
             Sleeper sleeper) {
-        this.lanes = List.copyOf(lanes);
+        this.lanes = lanes.stream().collect(Collectors.toUnmodifiableMap(LaneEndpoints::id, Function.identity()));
+        this.roster = roster;
         this.clients = clients;
         this.services = services;
         this.clock = clock;
@@ -39,46 +47,41 @@ public class ConfiguredLanePool implements LaneProvider {
     }
 
     @Override
-    public synchronized Optional<CaseLane> acquire(BundleDigests bundle, String preferredLaneId) {
-        var serving = lanes.stream()
-                .filter(lane -> !busy.contains(lane.id()))
-                .filter(lane -> lane.bundle().equals(bundle))
-                .toList();
-        return serving.stream()
-                .filter(lane -> lane.id().equals(preferredLaneId))
-                .findFirst()
-                .or(() -> serving.stream().findFirst())
-                .map(this::take);
+    public Optional<CaseLane> acquire(UUID caseId, BundleDigests bundle, String preferredLaneId) {
+        return roster.take(caseId, bundle, preferredLaneId).map(this::lane);
     }
 
     @Override
-    public synchronized Optional<CaseLane> acquireExactly(String laneId, BundleDigests bundle) {
-        return lanes.stream()
-                .filter(lane -> !busy.contains(lane.id()))
-                .filter(lane -> lane.id().equals(laneId))
-                .filter(lane -> lane.bundle().equals(bundle))
-                .findFirst()
-                .map(this::take);
+    public Optional<CaseLane> acquireExactly(String laneId, BundleDigests bundle) {
+        return roster.takeExactly(laneId, bundle).map(this::lane);
     }
 
     @Override
     public Set<BundleDigests> servedBundles() {
-        return lanes.stream().map(LaneEndpoints::bundle).collect(Collectors.toUnmodifiableSet());
+        return roster.servedBundles();
     }
 
     @Override
-    public synchronized Map<String, BundleDigests> freeLanes() {
-        return lanes.stream()
-                .filter(lane -> !busy.contains(lane.id()))
-                .collect(Collectors.toUnmodifiableMap(LaneEndpoints::id, LaneEndpoints::bundle));
+    public Map<String, BundleDigests> freeLanes() {
+        return roster.free();
     }
 
-    private CaseLane take(LaneEndpoints lane) {
-        busy.add(lane.id());
-        return new HttpCaseLane(lane, clients, services, clock, barrier, sleeper, () -> release(lane.id()));
+    @Override
+    public Set<UUID> heldCases() {
+        return roster.heldCases();
     }
 
-    private synchronized void release(String laneId) {
-        busy.remove(laneId);
+    @Override
+    public void prepare(Collection<Hold> interrupted) {
+        roster.prepare(interrupted);
+    }
+
+    @Override
+    public void releaseHeld(UUID caseId) {
+        roster.releaseHeld(caseId);
+    }
+
+    private CaseLane lane(LaneRoster.Tenancy tenancy) {
+        return new HttpCaseLane(lanes.get(tenancy.laneId()), clients, services, clock, barrier, sleeper, tenancy);
     }
 }

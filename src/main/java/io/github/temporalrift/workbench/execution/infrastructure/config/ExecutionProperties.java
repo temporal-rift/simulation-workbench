@@ -1,5 +1,7 @@
 package io.github.temporalrift.workbench.execution.infrastructure.config;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -16,6 +18,7 @@ import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
  *
  * @param workerEnabled whether this process executes pending cases
  * @param workerThreads parallel case executions; defaults to one per configured lane
+ * @param resetTimeout how long one call of a lane's reset hook may take
  */
 @ConfigurationProperties("workbench.execution")
 public record ExecutionProperties(
@@ -26,6 +29,7 @@ public record ExecutionProperties(
         @DefaultValue("10s") Duration heartbeat,
         @DefaultValue("2") int maxAttemptsPerCase,
         @DefaultValue("2026-01-01T00:00:00Z") Instant logicalEpoch,
+        @DefaultValue("5m") Duration resetTimeout,
         @DefaultValue Barrier barrier,
         @DefaultValue Client client,
         @DefaultValue List<Lane> lanes) {
@@ -44,6 +48,9 @@ public record ExecutionProperties(
     /**
      * One isolated lane, the identities that play in it, and the effective rules and content digests of the frozen
      * bundle it serves.
+     *
+     * @param resetUrl the deployment hook that makes the lane clean for another case, or {@code null} when the lane is
+     *     never reset
      */
     public record Lane(
             String id,
@@ -56,11 +63,30 @@ public record ExecutionProperties(
             @DefaultValue("game.events") String gameEventsTopic,
             @DefaultValue("timeline.events") String timelineEventsTopic,
             String kafkaBootstrapServers,
+            String resetUrl,
             @DefaultValue List<Bot> bots) {
 
         public Lane {
             requireDigest(id, "rules-digest", rulesDigest);
             requireDigest(id, "content-digest", contentDigest);
+            requireResetUrl(id, resetUrl);
+        }
+
+        private static void requireResetUrl(String laneId, String value) {
+            if (value != null && !isAbsoluteHttpUrl(value)) {
+                throw new IllegalArgumentException(
+                        "workbench.execution.lanes[id=" + laneId + "].reset-url must be an absolute http or https URL");
+            }
+        }
+
+        private static boolean isAbsoluteHttpUrl(String value) {
+            try {
+                var uri = new URI(value);
+                return ("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme()))
+                        && uri.getHost() != null;
+            } catch (URISyntaxException _) {
+                return false;
+            }
         }
 
         private static void requireDigest(String laneId, String key, String value) {

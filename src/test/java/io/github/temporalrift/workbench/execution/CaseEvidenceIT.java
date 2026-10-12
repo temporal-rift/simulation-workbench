@@ -45,6 +45,8 @@ import io.github.temporalrift.workbench.execution.domain.run.CaseState;
 import io.github.temporalrift.workbench.execution.domain.run.EndReason;
 import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.domain.run.FinalScore;
+import io.github.temporalrift.workbench.execution.support.ManualResetScheduler;
+import io.github.temporalrift.workbench.execution.support.RecordingResets;
 import io.github.temporalrift.workbench.execution.support.ScriptedLanes;
 import io.github.temporalrift.workbench.experiment.ExperimentManifests;
 import io.github.temporalrift.workbench.experiment.application.port.in.CreateExperimentUseCase;
@@ -314,6 +316,39 @@ class CaseEvidenceIT {
         var reproduced = jdbc.queryForObject(
                 "SELECT count(*) FROM evidence_step WHERE scope_id = ?", Integer.class, reproductionId);
         assertThat(reproduced).isEqualTo(original.size());
+    }
+
+    @Test
+    void aReproductionThatMatchesLeavesItsLaneToBeResetOnceMore() {
+        var hook = new RecordingResets();
+        var resets = new ManualResetScheduler();
+        lanes.resetThrough(hook, resets);
+        lanes.prepare(List.of());
+        resets.runAll();
+        var runId = start();
+        batch.maintain();
+        while (batch.runNextCase(WORKER) || resets.runPending() > 0) {
+            batch.maintain();
+        }
+        var caseId = caseIds(runId).getFirst();
+        var view = getCase.handle(runId, caseId);
+        var lane = view.attempts().getFirst().laneId();
+        var before = hook.callsFor(lane).size();
+        var reproduction = reproduceCase.handle(new ReproduceCaseUseCase.Command(runId, caseId, UUID.randomUUID()));
+
+        assertThat(reproductions.runNext(WORKER)).isTrue();
+
+        assertThat(reproductionRepository
+                        .find(reproduction.reproductionId())
+                        .orElseThrow()
+                        .state())
+                .isEqualTo(ReproductionState.MATCH);
+        assertThat(lanes.freeLanes()).doesNotContainKey(lane);
+        resets.runAll();
+        assertThat(hook.callsFor(lane)).hasSize(before + 1);
+        assertThat(hook.callsFor(lane).getLast().caseKey())
+                .isEqualTo(view.logicalCase().caseKey());
+        assertThat(lanes.freeLanes()).containsKey(lane);
     }
 
     @Test

@@ -6,7 +6,10 @@ import java.util.UUID;
 
 import io.github.temporalrift.workbench.execution.domain.run.SeatPlan;
 
-/** An acquired isolated lane. Closing it returns the lane to the pool. */
+/**
+ * An acquired isolated lane. Closing it returns the lane, which is made clean before another case gets it unless the
+ * attempt was {@linkplain #retainForRecovery() interrupted}.
+ */
 public interface CaseLane extends AutoCloseable {
 
     String laneId();
@@ -16,6 +19,9 @@ public interface CaseLane extends AutoCloseable {
      * lane still hosts that game for the same case. A lane that cannot continue the game is started afresh.
      */
     GameSession open(CaseContext context, UUID resumeGameId);
+
+    /** Keeps the lane's game when it is closed, for the recovering attempt of the case it hosts. */
+    void retainForRecovery();
 
     @Override
     void close();

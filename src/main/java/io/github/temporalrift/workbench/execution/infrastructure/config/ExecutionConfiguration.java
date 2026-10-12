@@ -1,9 +1,12 @@
 package io.github.temporalrift.workbench.execution.infrastructure.config;
 
+import java.net.URI;
 import java.time.Clock;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -57,8 +60,11 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.kaf
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.ApiClients;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.ConfiguredLanePool;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.GameEventObservers;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.HttpLaneResets;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneEndpoints;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneRoster;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneServices;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.ResetScheduler;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.RestApiClients;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.Sleeper;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.policy.DecisionRuntimeAdapter;
@@ -105,6 +111,17 @@ public class ExecutionConfiguration {
                 properties.client().connectTimeout(), properties.client().readTimeout());
     }
 
+    /**
+     * Runs lane resets off the worker threads. A reset may wait minutes for the deployment to recycle its lane, and a
+     * lane has at most one reset in flight, so one thread per lane keeps a slow lane from delaying the others.
+     */
+    @Bean(destroyMethod = "shutdownNow")
+    ScheduledExecutorService laneResetExecutor(ExecutionProperties properties) {
+        return Executors.newScheduledThreadPool(
+                Math.max(1, properties.lanes().size()),
+                Thread.ofVirtual().name("lane-reset-", 0).factory());
+    }
+
     @Bean
     LaneProvider laneProvider(
             ExecutionProperties properties,
@@ -112,7 +129,8 @@ public class ExecutionConfiguration {
             CommandLedger ledger,
             EvidenceLedger evidence,
             GameEventObservers observers,
-            Clock clock) {
+            Clock clock,
+            ScheduledExecutorService laneResetExecutor) {
         List<LaneEndpoints> lanes = properties.lanes().stream()
                 .map(lane -> new LaneEndpoints(
                         lane.id(),
@@ -124,6 +142,7 @@ public class ExecutionConfiguration {
                         lane.gameEventsTopic(),
                         lane.timelineEventsTopic(),
                         lane.kafkaBootstrapServers(),
+                        lane.resetUrl() == null ? null : URI.create(lane.resetUrl()),
                         lane.bots().stream()
                                 .map(bot -> new LaneEndpoints.BotIdentity(bot.playerId(), bot.token()))
                                 .toList()))
@@ -132,8 +151,18 @@ public class ExecutionConfiguration {
                 properties.barrier().pollInterval(),
                 properties.barrier().stablePolls(),
                 properties.barrier().maxPolls());
+        var roster = new LaneRoster(
+                lanes.stream().map(LaneEndpoints::member).toList(),
+                new HttpLaneResets(lanes, properties.client().connectTimeout(), properties.resetTimeout()),
+                ResetScheduler.on(laneResetExecutor));
         return new ConfiguredLanePool(
-                lanes, clients, new LaneServices(ledger, evidence, observers), clock, barrier, Sleeper.thread());
+                lanes,
+                roster,
+                clients,
+                new LaneServices(ledger, evidence, observers),
+                clock,
+                barrier,
+                Sleeper.thread());
     }
 
     @Bean

@@ -232,6 +232,7 @@ class KafkaGameEventObserverIT {
                 gameTopic,
                 timelineTopic,
                 OTHER_BROKER.getBootstrapServers(),
+                null,
                 List.of());
 
         try (var defaultObserver = observers.open(lane(), SCOPE, UUID.randomUUID(), GAME, null);
@@ -262,6 +263,7 @@ class KafkaGameEventObserverIT {
                 new BundleDigests("a".repeat(64), "b".repeat(64)),
                 gameTopic,
                 timelineTopic,
+                null,
                 null,
                 List.of());
     }

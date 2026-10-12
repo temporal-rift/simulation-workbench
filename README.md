@@ -385,7 +385,7 @@ terminal run.
 The runner needs isolated lanes. A lane is an independent deployment of `game-service`, `timeline-service`, and
 `read-service` with the simulation controls enabled, one operator credential holding `simulation:control`, and
 one bot identity per seat (at least five for the largest case). It hosts one case at a time and must be clean when
-a case starts. Lanes and credentials are runtime configuration only; they are never stored with experiments, runs,
+a case starts; a lane that declares a reset hook is made clean through it between cases. Lanes and credentials are runtime configuration only; they are never stored with experiments, runs,
 or evidence:
 
 ```yaml
@@ -396,6 +396,7 @@ workbench:
     lease: 60s
     heartbeat: 10s
     max-attempts-per-case: 2
+    reset-timeout: 5m           # bounds one call of a lane's reset hook
     lanes:
       - id: lane-1
         game-service-url: https://lane-1.game.internal
@@ -404,6 +405,7 @@ workbench:
         operator-token: ${LANE_1_OPERATOR_TOKEN}
         rules-digest: 3f1c…        # effective rules digest of the bundle this lane serves
         content-digest: 9b07…      # effective content digest of the bundle this lane serves
+        reset-url: https://lanes.internal/lanes/lane-1/reset   # optional
         bots:
           - { player-id: 8a0c…, token: ${LANE_1_BOT_0_TOKEN} }
 ```
@@ -419,6 +421,32 @@ recovering attempt goes back to its previous lane when that lane is free and sti
 configuration as the worker. Logical time starts at
 `workbench.execution.logical-epoch` for every attempt and is advanced only to the earliest deadline reported by the
 services' checkpoints, on both services, followed by their drain barrier. A slow projection never moves time.
+
+A lane's services accept one case's execution context for the lifetime of the lane, so a lane without a
+`reset-url` can play one case only, unless its deployment recycles it some other way. With a `reset-url`
+(an absolute http or https URL; the workbench refuses to start otherwise), the runner resets the lane whenever an
+attempt or a reproduction on it ends:
+
+```http
+POST {reset-url}
+Authorization: Bearer <the lane's operator token>
+Content-Type: application/json
+Idempotency-Key: <a UUID, fresh for each release and repeated by its retries>
+
+{"laneId": "lane-1", "caseKey": "<case key of the case the lane hosted>"}
+```
+
+Any `2xx` answer means the lane is clean. Until then the lane is offered to no case or reproduction. A non-`2xx`
+answer, a call exceeding `reset-timeout`, or a connection failure is logged with the lane id and the status or error
+and retried with a backoff growing from one second to one minute, for as long as the workbench runs; no case fails
+because its lane is being reset. A lane that was acquired but never configured for its case needs no reset.
+
+An attempt interrupted by a lost lease, a stop, or a crash leaves its lane holding its game: the lane is offered only
+to that case's recovering attempt, which attaches to the game, and is reset after that attempt ends, or once the case
+reaches a final state without it (for example when its run is cancelled). A case whose lane is held is taken even
+when no other lane is free. A reproduction always starts a new game, so its lane is reset after it whatever its
+outcome. On start, a lane whose most recent attempt was interrupted while its case is unfinished keeps its game;
+every other lane with a reset hook is reset before it is first offered, with `caseKey` omitted.
 
 An interrupted run is resumed with `resumeRun`; there is nothing to repair by hand. Only one runner instance should
 execute against a database.

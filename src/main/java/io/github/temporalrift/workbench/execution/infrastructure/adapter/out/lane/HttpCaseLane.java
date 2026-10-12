@@ -51,7 +51,7 @@ public class HttpCaseLane implements CaseLane {
     private final Clock clock;
     private final LaneEndpoints.Barrier barrier;
     private final Sleeper sleeper;
-    private final Runnable release;
+    private final LaneRoster.Tenancy tenancy;
 
     public HttpCaseLane(
             LaneEndpoints lane,
@@ -60,7 +60,7 @@ public class HttpCaseLane implements CaseLane {
             Clock clock,
             LaneEndpoints.Barrier barrier,
             Sleeper sleeper,
-            Runnable release) {
+            LaneRoster.Tenancy tenancy) {
         this.lane = lane;
         this.clients = clients;
         this.ledger = services.commands();
@@ -69,7 +69,7 @@ public class HttpCaseLane implements CaseLane {
         this.clock = clock;
         this.barrier = barrier;
         this.sleeper = sleeper;
-        this.release = release;
+        this.tenancy = tenancy;
     }
 
     @Override
@@ -85,6 +85,7 @@ public class HttpCaseLane implements CaseLane {
                     "Lane " + lane.id() + " has " + lane.bots().size() + " bot identities for "
                             + context.seats().size() + " seats");
         }
+        tenancy.host(context);
         var gameControl = clients.create(SimulationExecutionApi.class, lane.gameServiceUrl(), lane.operatorToken());
         var timelineControl =
                 clients.create(SimulationExecutionApi.class, lane.timelineServiceUrl(), lane.operatorToken());
@@ -103,12 +104,17 @@ public class HttpCaseLane implements CaseLane {
     }
 
     @Override
+    public void retainForRecovery() {
+        tenancy.retainForRecovery();
+    }
+
+    @Override
     public void close() {
         try {
             opened.forEach(GameEventObserver::close);
             opened.clear();
         } finally {
-            release.run();
+            tenancy.giveBack();
         }
     }
 

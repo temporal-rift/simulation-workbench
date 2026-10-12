@@ -49,6 +49,8 @@ import io.github.temporalrift.workbench.execution.domain.run.FinalScore;
 import io.github.temporalrift.workbench.execution.domain.run.InvalidRunStateException;
 import io.github.temporalrift.workbench.execution.domain.run.RunState;
 import io.github.temporalrift.workbench.execution.support.FakeGame;
+import io.github.temporalrift.workbench.execution.support.ManualResetScheduler;
+import io.github.temporalrift.workbench.execution.support.RecordingResets;
 import io.github.temporalrift.workbench.execution.support.ScriptedLanes;
 import io.github.temporalrift.workbench.experiment.ExperimentManifests;
 import io.github.temporalrift.workbench.experiment.application.port.in.CreateExperimentUseCase;
@@ -195,21 +197,7 @@ class BatchExecutionIT {
         var baselineDigests = digestsByCaseKey(baseline);
 
         lanes.reset();
-        var crashed = new AtomicBoolean();
-        lanes.script(new ScriptedLanes.Script() {
-            @Override
-            public GameSession.AuthoritativeEnding ending(CaseLane.CaseContext context) {
-                return ScriptedLanes.decisive(context);
-            }
-
-            @Override
-            public boolean loseAcknowledgement(CaseLane.CaseContext context, int seatIndex) {
-                if (seatIndex == 1 && crashed.compareAndSet(false, true)) {
-                    throw new ProcessCrash();
-                }
-                return false;
-            }
-        });
+        crashAtTheFirstSecondSeatDecision();
         var runId = start(manifest);
         batch.maintain();
 
@@ -258,7 +246,7 @@ class BatchExecutionIT {
         // A worker that crashed mid-case leaves an attempt running and holding a lease.
         var now = clock.instant();
         var inFlight = caseLedger
-                .claimNext("crashed-worker", now, now.plusSeconds(30), Set.of(DEFAULT_BUNDLE))
+                .claimNext("crashed-worker", now, now.plusSeconds(30), Set.of(DEFAULT_BUNDLE), Set.of())
                 .orElseThrow();
 
         batch.recoverAfterRestart();
@@ -453,7 +441,7 @@ class BatchExecutionIT {
         batch.maintain();
         var now = clock.instant();
         var zombie = caseLedger
-                .claimNext("zombie", now, now.minusSeconds(1), Set.of(DEFAULT_BUNDLE))
+                .claimNext("zombie", now, now.minusSeconds(1), Set.of(DEFAULT_BUNDLE), Set.of())
                 .orElseThrow();
 
         batch.maintain();
@@ -498,7 +486,7 @@ class BatchExecutionIT {
                     ready.countDown();
                     go.await(10, TimeUnit.SECONDS);
                     caseLedger
-                            .claimNext(owner, now, now.plusSeconds(30), Set.of(DEFAULT_BUNDLE))
+                            .claimNext(owner, now, now.plusSeconds(30), Set.of(DEFAULT_BUNDLE), Set.of())
                             .ifPresent(claim -> claimed.add(claim.logicalCase().caseId()));
                     return null;
                 }));
@@ -515,6 +503,171 @@ class BatchExecutionIT {
         assertThat(getRun.handle(runId).counts().running()).isEqualTo(3);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM case_attempt WHERE state = 'RUNNING'", Integer.class))
                 .isEqualTo(3);
+    }
+
+    @Test
+    void eachCaseOnOneResettableLaneStartsOnALaneResetAfterThePreviousCase() {
+        lanes.serve(DEFAULT_BUNDLE);
+        var hook = new RecordingResets();
+        var resets = new ManualResetScheduler();
+        lanes.resetThrough(hook, resets);
+        batch.recoverAfterRestart();
+        resets.runAll();
+        assertThat(hook.calls())
+                .singleElement()
+                .satisfies(call -> assertThat(call.caseKey()).isNull());
+        hook.clear();
+        var runId = start(ExperimentManifests.threePlayerSingleSet());
+        batch.maintain();
+
+        for (var played = 0; played < 3; played++) {
+            assertThat(batch.runNextCase(WORKER)).isTrue();
+            assertThat(batch.runNextCase(WORKER)).isFalse();
+            assertThat(hook.calls()).hasSize(played);
+            resets.runPending();
+            assertThat(hook.calls()).hasSize(played + 1);
+        }
+        batch.maintain();
+
+        var run = getRun.handle(runId);
+        assertThat(run.run().state()).isEqualTo(RunState.COMPLETED);
+        assertThat(run.counts().succeeded()).isEqualTo(3);
+        assertThat(hook.calls())
+                .extracting(RecordingResets.Call::caseKey)
+                .containsExactlyInAnyOrderElementsOf(digestsByCaseKey(runId).keySet());
+        assertThat(lanes.opened())
+                .extracting(ScriptedLanes.Opened::resumeGameId)
+                .containsOnlyNulls();
+    }
+
+    @Test
+    void aFailingResetHoldsTheNextCaseBackWithoutFailingAnyCase() {
+        lanes.serve(DEFAULT_BUNDLE);
+        var hook = new RecordingResets();
+        var resets = new ManualResetScheduler();
+        lanes.resetThrough(hook, resets);
+        batch.recoverAfterRestart();
+        resets.runAll();
+        hook.clear();
+        var runId = start(ExperimentManifests.threePlayerSingleSet());
+        batch.maintain();
+        assertThat(batch.runNextCase(WORKER)).isTrue();
+        hook.refuseNext(2);
+
+        resets.runPending();
+        assertThat(batch.runNextCase(WORKER)).isFalse();
+        resets.runPending();
+        assertThat(batch.runNextCase(WORKER)).isFalse();
+        resets.runPending();
+        drainResetting(resets);
+
+        var run = getRun.handle(runId);
+        assertThat(run.run().state()).isEqualTo(RunState.COMPLETED);
+        assertThat(run.counts().succeeded()).isEqualTo(3);
+        assertThat(run.counts().failed()).isZero();
+        assertThat(hook.calls().subList(0, 3))
+                .extracting(RecordingResets.Call::succeeded)
+                .containsExactly(false, false, true);
+        assertThat(hook.calls().subList(0, 3))
+                .extracting(RecordingResets.Call::idempotencyKey)
+                .containsOnly(hook.calls().getFirst().idempotencyKey());
+    }
+
+    @Test
+    void aRecoveringAttemptAttachesToItsGameBeforeItsLaneIsReset() {
+        lanes.serve(DEFAULT_BUNDLE);
+        var hook = new RecordingResets();
+        var beforeCrash = new ManualResetScheduler();
+        lanes.resetThrough(hook, beforeCrash);
+        batch.recoverAfterRestart();
+        beforeCrash.runAll();
+        crashAtTheFirstSecondSeatDecision();
+        var runId = start(ExperimentManifests.threePlayerSingleSet());
+        batch.maintain();
+        assertThatThrownBy(() -> batch.runNextCase(WORKER)).isInstanceOf(ProcessCrash.class);
+
+        // The process died before the reset its dying worker scheduled ran; the restarted one has fresh lanes.
+        var afterRestart = new ManualResetScheduler();
+        hook.clear();
+        lanes.resetThrough(hook, afterRestart);
+        batch.recoverAfterRestart();
+        afterRestart.runAll();
+
+        assertThat(caseLedger.interruptedLanes())
+                .singleElement()
+                .satisfies(hold -> assertThat(hold.laneId()).isEqualTo("lane-0"));
+        assertThat(hook.calls()).isEmpty();
+        assertThat(lanes.heldCases()).hasSize(1);
+        resumeRun.handle(new ResumeRunUseCase.Command(runId, UUID.randomUUID()));
+        drainResetting(afterRestart);
+
+        var run = getRun.handle(runId);
+        assertThat(run.run().state()).isEqualTo(RunState.COMPLETED);
+        assertThat(run.counts().succeeded()).isEqualTo(3);
+        var recovered = caseIds(runId).stream()
+                .map(caseId -> getCase.handle(runId, caseId))
+                .filter(view -> view.attempts().size() == 2)
+                .toList();
+        assertThat(recovered)
+                .singleElement()
+                .satisfies(view -> assertThat(view.attempts().get(1).gameId())
+                        .isEqualTo(view.attempts().get(0).gameId()));
+        assertThat(lanes.opened())
+                .filteredOn(opened -> opened.resumeGameId() != null)
+                .singleElement()
+                .satisfies(opened -> assertThat(opened.gameId()).isEqualTo(opened.resumeGameId()));
+        assertThat(hook.calls()).hasSize(3);
+        assertThat(hook.calls().getFirst().caseKey())
+                .isEqualTo(recovered.getFirst().logicalCase().caseKey());
+    }
+
+    @Test
+    void aLaneHeldForAnInterruptedCaseIsResetOnceItsRunIsCancelled() {
+        lanes.serve(DEFAULT_BUNDLE);
+        var hook = new RecordingResets();
+        var beforeCrash = new ManualResetScheduler();
+        lanes.resetThrough(hook, beforeCrash);
+        batch.recoverAfterRestart();
+        beforeCrash.runAll();
+        crashAtTheFirstSecondSeatDecision();
+        var runId = start(ExperimentManifests.threePlayerSingleSet());
+        batch.maintain();
+        assertThatThrownBy(() -> batch.runNextCase(WORKER)).isInstanceOf(ProcessCrash.class);
+        var afterRestart = new ManualResetScheduler();
+        hook.clear();
+        lanes.resetThrough(hook, afterRestart);
+        batch.recoverAfterRestart();
+        afterRestart.runAll();
+        var held = lanes.heldCases();
+        assertThat(held).hasSize(1);
+
+        cancelRun.handle(new CancelRunUseCase.Command(runId, UUID.randomUUID()));
+        batch.maintain();
+        afterRestart.runAll();
+
+        assertThat(getCase.handle(runId, held.iterator().next()).logicalCase().state())
+                .isEqualTo(CaseState.CANCELLED);
+        assertThat(lanes.heldCases()).isEmpty();
+        assertThat(lanes.freeLanes()).containsOnlyKeys("lane-0");
+        assertThat(hook.calls())
+                .singleElement()
+                .satisfies(call -> assertThat(call.laneId()).isEqualTo("lane-0"));
+    }
+
+    @Test
+    void aCaseWhoseLaneIsHeldIsClaimedWhileNoLaneIsFree() {
+        var runId = start(ExperimentManifests.threePlayerSingleSet());
+        batch.maintain();
+        var third = caseIds(runId).get(2);
+        var now = clock.instant();
+
+        var claim = caseLedger.claimNext(WORKER, now, now.plusSeconds(30), Set.of(), Set.of(third));
+
+        assertThat(claim)
+                .hasValueSatisfying(
+                        claimed -> assertThat(claimed.logicalCase().caseId()).isEqualTo(third));
+        assertThat(caseLedger.claimNext(WORKER, now, now.plusSeconds(30), Set.of(), Set.of()))
+                .isEmpty();
     }
 
     @Test
@@ -575,6 +728,33 @@ class BatchExecutionIT {
         return startRun.handle(new StartRunUseCase.Command(experimentId, UUID.randomUUID()))
                 .run()
                 .runId();
+    }
+
+    /** Plays every pending case, running lane resets whenever no lane is free. */
+    private void drainResetting(ManualResetScheduler resets) {
+        batch.maintain();
+        while (batch.runNextCase(WORKER) || resets.runPending() > 0) {
+            batch.maintain();
+        }
+        batch.maintain();
+    }
+
+    private void crashAtTheFirstSecondSeatDecision() {
+        var crashed = new AtomicBoolean();
+        lanes.script(new ScriptedLanes.Script() {
+            @Override
+            public GameSession.AuthoritativeEnding ending(CaseLane.CaseContext context) {
+                return ScriptedLanes.decisive(context);
+            }
+
+            @Override
+            public boolean loseAcknowledgement(CaseLane.CaseContext context, int seatIndex) {
+                if (seatIndex == 1 && crashed.compareAndSet(false, true)) {
+                    throw new ProcessCrash();
+                }
+                return false;
+            }
+        });
     }
 
     private void drain() {

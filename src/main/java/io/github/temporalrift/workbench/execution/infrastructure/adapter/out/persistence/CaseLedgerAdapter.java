@@ -5,14 +5,18 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLedger;
+import io.github.temporalrift.workbench.execution.domain.port.out.LaneProvider;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.CaseResult;
+import io.github.temporalrift.workbench.execution.domain.run.CaseState;
 import io.github.temporalrift.workbench.execution.domain.run.Failure;
 
 /**
@@ -52,12 +56,16 @@ public class CaseLedgerAdapter implements CaseLedger {
     @Override
     @Transactional
     public Optional<Claim> claimNext(
-            String owner, Instant now, Instant leaseUntil, Collection<BundleDigests> freeBundles) {
-        if (freeBundles.isEmpty()) {
+            String owner,
+            Instant now,
+            Instant leaseUntil,
+            Collection<BundleDigests> freeBundles,
+            Collection<UUID> heldCases) {
+        if (freeBundles.isEmpty() && heldCases.isEmpty()) {
             return Optional.empty();
         }
         for (var run : runs.findAllByStateOrderByCreatedAt(RUNNING)) {
-            var claim = claimFromRun(run.runId(), owner, now, leaseUntil, freeBundles);
+            var claim = claimFromRun(run.runId(), owner, now, leaseUntil, freeBundles, heldCases);
             if (claim.isPresent()) {
                 return claim;
             }
@@ -66,12 +74,17 @@ public class CaseLedgerAdapter implements CaseLedger {
     }
 
     private Optional<Claim> claimFromRun(
-            UUID runId, String owner, Instant now, Instant leaseUntil, Collection<BundleDigests> freeBundles) {
+            UUID runId,
+            String owner,
+            Instant now,
+            Instant leaseUntil,
+            Collection<BundleDigests> freeBundles,
+            Collection<UUID> heldCases) {
         return runs.findWithLockByRunIdAndState(runId, RUNNING).flatMap(run -> {
             if (cases.countByRunIdAndState(runId, RUNNING) >= run.concurrency()) {
                 return Optional.empty();
             }
-            return claims.firstCaseServedBy(runId, PENDING, freeBundles)
+            return claims.firstCaseServedBy(runId, PENDING, freeBundles, heldCases)
                     .flatMap(cases::findById)
                     .map(next -> open(next, run.concurrency(), owner, now, leaseUntil));
         });
@@ -167,6 +180,25 @@ public class CaseLedgerAdapter implements CaseLedger {
         var idle = runs.findAllByStateOrderByCreatedAt(RUNNING);
         idle.forEach(run -> run.changeState(INTERRUPTED));
         return interrupted + idle.size();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<LaneProvider.Hold> interruptedLanes() {
+        return claims.lastAttemptPerLane().stream()
+                .filter(last -> INTERRUPTED.equals(last.attemptState()))
+                .filter(last -> !CaseState.valueOf(last.caseState()).isFinal())
+                .map(last -> new LaneProvider.Hold(last.laneId(), last.caseId(), last.caseKey()))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Set<UUID> finished(Collection<UUID> caseIds) {
+        return cases.findAllById(caseIds).stream()
+                .filter(logicalCase -> CaseState.valueOf(logicalCase.state()).isFinal())
+                .map(RunCaseJpaEntity::caseId)
+                .collect(Collectors.toUnmodifiableSet());
     }
 
     /**

@@ -24,7 +24,8 @@ import io.github.temporalrift.workbench.execution.domain.run.RunState;
  * Executes the pending cases of running runs, each only on a lane serving its variant's bundle. A claim opens a new
  * attempt that owns the case through a renewable lease; every outcome is fenced by that lease, so an interrupted or
  * stalled worker can never overwrite a case another attempt recovered, and a logical case is recorded as succeeded at
- * most once.
+ * most once. An interrupted attempt leaves its lane holding the game for the case's recovering attempt; every other
+ * outcome hands the lane back to be made clean.
  */
 public class RunBatchService implements RunBatchUseCase {
 
@@ -56,6 +57,7 @@ public class RunBatchService implements RunBatchUseCase {
     @Override
     public void recoverAfterRestart() {
         cases.interruptAllRunning(clock.instant());
+        lanes.prepare(cases.interruptedLanes());
     }
 
     @Override
@@ -64,16 +66,18 @@ public class RunBatchService implements RunBatchUseCase {
         runs.findByState(RunState.QUEUED).forEach(this::begin);
         runs.findByState(RunState.RUNNING).forEach(this::settleRunning);
         runs.findByState(RunState.CANCELLING).forEach(this::settleCancelling);
+        cases.finished(lanes.heldCases()).forEach(lanes::releaseHeld);
     }
 
     @Override
     public boolean runNextCase(String owner) {
         var freeBundles = Set.copyOf(lanes.freeLanes().values());
-        if (freeBundles.isEmpty()) {
+        var heldCases = lanes.heldCases();
+        if (freeBundles.isEmpty() && heldCases.isEmpty()) {
             return false;
         }
         var now = clock.instant();
-        var claim = cases.claimNext(owner, now, now.plus(settings.lease()), freeBundles);
+        var claim = cases.claimNext(owner, now, now.plus(settings.lease()), freeBundles, heldCases);
         if (claim.isEmpty()) {
             return false;
         }
@@ -85,7 +89,9 @@ public class RunBatchService implements RunBatchUseCase {
             failRun(run, attempt, owner, now);
             return true;
         }
-        var lane = lanes.acquire(claim.get().logicalCase().bundle(), previous == null ? null : previous.laneId());
+        var logicalCase = claim.get().logicalCase();
+        var lane =
+                lanes.acquire(logicalCase.caseId(), logicalCase.bundle(), previous == null ? null : previous.laneId());
         if (lane.isEmpty()) {
             cases.release(attempt.attemptId(), owner, now);
             return false;
@@ -101,19 +107,30 @@ public class RunBatchService implements RunBatchUseCase {
 
     private void execute(
             CaseLedger.Claim claim, Attempt previous, ExperimentSource.Plan plan, CaseLane lane, String owner) {
-        var attempt = claim.attempt();
         try (lane) {
+            if (!playToOutcome(claim, previous, plan, lane, owner)) {
+                lane.retainForRecovery();
+            }
+        }
+    }
+
+    /** Plays the attempt and records its outcome; false when the attempt was interrupted instead. */
+    private boolean playToOutcome(
+            CaseLedger.Claim claim, Attempt previous, ExperimentSource.Plan plan, CaseLane lane, String owner) {
+        var attempt = claim.attempt();
+        try {
             var result = driver.play(
                     claim.logicalCase(), attempt, previous, plan, lane, guard(attempt.attemptId(), claim, owner));
-            cases.succeed(attempt.attemptId(), owner, result, clock.instant());
+            return cases.succeed(attempt.attemptId(), owner, result, clock.instant());
         } catch (AttemptFailedException e) {
-            fail(attempt, owner, e.failure());
+            return fail(attempt, owner, e.failure());
         } catch (RunCancelledException _) {
-            cases.cancel(attempt.attemptId(), owner, clock.instant());
+            return cases.cancel(attempt.attemptId(), owner, clock.instant());
         } catch (LeaseLostException _) {
             // Another attempt owns the case now; nothing this worker holds is left to settle.
+            return false;
         } catch (RuntimeException e) {
-            fail(attempt, owner, new Failure(FailureCode.EXECUTION_FAILED, describe(e)));
+            return fail(attempt, owner, new Failure(FailureCode.EXECUTION_FAILED, describe(e)));
         }
     }
 
@@ -126,9 +143,9 @@ public class RunBatchService implements RunBatchUseCase {
         }
     }
 
-    private void fail(Attempt attempt, String owner, Failure failure) {
+    private boolean fail(Attempt attempt, String owner, Failure failure) {
         var retry = failure.code().isRetryable() && attempt.ordinal() < settings.maxAttemptsPerCase();
-        cases.fail(attempt.attemptId(), owner, failure, retry, clock.instant());
+        return cases.fail(attempt.attemptId(), owner, failure, retry, clock.instant()) != CaseLedger.FailOutcome.LOST;
     }
 
     private AttemptGuard guard(UUID attemptId, CaseLedger.Claim claim, String owner) {
