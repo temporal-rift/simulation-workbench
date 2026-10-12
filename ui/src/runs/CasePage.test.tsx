@@ -100,6 +100,23 @@ describe('the player replay', () => {
   })
 })
 
+describe('moving to another case', () => {
+  it('starts that case’s replay and reproduction afresh', async () => {
+    const user = userEvent.setup()
+    service.addFailedCase({ caseId: IDS.caseB })
+    const { router } = await renderApp(path, service)
+    await user.click(await screen.findByRole('button', { name: 'View as player' }))
+    await user.click(await screen.findByRole('button', { name: 'Later steps' }))
+    await screen.findByRole('heading', { name: /^Step 3 / })
+
+    await router.navigate({ to: '/runs/$runId/cases/$caseId', params: { runId: IDS.run, caseId: IDS.caseB } })
+
+    await screen.findByRole('heading', { name: 'Case baseline, seed 42' })
+    expect(screen.queryByRole('heading', { name: /^Player view/ })).not.toBeInTheDocument()
+    expect(replayRequests().map((request) => request.query.get('afterStep'))).toEqual([null, '0'])
+  })
+})
+
 describe('the observer replay', () => {
   it('is labelled, lists every seat’s steps, and keeps each source’s events as its own list in order', async () => {
     const user = userEvent.setup()

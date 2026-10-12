@@ -92,8 +92,8 @@ function CaseDetail({ loaded }: { readonly loaded: Case }) {
       ) : (
         <p>This case has no result: it is {CASE_STATE_LABELS[loaded.state].toLowerCase()}, and only a succeeded case is a result.</p>
       )}
-      <ReplayInspector runId={loaded.runId} caseId={loaded.caseId} assignments={loaded.assignments} />
-      <ReproductionPanel runId={loaded.runId} caseId={loaded.caseId} />
+      <ReplayInspector key={loaded.caseId} runId={loaded.runId} caseId={loaded.caseId} assignments={loaded.assignments} />
+      <ReproductionPanel key={loaded.caseId} runId={loaded.runId} caseId={loaded.caseId} />
     </>
   )
 }
