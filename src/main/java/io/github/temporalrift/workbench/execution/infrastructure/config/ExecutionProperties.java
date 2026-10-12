@@ -48,6 +48,7 @@ public record ExecutionProperties(
             String operatorToken,
             @DefaultValue("game.events") String gameEventsTopic,
             @DefaultValue("timeline.events") String timelineEventsTopic,
+            String kafkaBootstrapServers,
             @DefaultValue List<Bot> bots) {
 
         @Override

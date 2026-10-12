@@ -510,6 +510,7 @@ workbench:
       - id: lane-1
         game-events-topic: lane-1.game.events
         timeline-events-topic: lane-1.timeline.events
+        kafka-bootstrap-servers: lane-1-kafka:9092
 ```
 
 ## Reports and comparisons

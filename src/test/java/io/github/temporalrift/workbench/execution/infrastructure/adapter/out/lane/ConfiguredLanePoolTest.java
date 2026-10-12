@@ -95,6 +95,7 @@ class ConfiguredLanePoolTest {
                 "operator",
                 "game.events",
                 "timeline.events",
+                null,
                 List.of());
     }
 }

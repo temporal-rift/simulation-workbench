@@ -86,6 +86,7 @@ class HttpCaseLaneTest {
                 "operator-token",
                 "game.events",
                 "timeline.events",
+                null,
                 List.of(
                         new LaneEndpoints.BotIdentity(ProjectionStates.id(1), "t1"),
                         new LaneEndpoints.BotIdentity(ProjectionStates.id(2), "t2"),
@@ -290,6 +291,7 @@ class HttpCaseLaneTest {
                 "operator-token",
                 "game.events",
                 "timeline.events",
+                null,
                 List.of(new LaneEndpoints.BotIdentity(ProjectionStates.id(1), "t1"))));
 
         assertThatThrownBy(() -> small.open(context(), null))

@@ -14,6 +14,7 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,6 +22,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.kafka.autoconfigure.KafkaConnectionDetails;
 import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.testcontainers.kafka.KafkaContainer;
 import tools.jackson.databind.ObjectMapper;
 
 import io.github.temporalrift.workbench.WorkbenchIntegrationTest;
@@ -35,6 +37,7 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 class KafkaGameEventObserverIT {
 
     private static final UUID SCOPE = new UUID(1, 1);
+    private static final UUID OTHER_SCOPE = new UUID(1, 2);
     private static final UUID GAME = new UUID(2, 2);
     private static final UUID OTHER_GAME = new UUID(2, 3);
     private static final UUID PLAYER = new UUID(4, 4);
@@ -57,6 +60,8 @@ class KafkaGameEventObserverIT {
     @Autowired
     private JdbcTemplate jdbc;
 
+    private static final KafkaContainer OTHER_BROKER = new KafkaContainer("apache/kafka:3.7.0");
+
     private String gameTopic;
     private String timelineTopic;
 
@@ -68,10 +73,15 @@ class KafkaGameEventObserverIT {
         timelineTopic = "timeline.events." + suffix;
     }
 
+    @AfterAll
+    static void stopOtherBroker() {
+        OTHER_BROKER.stop();
+    }
+
     @AfterEach
     void clean() {
-        jdbc.update("DELETE FROM evidence_event WHERE scope_id = ?", SCOPE);
-        jdbc.update("DELETE FROM evidence_source_offset WHERE scope_id = ?", SCOPE);
+        jdbc.update("DELETE FROM evidence_event WHERE scope_id IN (?, ?)", SCOPE, OTHER_SCOPE);
+        jdbc.update("DELETE FROM evidence_source_offset WHERE scope_id IN (?, ?)", SCOPE, OTHER_SCOPE);
     }
 
     @Test
@@ -194,8 +204,55 @@ class KafkaGameEventObserverIT {
         }
     }
 
+    @Test
+    void aLaneWithItsOwnBrokerIsObservedThroughThatBrokerAlone() {
+        if (!OTHER_BROKER.isRunning()) {
+            OTHER_BROKER.start();
+        }
+        var onDefault = UUID.randomUUID();
+        var onOther = UUID.randomUUID();
+        var shared = UUID.randomUUID();
+        publish(
+                gameTopic,
+                message(GAME, shared, "GameStarted", "{}"),
+                message(GAME, onDefault, "GameEnded", gameEnded("ALL_PLAYERS_ABANDONED", 3)));
+        publish(
+                OTHER_BROKER.getBootstrapServers(),
+                gameTopic,
+                message(GAME, shared, "GameStarted", "{\"lane\":\"other\"}"),
+                message(GAME, onOther, "GameEnded", gameEnded("WIN_CONDITION_MET", 7)));
+        var otherLane = new LaneEndpoints(
+                "other",
+                "http://g",
+                "http://t",
+                "http://r",
+                "op",
+                gameTopic,
+                timelineTopic,
+                OTHER_BROKER.getBootstrapServers(),
+                List.of());
+
+        try (var defaultObserver = observers.open(lane(), SCOPE, UUID.randomUUID(), GAME, null);
+                var otherObserver = observers.open(otherLane, OTHER_SCOPE, UUID.randomUUID(), GAME, null)) {
+            assertThat(defaultObserver.drain()).isTrue();
+            assertThat(otherObserver.drain()).isTrue();
+        }
+
+        assertThat(evidence.events(SCOPE, GAME))
+                .extracting(ObservedEvent::eventId)
+                .containsExactlyInAnyOrder(shared, onDefault);
+        assertThat(evidence.events(OTHER_SCOPE, GAME))
+                .extracting(ObservedEvent::eventId)
+                .containsExactlyInAnyOrder(shared, onOther);
+        assertThat(evidence.events(OTHER_SCOPE, GAME))
+                .filteredOn(event -> event.eventId().equals(shared))
+                .singleElement()
+                .satisfies(event -> assertThat(event.payload()).contains("other"));
+    }
+
     private LaneEndpoints lane() {
-        return new LaneEndpoints("lane", "http://g", "http://t", "http://r", "op", gameTopic, timelineTopic, List.of());
+        return new LaneEndpoints(
+                "lane", "http://g", "http://t", "http://r", "op", gameTopic, timelineTopic, null, List.of());
     }
 
     private static String gameEnded(String reason, int score) {
@@ -232,10 +289,13 @@ class KafkaGameEventObserverIT {
 
     @SafeVarargs
     private void publish(String topic, ProducerRecord<String, byte[]>... records) {
+        publish(String.join(",", connection.getProducer().getBootstrapServers()), topic, records);
+    }
+
+    @SafeVarargs
+    private void publish(String bootstrapServers, String topic, ProducerRecord<String, byte[]>... records) {
         Map<String, Object> properties = new java.util.HashMap<>(kafka.buildProducerProperties());
-        properties.put(
-                ProducerConfig.BOOTSTRAP_SERVERS_CONFIG,
-                connection.getProducer().getBootstrapServers());
+        properties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         properties.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         properties.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, ByteArraySerializer.class);
         try (var producer = new KafkaProducer<String, byte[]>(properties)) {
