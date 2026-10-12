@@ -2,6 +2,7 @@ package io.github.temporalrift.workbench.execution.application.command;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Set;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.execution.application.port.in.RunBatchUseCase;
@@ -20,9 +21,10 @@ import io.github.temporalrift.workbench.execution.domain.run.RunCancelledExcepti
 import io.github.temporalrift.workbench.execution.domain.run.RunState;
 
 /**
- * Executes the pending cases of running runs. A claim opens a new attempt that owns the case through a
- * renewable lease; every outcome is fenced by that lease, so an interrupted or stalled worker can never
- * overwrite a case another attempt recovered, and a logical case is recorded as succeeded at most once.
+ * Executes the pending cases of running runs, each only on a lane serving its variant's bundle. A claim opens a new
+ * attempt that owns the case through a renewable lease; every outcome is fenced by that lease, so an interrupted or
+ * stalled worker can never overwrite a case another attempt recovered, and a logical case is recorded as succeeded at
+ * most once.
  */
 public class RunBatchService implements RunBatchUseCase {
 
@@ -66,11 +68,12 @@ public class RunBatchService implements RunBatchUseCase {
 
     @Override
     public boolean runNextCase(String owner) {
-        if (!lanes.hasFreeLane()) {
+        var freeBundles = Set.copyOf(lanes.freeLanes().values());
+        if (freeBundles.isEmpty()) {
             return false;
         }
         var now = clock.instant();
-        var claim = cases.claimNext(owner, now, now.plus(settings.lease()));
+        var claim = cases.claimNext(owner, now, now.plus(settings.lease()), freeBundles);
         if (claim.isEmpty()) {
             return false;
         }
@@ -82,7 +85,7 @@ public class RunBatchService implements RunBatchUseCase {
             failRun(run, attempt, owner, now);
             return true;
         }
-        var lane = lanes.acquire(previous == null ? null : previous.laneId());
+        var lane = lanes.acquire(claim.get().logicalCase().bundle(), previous == null ? null : previous.laneId());
         if (lane.isEmpty()) {
             cases.release(attempt.attemptId(), owner, now);
             return false;

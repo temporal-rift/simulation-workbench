@@ -447,39 +447,6 @@
                         </configuration>
                     </execution>
                     <execution>
-                        <id>ui-lint</id>
-                        <goals>
-                            <goal>npm</goal>
-                        </goals>
-                        <phase>test</phase>
-                        <configuration>
-                            <skip>${skipTests}</skip>
-                            <arguments>run lint</arguments>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>ui-typecheck</id>
-                        <goals>
-                            <goal>npm</goal>
-                        </goals>
-                        <phase>test</phase>
-                        <configuration>
-                            <skip>${skipTests}</skip>
-                            <arguments>run typecheck</arguments>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>ui-test</id>
-                        <goals>
-                            <goal>npm</goal>
-                        </goals>
-                        <phase>test</phase>
-                        <configuration>
-                            <skip>${skipTests}</skip>
-                            <arguments>run test</arguments>
-                        </configuration>
-                    </execution>
-                    <execution>
                         <id>ui-build</id>
                         <goals>
                             <goal>npm</goal>
@@ -556,5 +523,82 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!-- The designer application's checks need the Node toolchain, so -Dskip.npm leaves them out entirely. -->
+        <profile>
+            <id>ui-checks</id>
+            <activation>
+                <property>
+                    <name>skip.npm</name>
+                    <value>!true</value>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>com.github.eirslett</groupId>
+                        <artifactId>frontend-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>ui-lint</id>
+                                <goals>
+                                    <goal>npm</goal>
+                                </goals>
+                                <phase>test</phase>
+                                <configuration>
+                                    <skip>${skipTests}</skip>
+                                    <arguments>run lint</arguments>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>ui-typecheck</id>
+                                <goals>
+                                    <goal>npm</goal>
+                                </goals>
+                                <phase>test</phase>
+                                <configuration>
+                                    <skip>${skipTests}</skip>
+                                    <arguments>run typecheck</arguments>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>ui-test</id>
+                                <goals>
+                                    <goal>npm</goal>
+                                </goals>
+                                <phase>test</phase>
+                                <configuration>
+                                    <skip>${skipTests}</skip>
+                                    <arguments>run test</arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <!-- Without the built designer application there is nothing for its serving and browser tests to load. -->
+        <profile>
+            <id>java-only</id>
+            <activation>
+                <property>
+                    <name>skip.npm</name>
+                    <value>true</value>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-failsafe-plugin</artifactId>
+                        <configuration>
+                            <excludedGroups>designer-ui</excludedGroups>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
 </project>

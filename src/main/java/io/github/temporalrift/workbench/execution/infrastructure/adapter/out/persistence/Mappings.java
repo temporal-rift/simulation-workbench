@@ -7,6 +7,7 @@ import tools.jackson.core.type.TypeReference;
 
 import io.github.temporalrift.workbench.execution.domain.run.Attempt;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptState;
+import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.CaseResult;
 import io.github.temporalrift.workbench.execution.domain.run.CaseState;
 import io.github.temporalrift.workbench.execution.domain.run.Failure;
@@ -46,6 +47,7 @@ class Mappings {
                 entity.caseKey(),
                 entity.ordinal(),
                 entity.variantLabel(),
+                new BundleDigests(entity.rulesDigest(), entity.contentDigest()),
                 entity.seed(),
                 entity.playerCount(),
                 json.read(entity.seatsJson(), SEATS),

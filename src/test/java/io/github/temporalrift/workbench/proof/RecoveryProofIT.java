@@ -1,5 +1,6 @@
 package io.github.temporalrift.workbench.proof;
 
+import static io.github.temporalrift.workbench.ExecutionTestConfiguration.DEFAULT_BUNDLE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -7,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.time.Clock;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,7 +42,9 @@ class RecoveryProofIT extends ProofSupport {
         assertThat(kept).hasSize(KEPT);
         // A worker that crashed mid-case leaves an attempt running and holding a lease.
         var now = clock.instant();
-        caseLedger.claimNext("crashed-worker", now, now.plusSeconds(30)).orElseThrow();
+        caseLedger
+                .claimNext("crashed-worker", now, now.plusSeconds(30), Set.of(DEFAULT_BUNDLE))
+                .orElseThrow();
 
         batch.recoverAfterRestart();
 

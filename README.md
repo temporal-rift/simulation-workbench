@@ -56,7 +56,7 @@ mvn verify
 # Check and fix formatting
 mvn spotless:apply
 
-# Java only: skip the designer application's Node download, install and build
+# Java only: skip the designer application's Node download, install, build, checks, and the tests that serve it
 mvn verify -Dskip.installnodenpm -Dskip.npm
 
 # Run all quality gates (formatting + Checkstyle)
@@ -156,8 +156,9 @@ mvn spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
 Open <http://localhost:8080> and choose **Sign in**. The local issuer accepts any username and grants the scopes the
-application asks for, so everything below is available. Cases execute only on configured isolated lanes (see
-"Operating the runner"); without a lane a run starts but its cases stay pending, which the run page shows as such.
+application asks for, so everything below is available. Cases execute only on configured isolated lanes serving their
+variant's rules and content (see "Operating the runner"); a run whose variants are not all served is refused when it is
+started.
 
 ### 1. Configure and preview
 
@@ -227,7 +228,7 @@ On the case page press **Reproduce this case**. A reproduction is a check of the
 
 | You see | It means |
 |---|---|
-| Waiting, queued behind other work | The lane that played the case is busy; the reproduction starts when it is free. This is not a failure. |
+| Waiting, queued behind other work | The lane that played the case is busy or serves other rules or content; the reproduction starts when it is free and serving this case's variant again. This is not a failure. |
 | Running | The case is being replayed against the pinned services. |
 | Match | Every accepted decision and the final result equal the recording. |
 | Diverged at step *n*, kind *k* | The first difference, with the expected (recorded) and actual values. Kinds are `OBSERVATION`, `DECISION`, `WINDOW`, `MISSING_STEP`, `UNEXPECTED_STEP`, `UNEXPECTED_WINDOW`, `COMMAND_REJECTED` and, after the last step, `END_REASON`, `WINNERS`, `FINAL_SCORES`, `ERAS`, `SEMANTIC_DIGEST`. |
@@ -304,7 +305,9 @@ nullable `endReason` (present once the case has a result).
 `POST /api/v1/experiments/{experimentId}/runs` (body `{}`, `Idempotency-Key` header) creates a `Run` over a
 frozen experiment and returns `202` in state `QUEUED` with its counts. One logical case exists per matrix
 coordinate and is persisted up front, so the totals are known before anything executes. A manifest may expand to at most 100,000 cases, with `concurrency` up to 64, `caseWallTimeoutSeconds` up to 86,400 and `maxRejectedCandidatesPerWindow` up to 1,000; larger ones are `INVALID_EXPERIMENT`. The same key returns the
-original run; the same key for another experiment returns `409 IDEMPOTENCY_CONFLICT`.
+original run; the same key for another experiment returns `409 IDEMPOTENCY_CONFLICT`. When any variant of the
+experiment has no configured lane serving its `effectiveRulesDigest` and `effectiveContentDigest`, the request returns
+`409 MANIFEST_MISMATCH`, names every unserved variant label, and creates nothing.
 
 | Operation | Behavior |
 |---|---|
@@ -399,11 +402,21 @@ workbench:
         timeline-service-url: https://lane-1.timeline.internal
         read-service-url: https://lane-1.read.internal
         operator-token: ${LANE_1_OPERATOR_TOKEN}
+        rules-digest: 3f1c…        # effective rules digest of the bundle this lane serves
+        content-digest: 9b07…      # effective content digest of the bundle this lane serves
         bots:
           - { player-id: 8a0c…, token: ${LANE_1_BOT_0_TOKEN} }
 ```
 
-A case executes only while a lane is free; with none configured, runs start but their cases stay pending. Logical time starts at
+Each lane declares the effective rules and content digests of the frozen bundle it serves, as published by the
+deployment that provisioned it. Both are required 64-character lowercase SHA-256 hex strings; the workbench refuses to
+start, naming the lane and the key, when one is missing or malformed. A case executes only on a free lane whose digests
+equal its variant's `effectiveRulesDigest` and `effectiveContentDigest`, so a variant's results always come from its own
+bundle and each attempt records the lane that played it. Cases are taken in matrix order among those some free lane can
+serve: a case whose variant has no free lane stays pending without holding back the cases of other variants. A
+recovering attempt goes back to its previous lane when that lane is free and still serves the case's bundle.
+`startRun` checks the configured lanes, busy or free, so every instance serving the API needs the same lane
+configuration as the worker. Logical time starts at
 `workbench.execution.logical-epoch` for every attempt and is advanced only to the earliest deadline reported by the
 services' checkpoints, on both services, followed by their drain barrier. A slow projection never moves time.
 
@@ -490,7 +503,8 @@ reproduction.
 A reproduction runs on the lane that played the case, because the bot identities of a lane are part of what the seats
 observe and decide on. It waits, queued, while that lane is busy, shares the worker pool, and is taken after pending
 cases. Because it reuses the logical identities of the original case, that lane must be clean, as for any case. A
-reproduction whose lane is no longer configured stays queued.
+reproduction whose lane is no longer configured, or now serves other rules or content digests than the case's variant,
+stays queued and is never played on another lane.
 
 ### Export
 

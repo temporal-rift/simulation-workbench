@@ -19,10 +19,10 @@ import io.github.temporalrift.workbench.execution.domain.run.LeaseLostException;
 import io.github.temporalrift.workbench.execution.domain.run.RunNotFoundException;
 
 /**
- * Executes queued reproductions on clean lanes. Like a research case, a reproduction runs under a renewable
- * lease and only the lease owner settles it. It reports {@code MATCH} when the semantic setup, decisions,
- * outcomes, scoring and result equal the saved case, otherwise {@code DIVERGED} with the first difference,
- * and {@code FAILED} when it could not run to an ending at all.
+ * Executes queued reproductions on the clean lane that played the case, while it still serves the case's bundle.
+ * Like a research case, a reproduction runs under a renewable lease and only the lease owner settles it. It reports
+ * {@code MATCH} when the semantic setup, decisions, outcomes, scoring and result equal the saved case, otherwise
+ * {@code DIVERGED} with the first difference, and {@code FAILED} when it could not run to an ending at all.
  */
 public class ReproductionRunner implements RunReproductionUseCase {
 
@@ -62,11 +62,12 @@ public class ReproductionRunner implements RunReproductionUseCase {
 
     @Override
     public boolean runNext(String owner) {
-        if (!lanes.hasFreeLane()) {
+        var freeLanes = lanes.freeLanes();
+        if (freeLanes.isEmpty()) {
             return false;
         }
         var now = clock.instant();
-        var claimed = reproductions.claimNext(owner, now, now.plus(settings.lease()), lanes.freeLaneIds());
+        var claimed = reproductions.claimNext(owner, now, now.plus(settings.lease()), freeLanes);
         if (claimed.isEmpty()) {
             return false;
         }
@@ -79,7 +80,8 @@ public class ReproductionRunner implements RunReproductionUseCase {
             settle(reproduction, owner, reproduction.failed(failure, now));
             return true;
         }
-        var lane = lanes.acquireExactly(reproduction.laneId());
+        var lane =
+                lanes.acquireExactly(reproduction.laneId(), inputs.logicalCase().bundle());
         if (lane.isEmpty()) {
             reproductions.release(reproduction.reproductionId(), owner);
             return false;

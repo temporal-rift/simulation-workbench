@@ -29,6 +29,7 @@ import io.github.temporalrift.workbench.WorkbenchIntegrationTest;
 import io.github.temporalrift.workbench.execution.domain.evidence.ObservedEvent;
 import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
+import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.GameEventObservers;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneEndpoints;
@@ -227,6 +228,7 @@ class KafkaGameEventObserverIT {
                 "http://t",
                 "http://r",
                 "op",
+                new BundleDigests("a".repeat(64), "b".repeat(64)),
                 gameTopic,
                 timelineTopic,
                 OTHER_BROKER.getBootstrapServers(),
@@ -252,7 +254,16 @@ class KafkaGameEventObserverIT {
 
     private LaneEndpoints lane() {
         return new LaneEndpoints(
-                "lane", "http://g", "http://t", "http://r", "op", gameTopic, timelineTopic, null, List.of());
+                "lane",
+                "http://g",
+                "http://t",
+                "http://r",
+                "op",
+                new BundleDigests("a".repeat(64), "b".repeat(64)),
+                gameTopic,
+                timelineTopic,
+                null,
+                List.of());
     }
 
     private static String gameEnded(String reason, int score) {

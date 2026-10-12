@@ -1,22 +1,28 @@
 package io.github.temporalrift.workbench.execution.application.command;
 
 import java.time.Clock;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import io.github.temporalrift.workbench.execution.application.port.in.RunView;
 import io.github.temporalrift.workbench.execution.application.port.in.StartRunUseCase;
 import io.github.temporalrift.workbench.execution.domain.port.out.ExperimentSource;
+import io.github.temporalrift.workbench.execution.domain.port.out.LaneProvider;
 import io.github.temporalrift.workbench.execution.domain.port.out.RunRepository;
+import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.Run;
 import io.github.temporalrift.workbench.execution.domain.run.RunCommand;
 import io.github.temporalrift.workbench.execution.domain.run.RunCreation;
 import io.github.temporalrift.workbench.execution.domain.run.RunIdempotencyConflictException;
 import io.github.temporalrift.workbench.execution.domain.run.RunNotFoundException;
+import io.github.temporalrift.workbench.execution.domain.run.UnservedVariantsException;
 
 /**
- * Creates a queued run with one logical case per matrix coordinate. The same idempotency key returns
- * the original run; a key reused for another experiment conflicts.
+ * Creates a queued run with one logical case per matrix coordinate, each bound to its variant's bundle. A run starts
+ * only when every variant has a configured lane serving its bundle. The same idempotency key returns the original
+ * run; a key reused for another experiment conflicts.
  */
 public class StartRunCommandHandler implements StartRunUseCase {
 
@@ -24,11 +30,13 @@ public class StartRunCommandHandler implements StartRunUseCase {
 
     private final ExperimentSource experiments;
     private final RunRepository runs;
+    private final LaneProvider lanes;
     private final Clock clock;
 
-    public StartRunCommandHandler(ExperimentSource experiments, RunRepository runs, Clock clock) {
+    public StartRunCommandHandler(ExperimentSource experiments, RunRepository runs, LaneProvider lanes, Clock clock) {
         this.experiments = experiments;
         this.runs = runs;
+        this.lanes = lanes;
         this.clock = clock;
     }
 
@@ -45,6 +53,7 @@ public class StartRunCommandHandler implements StartRunUseCase {
         var plan = experiments
                 .plan(command.experimentId())
                 .orElseThrow(() -> new RunNotFoundException("Experiment", command.experimentId()));
+        var bundles = servedBundles(plan);
         var planned = experiments
                 .cases(command.experimentId())
                 .orElseThrow(() -> new RunNotFoundException("Experiment", command.experimentId()));
@@ -55,6 +64,7 @@ public class StartRunCommandHandler implements StartRunUseCase {
                             coordinate.caseKey(),
                             ordinal,
                             coordinate.variantLabel(),
+                            bundles.get(coordinate.variantLabel()),
                             coordinate.seed(),
                             coordinate.playerCount(),
                             coordinate.seats());
@@ -65,6 +75,20 @@ public class StartRunCommandHandler implements StartRunUseCase {
             case RunCreation.Created _ -> view(run.runId());
             case RunCreation.Existing(var claim) -> replayed(claim, requestHash);
         };
+    }
+
+    /** Each variant's bundle by label, once every one of them is served by some configured lane. */
+    private Map<String, BundleDigests> servedBundles(ExperimentSource.Plan plan) {
+        var served = lanes.servedBundles();
+        var unserved = plan.variants().stream()
+                .filter(variant -> !served.contains(variant.bundle()))
+                .map(ExperimentSource.Variant::label)
+                .toList();
+        if (!unserved.isEmpty()) {
+            throw new UnservedVariantsException(unserved);
+        }
+        return plan.variants().stream()
+                .collect(Collectors.toMap(ExperimentSource.Variant::label, ExperimentSource.Variant::bundle));
     }
 
     private RunView replayed(RunCommand claim, String requestHash) {

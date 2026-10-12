@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.execution.domain.port.out.ExperimentSource;
+import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.SeatPlan;
 import io.github.temporalrift.workbench.experiment.ExperimentCatalog;
 
@@ -25,7 +26,13 @@ public class ExperimentSourceAdapter implements ExperimentSource {
                         bounds.manifestJson(),
                         bounds.concurrency(),
                         bounds.caseWallTimeoutSeconds(),
-                        bounds.maxRejectedCandidatesPerWindow()));
+                        bounds.maxRejectedCandidatesPerWindow(),
+                        bounds.variants().stream()
+                                .map(variant -> new Variant(
+                                        variant.label(),
+                                        new BundleDigests(
+                                                variant.effectiveRulesDigest(), variant.effectiveContentDigest())))
+                                .toList()));
     }
 
     @Override

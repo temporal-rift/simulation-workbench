@@ -1,5 +1,6 @@
 package io.github.temporalrift.workbench.execution;
 
+import static io.github.temporalrift.workbench.ExecutionTestConfiguration.DEFAULT_BUNDLE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -39,6 +40,7 @@ import io.github.temporalrift.workbench.execution.domain.port.out.ReproductionRe
 import io.github.temporalrift.workbench.execution.domain.reproduction.ReproductionState;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptState;
+import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.CaseState;
 import io.github.temporalrift.workbench.execution.domain.run.EndReason;
 import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
@@ -323,7 +325,7 @@ class CaseEvidenceIT {
                 new ReproduceCaseUseCase.Command(saved.runId(), saved.caseId(), UUID.randomUUID()));
         assertThat(reproduction.laneId()).isEqualTo(lane);
 
-        var busy = lanes.acquireExactly(lane).orElseThrow();
+        var busy = lanes.acquireExactly(lane, DEFAULT_BUNDLE).orElseThrow();
         assertThat(reproductions.runNext(WORKER)).isFalse();
         assertThat(reproductionRepository
                         .find(reproduction.reproductionId())
@@ -338,6 +340,30 @@ class CaseEvidenceIT {
                         .orElseThrow()
                         .state())
                 .isEqualTo(ReproductionState.MATCH);
+        assertThat(lanes.opened().getLast().laneId()).isEqualTo(lane);
+    }
+
+    @Test
+    void aReproductionWaitsWhileItsLaneServesAnotherBundleAndNeverPlaysElsewhere() {
+        var saved = savedCase();
+        var lane = jdbc.queryForObject(
+                "SELECT lane_id FROM case_attempt WHERE attempt_id = ?", String.class, saved.attemptId());
+        var other = new BundleDigests("e".repeat(64), "b".repeat(64));
+        lanes.serve(lane.equals("lane-0") ? other : DEFAULT_BUNDLE, lane.equals("lane-1") ? other : DEFAULT_BUNDLE);
+        var opened = lanes.opened().size();
+        var reproduction = reproduceCase.handle(
+                new ReproduceCaseUseCase.Command(saved.runId(), saved.caseId(), UUID.randomUUID()));
+
+        assertThat(reproductions.runNext(WORKER)).isFalse();
+        assertThat(reproductionRepository
+                        .find(reproduction.reproductionId())
+                        .orElseThrow()
+                        .state())
+                .isEqualTo(ReproductionState.QUEUED);
+        assertThat(lanes.opened()).hasSize(opened);
+
+        lanes.serve(DEFAULT_BUNDLE, DEFAULT_BUNDLE);
+        assertThat(reproductions.runNext(WORKER)).isTrue();
         assertThat(lanes.opened().getLast().laneId()).isEqualTo(lane);
     }
 
@@ -369,7 +395,7 @@ class CaseEvidenceIT {
                 "crashed-worker",
                 java.time.Instant.now(),
                 java.time.Instant.now().plusSeconds(60),
-                lanes.freeLaneIds());
+                lanes.freeLanes());
         assertThat(reproductionRepository
                         .find(reproduction.reproductionId())
                         .orElseThrow()

@@ -1,7 +1,6 @@
 package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.persistence;
 
 import java.time.Instant;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -17,6 +16,7 @@ import io.github.temporalrift.workbench.execution.domain.reproduction.Reproducti
 import io.github.temporalrift.workbench.execution.domain.reproduction.ReproductionClaim;
 import io.github.temporalrift.workbench.execution.domain.reproduction.ReproductionCreation;
 import io.github.temporalrift.workbench.execution.domain.reproduction.ReproductionState;
+import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.InsertOnce;
 
 /** Reproductions, claimed under a lease so a stalled worker can never settle a re-run. */
@@ -28,11 +28,14 @@ public class ReproductionRepositoryAdapter implements ReproductionRepository {
     private static final TypeReference<Map<String, Object>> OBJECT = new TypeReference<>() {};
 
     private final ReproductionJpaRepository reproductions;
+    private final ClaimQueries claims;
     private final InsertOnce insertOnce;
     private final StoredJson json;
 
-    ReproductionRepositoryAdapter(ReproductionJpaRepository reproductions, InsertOnce insertOnce, StoredJson json) {
+    ReproductionRepositoryAdapter(
+            ReproductionJpaRepository reproductions, ClaimQueries claims, InsertOnce insertOnce, StoredJson json) {
         this.reproductions = reproductions;
+        this.claims = claims;
         this.insertOnce = insertOnce;
         this.json = json;
     }
@@ -64,12 +67,9 @@ public class ReproductionRepositoryAdapter implements ReproductionRepository {
     @Override
     @Transactional
     public Optional<Reproduction> claimNext(
-            String owner, Instant now, Instant leaseUntil, Collection<String> freeLaneIds) {
-        if (freeLaneIds.isEmpty()) {
-            return Optional.empty();
-        }
-        return reproductions
-                .findFirstWithLockByStateAndLaneIdInOrderByCreatedAt(QUEUED, freeLaneIds)
+            String owner, Instant now, Instant leaseUntil, Map<String, BundleDigests> freeLanes) {
+        return claims.lockOldestReproductionServedBy(QUEUED, freeLanes)
+                .flatMap(reproductions::findById)
                 .map(entity -> {
                     entity.claim(owner, leaseUntil);
                     return reproduction(entity);

@@ -1,5 +1,6 @@
 package io.github.temporalrift.workbench.experiment.application.query;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -12,6 +13,7 @@ import io.github.temporalrift.workbench.experiment.ExperimentBounds;
 import io.github.temporalrift.workbench.experiment.ExperimentCase;
 import io.github.temporalrift.workbench.experiment.ExperimentCatalog;
 import io.github.temporalrift.workbench.experiment.ExperimentSeat;
+import io.github.temporalrift.workbench.experiment.ExperimentVariant;
 import io.github.temporalrift.workbench.experiment.domain.MatrixPreviewService;
 import io.github.temporalrift.workbench.experiment.domain.port.out.ExperimentRepository;
 
@@ -35,7 +37,8 @@ public class ExperimentCatalogQueryHandler implements ExperimentCatalog {
                     stored.manifestJson(),
                     manifest.get("concurrency").asInt(),
                     manifest.get("caseWallTimeoutSeconds").asInt(),
-                    manifest.get("maxRejectedCandidatesPerWindow").asInt());
+                    manifest.get("maxRejectedCandidatesPerWindow").asInt(),
+                    variants(manifest));
         });
     }
 
@@ -46,6 +49,16 @@ public class ExperimentCatalogQueryHandler implements ExperimentCatalog {
                 .map(stored -> MatrixPreviewService.preview(parse(stored), stored.manifestDigest()).stream()
                         .map(ExperimentCatalogQueryHandler::toCase)
                         .toList());
+    }
+
+    private static List<ExperimentVariant> variants(JsonNode manifest) {
+        var variants = new ArrayList<ExperimentVariant>();
+        manifest.get("variants")
+                .forEach(variant -> variants.add(new ExperimentVariant(
+                        variant.get("label").asString(),
+                        variant.get("effectiveRulesDigest").asString(),
+                        variant.get("effectiveContentDigest").asString())));
+        return variants;
     }
 
     private JsonNode parse(ExperimentRepository.StoredExperiment stored) {
