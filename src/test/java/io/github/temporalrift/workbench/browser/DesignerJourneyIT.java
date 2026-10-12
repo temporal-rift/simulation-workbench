@@ -101,6 +101,6 @@ class DesignerJourneyIT extends DesignerBrowserTest {
     }
 
     private static LocatorAssertions.IsVisibleOptions longWait() {
-        return new LocatorAssertions.IsVisibleOptions().setTimeout(UI_WAIT.toMillis());
+        return new LocatorAssertions.IsVisibleOptions().setTimeout((double) UI_WAIT.toMillis());
     }
 }

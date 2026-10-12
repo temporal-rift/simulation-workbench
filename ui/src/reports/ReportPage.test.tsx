@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { FakeService } from '../test/fakeService'
+import { FakeService, problem } from '../test/fakeService'
 import { IDS, REPORT_CSV, report, run } from '../test/fixtures'
 import { renderApp } from '../test/renderApp'
 
@@ -103,6 +103,18 @@ describe('exports', () => {
 
     await waitFor(() => expect(saved).toHaveLength(1))
     expect(await saved[0]!.blob.text()).toBe(raw)
+  })
+
+  it('explains a refused export instead of calling the answer unexpected', async () => {
+    const user = userEvent.setup()
+    captureDownloads()
+    await renderApp(path, service)
+    await screen.findByRole('button', { name: 'Export CSV' })
+
+    service.override('GET', /\/report$/, () => problem(403, 'INSUFFICIENT_SCOPE', 'The bearer token lacks a required simulation scope'))
+    await user.click(screen.getByRole('button', { name: 'Export CSV' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/your session lacks a required scope/)
   })
 
   it('says so when the export cannot be fetched', async () => {

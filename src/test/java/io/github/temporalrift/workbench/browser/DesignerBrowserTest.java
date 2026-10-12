@@ -97,7 +97,7 @@ abstract class DesignerBrowserTest {
         cleanStore();
         lanes.reset();
         context = browser.newContext();
-        context.setDefaultTimeout(UI_WAIT.toMillis());
+        context.setDefaultTimeout((double) UI_WAIT.toMillis());
         page = context.newPage();
         consoleErrors.clear();
         page.onConsoleMessage(message -> {

@@ -1,7 +1,7 @@
 import { queryOptions } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { useSession } from '../auth/sessionContext'
-import { ServiceUnavailableError, apiClientFor, unwrap } from './client'
+import { ApiProblemError, ServiceUnavailableError, apiClientFor, unwrap } from './client'
 import {
   cancelRun,
   createComparison,
@@ -181,7 +181,19 @@ export const reproduceCommand = (client: Client, runId: string, caseId: string, 
 export async function fetchExport(fetchFn: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>, path: string, accept: string): Promise<Blob> {
   const response = await fetchFn(new URL(path, window.location.origin).href, { method: 'GET', headers: { Accept: accept }, cache: 'no-store' })
   if (!response.ok) {
-    throw new ServiceUnavailableError('unexpected-response')
+    throw await problemOf(response)
   }
   return response.blob()
+}
+
+/** A refused export keeps its problem details, so a missing scope or a missing resource is explained as such. */
+async function problemOf(response: Response): Promise<Error> {
+  try {
+    const problem: unknown = await response.json()
+    const fields = typeof problem === 'object' && problem !== null ? (problem as Record<string, unknown>) : {}
+    const text = (value: unknown) => (typeof value === 'string' && value.length > 0 ? value : null)
+    return new ApiProblemError(response.status, text(fields['code']), text(fields['detail']) ?? '', text(fields['field']))
+  } catch {
+    return new ServiceUnavailableError('unexpected-response')
+  }
 }

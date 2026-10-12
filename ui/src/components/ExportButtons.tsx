@@ -26,10 +26,10 @@ export function ExportButtons({ path, filename }: Props) {
   })
   return (
     <div className="actions">
-      <button type="button" aria-busy={download.isPending} onClick={() => download.mutate('json')}>
+      <button type="button" aria-busy={download.isPending} disabled={download.isPending} onClick={() => download.mutate('json')}>
         Export JSON
       </button>
-      <button type="button" aria-busy={download.isPending} onClick={() => download.mutate('csv')}>
+      <button type="button" aria-busy={download.isPending} disabled={download.isPending} onClick={() => download.mutate('csv')}>
         Export CSV
       </button>
       {download.isError && <ErrorNotice message={describeFailure(download.error, { action: 'export' })} />}
