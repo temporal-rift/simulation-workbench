@@ -54,7 +54,7 @@ class MultiSeedReportingIT extends ProofSupport {
 
         var winsRow = csvRow(csv, "faction_win_rate", ERASERS, "0");
         assertThat(Double.parseDouble(winsRow.get("numerator"))).isEqualTo(4.0);
-        assertThat(winsRow.get("denominator")).isEqualTo("10");
+        assertThat(winsRow).containsEntry("denominator", "10");
         assertThat(Double.parseDouble(winsRow.get("value"))).isEqualTo(0.4);
         var sharedRow = csvRow(csv, "faction_shared_win_rate", ERASERS, "0");
         assertThat(Double.parseDouble(sharedRow.get("numerator"))).isEqualTo(1.0);
@@ -91,7 +91,7 @@ class MultiSeedReportingIT extends ProofSupport {
         assertThat(wins.path("interval").isNull()).isTrue();
         var csv = api.reportText(runId, ProofApi.CSV);
         var row = csvRow(csv, "faction_win_rate", ERASERS, "0");
-        assertThat(row.get("status")).isEqualTo("INSUFFICIENT_SAMPLE");
+        assertThat(row).containsEntry("status", "INSUFFICIENT_SAMPLE");
         assertThat(row.get("intervalLower")).isEmpty();
         assertThat(row.get("intervalUpper")).isEmpty();
     }
@@ -158,12 +158,9 @@ class MultiSeedReportingIT extends ProofSupport {
 
     /** Erasers win in seeds 1 to 4, in seed 4 jointly with another seat; in every other seed another seat wins. */
     private ScriptedLanes.Script erasersWinSeedsOneToFour() {
-        return new ScriptedLanes.Script() {
-            @Override
-            public GameSession.AuthoritativeEnding ending(CaseLane.CaseContext context) {
-                var seed = Integer.parseInt(context.seed());
-                return erasersOrOthersWin(context, seed <= 4, seed == 4);
-            }
+        return context -> {
+            var seed = Integer.parseInt(context.seed());
+            return erasersOrOthersWin(context, seed <= 4, seed == 4);
         };
     }
 
