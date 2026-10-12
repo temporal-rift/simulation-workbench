@@ -20,7 +20,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -71,7 +70,12 @@ class HttpCaseLaneTest {
     private final InMemoryCommandLedger ledger = new InMemoryCommandLedger();
     private final InMemoryEvidenceLedger evidence = new InMemoryEvidenceLedger();
     private final StubEventObserver events = new StubEventObserver();
-    private final AtomicInteger released = new AtomicInteger();
+    private final LaneRoster roster = new LaneRoster(
+            List.of(
+                    new LaneRoster.Member("lane-1", new BundleDigests("a".repeat(64), "b".repeat(64)), false),
+                    new LaneRoster.Member("lane-2", new BundleDigests("a".repeat(64), "b".repeat(64)), false)),
+            (_, _, _) -> {},
+            (task, _) -> task.run());
     private SimulationExecutionApi gameControl;
     private SimulationExecutionApi timelineControl;
     private LaneEndpoints endpoints;
@@ -88,6 +92,7 @@ class HttpCaseLaneTest {
                 new BundleDigests("a".repeat(64), "b".repeat(64)),
                 "game.events",
                 "timeline.events",
+                null,
                 null,
                 List.of(
                         new LaneEndpoints.BotIdentity(ProjectionStates.id(1), "t1"),
@@ -295,6 +300,7 @@ class HttpCaseLaneTest {
                 "game.events",
                 "timeline.events",
                 null,
+                null,
                 List.of(new LaneEndpoints.BotIdentity(ProjectionStates.id(1), "t1"))));
 
         assertThatThrownBy(() -> small.open(context(), null))
@@ -307,7 +313,7 @@ class HttpCaseLaneTest {
     void closingTheLaneReleasesIt() {
         lane.close();
 
-        assertThat(released.get()).isEqualTo(1);
+        assertThat(roster.free()).containsKey("lane-1");
         assertThat(lane.laneId()).isEqualTo("lane-1");
     }
 
@@ -319,7 +325,7 @@ class HttpCaseLaneTest {
                 Clock.fixed(EPOCH, ZoneOffset.UTC),
                 new LaneEndpoints.Barrier(Duration.ZERO, 1, 2),
                 _ -> {},
-                released::incrementAndGet);
+                roster.takeExactly(endpoints.id(), endpoints.bundle()).orElseThrow());
     }
 
     private CaseLane.CaseContext context() {

@@ -43,7 +43,7 @@ class RecoveryProofIT extends ProofSupport {
         // A worker that crashed mid-case leaves an attempt running and holding a lease.
         var now = clock.instant();
         caseLedger
-                .claimNext("crashed-worker", now, now.plusSeconds(30), Set.of(DEFAULT_BUNDLE))
+                .claimNext("crashed-worker", now, now.plusSeconds(30), Set.of(DEFAULT_BUNDLE), Set.of())
                 .orElseThrow();
 
         batch.recoverAfterRestart();

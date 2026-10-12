@@ -1,5 +1,6 @@
 package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane;
 
+import java.net.URI;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
@@ -9,11 +10,13 @@ import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 
 /**
  * One isolated lane: the three services that make up an independent deployment, the bundle they serve, the operator
- * credential for its execution controls, the broker and topics its services publish on, and the bot identities that
- * play its seats.
+ * credential for its execution controls, the broker and topics its services publish on, the hook that resets it, and
+ * the bot identities that play its seats.
  * Credentials come from runtime configuration only and are never stored with experiments, runs or evidence.
  *
  * @param kafkaBootstrapServers the broker of the lane, or {@code null} for the workbench default broker
+ * @param resetUrl the deployment hook that makes the lane clean for another case, or {@code null} when the lane
+ *     is never reset
  */
 public record LaneEndpoints(
         String id,
@@ -25,6 +28,7 @@ public record LaneEndpoints(
         String gameEventsTopic,
         String timelineEventsTopic,
         String kafkaBootstrapServers,
+        URI resetUrl,
         List<BotIdentity> bots) {
 
     public LaneEndpoints {

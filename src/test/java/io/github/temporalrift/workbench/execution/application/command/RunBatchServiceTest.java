@@ -2,7 +2,9 @@ package io.github.temporalrift.workbench.execution.application.command;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -21,17 +23,21 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLedger;
 import io.github.temporalrift.workbench.execution.domain.port.out.ExperimentSource;
 import io.github.temporalrift.workbench.execution.domain.port.out.LaneProvider;
 import io.github.temporalrift.workbench.execution.domain.port.out.RunRepository;
 import io.github.temporalrift.workbench.execution.domain.run.Attempt;
+import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptState;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.CaseState;
 import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
+import io.github.temporalrift.workbench.execution.domain.run.LeaseLostException;
 import io.github.temporalrift.workbench.execution.domain.run.LogicalCase;
 import io.github.temporalrift.workbench.execution.domain.run.Run;
+import io.github.temporalrift.workbench.execution.domain.run.RunCancelledException;
 import io.github.temporalrift.workbench.execution.domain.run.RunState;
 
 class RunBatchServiceTest {
@@ -45,12 +51,13 @@ class RunBatchServiceTest {
     private final CaseLedger cases = mock(CaseLedger.class);
     private final ExperimentSource experiments = mock(ExperimentSource.class);
     private final LaneProvider lanes = mock(LaneProvider.class);
+    private final CaseDriver driver = mock(CaseDriver.class);
     private final RunBatchService service = new RunBatchService(
             runs,
             cases,
             experiments,
             lanes,
-            mock(CaseDriver.class),
+            driver,
             Clock.fixed(NOW, ZoneOffset.UTC),
             new ExecutionSettings(Duration.ofSeconds(30), Duration.ofSeconds(5), 2, NOW));
 
@@ -60,7 +67,7 @@ class RunBatchServiceTest {
         var logicalCase = logicalCase(BASELINE);
         var attempt = attempt(logicalCase);
         when(lanes.freeLanes()).thenReturn(Map.of("lane-a", BASELINE));
-        when(cases.claimNext(any(), any(), any(), any()))
+        when(cases.claimNext(any(), any(), any(), any(), any()))
                 .thenReturn(Optional.of(new CaseLedger.Claim(logicalCase, attempt, Optional.empty(), 1)));
         when(runs.find(RUN)).thenReturn(Optional.of(running));
         when(experiments.plan(running.experimentId())).thenReturn(Optional.empty());
@@ -74,16 +81,27 @@ class RunBatchServiceTest {
         assertThat(failed.getValue().failure().code()).isEqualTo(FailureCode.CONTRACT_MISMATCH);
         verify(cases).release(eq(attempt.attemptId()), eq("worker"), any());
         verify(runs).cancelPendingCases(RUN);
-        verify(lanes, never()).acquire(any(), any());
+        verify(lanes, never()).acquire(any(), any(), any());
     }
 
     @Test
-    void nothingIsClaimedWhileNoLaneIsFree() {
+    void nothingIsClaimedWhileNoLaneIsFreeOrHeld() {
         when(lanes.freeLanes()).thenReturn(Map.of());
 
         assertThat(service.runNextCase("worker")).isFalse();
 
-        verify(cases, never()).claimNext(any(), any(), any(), any());
+        verify(cases, never()).claimNext(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void aCaseWhoseLaneIsHeldIsClaimableWhileNoLaneIsFree() {
+        var held = new UUID(7, 7);
+        when(lanes.freeLanes()).thenReturn(Map.of());
+        when(lanes.heldCases()).thenReturn(Set.of(held));
+
+        service.runNextCase("worker");
+
+        verify(cases).claimNext("worker", NOW, NOW.plusSeconds(30), Set.of(), Set.of(held));
     }
 
     @Test
@@ -92,7 +110,7 @@ class RunBatchServiceTest {
 
         service.runNextCase("worker");
 
-        verify(cases).claimNext("worker", NOW, NOW.plusSeconds(30), Set.of(BASELINE, CANDIDATE));
+        verify(cases).claimNext("worker", NOW, NOW.plusSeconds(30), Set.of(BASELINE, CANDIDATE), Set.of());
     }
 
     @Test
@@ -102,18 +120,128 @@ class RunBatchServiceTest {
         var previous = new Attempt(
                 new UUID(6, 6), logicalCase.caseId(), 0, AttemptState.INTERRUPTED, null, "lane-c", NOW, NOW, null);
         when(lanes.freeLanes()).thenReturn(Map.of("lane-c", CANDIDATE));
-        when(cases.claimNext(any(), any(), any(), any()))
+        when(cases.claimNext(any(), any(), any(), any(), any()))
                 .thenReturn(Optional.of(new CaseLedger.Claim(logicalCase, attempt, Optional.of(previous), 1)));
         when(runs.find(RUN))
                 .thenReturn(Optional.of(Run.queued(RUN, new UUID(2, 2), NOW).begin(NOW)));
         when(experiments.plan(any()))
                 .thenReturn(Optional.of(new ExperimentSource.Plan("d", "{}", 1, 60, 1, List.of())));
-        when(lanes.acquire(CANDIDATE, "lane-c")).thenReturn(Optional.empty());
+        when(lanes.acquire(logicalCase.caseId(), CANDIDATE, "lane-c")).thenReturn(Optional.empty());
 
         assertThat(service.runNextCase("worker")).isFalse();
 
-        verify(lanes).acquire(CANDIDATE, "lane-c");
+        verify(lanes).acquire(logicalCase.caseId(), CANDIDATE, "lane-c");
         verify(cases).release(eq(attempt.attemptId()), eq("worker"), any());
+    }
+
+    @Test
+    void aRestartHoldsTheLanesOfInterruptedAttemptsAndPreparesTheOthers() {
+        var holds = List.of(new LaneProvider.Hold("lane-a", new UUID(3, 3), new UUID(4, 4)));
+        when(cases.interruptedLanes()).thenReturn(holds);
+
+        service.recoverAfterRestart();
+
+        var order = inOrder(cases, lanes);
+        order.verify(cases).interruptAllRunning(NOW);
+        order.verify(lanes).prepare(holds);
+    }
+
+    @Test
+    void maintenanceReleasesTheLanesOfHeldCasesThatReachedAFinalState() {
+        var finished = new UUID(7, 7);
+        var waiting = new UUID(8, 8);
+        when(lanes.heldCases()).thenReturn(Set.of(finished, waiting));
+        when(cases.finished(Set.of(finished, waiting))).thenReturn(Set.of(finished));
+
+        service.maintain();
+
+        verify(lanes).releaseHeld(finished);
+        verify(lanes, never()).releaseHeld(waiting);
+    }
+
+    @Test
+    void aSucceededAttemptHandsItsLaneBackToBeCleaned() {
+        var lane = playing();
+        when(cases.succeed(any(), any(), any(), any())).thenReturn(true);
+
+        service.runNextCase("worker");
+
+        verify(lane, never()).retainForRecovery();
+        verify(lane).close();
+    }
+
+    @Test
+    void aFailureThatReturnsTheCaseToPendingHandsItsLaneBackToBeCleaned() {
+        var lane = playing();
+        when(driver.play(any(), any(), any(), any(), any(), any()))
+                .thenThrow(new AttemptFailedException(FailureCode.EXECUTION_FAILED, "lane fault"));
+        when(cases.fail(any(), any(), any(), eq(true), any())).thenReturn(CaseLedger.FailOutcome.RETRY);
+
+        service.runNextCase("worker");
+
+        verify(lane, never()).retainForRecovery();
+        verify(lane).close();
+    }
+
+    @Test
+    void aCancelledAttemptHandsItsLaneBackToBeCleaned() {
+        var lane = playing();
+        when(driver.play(any(), any(), any(), any(), any(), any())).thenThrow(new RunCancelledException());
+        when(cases.cancel(any(), any(), any())).thenReturn(true);
+
+        service.runNextCase("worker");
+
+        verify(lane, never()).retainForRecovery();
+        verify(lane).close();
+    }
+
+    @Test
+    void anAttemptThatLostItsLeaseKeepsItsLaneForTheRecoveringAttempt() {
+        var lane = playing();
+        when(driver.play(any(), any(), any(), any(), any(), any())).thenThrow(new LeaseLostException());
+
+        service.runNextCase("worker");
+
+        var order = inOrder(lane);
+        order.verify(lane).retainForRecovery();
+        order.verify(lane).close();
+    }
+
+    @Test
+    void anAttemptWhoseResultWasFencedOutKeepsItsLane() {
+        var lane = playing();
+        when(cases.succeed(any(), any(), any(), any())).thenReturn(false);
+
+        service.runNextCase("worker");
+
+        verify(lane).retainForRecovery();
+    }
+
+    @Test
+    void anAttemptWhoseFailureWasFencedOutKeepsItsLane() {
+        var lane = playing();
+        when(driver.play(any(), any(), any(), any(), any(), any()))
+                .thenThrow(new AttemptFailedException(FailureCode.POLICY_EXHAUSTED, "exhausted"));
+        when(cases.fail(any(), any(), any(), anyBoolean(), any())).thenReturn(CaseLedger.FailOutcome.LOST);
+
+        service.runNextCase("worker");
+
+        verify(lane).retainForRecovery();
+    }
+
+    /** A claimed case that acquired a lane and is about to play on it. */
+    private CaseLane playing() {
+        var logicalCase = logicalCase(BASELINE);
+        var lane = mock(CaseLane.class);
+        when(lanes.freeLanes()).thenReturn(Map.of("lane-a", BASELINE));
+        when(cases.claimNext(any(), any(), any(), any(), any()))
+                .thenReturn(Optional.of(new CaseLedger.Claim(logicalCase, attempt(logicalCase), Optional.empty(), 1)));
+        when(runs.find(RUN))
+                .thenReturn(Optional.of(Run.queued(RUN, new UUID(2, 2), NOW).begin(NOW)));
+        when(experiments.plan(any()))
+                .thenReturn(Optional.of(new ExperimentSource.Plan("d", "{}", 1, 60, 1, List.of())));
+        when(lanes.acquire(logicalCase.caseId(), BASELINE, null)).thenReturn(Optional.of(lane));
+        return lane;
     }
 
     private static LogicalCase logicalCase(BundleDigests bundle) {

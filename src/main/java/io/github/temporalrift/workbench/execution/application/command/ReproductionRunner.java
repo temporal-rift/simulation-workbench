@@ -22,7 +22,8 @@ import io.github.temporalrift.workbench.execution.domain.run.RunNotFoundExceptio
  * Executes queued reproductions on the clean lane that played the case, while it still serves the case's bundle.
  * Like a research case, a reproduction runs under a renewable lease and only the lease owner settles it. It reports
  * {@code MATCH} when the semantic setup, decisions, outcomes, scoring and result equal the saved case, otherwise
- * {@code DIVERGED} with the first difference, and {@code FAILED} when it could not run to an ending at all.
+ * {@code DIVERGED} with the first difference, and {@code FAILED} when it could not run to an ending at all. Its lane is
+ * handed back to be made clean whatever happened, interruption included, since a reproduction never resumes a game.
  */
 public class ReproductionRunner implements RunReproductionUseCase {
 

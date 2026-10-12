@@ -3,6 +3,7 @@ package io.github.temporalrift.workbench.execution.infrastructure.config;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -43,6 +44,42 @@ class ExecutionPropertiesTest {
                 .isInstanceOf(BindException.class)
                 .rootCause()
                 .hasMessage("workbench.execution.lanes[id=lane-1].content-digest must be 64 lowercase hex characters");
+    }
+
+    @Test
+    void aLaneWithoutAResetUrlIsNeverResetAndResetsAreBoundedByFiveMinutes() {
+        var properties = bind(lane());
+
+        assertThat(properties.lanes().getFirst().resetUrl()).isNull();
+        assertThat(properties.resetTimeout()).isEqualTo(Duration.ofMinutes(5));
+    }
+
+    @Test
+    void aLaneBindsItsResetUrl() {
+        var values = lane();
+        values.put(LANE + "reset-url", "http://lane-recycler:8080/lanes/lane-1/reset");
+
+        assertThat(bind(values).lanes().getFirst().resetUrl())
+                .isEqualTo("http://lane-recycler:8080/lanes/lane-1/reset");
+    }
+
+    @Test
+    void aRelativeResetUrlFailsNamingTheLaneAndTheKey() {
+        var values = lane();
+        values.put(LANE + "reset-url", "/lanes/lane-1/reset");
+
+        assertThatThrownBy(() -> bind(values))
+                .isInstanceOf(BindException.class)
+                .rootCause()
+                .hasMessage("workbench.execution.lanes[id=lane-1].reset-url must be an absolute http or https URL");
+    }
+
+    @Test
+    void aNonHttpResetUrlFails() {
+        var values = lane();
+        values.put(LANE + "reset-url", "ftp://recycler/lanes/lane-1/reset");
+
+        assertThatThrownBy(() -> bind(values)).isInstanceOf(BindException.class);
     }
 
     private static Map<String, String> lane() {

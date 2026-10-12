@@ -3,15 +3,15 @@ package io.github.temporalrift.workbench.execution.support;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.IntStream;
 
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.port.out.CommandLedger;
@@ -23,6 +23,9 @@ import io.github.temporalrift.workbench.execution.domain.run.EndReason;
 import io.github.temporalrift.workbench.execution.domain.run.FinalScore;
 import io.github.temporalrift.workbench.execution.domain.run.WinType;
 import io.github.temporalrift.workbench.execution.domain.run.Winner;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneResets;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneRoster;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.ResetScheduler;
 import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow;
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
 import io.github.temporalrift.workbench.policy.domain.observation.EventView;
@@ -30,7 +33,9 @@ import io.github.temporalrift.workbench.policy.domain.observation.OutcomeView;
 
 /**
  * In-process lanes that host scripted games. A game keeps its state per game id across attempts, exactly
- * as a real lane does, so a recovering attempt that attaches to it sees the decisions already accepted.
+ * as a real lane does, so a recovering attempt that attaches to it sees the decisions already accepted. Lane
+ * availability is the production {@link LaneRoster}: lanes are not resettable unless a test gives them a reset hook,
+ * and a reset drops the games the lane hosted.
  */
 public class ScriptedLanes implements LaneProvider {
 
@@ -74,8 +79,11 @@ public class ScriptedLanes implements LaneProvider {
     private final Clock clock;
     private final List<BundleDigests> defaultBundles;
     private volatile List<BundleDigests> laneBundles;
-    private final Set<String> busy = new HashSet<>();
+    private volatile LaneResets resets;
+    private volatile ResetScheduler scheduler;
+    private volatile LaneRoster roster;
     private final Map<UUID, FakeGame.State> games = new ConcurrentHashMap<>();
+    private final Map<UUID, String> laneByGame = new ConcurrentHashMap<>();
     private final Map<UUID, UUID> gameByCaseKey = new ConcurrentHashMap<>();
     private final List<Opened> opened = Collections.synchronizedList(new ArrayList<>());
     private volatile Script script = DECISIVE;
@@ -90,11 +98,23 @@ public class ScriptedLanes implements LaneProvider {
         this.clock = clock;
         this.defaultBundles = List.copyOf(laneBundles);
         this.laneBundles = defaultBundles;
+        this.roster = roster();
     }
 
-    /** Reconfigures the lanes, as a redeployment would: lane {@code lane-i} serves {@code bundles[i]}. */
+    /** Reconfigures the idle lanes, as a redeployment would: lane {@code lane-i} serves {@code bundles[i]}. */
     public synchronized void serve(BundleDigests... bundles) {
         laneBundles = List.of(bundles);
+        roster = roster();
+    }
+
+    /**
+     * Gives every idle lane a reset hook, as a redeployment would; the lanes are offered only once prepared, as on
+     * start.
+     */
+    public synchronized void resetThrough(LaneResets hook, ResetScheduler resetScheduler) {
+        resets = hook;
+        scheduler = resetScheduler;
+        roster = roster();
     }
 
     public void script(Script next) {
@@ -109,7 +129,11 @@ public class ScriptedLanes implements LaneProvider {
     public synchronized void reset() {
         script = DECISIVE;
         laneBundles = defaultBundles;
+        resets = null;
+        scheduler = null;
+        roster = roster();
         games.clear();
+        laneByGame.clear();
         gameByCaseKey.clear();
         opened.clear();
     }
@@ -128,52 +152,66 @@ public class ScriptedLanes implements LaneProvider {
     }
 
     @Override
-    public synchronized Optional<CaseLane> acquire(BundleDigests bundle, String preferredLaneId) {
-        var free = freeLanes();
-        if (bundle.equals(free.get(preferredLaneId))) {
-            return Optional.of(take(preferredLaneId));
-        }
-        for (var index = 0; index < laneBundles.size(); index++) {
-            var id = laneId(index);
-            if (bundle.equals(free.get(id))) {
-                return Optional.of(take(id));
+    public Optional<CaseLane> acquire(UUID caseId, BundleDigests bundle, String preferredLaneId) {
+        return roster.take(caseId, bundle, preferredLaneId).map(ScriptedLane::new);
+    }
+
+    @Override
+    public Optional<CaseLane> acquireExactly(String laneId, BundleDigests bundle) {
+        return roster.takeExactly(laneId, bundle).map(ScriptedLane::new);
+    }
+
+    @Override
+    public Set<BundleDigests> servedBundles() {
+        return roster.servedBundles();
+    }
+
+    @Override
+    public Map<String, BundleDigests> freeLanes() {
+        return roster.free();
+    }
+
+    @Override
+    public Set<UUID> heldCases() {
+        return roster.heldCases();
+    }
+
+    @Override
+    public void prepare(Collection<Hold> interrupted) {
+        roster.prepare(interrupted);
+    }
+
+    @Override
+    public void releaseHeld(UUID caseId) {
+        roster.releaseHeld(caseId);
+    }
+
+    private LaneRoster roster() {
+        var hook = resets;
+        var members = IntStream.range(0, laneBundles.size())
+                .mapToObj(index -> new LaneRoster.Member(laneId(index), laneBundles.get(index), hook != null))
+                .toList();
+        return new LaneRoster(
+                members,
+                (laneId, caseKey, idempotencyKey) -> {
+                    hook.reset(laneId, caseKey, idempotencyKey);
+                    dropGamesOf(laneId);
+                },
+                scheduler);
+    }
+
+    private void dropGamesOf(String laneId) {
+        laneByGame.entrySet().removeIf(hosted -> {
+            var dropped = hosted.getValue().equals(laneId);
+            if (dropped) {
+                games.remove(hosted.getKey());
             }
-        }
-        return Optional.empty();
-    }
-
-    @Override
-    public synchronized Optional<CaseLane> acquireExactly(String laneId, BundleDigests bundle) {
-        return bundle.equals(freeLanes().get(laneId)) ? Optional.of(take(laneId)) : Optional.empty();
-    }
-
-    @Override
-    public synchronized Set<BundleDigests> servedBundles() {
-        return Set.copyOf(laneBundles);
-    }
-
-    @Override
-    public synchronized Map<String, BundleDigests> freeLanes() {
-        var free = new HashMap<String, BundleDigests>();
-        for (var index = 0; index < laneBundles.size(); index++) {
-            if (!busy.contains(laneId(index))) {
-                free.put(laneId(index), laneBundles.get(index));
-            }
-        }
-        return free;
-    }
-
-    private CaseLane take(String laneId) {
-        busy.add(laneId);
-        return new ScriptedLane(laneId);
+            return dropped;
+        });
     }
 
     private static String laneId(int index) {
         return "lane-" + index;
-    }
-
-    private synchronized void release(String laneId) {
-        busy.remove(laneId);
     }
 
     /** A fresh game gets its own identity, as on a real lane, so a reproduction never reuses the original's. */
@@ -236,25 +274,27 @@ public class ScriptedLanes implements LaneProvider {
 
     private final class ScriptedLane implements CaseLane {
 
-        private final String laneId;
+        private final LaneRoster.Tenancy tenancy;
 
-        ScriptedLane(String laneId) {
-            this.laneId = laneId;
+        ScriptedLane(LaneRoster.Tenancy tenancy) {
+            this.tenancy = tenancy;
         }
 
         @Override
         public String laneId() {
-            return laneId;
+            return tenancy.laneId();
         }
 
         @Override
         public GameSession open(CaseContext context, UUID resumeGameId) {
+            tenancy.host(context);
             script.onOpen(context);
             var attach = resumeGameId != null && games.containsKey(resumeGameId);
             var gameId = attach ? resumeGameId : gameId(context.caseKey(), context.attemptId());
-            opened.add(new Opened(context.caseKey(), context.attemptId(), resumeGameId, gameId, laneId));
+            opened.add(new Opened(context.caseKey(), context.attemptId(), resumeGameId, gameId, laneId()));
             if (!attach) {
                 games.put(gameId, new FakeGame.State());
+                laneByGame.put(gameId, laneId());
                 gameByCaseKey.put(context.caseKey(), gameId);
                 ledger.reset(context.caseId());
             }
@@ -266,8 +306,13 @@ public class ScriptedLanes implements LaneProvider {
         }
 
         @Override
+        public void retainForRecovery() {
+            tenancy.retainForRecovery();
+        }
+
+        @Override
         public void close() {
-            release(laneId);
+            tenancy.giveBack();
         }
     }
 }

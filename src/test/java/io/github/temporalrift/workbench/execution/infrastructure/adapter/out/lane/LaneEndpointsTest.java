@@ -39,6 +39,7 @@ class LaneEndpointsTest {
                 "game.events",
                 "timeline.events",
                 broker,
+                null,
                 List.of());
     }
 }
