@@ -9,6 +9,9 @@ import { AppShell } from '../components/AppShell'
 import { ExperimentFormPage } from '../experiments/ExperimentFormPage'
 import { ExperimentPage } from '../experiments/ExperimentPage'
 import { ExperimentsListPage } from '../experiments/ExperimentsListPage'
+import { ComparisonPage } from '../reports/ComparisonPage'
+import { ComparisonsPage } from '../reports/ComparisonsPage'
+import { ReportPage } from '../reports/ReportPage'
 import { CasePage } from '../runs/CasePage'
 import { RunPage } from '../runs/RunPage'
 import { RunsListPage } from '../runs/RunsListPage'
@@ -79,6 +82,35 @@ const runRoute = createRoute({
   component: RunPage,
 })
 
+const reportRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/runs/$runId/report',
+  beforeLoad: ({ params }) => {
+    if (!UUID_PATTERN.test(params.runId)) {
+      throw redirect({ to: '/runs', replace: true })
+    }
+  },
+  component: ReportPage,
+})
+
+const comparisonsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/comparisons',
+  validateSearch: offsetSearch,
+  component: ComparisonsPage,
+})
+
+const comparisonRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/comparisons/$comparisonId',
+  beforeLoad: ({ params }) => {
+    if (!UUID_PATTERN.test(params.comparisonId)) {
+      throw redirect({ to: '/comparisons', replace: true })
+    }
+  },
+  component: ComparisonPage,
+})
+
 const caseRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/runs/$runId/cases/$caseId',
@@ -106,6 +138,9 @@ export const routeTree = rootRoute.addChildren([
   experimentRoute,
   runsRoute,
   runRoute,
+  reportRoute,
+  comparisonsRoute,
+  comparisonRoute,
   caseRoute,
   authCallbackRoute,
 ])

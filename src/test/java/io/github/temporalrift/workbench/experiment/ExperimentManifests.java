@@ -106,6 +106,16 @@ public final class ExperimentManifests {
         return manifest;
     }
 
+    /** Two variants that differ only in their effective rules, over one seed of three players: six cases. */
+    public static JsonNode threePlayerTwoVariants() {
+        var manifest = (ObjectNode) threePlayerSingleSet().deepCopy();
+        var variants = MAPPER.createArrayNode();
+        variants.add(variant("baseline", "a".repeat(64), "b".repeat(64)));
+        variants.add(variant("candidate", "f".repeat(64), "b".repeat(64)));
+        manifest.set("variants", variants);
+        return manifest;
+    }
+
     public static final int FOUR_PLAYER_CASES_PER_SEED = 20;
 
     public static ArrayNode fullFactionSets() {

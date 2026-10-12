@@ -80,6 +80,10 @@ function RunDetail({ run, stale }: { readonly run: Run; readonly stale: boolean 
           Experiment
         </Link>
         {' · '}
+        <Link to="/runs/$runId/report" params={{ runId: run.runId }}>
+          Report
+        </Link>
+        {' · '}
         <strong>State: {RUN_STATE_LABELS[run.state]}</strong>
         {stale && <span className="stale"> (stale: the service could not be reached)</span>}
         {!terminal && !stale && <span className="hint"> Refreshing while the run is open.</span>}

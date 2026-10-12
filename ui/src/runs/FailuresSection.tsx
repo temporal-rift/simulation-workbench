@@ -11,7 +11,7 @@ import { QueryView } from '../components/QueryView'
 export function FailuresSection({ run }: { readonly run: Run }) {
   const client = useApiClient()
   const [offset, setOffset] = useState(0)
-  const query = useQuery(runCasesQuery(client, run.runId, 'FAILED', offset, !isTerminalRunState(run.state)))
+  const query = useQuery(runCasesQuery(client, run.runId, { state: 'FAILED' }, offset, !isTerminalRunState(run.state)))
   if (run.counts.failed === 0 && query.data?.total === 0) {
     return null
   }

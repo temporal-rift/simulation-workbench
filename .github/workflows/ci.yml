@@ -124,6 +124,14 @@ jobs:
           key: ${{ runner.os }}-m2-build-test-analyze-${{ hashFiles('**/pom.xml') }}
           restore-keys: ${{ runner.os }}-m2-build-test-analyze-
 
+      # The browser integration tests drive a real Chromium; Playwright downloads it on first use.
+      - name: Cache Playwright browsers
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('pom.xml') }}
+          restore-keys: ${{ runner.os }}-playwright-
+
       - name: Build, test and analyze
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

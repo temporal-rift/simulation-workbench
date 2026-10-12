@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { caseQuery, useApiClient } from '../api/queries'
 import type { Case } from '../api/generated'
+import { ReplayInspector } from '../cases/ReplayInspector'
+import { ReproductionPanel } from '../cases/ReproductionPanel'
 import { QueryView } from '../components/QueryView'
 import { CASE_STATE_LABELS } from './runView'
 
@@ -90,6 +92,8 @@ function CaseDetail({ loaded }: { readonly loaded: Case }) {
       ) : (
         <p>This case has no result: it is {CASE_STATE_LABELS[loaded.state].toLowerCase()}, and only a succeeded case is a result.</p>
       )}
+      <ReplayInspector runId={loaded.runId} caseId={loaded.caseId} assignments={loaded.assignments} />
+      <ReproductionPanel runId={loaded.runId} caseId={loaded.caseId} />
     </>
   )
 }

@@ -11,28 +11,42 @@ import { CASE_STATES, CASE_STATE_LABELS } from './runView'
 export function CasesSection({ run }: { readonly run: Run }) {
   const client = useApiClient()
   const [state, setState] = useState<CaseState | undefined>(undefined)
+  const [variantLabel, setVariantLabel] = useState('')
   const [offset, setOffset] = useState(0)
-  const query = useQuery(runCasesQuery(client, run.runId, state, offset, !isTerminalRunState(run.state)))
+  const query = useQuery(runCasesQuery(client, run.runId, { state, variantLabel: variantLabel.trim() || undefined }, offset, !isTerminalRunState(run.state)))
   return (
     <section aria-labelledby="cases-heading">
       <h2 id="cases-heading">Cases</h2>
-      <label>
-        State{' '}
-        <select
-          value={state ?? ''}
-          onChange={(event) => {
-            setState((event.target.value || undefined) as CaseState | undefined)
-            setOffset(0)
-          }}
-        >
-          <option value="">All</option>
-          {CASE_STATES.map((value) => (
-            <option key={value} value={value}>
-              {CASE_STATE_LABELS[value]}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="filters">
+        <label>
+          State{' '}
+          <select
+            value={state ?? ''}
+            onChange={(event) => {
+              setState((event.target.value || undefined) as CaseState | undefined)
+              setOffset(0)
+            }}
+          >
+            <option value="">All</option>
+            {CASE_STATES.map((value) => (
+              <option key={value} value={value}>
+                {CASE_STATE_LABELS[value]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Variant{' '}
+          <input
+            type="text"
+            value={variantLabel}
+            onChange={(event) => {
+              setVariantLabel(event.target.value)
+              setOffset(0)
+            }}
+          />
+        </label>
+      </div>
       <QueryView query={query} failure={{ action: 'load the cases' }}>
         {(page) => (
           <>

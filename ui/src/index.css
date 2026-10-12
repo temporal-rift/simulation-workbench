@@ -292,3 +292,37 @@ dt {
 dd {
   margin: 0;
 }
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  align-items: center;
+  margin: 0.5rem 0;
+}
+
+dl.facts,
+ul.facts {
+  margin: 0;
+  padding-left: 1rem;
+}
+
+dl.facts dt {
+  font-weight: 600;
+  color: var(--muted);
+}
+
+dl.facts dd {
+  margin-left: 1rem;
+}
+
+.observer-replay {
+  border: 2px dashed var(--warning);
+  border-radius: 6px;
+  padding: 0.5rem 1rem 1rem;
+  margin-top: 1rem;
+}
+
+ol.steps {
+  padding-left: 1.5rem;
+}
