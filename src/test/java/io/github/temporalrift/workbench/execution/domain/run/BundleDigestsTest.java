@@ -16,13 +16,17 @@ class BundleDigestsTest {
 
     @Test
     void rejectsMissingOrMalformedDigests() {
-        assertThatThrownBy(() -> new BundleDigests(null, "b".repeat(64)))
+        var rules = "a".repeat(64);
+        var content = "b".repeat(64);
+        var uppercase = "B".repeat(64);
+        var tooShort = "a".repeat(63);
+
+        assertThatThrownBy(() -> new BundleDigests(null, content))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("rulesDigest");
-        assertThatThrownBy(() -> new BundleDigests("a".repeat(64), "B".repeat(64)))
+        assertThatThrownBy(() -> new BundleDigests(rules, uppercase))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("contentDigest");
-        assertThatThrownBy(() -> new BundleDigests("a".repeat(63), "b".repeat(64)))
-                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new BundleDigests(tooShort, content)).isInstanceOf(IllegalArgumentException.class);
     }
 }

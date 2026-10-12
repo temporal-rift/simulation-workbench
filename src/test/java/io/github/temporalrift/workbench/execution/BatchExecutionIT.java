@@ -547,7 +547,7 @@ class BatchExecutionIT {
         var first = getCase.handle(runId, caseIds(runId).getFirst()).logicalCase();
         assertThat(first.variantLabel()).isEqualTo("candidate");
 
-        try (var busy = lanes.acquireExactly("lane-1", CANDIDATE_BUNDLE).orElseThrow()) {
+        try (var _ = lanes.acquireExactly("lane-1", CANDIDATE_BUNDLE).orElseThrow()) {
             drain();
 
             var counts = getRun.handle(runId).counts();

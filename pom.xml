@@ -530,7 +530,8 @@
             <id>ui-checks</id>
             <activation>
                 <property>
-                    <name>!skip.npm</name>
+                    <name>skip.npm</name>
+                    <value>!true</value>
                 </property>
             </activation>
             <build>
@@ -583,6 +584,7 @@
             <activation>
                 <property>
                     <name>skip.npm</name>
+                    <value>true</value>
                 </property>
             </activation>
             <build>

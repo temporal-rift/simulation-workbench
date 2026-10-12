@@ -5,7 +5,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.execution.domain.port.out.ExperimentSource;
-import io.github.temporalrift.workbench.execution.domain.port.out.ExperimentSource.Variant;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.SeatPlan;
 import io.github.temporalrift.workbench.experiment.ExperimentCatalog;

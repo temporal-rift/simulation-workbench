@@ -92,7 +92,7 @@ class RunBatchServiceTest {
 
         service.runNextCase("worker");
 
-        verify(cases).claimNext(eq("worker"), eq(NOW), eq(NOW.plusSeconds(30)), eq(Set.of(BASELINE, CANDIDATE)));
+        verify(cases).claimNext("worker", NOW, NOW.plusSeconds(30), Set.of(BASELINE, CANDIDATE));
     }
 
     @Test
