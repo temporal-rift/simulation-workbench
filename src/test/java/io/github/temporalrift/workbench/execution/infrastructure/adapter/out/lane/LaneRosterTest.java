@@ -1,11 +1,13 @@
 package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.jupiter.api.Test;
 
@@ -103,6 +105,26 @@ class LaneRosterTest {
                 .extracting(RecordingResets.Call::idempotencyKey)
                 .containsOnly(resets.calls().getFirst().idempotencyKey());
         assertThat(scheduler.delays()).containsExactly(Duration.ZERO, Duration.ofSeconds(1), Duration.ofSeconds(2));
+    }
+
+    @Test
+    void aResetEndingInAnErrorIsRetried() {
+        var broken = new AtomicBoolean(true);
+        var roster = new LaneRoster(
+                List.of(new LaneRoster.Member("a", BASELINE, true)),
+                (_, _, _) -> {
+                    if (broken.getAndSet(false)) {
+                        throw new LinkageError("broken hook client");
+                    }
+                },
+                scheduler);
+        roster.prepare(List.of());
+
+        assertThatThrownBy(scheduler::runPending).isInstanceOf(LinkageError.class);
+        assertThat(roster.free()).isEmpty();
+        scheduler.runPending();
+
+        assertThat(roster.free()).containsOnlyKeys("a");
     }
 
     @Test

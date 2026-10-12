@@ -108,14 +108,14 @@ public class RunBatchService implements RunBatchUseCase {
     private void execute(
             CaseLedger.Claim claim, Attempt previous, ExperimentSource.Plan plan, CaseLane lane, String owner) {
         try (lane) {
-            if (!record(claim, previous, plan, lane, owner)) {
+            if (!playToOutcome(claim, previous, plan, lane, owner)) {
                 lane.retainForRecovery();
             }
         }
     }
 
     /** Plays the attempt and records its outcome; false when the attempt was interrupted instead. */
-    private boolean record(
+    private boolean playToOutcome(
             CaseLedger.Claim claim, Attempt previous, ExperimentSource.Plan plan, CaseLane lane, String owner) {
         var attempt = claim.attempt();
         try {

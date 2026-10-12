@@ -11,6 +11,8 @@ import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -28,7 +30,8 @@ class HttpLaneResetsTest {
     private final List<Received> received = new CopyOnWriteArrayList<>();
     private HttpServer server;
     private volatile int status = 204;
-    private volatile Duration delay = Duration.ZERO;
+    private volatile boolean stalled;
+    private final CountDownLatch released = new CountDownLatch(1);
 
     private record Received(
             String method, String path, String authorization, String contentType, String key, String body) {}
@@ -43,6 +46,7 @@ class HttpLaneResetsTest {
 
     @AfterEach
     void stop() {
+        released.countDown();
         server.stop(0);
     }
 
@@ -82,7 +86,9 @@ class HttpLaneResetsTest {
     void aNonTwoHundredAnswerFailsWithItsStatus() {
         status = 503;
 
-        assertThatThrownBy(() -> resets(Duration.ofSeconds(5)).reset("lane-1", CASE_KEY, IDEMPOTENCY_KEY))
+        var resets = resets(Duration.ofSeconds(5));
+
+        assertThatThrownBy(() -> resets.reset("lane-1", CASE_KEY, IDEMPOTENCY_KEY))
                 .hasMessage("status 503");
     }
 
@@ -90,21 +96,27 @@ class HttpLaneResetsTest {
     void aRedirectDoesNotMeanTheLaneIsClean() {
         status = 307;
 
-        assertThatThrownBy(() -> resets(Duration.ofSeconds(5)).reset("lane-1", CASE_KEY, IDEMPOTENCY_KEY))
+        var resets = resets(Duration.ofSeconds(5));
+
+        assertThatThrownBy(() -> resets.reset("lane-1", CASE_KEY, IDEMPOTENCY_KEY))
                 .hasMessage("status 307");
     }
 
     @Test
     void aResetSlowerThanTheResetTimeoutFails() {
-        delay = Duration.ofSeconds(2);
+        stalled = true;
 
-        assertThatThrownBy(() -> resets(Duration.ofMillis(200)).reset("lane-1", CASE_KEY, IDEMPOTENCY_KEY))
+        var resets = resets(Duration.ofMillis(200));
+
+        assertThatThrownBy(() -> resets.reset("lane-1", CASE_KEY, IDEMPOTENCY_KEY))
                 .isInstanceOf(RuntimeException.class);
     }
 
     @Test
     void aLaneWithoutAResetHookCannotBeReset() {
-        assertThatThrownBy(() -> resets(Duration.ofSeconds(5)).reset("lane-2", CASE_KEY, IDEMPOTENCY_KEY))
+        var resets = resets(Duration.ofSeconds(5));
+
+        assertThatThrownBy(() -> resets.reset("lane-2", CASE_KEY, IDEMPOTENCY_KEY))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -125,16 +137,23 @@ class HttpLaneResetsTest {
                 headers.getFirst("Content-Type"),
                 headers.getFirst("Idempotency-Key"),
                 new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)));
-        try {
-            Thread.sleep(delay);
-        } catch (InterruptedException _) {
-            Thread.currentThread().interrupt();
+        if (stalled) {
+            awaitRelease();
         }
         if (status == 307) {
             exchange.getResponseHeaders().add("Location", "/elsewhere");
         }
         exchange.sendResponseHeaders(status, -1);
         exchange.close();
+    }
+
+    /** Holds the answer back until the test ends, so the call outlives any timeout under test. */
+    private void awaitRelease() {
+        try {
+            released.await(10, TimeUnit.SECONDS);
+        } catch (InterruptedException _) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private static LaneEndpoints lane(String id, URI resetUrl) {

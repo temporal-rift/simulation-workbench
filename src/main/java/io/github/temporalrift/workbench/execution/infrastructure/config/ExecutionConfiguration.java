@@ -62,6 +62,7 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.GameEventObservers;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.HttpLaneResets;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneEndpoints;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneRoster;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneServices;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.ResetScheduler;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.RestApiClients;
@@ -150,16 +151,18 @@ public class ExecutionConfiguration {
                 properties.barrier().pollInterval(),
                 properties.barrier().stablePolls(),
                 properties.barrier().maxPolls());
-        var resets = new HttpLaneResets(lanes, properties.client().connectTimeout(), properties.resetTimeout());
+        var roster = new LaneRoster(
+                lanes.stream().map(LaneEndpoints::member).toList(),
+                new HttpLaneResets(lanes, properties.client().connectTimeout(), properties.resetTimeout()),
+                ResetScheduler.on(laneResetExecutor));
         return new ConfiguredLanePool(
                 lanes,
+                roster,
                 clients,
                 new LaneServices(ledger, evidence, observers),
                 clock,
                 barrier,
-                Sleeper.thread(),
-                resets,
-                ResetScheduler.on(laneResetExecutor));
+                Sleeper.thread());
     }
 
     @Bean

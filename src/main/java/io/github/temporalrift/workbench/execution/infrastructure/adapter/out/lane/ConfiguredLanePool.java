@@ -28,22 +28,17 @@ public class ConfiguredLanePool implements LaneProvider {
     private final LaneEndpoints.Barrier barrier;
     private final Sleeper sleeper;
 
+    /** @param roster the availability of exactly these lanes, each as its {@link LaneEndpoints#member() member} */
     public ConfiguredLanePool(
             List<LaneEndpoints> lanes,
+            LaneRoster roster,
             ApiClients clients,
             LaneServices services,
             Clock clock,
             LaneEndpoints.Barrier barrier,
-            Sleeper sleeper,
-            LaneResets resets,
-            ResetScheduler scheduler) {
+            Sleeper sleeper) {
         this.lanes = lanes.stream().collect(Collectors.toUnmodifiableMap(LaneEndpoints::id, Function.identity()));
-        this.roster = new LaneRoster(
-                lanes.stream()
-                        .map(lane -> new LaneRoster.Member(lane.id(), lane.bundle(), lane.resetUrl() != null))
-                        .toList(),
-                resets,
-                scheduler);
+        this.roster = roster;
         this.clients = clients;
         this.services = services;
         this.clock = clock;

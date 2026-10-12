@@ -134,13 +134,12 @@ class ConfiguredLanePoolTest {
     private ConfiguredLanePool poolOf(List<LaneEndpoints> lanes) {
         return new ConfiguredLanePool(
                 lanes,
+                new LaneRoster(lanes.stream().map(LaneEndpoints::member).toList(), resets, scheduler),
                 new RestApiClients(Duration.ofSeconds(1), Duration.ofSeconds(1)),
                 services(),
                 Clock.systemUTC(),
                 new LaneEndpoints.Barrier(Duration.ZERO, 1, 1),
-                _ -> {},
-                resets,
-                scheduler);
+                _ -> {});
     }
 
     private static LaneServices services() {

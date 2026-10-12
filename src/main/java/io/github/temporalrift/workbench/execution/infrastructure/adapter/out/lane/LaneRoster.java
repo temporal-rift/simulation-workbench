@@ -9,6 +9,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -153,38 +154,32 @@ public class LaneRoster {
         seat.hold = hold;
     }
 
-    private void giveBack(Seat seat, CaseLane.CaseContext hosted, boolean retained) {
-        synchronized (this) {
-            if (!seat.member.resettable() || hosted == null) {
-                seat.availability = Availability.FREE;
-                return;
-            }
-            if (retained) {
-                hold(seat, new LaneProvider.Hold(seat.member.id(), hosted.caseId(), hosted.caseKey()));
-                return;
-            }
-            seat.availability = Availability.RESETTING;
-        }
-        reset(seat.member, hosted.caseKey());
-    }
-
     private void reset(Member lane, UUID caseKey) {
         var idempotencyKey = UUID.randomUUID();
         scheduler.schedule(() -> tryReset(lane, caseKey, idempotencyKey, 0), Duration.ZERO);
     }
 
+    /** One try of a release; whatever ends it short of a clean lane, an error included, schedules the next. */
     private void tryReset(Member lane, UUID caseKey, UUID idempotencyKey, int failures) {
+        var cleaned = false;
         try {
             resets.reset(lane.id(), caseKey, idempotencyKey);
+            cleaned = true;
         } catch (RuntimeException e) {
-            var delay = retryDelay(failures);
-            LOG.warn("Reset of lane {} failed: {}; retrying in {}", lane.id(), describe(e), delay);
-            scheduler.schedule(() -> tryReset(lane, caseKey, idempotencyKey, failures + 1), delay);
-            return;
+            LOG.warn("Reset of lane {} failed: {}", lane.id(), describe(e));
+        } finally {
+            if (cleaned) {
+                markFree(lane);
+            } else {
+                var delay = retryDelay(failures);
+                LOG.warn("Reset of lane {} did not complete; retrying in {}", lane.id(), delay);
+                scheduler.schedule(() -> tryReset(lane, caseKey, idempotencyKey, failures + 1), delay);
+            }
         }
-        synchronized (this) {
-            seats.get(lane.id()).availability = Availability.FREE;
-        }
+    }
+
+    private synchronized void markFree(Member lane) {
+        seats.get(lane.id()).availability = Availability.FREE;
     }
 
     private static Duration retryDelay(int failures) {
@@ -202,8 +197,8 @@ public class LaneRoster {
 
         private final Seat seat;
         private final AtomicBoolean returned = new AtomicBoolean();
-        private volatile CaseLane.CaseContext hosted;
-        private volatile boolean retained;
+        private final AtomicReference<CaseLane.CaseContext> hosted = new AtomicReference<>();
+        private final AtomicBoolean retained = new AtomicBoolean();
 
         private Tenancy(Seat seat) {
             this.seat = seat;
@@ -215,19 +210,32 @@ public class LaneRoster {
 
         /** Records the case the lane is about to be configured for; from here on it needs a reset to be clean. */
         public void host(CaseLane.CaseContext context) {
-            hosted = context;
+            hosted.set(context);
         }
 
         /** Keeps the hosted game on return, for the case's recovering attempt. */
         public void retainForRecovery() {
-            retained = true;
+            retained.set(true);
         }
 
         /** Returns the lane; later calls do nothing. */
         public void giveBack() {
-            if (returned.compareAndSet(false, true)) {
-                LaneRoster.this.giveBack(seat, hosted, retained);
+            if (!returned.compareAndSet(false, true)) {
+                return;
             }
+            var context = hosted.get();
+            synchronized (LaneRoster.this) {
+                if (!seat.member.resettable() || context == null) {
+                    seat.availability = Availability.FREE;
+                    return;
+                }
+                if (retained.get()) {
+                    hold(seat, new LaneProvider.Hold(seat.member.id(), context.caseId(), context.caseKey()));
+                    return;
+                }
+                seat.availability = Availability.RESETTING;
+            }
+            reset(seat.member, context.caseKey());
         }
     }
 }

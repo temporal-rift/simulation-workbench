@@ -38,6 +38,11 @@ public record LaneEndpoints(
         bots = List.copyOf(bots);
     }
 
+    /** The lane as the roster tracks its availability: resettable when it has a reset hook. */
+    public LaneRoster.Member member() {
+        return new LaneRoster.Member(id, bundle, resetUrl != null);
+    }
+
     /** A bot's player identity and its bearer token; bots are assigned to seats in order. */
     public record BotIdentity(UUID playerId, String token) {}
 

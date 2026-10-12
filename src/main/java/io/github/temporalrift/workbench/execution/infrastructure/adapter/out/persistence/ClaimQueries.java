@@ -24,13 +24,15 @@ import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 @Component
 class ClaimQueries {
 
+    private static final String CASE_ID_COLUMN = "case_id";
+    private static final String STATE_COLUMN = "state";
     private static final String CASE_TABLE = "run_case";
     private static final String REPRODUCTION_TABLE = "reproduction";
 
     private static final Table<?> CASE = DSL.table(DSL.name(CASE_TABLE));
-    private static final Field<UUID> CASE_ID = DSL.field(DSL.name(CASE_TABLE, "case_id"), SQLDataType.UUID);
+    private static final Field<UUID> CASE_ID = DSL.field(DSL.name(CASE_TABLE, CASE_ID_COLUMN), SQLDataType.UUID);
     private static final Field<UUID> CASE_RUN = DSL.field(DSL.name(CASE_TABLE, "run_id"), SQLDataType.UUID);
-    private static final Field<String> CASE_STATE = DSL.field(DSL.name(CASE_TABLE, "state"), SQLDataType.VARCHAR);
+    private static final Field<String> CASE_STATE = DSL.field(DSL.name(CASE_TABLE, STATE_COLUMN), SQLDataType.VARCHAR);
     private static final Field<Integer> CASE_ORDINAL = DSL.field(DSL.name(CASE_TABLE, "ordinal"), SQLDataType.INTEGER);
     private static final Field<String> CASE_RULES =
             DSL.field(DSL.name(CASE_TABLE, "rules_digest"), SQLDataType.VARCHAR);
@@ -41,10 +43,12 @@ class ClaimQueries {
 
     private static final String ATTEMPT_TABLE = "case_attempt";
     private static final Table<?> ATTEMPT = DSL.table(DSL.name(ATTEMPT_TABLE));
-    private static final Field<UUID> ATTEMPT_CASE = DSL.field(DSL.name(ATTEMPT_TABLE, "case_id"), SQLDataType.UUID);
+    private static final Field<UUID> ATTEMPT_CASE =
+            DSL.field(DSL.name(ATTEMPT_TABLE, CASE_ID_COLUMN), SQLDataType.UUID);
     private static final Field<String> ATTEMPT_LANE =
             DSL.field(DSL.name(ATTEMPT_TABLE, "lane_id"), SQLDataType.VARCHAR);
-    private static final Field<String> ATTEMPT_STATE = DSL.field(DSL.name(ATTEMPT_TABLE, "state"), SQLDataType.VARCHAR);
+    private static final Field<String> ATTEMPT_STATE =
+            DSL.field(DSL.name(ATTEMPT_TABLE, STATE_COLUMN), SQLDataType.VARCHAR);
     private static final Field<OffsetDateTime> ATTEMPT_STARTED =
             DSL.field(DSL.name(ATTEMPT_TABLE, "started_at"), SQLDataType.TIMESTAMPWITHTIMEZONE);
 
@@ -52,11 +56,11 @@ class ClaimQueries {
     private static final Field<UUID> REPRODUCTION_ID =
             DSL.field(DSL.name(REPRODUCTION_TABLE, "reproduction_id"), SQLDataType.UUID);
     private static final Field<UUID> REPRODUCTION_CASE =
-            DSL.field(DSL.name(REPRODUCTION_TABLE, "case_id"), SQLDataType.UUID);
+            DSL.field(DSL.name(REPRODUCTION_TABLE, CASE_ID_COLUMN), SQLDataType.UUID);
     private static final Field<String> REPRODUCTION_LANE =
             DSL.field(DSL.name(REPRODUCTION_TABLE, "lane_id"), SQLDataType.VARCHAR);
     private static final Field<String> REPRODUCTION_STATE =
-            DSL.field(DSL.name(REPRODUCTION_TABLE, "state"), SQLDataType.VARCHAR);
+            DSL.field(DSL.name(REPRODUCTION_TABLE, STATE_COLUMN), SQLDataType.VARCHAR);
     private static final Field<OffsetDateTime> REPRODUCTION_CREATED =
             DSL.field(DSL.name(REPRODUCTION_TABLE, "created_at"), SQLDataType.TIMESTAMPWITHTIMEZONE);
 
