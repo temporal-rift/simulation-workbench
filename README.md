@@ -56,7 +56,7 @@ mvn verify
 # Check and fix formatting
 mvn spotless:apply
 
-# Java only: skip the designer application's Node download, install and build
+# Java only: skip the designer application's Node download, install, build, checks, and the tests that serve it
 mvn verify -Dskip.installnodenpm -Dskip.npm
 
 # Run all quality gates (formatting + Checkstyle)
