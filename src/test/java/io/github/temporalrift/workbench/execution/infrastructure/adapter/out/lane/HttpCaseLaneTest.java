@@ -24,6 +24,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -208,6 +210,24 @@ class HttpCaseLaneTest {
         assertThatThrownBy(() -> lane.open(context(), null)).isInstanceOfSatisfying(AttemptFailedException.class, e -> {
             assertThat(e.failure().code()).isEqualTo(FailureCode.EXECUTION_FAILED);
             assertThat(e.failure().message()).contains("EXECUTION_CONTEXT_CONFLICT");
+        });
+        verify(clients.session("t1"), never()).createLobby(any());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"404, SIMULATION_CONTROL_UNAVAILABLE", "403, SIMULATION_CONTROL_FORBIDDEN"})
+    void anOrdinaryDeploymentOrAnUnauthorizedOperatorFailsTheAttemptWithTheServicesCode(int status, String code) {
+        when(gameControl.configureSimulationExecution(any()))
+                .thenThrow(HttpClientErrorException.create(
+                        HttpStatus.valueOf(status),
+                        "",
+                        new HttpHeaders(),
+                        ("{\"code\":\"" + code + "\"}").getBytes(StandardCharsets.UTF_8),
+                        StandardCharsets.UTF_8));
+
+        assertThatThrownBy(() -> lane.open(context(), null)).isInstanceOfSatisfying(AttemptFailedException.class, e -> {
+            assertThat(e.failure().code()).isEqualTo(FailureCode.EXECUTION_FAILED);
+            assertThat(e.failure().message()).contains(code);
         });
         verify(clients.session("t1"), never()).createLobby(any());
     }
