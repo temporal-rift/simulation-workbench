@@ -19,7 +19,10 @@ import io.github.temporalrift.workbench.execution.domain.port.out.GameEventObser
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.GameEventObservers;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneEndpoints;
 
-/** Opens a Kafka observer per game on the lane event topics, with the workbench Kafka client settings. */
+/**
+ * Opens a Kafka observer per game on the lane event topics, with the workbench Kafka client settings and the broker
+ * of the lane, or the workbench default broker for a lane that names none.
+ */
 public class KafkaGameEventObservers implements GameEventObservers {
 
     private static final Duration POLL_TIMEOUT = Duration.ofMillis(250);
@@ -39,6 +42,9 @@ public class KafkaGameEventObservers implements GameEventObservers {
     @Override
     public GameEventObserver open(LaneEndpoints lane, UUID scopeId, UUID attemptId, UUID gameId, Instant since) {
         var properties = new HashMap<>(clientProperties.get());
+        if (lane.kafkaBootstrapServers() != null) {
+            properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, lane.kafkaBootstrapServers());
+        }
         properties.put(ConsumerConfig.GROUP_ID_CONFIG, "workbench-observer-" + attemptId);
         properties.put(ConsumerConfig.CLIENT_ID_CONFIG, "workbench-observer-" + gameId);
         properties.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);

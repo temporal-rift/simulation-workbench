@@ -121,6 +121,7 @@ public class ExecutionConfiguration {
                         lane.operatorToken(),
                         lane.gameEventsTopic(),
                         lane.timelineEventsTopic(),
+                        lane.kafkaBootstrapServers(),
                         lane.bots().stream()
                                 .map(bot -> new LaneEndpoints.BotIdentity(bot.playerId(), bot.token()))
                                 .toList()))

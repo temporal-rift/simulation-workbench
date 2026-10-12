@@ -6,8 +6,11 @@ import java.util.UUID;
 
 /**
  * One isolated lane: the three services that make up an independent deployment, the operator credential
- * for its execution controls, the topics its services publish on, and the bot identities that play its seats.
+ * for its execution controls, the broker and topics its services publish on, and the bot identities that play its
+ * seats.
  * Credentials come from runtime configuration only and are never stored with experiments, runs or evidence.
+ *
+ * @param kafkaBootstrapServers the broker of the lane, or {@code null} for the workbench default broker
  */
 public record LaneEndpoints(
         String id,
@@ -17,9 +20,12 @@ public record LaneEndpoints(
         String operatorToken,
         String gameEventsTopic,
         String timelineEventsTopic,
+        String kafkaBootstrapServers,
         List<BotIdentity> bots) {
 
     public LaneEndpoints {
+        kafkaBootstrapServers =
+                kafkaBootstrapServers == null || kafkaBootstrapServers.isBlank() ? null : kafkaBootstrapServers;
         bots = List.copyOf(bots);
     }
 
