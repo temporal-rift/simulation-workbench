@@ -21,7 +21,10 @@ import io.github.temporalrift.workbench.execution.domain.run.EndReason;
 import io.github.temporalrift.workbench.execution.domain.run.FinalScore;
 import io.github.temporalrift.workbench.execution.domain.run.WinType;
 import io.github.temporalrift.workbench.execution.domain.run.Winner;
+import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow;
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
+import io.github.temporalrift.workbench.policy.domain.observation.EventView;
+import io.github.temporalrift.workbench.policy.domain.observation.OutcomeView;
 
 /**
  * In-process lanes that host scripted games. A game keeps its state per game id across attempts, exactly
@@ -158,6 +161,38 @@ public class ScriptedLanes implements LaneProvider {
     /** A fresh game gets its own identity, as on a real lane, so a reproduction never reuses the original's. */
     static UUID gameId(UUID caseKey, UUID attemptId) {
         return UUID.nameUUIDFromBytes(("game|" + caseKey + "|" + attemptId).getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** A decisive game where seat 0 earns exact outcome weights (as through Intercept) only at its terminal window. */
+    public static Script seatZeroEarnsExactWeightAtTheTerminalWindow() {
+        return new Script() {
+            @Override
+            public GameSession.AuthoritativeEnding ending(CaseLane.CaseContext context) {
+                return decisive(context);
+            }
+
+            @Override
+            public EntitledObservation observation(CaseLane.CaseContext context, EntitledObservation observation) {
+                if (observation.seatIndex() != 0
+                        || !(observation.window() instanceof DecisionWindow.TerminalReadiness)) {
+                    return observation;
+                }
+                var events = observation.events().stream()
+                        .map(event -> new EventView(
+                                event.eventId(),
+                                event.outcomes().stream()
+                                        .map(outcome ->
+                                                new OutcomeView(outcome.outcomeId(), outcome.printedWeight(), 77))
+                                        .toList()))
+                        .toList();
+                return new EntitledObservation(
+                        observation.seatIndex(),
+                        observation.faction(),
+                        events,
+                        observation.otherPlayerIds(),
+                        observation.window());
+            }
+        };
     }
 
     /** A decisive game: seat 0 wins on score, every seat has a distinct score. */

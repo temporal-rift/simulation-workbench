@@ -12,13 +12,17 @@ import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CaseSummary;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Failure;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ModelCase;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Replay;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ReplayStep;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Reproduction;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Run;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Winner;
 
 /**
- * Every field of the run and case representations is required by the published contract, including the
- * nullable ones (a run's {@code startedAt}, {@code finishedAt} and {@code failure}, a case's {@code result}, a
- * winner's {@code winType}), so the service-wide non-null inclusion must not drop them from these responses.
+ * Every field of the run, case, replay and reproduction representations is required by the published contract,
+ * including the nullable ones (a run's {@code startedAt}, {@code finishedAt} and {@code failure}, a case's
+ * {@code result}, a winner's {@code winType}, a replay's {@code nextStep} and a reproduction's
+ * {@code firstDivergence}), so the service-wide non-null inclusion must not drop them from these responses.
  */
 @Configuration
 class RunApiJsonConfiguration {
@@ -26,14 +30,20 @@ class RunApiJsonConfiguration {
     @Bean
     JsonMapperBuilderCustomizer runApiKeepsNullableFields() {
         var always = JsonInclude.Value.construct(JsonInclude.Include.ALWAYS, JsonInclude.Include.ALWAYS);
-        return builder -> List.of(
-                        Run.class,
-                        Failure.class,
-                        ModelCase.class,
-                        CaseSummary.class,
-                        Attempt.class,
-                        CaseResult.class,
-                        Winner.class)
-                .forEach(type -> builder.withConfigOverride(type, override -> override.setInclude(always)));
+        // Replayed facts are open maps whose absent keys mean 'not entitled', so only the properties are forced.
+        var propertiesOnly = JsonInclude.Value.construct(JsonInclude.Include.ALWAYS, JsonInclude.Include.NON_NULL);
+        return builder -> {
+            List.of(
+                            Run.class,
+                            Failure.class,
+                            ModelCase.class,
+                            CaseSummary.class,
+                            Attempt.class,
+                            CaseResult.class,
+                            Winner.class)
+                    .forEach(type -> builder.withConfigOverride(type, override -> override.setInclude(always)));
+            List.of(Replay.class, ReplayStep.class, Reproduction.class)
+                    .forEach(type -> builder.withConfigOverride(type, override -> override.setInclude(propertiesOnly)));
+        };
     }
 }

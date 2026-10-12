@@ -1,5 +1,5 @@
-import type { Case, Experiment, ExperimentManifest, Run } from '../api/generated'
-import { IDS, caseDetail, experiment, policyCatalog, preview, run } from './fixtures'
+import type { Case, Comparison, Experiment, ExperimentManifest, Report, Reproduction, ReproductionState, Run } from '../api/generated'
+import { IDS, REPORT_CSV, SEAT_STEPS, caseDetail, comparison, eventStep, experiment, policyCatalog, preview, report, run } from './fixtures'
 
 export interface RecordedRequest {
   readonly method: string
@@ -31,6 +31,12 @@ export class FakeService {
   readonly experiments = new Map<string, Experiment>()
   readonly runs = new Map<string, Run>()
   readonly cases = new Map<string, Case[]>()
+  readonly comparisons = new Map<string, Comparison>()
+  readonly reports = new Map<string, Report>()
+  /** The states successive reproduction requests report, the last one repeating. */
+  reproductionScript: ReproductionState[] = ['QUEUED', 'MATCH']
+  reproductionDivergence: Reproduction['firstDivergence'] = null
+  private reproductionCalls = 0
   unreachable = false
   private readonly answers = new Map<string, Response>()
   private readonly overrides: Route[] = []
@@ -192,6 +198,67 @@ export class FakeService {
             endReason: candidate.result?.endReason ?? null,
           }))
         return json({ items, total: items.length })
+      }),
+      get(/^\/api\/v1\/runs\/([^/]+)\/report$/, (request, match) => {
+        const found = this.reports.get(match[1]!) ?? (this.runs.has(match[1]!) ? report({ runId: match[1]! }) : undefined)
+        if (!found) {
+          return problem(404, 'RESOURCE_NOT_FOUND', 'Unknown run.')
+        }
+        return request.headers.get('Accept') === 'text/csv'
+          ? new Response(REPORT_CSV, { status: 200, headers: { 'Content-Type': 'text/csv; charset=UTF-8' } })
+          : json(found)
+      }),
+      post(/^\/api\/v1\/comparisons$/, (request) =>
+        this.once(request, () => {
+          const asked = request.body as Comparison
+          const created = comparison({ baseline: asked.baseline, candidate: asked.candidate })
+          this.comparisons.set(created.comparisonId, created)
+          return json(created, 201)
+        }),
+      ),
+      get(/^\/api\/v1\/comparisons$/, () => {
+        const items = [...this.comparisons.values()].map(({ comparisonId, baseline, candidate, analysisVersion, analysisSeed }) => ({
+          comparisonId,
+          baseline,
+          candidate,
+          analysisVersion,
+          analysisSeed,
+          createdAt: '2026-10-11T10:00:00Z',
+        }))
+        return json({ items, total: items.length })
+      }),
+      get(/^\/api\/v1\/comparisons\/([^/]+)$/, (_request, match) => {
+        const found = this.comparisons.get(match[1]!)
+        return found ? json(found) : problem(404, 'RESOURCE_NOT_FOUND', 'Unknown comparison.')
+      }),
+      get(/^\/api\/v1\/runs\/([^/]+)\/cases\/([^/]+)\/replay$/, (request) => {
+        const afterStep = request.query.get('afterStep')
+        if (request.query.get('perspective') === 'OBSERVER') {
+          const seatSteps = Object.values(SEAT_STEPS)
+            .flat()
+            .sort((a, b) => a.step - b.step)
+          const steps = [...seatSteps, eventStep(6, 'game.events', 0), eventStep(7, 'timeline.events', 0), eventStep(8, 'game.events', 1)]
+          return json({ caseId: IDS.caseA, manifestDigest: '7'.repeat(64), perspective: 'OBSERVER', steps, nextStep: null })
+        }
+        // Pages of one step, so paging is visible: a seat's steps keep their case-wide numbers across pages.
+        const all = SEAT_STEPS[Number(request.query.get('seatIndex'))] ?? []
+        const steps = all.filter((step) => afterStep === null || step.step > Number(afterStep)).slice(0, 1)
+        const last = steps[steps.length - 1]
+        const nextStep = last && last !== all[all.length - 1] ? last.step : null
+        return json({ caseId: IDS.caseA, manifestDigest: '7'.repeat(64), perspective: 'PLAYER', steps, nextStep })
+      }),
+      post(/^\/api\/v1\/runs\/([^/]+)\/cases\/([^/]+)\/reproductions$/, () => {
+        const state = this.reproductionScript[Math.min(this.reproductionCalls, this.reproductionScript.length - 1)]!
+        this.reproductionCalls += 1
+        return json(
+          {
+            reproductionId: '5e6f7081-92a3-4b4c-8d5e-6f708192a3b4',
+            attemptId: IDS.other,
+            state,
+            firstDivergence: state === 'DIVERGED' ? this.reproductionDivergence : null,
+          },
+          202,
+        )
       }),
       get(/^\/api\/v1\/runs\/([^/]+)\/cases\/([^/]+)$/, (_request, match) => {
         const found = (this.cases.get(match[1]!) ?? []).find((candidate) => candidate.caseId === match[2]!)

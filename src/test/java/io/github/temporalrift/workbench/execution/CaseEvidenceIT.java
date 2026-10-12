@@ -191,36 +191,7 @@ class CaseEvidenceIT {
 
     @Test
     void aPlayerReplayShowsOnlyThatSeatsFactsAndOnlyAfterTheyAreEarned() throws Exception {
-        lanes.script(new ScriptedLanes.Script() {
-            @Override
-            public io.github.temporalrift.workbench.execution.domain.port.out.GameSession.AuthoritativeEnding ending(
-                    CaseLane.CaseContext context) {
-                return ScriptedLanes.decisive(context);
-            }
-
-            /** Seat 0 earns exact weights (as through Intercept) only when its terminal window opens. */
-            @Override
-            public EntitledObservation observation(CaseLane.CaseContext context, EntitledObservation observation) {
-                if (observation.seatIndex() != 0
-                        || !(observation.window() instanceof DecisionWindow.TerminalReadiness)) {
-                    return observation;
-                }
-                var events = observation.events().stream()
-                        .map(event -> new io.github.temporalrift.workbench.policy.domain.observation.EventView(
-                                event.eventId(),
-                                event.outcomes().stream()
-                                        .map(outcome ->
-                                                new OutcomeView(outcome.outcomeId(), outcome.printedWeight(), 77))
-                                        .toList()))
-                        .toList();
-                return new EntitledObservation(
-                        observation.seatIndex(),
-                        observation.faction(),
-                        events,
-                        observation.otherPlayerIds(),
-                        observation.window());
-            }
-        });
+        lanes.script(ScriptedLanes.seatZeroEarnsExactWeightAtTheTerminalWindow());
         var saved = savedCase();
 
         var seat0 = replay(saved, "PLAYER", 0, "simulation:read").andExpect(status().isOk());

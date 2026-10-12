@@ -48,8 +48,9 @@ export function describeFailure(error: unknown, context: FailureContext): string
       return context.requiredScope
         ? `You cannot ${context.action}: your session lacks the ${context.requiredScope} scope.`
         : `You cannot ${context.action}: your session lacks a required scope.`
-    case 'INVALID_COMPARISON':
     case 'INVALID_REPLAY_PERSPECTIVE':
+      return `Could not ${context.action}: that perspective or seat cannot be shown for this case.${explanation}`
+    case 'INVALID_COMPARISON':
     case 'INCOMPARABLE_RUNS':
       return `Could not ${context.action}: the request was refused.${explanation}`
     default:

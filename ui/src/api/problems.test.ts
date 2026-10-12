@@ -17,7 +17,7 @@ describe('describeFailure', () => {
     ['UNAUTHORIZED', 401, 'Your session expired. Sign in again to continue.'],
     ['INSUFFICIENT_SCOPE', 403, 'You cannot freeze the experiment: your session lacks the simulation:write scope.'],
     ['INVALID_COMPARISON', 400, 'Could not freeze the experiment: the request was refused. the service said so'],
-    ['INVALID_REPLAY_PERSPECTIVE', 400, 'Could not freeze the experiment: the request was refused. the service said so'],
+    ['INVALID_REPLAY_PERSPECTIVE', 400, 'Could not freeze the experiment: that perspective or seat cannot be shown for this case. the service said so'],
     ['INCOMPARABLE_RUNS', 422, 'Could not freeze the experiment: the request was refused. the service said so'],
   ])('words %s plainly', (code, status, expected) => {
     expect(describeFailure(problem(status, code), context)).toBe(expected)

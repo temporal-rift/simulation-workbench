@@ -1,21 +1,28 @@
 import { queryOptions } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { useSession } from '../auth/sessionContext'
-import { apiClientFor, unwrap } from './client'
+import { ApiProblemError, ServiceUnavailableError, apiClientFor, unwrap } from './client'
 import {
   cancelRun,
+  createComparison,
   createExperiment,
   getCase,
+  getCaseReplay,
+  getComparison,
   getExperiment,
   getRun,
+  getRunReport,
   listCases,
+  listComparisons,
   listExperiments,
   listPolicies,
   listRuns,
   previewExperiment,
+  reproduceCase,
   resumeRun,
   startRun,
   type CaseState,
+  type ComparisonRequest,
   type ExperimentManifest,
   type RunState,
 } from './generated'
@@ -76,10 +83,15 @@ export const runQuery = (client: Client, runId: string) =>
     refetchInterval: (query) => (isTerminalRunState(query.state.data?.state) ? false : RUN_POLL_MS),
   })
 
-export const runCasesQuery = (client: Client, runId: string, state: CaseState | undefined, offset: number, active: boolean) =>
+export interface CaseFilters {
+  readonly state?: CaseState
+  readonly variantLabel?: string
+}
+
+export const runCasesQuery = (client: Client, runId: string, filters: CaseFilters, offset: number, active: boolean) =>
   queryOptions({
-    queryKey: ['run-cases', runId, { state }, { offset }],
-    queryFn: () => unwrap(() => listCases({ client, path: { runId }, query: { state, limit: PAGE_SIZE, offset } })),
+    queryKey: ['run-cases', runId, filters, { offset }],
+    queryFn: () => unwrap(() => listCases({ client, path: { runId }, query: { ...filters, limit: PAGE_SIZE, offset } })),
     refetchInterval: active ? RUN_POLL_MS : false,
   })
 
@@ -105,3 +117,83 @@ export const cancelRunCommand = (client: Client, runId: string, idempotencyKey: 
 
 export const resumeRunCommand = (client: Client, runId: string, idempotencyKey: string) =>
   unwrap(() => resumeRun({ client, path: { runId }, headers: { 'Idempotency-Key': idempotencyKey } }))
+
+/** A report changes only while its run does, so it is read again on the run's cadence. */
+export const reportQuery = (client: Client, runId: string, active: boolean) =>
+  queryOptions({
+    queryKey: ['report', runId],
+    queryFn: () => unwrap(() => getRunReport({ client, path: { runId } })),
+    refetchInterval: active ? RUN_POLL_MS : false,
+  })
+
+export const comparisonsQuery = (client: Client, offset: number) =>
+  queryOptions({
+    queryKey: ['comparisons', { offset }],
+    queryFn: () => unwrap(() => listComparisons({ client, query: { limit: PAGE_SIZE, offset } })),
+  })
+
+export const comparisonQuery = (client: Client, comparisonId: string) =>
+  queryOptions({
+    queryKey: ['comparison', comparisonId],
+    queryFn: () => unwrap(() => getComparison({ client, path: { comparisonId } })),
+  })
+
+export const createComparisonCommand = (client: Client, request: ComparisonRequest, idempotencyKey: string) =>
+  unwrap(() => createComparison({ client, body: request, headers: { 'Idempotency-Key': idempotencyKey } }))
+
+/** What a replay request names. A seat is present exactly for a player view, mirroring the contract. */
+export type ReplayView = { readonly perspective: 'PLAYER'; readonly seatIndex: number } | { readonly perspective: 'OBSERVER' }
+
+export const REPLAY_PAGE_SIZE = 50
+
+/** Every replay of a case lives under this key, so all of it can be dropped at once. */
+export const replayRootKey = (runId: string, caseId: string) => ['replay', runId, caseId] as const
+
+/**
+ * One page of a replay. The perspective and seat are part of the key and nothing is retained once the page is
+ * off screen, so one perspective's facts are never served to another.
+ */
+export const replayQuery = (client: Client, runId: string, caseId: string, view: ReplayView, afterStep: number | undefined) =>
+  queryOptions({
+    queryKey: [...replayRootKey(runId, caseId), view, { afterStep }],
+    queryFn: () =>
+      unwrap(() =>
+        getCaseReplay({
+          client,
+          path: { runId, caseId },
+          query: {
+            perspective: view.perspective,
+            ...(view.perspective === 'PLAYER' ? { seatIndex: view.seatIndex } : {}),
+            afterStep,
+            limit: REPLAY_PAGE_SIZE,
+          },
+        }),
+      ),
+    gcTime: 0,
+    staleTime: Infinity,
+  })
+
+/** Repeating the call with the same key is how a reproduction is read again: there is no polling endpoint. */
+export const reproduceCommand = (client: Client, runId: string, caseId: string, idempotencyKey: string) =>
+  unwrap(() => reproduceCase({ client, path: { runId, caseId }, headers: { 'Idempotency-Key': idempotencyKey } }))
+
+/** The bytes the service returns for one representation, kept exactly as received for a download. */
+export async function fetchExport(fetchFn: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>, path: string, accept: string): Promise<Blob> {
+  const response = await fetchFn(new URL(path, window.location.origin).href, { method: 'GET', headers: { Accept: accept }, cache: 'no-store' })
+  if (!response.ok) {
+    throw await problemOf(response)
+  }
+  return response.blob()
+}
+
+/** A refused export keeps its problem details, so a missing scope or a missing resource is explained as such. */
+async function problemOf(response: Response): Promise<Error> {
+  try {
+    const problem: unknown = await response.json()
+    const fields = typeof problem === 'object' && problem !== null ? (problem as Record<string, unknown>) : {}
+    const text = (value: unknown) => (typeof value === 'string' && value.length > 0 ? value : null)
+    return new ApiProblemError(response.status, text(fields['code']), text(fields['detail']) ?? '', text(fields['field']))
+  } catch {
+    return new ServiceUnavailableError('unexpected-response')
+  }
+}
