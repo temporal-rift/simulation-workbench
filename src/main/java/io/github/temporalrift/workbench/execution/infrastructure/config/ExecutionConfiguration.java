@@ -50,6 +50,7 @@ import io.github.temporalrift.workbench.execution.domain.port.out.ExperimentSour
 import io.github.temporalrift.workbench.execution.domain.port.out.LaneProvider;
 import io.github.temporalrift.workbench.execution.domain.port.out.ReproductionRepository;
 import io.github.temporalrift.workbench.execution.domain.port.out.RunRepository;
+import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.in.scheduler.BatchWorker;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.experiment.ExperimentSourceAdapter;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.kafka.KafkaGameEventObservers;
@@ -119,6 +120,7 @@ public class ExecutionConfiguration {
                         lane.timelineServiceUrl(),
                         lane.readServiceUrl(),
                         lane.operatorToken(),
+                        new BundleDigests(lane.rulesDigest(), lane.contentDigest()),
                         lane.gameEventsTopic(),
                         lane.timelineEventsTopic(),
                         lane.kafkaBootstrapServers(),
@@ -141,8 +143,8 @@ public class ExecutionConfiguration {
     }
 
     @Bean
-    StartRunUseCase startRunUseCase(ExperimentSource experiments, RunRepository runs, Clock clock) {
-        return new StartRunCommandHandler(experiments, runs, clock);
+    StartRunUseCase startRunUseCase(ExperimentSource experiments, RunRepository runs, LaneProvider lanes, Clock clock) {
+        return new StartRunCommandHandler(experiments, runs, lanes, clock);
     }
 
     @Bean

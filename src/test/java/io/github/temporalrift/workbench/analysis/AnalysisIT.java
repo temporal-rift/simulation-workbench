@@ -322,8 +322,8 @@ class AnalysisIT {
         seeds.forEach(seedValues::add);
         manifest.set("seeds", seedValues);
         var variants = objectMapper.createArrayNode();
-        variants.add(variant(BASELINE, "1"));
-        variants.add(variant(CANDIDATE, "2"));
+        variants.add(variant(BASELINE, "a"));
+        variants.add(variant(CANDIDATE, "f"));
         manifest.set("variants", variants);
         return manifest;
     }

@@ -1,10 +1,12 @@
 package io.github.temporalrift.workbench.execution.domain.port.out;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.Optional;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.execution.domain.run.Attempt;
+import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.CaseResult;
 import io.github.temporalrift.workbench.execution.domain.run.Failure;
 import io.github.temporalrift.workbench.execution.domain.run.LogicalCase;
@@ -16,10 +18,11 @@ import io.github.temporalrift.workbench.execution.domain.run.LogicalCase;
 public interface CaseLedger {
 
     /**
-     * Atomically claims the next pending case of a running run that is within its concurrency bound and
-     * opens a new attempt for it, or returns empty when there is nothing to do.
+     * Atomically claims the next pending case, in matrix order, of a running run that is within its concurrency bound
+     * and whose bundle is among {@code freeBundles}, and opens a new attempt for it, or returns empty when there is
+     * nothing to do.
      */
-    Optional<Claim> claimNext(String owner, Instant now, Instant leaseUntil);
+    Optional<Claim> claimNext(String owner, Instant now, Instant leaseUntil, Collection<BundleDigests> freeBundles);
 
     /** Extends the lease; false means the attempt is no longer this owner's to run. */
     boolean extendLease(UUID attemptId, String owner, Instant leaseUntil);

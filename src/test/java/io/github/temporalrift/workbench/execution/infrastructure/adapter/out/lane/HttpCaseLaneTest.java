@@ -37,6 +37,7 @@ import io.github.temporalrift.workbench.execution.domain.command.SlotId;
 import io.github.temporalrift.workbench.execution.domain.command.SlotStatus;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
+import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.domain.run.SeatPlan;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.SimulationExecutionApi;
@@ -84,6 +85,7 @@ class HttpCaseLaneTest {
                 "http://timeline",
                 "http://read",
                 "operator-token",
+                new BundleDigests("a".repeat(64), "b".repeat(64)),
                 "game.events",
                 "timeline.events",
                 null,
@@ -289,6 +291,7 @@ class HttpCaseLaneTest {
                 "http://timeline",
                 "http://read",
                 "operator-token",
+                new BundleDigests("a".repeat(64), "b".repeat(64)),
                 "game.events",
                 "timeline.events",
                 null,

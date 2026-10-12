@@ -30,6 +30,12 @@ class RunCaseJpaEntity extends AssignedIdJpaEntity<UUID> {
     @Column(name = "variant_label", nullable = false, length = 120)
     private String variantLabel;
 
+    @Column(name = "rules_digest", nullable = false, length = 64)
+    private String rulesDigest;
+
+    @Column(name = "content_digest", nullable = false, length = 64)
+    private String contentDigest;
+
     @Column(name = "seed", nullable = false, length = 20)
     private String seed;
 
@@ -53,6 +59,8 @@ class RunCaseJpaEntity extends AssignedIdJpaEntity<UUID> {
         this.caseKey = plan.caseKey();
         this.ordinal = plan.ordinal();
         this.variantLabel = plan.variantLabel();
+        this.rulesDigest = plan.bundle().rulesDigest();
+        this.contentDigest = plan.bundle().contentDigest();
         this.seed = plan.seed();
         this.playerCount = plan.playerCount();
         this.seatsJson = seatsJson;
@@ -87,6 +95,14 @@ class RunCaseJpaEntity extends AssignedIdJpaEntity<UUID> {
 
     String variantLabel() {
         return variantLabel;
+    }
+
+    String rulesDigest() {
+        return rulesDigest;
+    }
+
+    String contentDigest() {
+        return contentDigest;
     }
 
     String seed() {

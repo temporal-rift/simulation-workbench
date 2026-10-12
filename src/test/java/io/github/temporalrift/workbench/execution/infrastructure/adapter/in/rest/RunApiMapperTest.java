@@ -12,6 +12,7 @@ import io.github.temporalrift.workbench.execution.application.port.in.CaseView;
 import io.github.temporalrift.workbench.execution.application.port.in.RunView;
 import io.github.temporalrift.workbench.execution.domain.run.Attempt;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptState;
+import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.CaseCounts;
 import io.github.temporalrift.workbench.execution.domain.run.CaseResult;
 import io.github.temporalrift.workbench.execution.domain.run.CaseState;
@@ -153,6 +154,7 @@ class RunApiMapperTest {
                 new UUID(6, 6),
                 0,
                 "baseline",
+                new BundleDigests("a".repeat(64), "b".repeat(64)),
                 "42",
                 3,
                 List.of(

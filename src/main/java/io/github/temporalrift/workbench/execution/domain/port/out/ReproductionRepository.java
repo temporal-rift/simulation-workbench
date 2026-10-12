@@ -1,13 +1,14 @@
 package io.github.temporalrift.workbench.execution.domain.port.out;
 
 import java.time.Instant;
-import java.util.Collection;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.execution.domain.reproduction.Reproduction;
 import io.github.temporalrift.workbench.execution.domain.reproduction.ReproductionClaim;
 import io.github.temporalrift.workbench.execution.domain.reproduction.ReproductionCreation;
+import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 
 /** Durable reproductions with the same lease fencing the research cases have. */
 public interface ReproductionRepository {
@@ -24,10 +25,11 @@ public interface ReproductionRepository {
     Optional<Reproduction> find(UUID reproductionId);
 
     /**
-     * Atomically moves the oldest queued reproduction whose lane is among {@code freeLaneIds} to running under
-     * a lease.
+     * Atomically moves the oldest queued reproduction whose lane is among {@code freeLanes} and still serves its
+     * case's bundle to running under a lease.
      */
-    Optional<Reproduction> claimNext(String owner, Instant now, Instant leaseUntil, Collection<String> freeLaneIds);
+    Optional<Reproduction> claimNext(
+            String owner, Instant now, Instant leaseUntil, Map<String, BundleDigests> freeLanes);
 
     /** Extends the lease; false means the reproduction is no longer this owner's to run. */
     boolean extendLease(UUID reproductionId, String owner, Instant leaseUntil);

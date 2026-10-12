@@ -5,7 +5,8 @@ import java.util.UUID;
 
 /**
  * One logical case of a run. It contributes at most one result however many attempts executed or
- * recovered it; {@code result} is present only once {@code state} is {@link CaseState#SUCCEEDED}.
+ * recovered it; {@code result} is present only once {@code state} is {@link CaseState#SUCCEEDED}. It plays only on
+ * a lane serving {@code bundle}, its variant's frozen rules and content.
  */
 public record LogicalCase(
         UUID caseId,
@@ -13,6 +14,7 @@ public record LogicalCase(
         UUID caseKey,
         int ordinal,
         String variantLabel,
+        BundleDigests bundle,
         String seed,
         int playerCount,
         List<SeatPlan> seats,

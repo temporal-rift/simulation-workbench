@@ -10,8 +10,10 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 import io.github.temporalrift.workbench.experiment.ExperimentManifests;
+import io.github.temporalrift.workbench.experiment.ExperimentVariant;
 import io.github.temporalrift.workbench.experiment.domain.ManifestDigest;
 import io.github.temporalrift.workbench.experiment.domain.MatrixPreviewService;
 import io.github.temporalrift.workbench.experiment.domain.port.out.ExperimentRepository;
@@ -40,6 +42,20 @@ class ExperimentCatalogQueryHandlerTest {
         assertThat(bounds.concurrency()).isEqualTo(4);
         assertThat(bounds.caseWallTimeoutSeconds()).isEqualTo(300);
         assertThat(bounds.maxRejectedCandidatesPerWindow()).isEqualTo(10);
+    }
+
+    @Test
+    void boundsCarryEveryVariantWithItsEffectiveDigests() {
+        var manifest = (ObjectNode) ExperimentManifests.valid("42", "a".repeat(64), "b".repeat(64));
+        manifest.withArray("variants").get(1).asObject().put("effectiveRulesDigest", "f".repeat(64));
+        var catalog = catalogOf(manifest);
+
+        var variants = catalog.bounds(ID).orElseThrow().variants();
+
+        assertThat(variants)
+                .containsExactly(
+                        new ExperimentVariant("baseline", "a".repeat(64), "b".repeat(64)),
+                        new ExperimentVariant("candidate", "f".repeat(64), "b".repeat(64)));
     }
 
     @Test

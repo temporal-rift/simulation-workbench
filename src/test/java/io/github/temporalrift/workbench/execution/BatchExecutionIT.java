@@ -1,5 +1,7 @@
 package io.github.temporalrift.workbench.execution;
 
+import static io.github.temporalrift.workbench.ExecutionTestConfiguration.CANDIDATE_BUNDLE;
+import static io.github.temporalrift.workbench.ExecutionTestConfiguration.DEFAULT_BUNDLE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -7,6 +9,7 @@ import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -23,6 +26,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 
 import io.github.temporalrift.workbench.WorkbenchIntegrationTest;
 import io.github.temporalrift.workbench.execution.application.port.in.CancelRunUseCase;
@@ -253,8 +257,9 @@ class BatchExecutionIT {
         assertThat(kept).hasSize(400);
         // A worker that crashed mid-case leaves an attempt running and holding a lease.
         var now = clock.instant();
-        var inFlight =
-                caseLedger.claimNext("crashed-worker", now, now.plusSeconds(30)).orElseThrow();
+        var inFlight = caseLedger
+                .claimNext("crashed-worker", now, now.plusSeconds(30), Set.of(DEFAULT_BUNDLE))
+                .orElseThrow();
 
         batch.recoverAfterRestart();
         var interrupted = getRun.handle(runId);
@@ -447,7 +452,9 @@ class BatchExecutionIT {
         var runId = start(ExperimentManifests.threePlayerSingleSet());
         batch.maintain();
         var now = clock.instant();
-        var zombie = caseLedger.claimNext("zombie", now, now.minusSeconds(1)).orElseThrow();
+        var zombie = caseLedger
+                .claimNext("zombie", now, now.minusSeconds(1), Set.of(DEFAULT_BUNDLE))
+                .orElseThrow();
 
         batch.maintain();
 
@@ -491,7 +498,7 @@ class BatchExecutionIT {
                     ready.countDown();
                     go.await(10, TimeUnit.SECONDS);
                     caseLedger
-                            .claimNext(owner, now, now.plusSeconds(30))
+                            .claimNext(owner, now, now.plusSeconds(30), Set.of(DEFAULT_BUNDLE))
                             .ifPresent(claim -> claimed.add(claim.logicalCase().caseId()));
                     return null;
                 }));
@@ -508,6 +515,57 @@ class BatchExecutionIT {
         assertThat(getRun.handle(runId).counts().running()).isEqualTo(3);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM case_attempt WHERE state = 'RUNNING'", Integer.class))
                 .isEqualTo(3);
+    }
+
+    @Test
+    void everyCasePlaysOnALaneServingItsVariantsBundle() {
+        lanes.serve(DEFAULT_BUNDLE, CANDIDATE_BUNDLE);
+        var runId = start(ExperimentManifests.threePlayerTwoVariants());
+
+        drain();
+
+        assertThat(getRun.handle(runId).counts().succeeded()).isEqualTo(6);
+        var laneByVariant = Map.of("baseline", "lane-0", "candidate", "lane-1");
+        for (var caseId : caseIds(runId)) {
+            var view = getCase.handle(runId, caseId);
+            assertThat(view.attempts())
+                    .singleElement()
+                    .extracting(Attempt::laneId)
+                    .isEqualTo(laneByVariant.get(view.logicalCase().variantLabel()));
+        }
+        assertThat(lanes.opened()).extracting(ScriptedLanes.Opened::laneId).containsOnly("lane-0", "lane-1");
+    }
+
+    @Test
+    void aCaseWithoutAFreeLaneOfItsBundleStaysPendingWithoutBlockingOtherVariants() {
+        lanes.serve(DEFAULT_BUNDLE, CANDIDATE_BUNDLE);
+        var manifest = (ObjectNode) ExperimentManifests.threePlayerTwoVariants().deepCopy();
+        var variants = manifest.withArray("variants");
+        var baseline = variants.remove(0);
+        variants.add(baseline);
+        var runId = start(manifest);
+        var first = getCase.handle(runId, caseIds(runId).getFirst()).logicalCase();
+        assertThat(first.variantLabel()).isEqualTo("candidate");
+
+        try (var busy = lanes.acquireExactly("lane-1", CANDIDATE_BUNDLE).orElseThrow()) {
+            drain();
+
+            var counts = getRun.handle(runId).counts();
+            assertThat(counts.succeeded()).isEqualTo(3);
+            assertThat(counts.pending()).isEqualTo(3);
+            for (var caseId : caseIds(runId)) {
+                var logicalCase = getCase.handle(runId, caseId).logicalCase();
+                assertThat(logicalCase.state())
+                        .isEqualTo(
+                                logicalCase.variantLabel().equals("baseline")
+                                        ? CaseState.SUCCEEDED
+                                        : CaseState.PENDING);
+            }
+        }
+
+        drain();
+
+        assertThat(getRun.handle(runId).counts().succeeded()).isEqualTo(6);
     }
 
     private UUID start(JsonNode manifest) {

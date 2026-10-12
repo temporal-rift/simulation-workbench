@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.SeatPlan;
 
 /** The frozen experiments a run executes. */
@@ -20,7 +21,15 @@ public interface ExperimentSource {
             String manifestJson,
             int concurrency,
             int caseWallTimeoutSeconds,
-            int maxRejectedCandidatesPerWindow) {}
+            int maxRejectedCandidatesPerWindow,
+            List<Variant> variants) {
+        public Plan {
+            variants = List.copyOf(variants);
+        }
+    }
+
+    /** A rules variant and the bundle its cases must play under. */
+    record Variant(String label, BundleDigests bundle) {}
 
     record PlannedCase(UUID caseKey, String seed, String variantLabel, int playerCount, List<SeatPlan> seats) {
         public PlannedCase {

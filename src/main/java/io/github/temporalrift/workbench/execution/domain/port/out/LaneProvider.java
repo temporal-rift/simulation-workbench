@@ -1,26 +1,32 @@
 package io.github.temporalrift.workbench.execution.domain.port.out;
 
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-/** Hands out isolated service lanes, at most one case per lane at a time. */
+import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
+
+/**
+ * Hands out isolated service lanes, at most one case per lane at a time. Each lane serves one frozen bundle, and a
+ * lane is handed out only for a case of that bundle.
+ */
 public interface LaneProvider {
 
     /**
-     * Acquires a free lane, preferring {@code preferredLaneId} (the lane a recovering attempt last played
-     * on), or returns empty when every lane is busy.
+     * Acquires a free lane serving {@code bundle}, preferring {@code preferredLaneId} (the lane a recovering attempt
+     * last played on), or returns empty when every such lane is busy.
      */
-    Optional<CaseLane> acquire(String preferredLaneId);
+    Optional<CaseLane> acquire(BundleDigests bundle, String preferredLaneId);
 
     /**
-     * Acquires exactly this lane, or returns empty when it is busy or not configured. A reproduction needs the
-     * lane that played the case: its bot identities are part of what the seats observe.
+     * Acquires exactly this lane, or returns empty when it is busy, not configured, or serves another bundle. A
+     * reproduction needs the lane that played the case: its bot identities are part of what the seats observe.
      */
-    Optional<CaseLane> acquireExactly(String laneId);
+    Optional<CaseLane> acquireExactly(String laneId, BundleDigests bundle);
 
-    /** The lanes that are free right now. */
-    Set<String> freeLaneIds();
+    /** The bundles some configured lane serves, busy or free. */
+    Set<BundleDigests> servedBundles();
 
-    /** Whether a lane is free right now, so a worker claims a case only when it can play it. */
-    boolean hasFreeLane();
+    /** The lanes that are free right now, each with the bundle it serves. */
+    Map<String, BundleDigests> freeLanes();
 }

@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
@@ -21,6 +20,7 @@ import io.github.temporalrift.workbench.execution.domain.reproduction.Divergence
 import io.github.temporalrift.workbench.execution.domain.reproduction.Reproduction;
 import io.github.temporalrift.workbench.execution.domain.reproduction.ReproductionCreation;
 import io.github.temporalrift.workbench.execution.domain.reproduction.ReproductionState;
+import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.Failure;
 import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.domain.run.Run;
@@ -31,7 +31,9 @@ import io.github.temporalrift.workbench.experiment.application.port.in.CreateExp
 class ReproductionRepositoryIT {
 
     private static final Instant NOW = Instant.parse("2026-01-01T00:00:00Z");
-    private static final Set<String> LANES = Set.of("lane-1");
+    private static final BundleDigests BUNDLE = new BundleDigests("a".repeat(64), "b".repeat(64));
+    private static final BundleDigests OTHER_BUNDLE = new BundleDigests("f".repeat(64), "b".repeat(64));
+    private static final Map<String, BundleDigests> LANES = Map.of("lane-1", BUNDLE);
 
     @Autowired
     private ReproductionRepository reproductions;
@@ -71,7 +73,7 @@ class ReproductionRepositoryIT {
                 "hash",
                 run,
                 1,
-                List.of(new RunRepository.NewCase(UUID.randomUUID(), 0, "baseline", "42", 3, List.of())));
+                List.of(new RunRepository.NewCase(UUID.randomUUID(), 0, "baseline", BUNDLE, "42", 3, List.of())));
         caseId = jdbc.queryForObject("SELECT case_id FROM run_case WHERE run_id = ?", UUID.class, runId);
     }
 
@@ -113,6 +115,22 @@ class ReproductionRepositoryIT {
                 .isEqualTo(ReproductionState.MATCH);
         assertThat(reproductions.settle(queued.reproductionId(), "worker-a", queued.matched(NOW)))
                 .isFalse();
+    }
+
+    @Test
+    void onlyItsOwnLaneStillServingTheCasesBundleClaimsAReproduction() {
+        var queued = queue();
+
+        assertThat(reproductions.claimNext("worker", NOW, NOW.plusSeconds(30), Map.of("lane-1", OTHER_BUNDLE)))
+                .isEmpty();
+        assertThat(reproductions.claimNext("worker", NOW, NOW.plusSeconds(30), Map.of("lane-2", BUNDLE)))
+                .isEmpty();
+        assertThat(reproductions.find(queued.reproductionId()).orElseThrow().state())
+                .isEqualTo(ReproductionState.QUEUED);
+        assertThat(reproductions.claimNext(
+                        "worker", NOW, NOW.plusSeconds(30), Map.of("lane-1", BUNDLE, "lane-2", OTHER_BUNDLE)))
+                .map(Reproduction::reproductionId)
+                .contains(queued.reproductionId());
     }
 
     @Test

@@ -8,6 +8,8 @@ import java.util.UUID;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
+import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
+
 /**
  * Runner configuration. Lane endpoints and bot credentials are supplied by the deployment that provisions
  * the isolated lanes; they live only here and are never persisted with experiments, runs or evidence.
@@ -39,17 +41,37 @@ public record ExecutionProperties(
             @DefaultValue("5s") Duration connectTimeout,
             @DefaultValue("30s") Duration readTimeout) {}
 
-    /** One isolated lane and the identities that play in it. */
+    /**
+     * One isolated lane, the identities that play in it, and the effective rules and content digests of the frozen
+     * bundle it serves.
+     */
     public record Lane(
             String id,
             String gameServiceUrl,
             String timelineServiceUrl,
             String readServiceUrl,
             String operatorToken,
+            String rulesDigest,
+            String contentDigest,
             @DefaultValue("game.events") String gameEventsTopic,
             @DefaultValue("timeline.events") String timelineEventsTopic,
             String kafkaBootstrapServers,
             @DefaultValue List<Bot> bots) {
+
+        public Lane {
+            requireDigest(id, "rules-digest", rulesDigest);
+            requireDigest(id, "content-digest", contentDigest);
+        }
+
+        private static void requireDigest(String laneId, String key, String value) {
+            var property = "workbench.execution.lanes[id=" + laneId + "]." + key;
+            if (value == null || value.isBlank()) {
+                throw new IllegalArgumentException(property + " is required");
+            }
+            if (!BundleDigests.isDigest(value)) {
+                throw new IllegalArgumentException(property + " must be 64 lowercase hex characters");
+            }
+        }
 
         @Override
         public String toString() {

@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
+
 class LaneEndpointsTest {
 
     @ParameterizedTest
@@ -28,6 +30,15 @@ class LaneEndpointsTest {
 
     private static LaneEndpoints lane(String broker) {
         return new LaneEndpoints(
-                "lane", "http://g", "http://t", "http://r", "op", "game.events", "timeline.events", broker, List.of());
+                "lane",
+                "http://g",
+                "http://t",
+                "http://r",
+                "op",
+                new BundleDigests("a".repeat(64), "b".repeat(64)),
+                "game.events",
+                "timeline.events",
+                broker,
+                List.of());
     }
 }

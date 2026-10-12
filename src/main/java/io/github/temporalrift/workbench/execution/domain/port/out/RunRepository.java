@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.execution.domain.run.Attempt;
+import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.CaseCounts;
 import io.github.temporalrift.workbench.execution.domain.run.CaseState;
 import io.github.temporalrift.workbench.execution.domain.run.LogicalCase;
@@ -69,7 +70,14 @@ public interface RunRepository {
     boolean claimCommand(UUID idempotencyKey, String operation, UUID runId, String requestHash, Instant now);
 
     /** A case to schedule, in matrix order. */
-    record NewCase(UUID caseKey, int ordinal, String variantLabel, String seed, int playerCount, List<SeatPlan> seats) {
+    record NewCase(
+            UUID caseKey,
+            int ordinal,
+            String variantLabel,
+            BundleDigests bundle,
+            String seed,
+            int playerCount,
+            List<SeatPlan> seats) {
         public NewCase {
             seats = List.copyOf(seats);
         }

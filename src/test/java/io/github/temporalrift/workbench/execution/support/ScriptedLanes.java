@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -17,6 +18,7 @@ import io.github.temporalrift.workbench.execution.domain.port.out.CommandLedger;
 import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
 import io.github.temporalrift.workbench.execution.domain.port.out.GameSession;
 import io.github.temporalrift.workbench.execution.domain.port.out.LaneProvider;
+import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.EndReason;
 import io.github.temporalrift.workbench.execution.domain.run.FinalScore;
 import io.github.temporalrift.workbench.execution.domain.run.WinType;
@@ -70,7 +72,8 @@ public class ScriptedLanes implements LaneProvider {
     private final CommandLedger ledger;
     private final EvidenceLedger evidence;
     private final Clock clock;
-    private final int laneCount;
+    private final List<BundleDigests> defaultBundles;
+    private volatile List<BundleDigests> laneBundles;
     private final Set<String> busy = new HashSet<>();
     private final Map<UUID, FakeGame.State> games = new ConcurrentHashMap<>();
     private final Map<UUID, UUID> gameByCaseKey = new ConcurrentHashMap<>();
@@ -80,11 +83,18 @@ public class ScriptedLanes implements LaneProvider {
     /** One call to open a game on a lane. */
     public record Opened(UUID caseKey, UUID attemptId, UUID resumeGameId, UUID gameId, String laneId) {}
 
-    public ScriptedLanes(CommandLedger ledger, EvidenceLedger evidence, Clock clock, int laneCount) {
+    /** Lane {@code lane-i} serves {@code laneBundles[i]}. */
+    public ScriptedLanes(CommandLedger ledger, EvidenceLedger evidence, Clock clock, List<BundleDigests> laneBundles) {
         this.ledger = ledger;
         this.evidence = evidence;
         this.clock = clock;
-        this.laneCount = laneCount;
+        this.defaultBundles = List.copyOf(laneBundles);
+        this.laneBundles = defaultBundles;
+    }
+
+    /** Reconfigures the lanes, as a redeployment would: lane {@code lane-i} serves {@code bundles[i]}. */
+    public synchronized void serve(BundleDigests... bundles) {
+        laneBundles = List.of(bundles);
     }
 
     public void script(Script next) {
@@ -96,8 +106,9 @@ public class ScriptedLanes implements LaneProvider {
         games.clear();
     }
 
-    public void reset() {
+    public synchronized void reset() {
         script = DECISIVE;
+        laneBundles = defaultBundles;
         games.clear();
         gameByCaseKey.clear();
         opened.clear();
@@ -117,41 +128,48 @@ public class ScriptedLanes implements LaneProvider {
     }
 
     @Override
-    public synchronized Optional<CaseLane> acquire(String preferredLaneId) {
-        for (var index = 0; index < laneCount; index++) {
-            var id = "lane-" + index;
-            if (busy.add(id)) {
-                return Optional.of(new ScriptedLane(id));
+    public synchronized Optional<CaseLane> acquire(BundleDigests bundle, String preferredLaneId) {
+        var free = freeLanes();
+        if (bundle.equals(free.get(preferredLaneId))) {
+            return Optional.of(take(preferredLaneId));
+        }
+        for (var index = 0; index < laneBundles.size(); index++) {
+            var id = laneId(index);
+            if (bundle.equals(free.get(id))) {
+                return Optional.of(take(id));
             }
         }
         return Optional.empty();
     }
 
     @Override
-    public synchronized Optional<CaseLane> acquireExactly(String laneId) {
-        for (var index = 0; index < laneCount; index++) {
-            var id = "lane-" + index;
-            if (id.equals(laneId) && busy.add(id)) {
-                return Optional.of(new ScriptedLane(id));
-            }
-        }
-        return Optional.empty();
+    public synchronized Optional<CaseLane> acquireExactly(String laneId, BundleDigests bundle) {
+        return bundle.equals(freeLanes().get(laneId)) ? Optional.of(take(laneId)) : Optional.empty();
     }
 
     @Override
-    public synchronized Set<String> freeLaneIds() {
-        var free = new HashSet<String>();
-        for (var index = 0; index < laneCount; index++) {
-            if (!busy.contains("lane-" + index)) {
-                free.add("lane-" + index);
+    public synchronized Set<BundleDigests> servedBundles() {
+        return Set.copyOf(laneBundles);
+    }
+
+    @Override
+    public synchronized Map<String, BundleDigests> freeLanes() {
+        var free = new HashMap<String, BundleDigests>();
+        for (var index = 0; index < laneBundles.size(); index++) {
+            if (!busy.contains(laneId(index))) {
+                free.put(laneId(index), laneBundles.get(index));
             }
         }
         return free;
     }
 
-    @Override
-    public synchronized boolean hasFreeLane() {
-        return busy.size() < laneCount;
+    private CaseLane take(String laneId) {
+        busy.add(laneId);
+        return new ScriptedLane(laneId);
+    }
+
+    private static String laneId(int index) {
+        return "lane-" + index;
     }
 
     private synchronized void release(String laneId) {

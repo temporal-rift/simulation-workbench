@@ -3,14 +3,16 @@ package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.la
 import java.time.Clock;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.port.out.LaneProvider;
+import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 
-/** The lanes this deployment was configured with; each hosts one case at a time. */
+/** The lanes this deployment was configured with; each hosts one case at a time of the bundle it serves. */
 public class ConfiguredLanePool implements LaneProvider {
 
     private final List<LaneEndpoints> lanes;
@@ -37,36 +39,38 @@ public class ConfiguredLanePool implements LaneProvider {
     }
 
     @Override
-    public synchronized Optional<CaseLane> acquire(String preferredLaneId) {
-        var chosen = lanes.stream()
+    public synchronized Optional<CaseLane> acquire(BundleDigests bundle, String preferredLaneId) {
+        var serving = lanes.stream()
                 .filter(lane -> !busy.contains(lane.id()))
+                .filter(lane -> lane.bundle().equals(bundle))
+                .toList();
+        return serving.stream()
                 .filter(lane -> lane.id().equals(preferredLaneId))
                 .findFirst()
-                .or(() ->
-                        lanes.stream().filter(lane -> !busy.contains(lane.id())).findFirst());
-        return chosen.map(this::take);
+                .or(() -> serving.stream().findFirst())
+                .map(this::take);
     }
 
     @Override
-    public synchronized Optional<CaseLane> acquireExactly(String laneId) {
+    public synchronized Optional<CaseLane> acquireExactly(String laneId, BundleDigests bundle) {
         return lanes.stream()
                 .filter(lane -> !busy.contains(lane.id()))
                 .filter(lane -> lane.id().equals(laneId))
+                .filter(lane -> lane.bundle().equals(bundle))
                 .findFirst()
                 .map(this::take);
     }
 
     @Override
-    public synchronized boolean hasFreeLane() {
-        return lanes.stream().anyMatch(lane -> !busy.contains(lane.id()));
+    public Set<BundleDigests> servedBundles() {
+        return lanes.stream().map(LaneEndpoints::bundle).collect(Collectors.toUnmodifiableSet());
     }
 
     @Override
-    public synchronized Set<String> freeLaneIds() {
+    public synchronized Map<String, BundleDigests> freeLanes() {
         return lanes.stream()
-                .map(LaneEndpoints::id)
-                .filter(id -> !busy.contains(id))
-                .collect(Collectors.toSet());
+                .filter(lane -> !busy.contains(lane.id()))
+                .collect(Collectors.toUnmodifiableMap(LaneEndpoints::id, LaneEndpoints::bundle));
     }
 
     private CaseLane take(LaneEndpoints lane) {

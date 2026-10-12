@@ -1,6 +1,9 @@
 package io.github.temporalrift.workbench.execution.infrastructure.adapter.in.rest;
 
+import static io.github.temporalrift.workbench.ExecutionTestConfiguration.DEFAULT_BUNDLE;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -100,6 +103,23 @@ class RunLifecycleIT {
                 .isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM run_case", Integer.class))
                 .isEqualTo(3);
+    }
+
+    @Test
+    void anExperimentWithAnUnservedVariantDoesNotStart() throws Exception {
+        lanes.serve(DEFAULT_BUNDLE);
+        var experimentId = experiment(ExperimentManifests.threePlayerTwoVariants());
+
+        mockMvc.perform(startRun(experimentId, UUID.randomUUID()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("MANIFEST_MISMATCH"))
+                .andExpect(jsonPath("$.detail").value(containsString("candidate")))
+                .andExpect(jsonPath("$.detail").value(not(containsString("baseline"))));
+
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM run", Integer.class))
+                .isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM run_case", Integer.class))
+                .isZero();
     }
 
     @Test

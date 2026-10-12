@@ -12,6 +12,7 @@ import io.github.temporalrift.workbench.execution.domain.reproduction.ManifestMi
 import io.github.temporalrift.workbench.execution.domain.run.InvalidRunStateException;
 import io.github.temporalrift.workbench.execution.domain.run.RunIdempotencyConflictException;
 import io.github.temporalrift.workbench.execution.domain.run.RunNotFoundException;
+import io.github.temporalrift.workbench.execution.domain.run.UnservedVariantsException;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.ProblemDetails;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.RestAdviceOrder;
 
@@ -36,6 +37,11 @@ class RunExceptionHandler {
 
     @ExceptionHandler(ManifestMismatchException.class)
     ProblemDetail handleManifestMismatch(ManifestMismatchException ex) {
+        return ProblemDetails.of(HttpStatus.CONFLICT, ex.getMessage(), "MANIFEST_MISMATCH");
+    }
+
+    @ExceptionHandler(UnservedVariantsException.class)
+    ProblemDetail handleUnservedVariants(UnservedVariantsException ex) {
         return ProblemDetails.of(HttpStatus.CONFLICT, ex.getMessage(), "MANIFEST_MISMATCH");
     }
 

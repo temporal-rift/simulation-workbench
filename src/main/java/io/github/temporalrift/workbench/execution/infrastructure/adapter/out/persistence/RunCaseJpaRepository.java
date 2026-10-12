@@ -17,8 +17,6 @@ interface RunCaseJpaRepository extends JpaRepository<RunCaseJpaEntity, UUID> {
 
     List<RunCaseJpaEntity> findAllByRunIdOrderByOrdinal(UUID runId);
 
-    Optional<RunCaseJpaEntity> findFirstByRunIdAndStateOrderByOrdinal(UUID runId, String state);
-
     long countByRunIdAndState(UUID runId, String state);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

@@ -84,7 +84,7 @@ function Outcome({ query, onRetry }: { readonly query: ReturnType<typeof useQuer
       {reproduction.state === 'QUEUED' && (
         <p>
           <strong>Waiting.</strong> The reproduction is queued behind other work on the lane that played this case. This is not a failure; it starts when
-          that lane is free.
+          that lane is free and serving this case's rules and content.
         </p>
       )}
       {reproduction.state === 'RUNNING' && (
