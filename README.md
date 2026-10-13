@@ -155,6 +155,9 @@ docker compose -f ../infrastructure/compose.yml up -d postgres kafka kafka-topic
 mvn spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
+`spring-boot:run` builds the designer application and serves it from `static/`; with `-Dskip.npm` there is no
+application to load at <http://localhost:8080>, only the API.
+
 Open <http://localhost:8080> and choose **Sign in**. The local issuer accepts any username and grants the scopes the
 application asks for, so everything below is available. Cases execute only on configured isolated lanes serving their
 variant's rules and content (see "Operating the runner"); a run whose variants are not all served is refused when it is

@@ -451,7 +451,7 @@
                         <goals>
                             <goal>npm</goal>
                         </goals>
-                        <phase>prepare-package</phase>
+                        <phase>process-classes</phase>
                         <configuration>
                             <arguments>run build</arguments>
                         </configuration>
@@ -466,7 +466,7 @@
                         <goals>
                             <goal>copy-resources</goal>
                         </goals>
-                        <phase>prepare-package</phase>
+                        <phase>process-classes</phase>
                         <configuration>
                             <outputDirectory>${project.build.outputDirectory}/static</outputDirectory>
                             <resources>
