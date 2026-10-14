@@ -9,6 +9,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.context.properties.bind.BindException;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
@@ -28,15 +30,25 @@ class ExecutionPropertiesTest {
         assertThat(properties.lanes().getFirst().contentDigest()).isEqualTo("b".repeat(64));
     }
 
-    @Test
-    void aLaneWithoutARulesDigestFailsNamingTheLaneAndTheKey() {
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "rules-digest",
+                "content-digest",
+                "rules-artifact-digest",
+                "content-artifact-digest",
+                "services.game-service.image-digest",
+                "services.timeline-service.source-revision",
+                "services.read-service.image-digest"
+            })
+    void aLaneWithoutARequiredKeyFailsNamingTheLaneAndTheKey(String key) {
         var values = lane();
-        values.remove(LANE + "rules-digest");
+        values.remove(LANE + key);
 
         assertThatThrownBy(() -> bind(values))
                 .isInstanceOf(BindException.class)
                 .rootCause()
-                .hasMessage("workbench.execution.lanes[id=lane-1].rules-digest is required");
+                .hasMessage("workbench.execution.lanes[id=lane-1]." + key + " is required");
     }
 
     @Test
@@ -67,17 +79,6 @@ class ExecutionPropertiesTest {
     }
 
     @Test
-    void aLaneWithoutAServiceImageDigestFailsNamingTheLaneAndTheKey() {
-        var values = lane();
-        values.remove(LANE + "services.game-service.image-digest");
-
-        assertThatThrownBy(() -> bind(values))
-                .isInstanceOf(BindException.class)
-                .rootCause()
-                .hasMessage("workbench.execution.lanes[id=lane-1].services.game-service.image-digest is required");
-    }
-
-    @Test
     void aLaneWithoutAnyServiceFailsNamingTheFirstMissingKey() {
         var values = lane();
         values.keySet().removeIf(key -> key.startsWith(LANE + "services."));
@@ -98,17 +99,6 @@ class ExecutionPropertiesTest {
                 .rootCause()
                 .hasMessage("workbench.execution.lanes[id=lane-1].services.read-service.source-revision"
                         + " must be 7 to 64 lowercase hex characters");
-    }
-
-    @Test
-    void aLaneWithoutAnArtifactDigestFailsNamingTheLaneAndTheKey() {
-        var values = lane();
-        values.remove(LANE + "content-artifact-digest");
-
-        assertThatThrownBy(() -> bind(values))
-                .isInstanceOf(BindException.class)
-                .rootCause()
-                .hasMessage("workbench.execution.lanes[id=lane-1].content-artifact-digest is required");
     }
 
     @Test

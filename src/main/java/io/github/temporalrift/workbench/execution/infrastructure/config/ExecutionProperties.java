@@ -112,6 +112,8 @@ public record ExecutionProperties(
             String resetUrl,
             @DefaultValue List<Bot> bots) {
 
+        private static final String SERVICES_PREFIX = "services.";
+
         public Lane {
             requireDigest(id, "rules-digest", rulesDigest);
             requireDigest(id, "content-digest", contentDigest);
@@ -146,8 +148,8 @@ public record ExecutionProperties(
             declaration.put("content-artifact-digest", contentArtifactDigest);
             declaration.put("content-artifact-name", contentArtifactName);
             services.forEach((name, service) -> {
-                declaration.put("services." + name + ".image-digest", service.imageDigest());
-                declaration.put("services." + name + ".source-revision", service.sourceRevision());
+                declaration.put(SERVICES_PREFIX + name + ".image-digest", service.imageDigest());
+                declaration.put(SERVICES_PREFIX + name + ".source-revision", service.sourceRevision());
             });
             contracts.forEach((module, version) -> declaration.put("contracts." + module, version));
             return declaration;
@@ -187,7 +189,7 @@ public record ExecutionProperties(
         private static void requireServices(String laneId, Services services) {
             var declared = services == null ? new Services(null, null, null) : services;
             declared.forEach((name, service) -> {
-                var prefix = "services." + name + ".";
+                var prefix = SERVICES_PREFIX + name + ".";
                 var image = service == null ? null : service.imageDigest();
                 var revision = service == null ? null : service.sourceRevision();
                 require(
