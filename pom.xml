@@ -72,7 +72,7 @@
         <projection-api.version>10.0.0</projection-api.version>
         <archunit-junit5.version>1.5.1</archunit-junit5.version>
         <!-- Not managed by temporal-rift-bom; pinned directly like the other test-only tooling. -->
-        <playwright.version>1.61.0</playwright.version>
+        <playwright.version>1.63.0</playwright.version>
 
         <!-- Designer web application under ui/, built into the service's static resources. -->
         <frontend-maven-plugin.version>2.0.2</frontend-maven-plugin.version>
