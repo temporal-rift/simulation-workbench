@@ -39,7 +39,7 @@ abstract class DesignerBrowserTest {
     static final Duration UI_WAIT = Duration.ofSeconds(30);
 
     private static final String WORKER = "browser-worker";
-    private static final String DRAFT_KEY = "workbench.experiment-draft.v1";
+    private static final String DRAFT_KEY = "workbench.experiment-draft.v2";
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private static Playwright playwright;

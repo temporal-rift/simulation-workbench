@@ -3,9 +3,9 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { READ_SCOPE, WRITE_SCOPE } from '../auth/scopes'
 import { FakeService, problem } from '../test/fakeService'
-import { manifest } from '../test/fixtures'
+import { experimentTemplates, laneBundles, manifest } from '../test/fixtures'
 import { renderApp } from '../test/renderApp'
-import { loadDraft, manifestToDraft, saveDraft } from './draft'
+import { clearDraft, loadDraft, manifestToDraft, saveDraft } from './draft'
 
 const EXPERIMENTS = /^\/api\/v1\/experiments$/
 const PREVIEWS = /^\/api\/v1\/experiment-previews$/
@@ -136,5 +136,165 @@ describe('configuring an experiment', () => {
     expect(parameters).toHaveAttribute('aria-invalid', 'true')
     expect(await screen.findByText('Fix the highlighted fields before previewing the matrix.')).toBeInTheDocument()
     await waitFor(() => expect(service.count('POST', PREVIEWS)).toBe(0))
+  })
+})
+
+describe('choosing bundles and templates', () => {
+  beforeEach(() => clearDraft())
+
+  async function startFromTemplate(user: ReturnType<typeof userEvent.setup>, name: string) {
+    await user.click(await screen.findByRole('button', { name: `Start from ${name}` }))
+  }
+
+  it('fills the draft from a template with no digest to type', async () => {
+    const user = userEvent.setup()
+    await renderApp('/experiments/new', service)
+
+    await startFromTemplate(user, 'Rules variant comparison')
+
+    expect(screen.getAllByRole('group', { name: /^Variant \d$/ })).toHaveLength(2)
+    expect(screen.getByRole('textbox', { name: 'Seeds' })).toHaveValue('42')
+    for (const count of [3, 4, 5]) {
+      expect(screen.getByRole('checkbox', { name: `${count} players` })).toBeChecked()
+    }
+    expect(screen.getAllByRole('group', { name: /^Faction set \d+/ })).toHaveLength(16)
+    expect(screen.queryByRole('textbox', { name: /digest|revision|version|module/i })).toBeNull()
+    expect(screen.getByRole('textbox', { name: 'Concurrency' })).toHaveValue('3')
+  })
+
+  it('sends exactly the selected bundles, as a hand-assembled manifest of the same values', async () => {
+    const user = userEvent.setup()
+    await renderApp('/experiments/new', service)
+    await startFromTemplate(user, 'Rules variant comparison')
+    const [a, b] = laneBundles()
+    const selects = screen.getAllByRole('combobox', { name: 'Bundle' })
+    await user.selectOptions(selects[0]!, `${b!.effectiveRulesDigest}/${b!.effectiveContentDigest}`)
+    await user.selectOptions(selects[0]!, `${a!.effectiveRulesDigest}/${a!.effectiveContentDigest}`)
+    await user.selectOptions(selects[1]!, `${b!.effectiveRulesDigest}/${b!.effectiveContentDigest}`)
+    await user.type(screen.getByRole('textbox', { name: 'Experiment name' }), 'threshold 20 against 22')
+
+    await user.click(screen.getByRole('button', { name: 'Preview matrix' }))
+    await screen.findByRole('heading', { name: 'Matrix preview' })
+
+    const sent = service.requests.find((request) => request.method === 'POST' && PREVIEWS.test(request.path))!.body
+    const { defaults } = experimentTemplates()[1]!
+    const variant = (label: string, bundle: typeof a) => ({
+      label,
+      rulesArtifact: bundle!.rulesArtifact,
+      contentArtifact: bundle!.contentArtifact,
+      effectiveRulesDigest: bundle!.effectiveRulesDigest,
+      effectiveContentDigest: bundle!.effectiveContentDigest,
+    })
+    expect(sent).toEqual({
+      schemaVersion: 1,
+      name: 'threshold 20 against 22',
+      variants: [variant('baseline', a), variant('candidate', b)],
+      services: a!.services,
+      contracts: a!.contracts,
+      policies: defaults.policies,
+      seeds: defaults.seeds,
+      playerCounts: defaults.playerCounts,
+      factionSets: defaults.factionSets,
+      seatRotationMode: 'CYCLIC',
+      timingMode: 'LOGICAL',
+      concurrency: defaults.concurrency,
+      caseWallTimeoutSeconds: defaults.caseWallTimeoutSeconds,
+      maxRejectedCandidatesPerWindow: defaults.maxRejectedCandidatesPerWindow,
+    })
+  })
+
+  it('names the contract in which the selected bundles differ and keeps freezing unavailable', async () => {
+    const user = userEvent.setup()
+    service.laneBundles[1]!.contracts = { 'session-api': '3.1.0' }
+    await renderApp('/experiments/new', service)
+
+    await startFromTemplate(user, 'Rules variant comparison')
+
+    expect(screen.getByText(/The selected bundles are not comparable: they differ in contracts\.session-api\./)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Preview matrix' }))
+    expect(await screen.findByText('Fix the highlighted fields before previewing the matrix.')).toBeInTheDocument()
+    expect(service.count('POST', PREVIEWS)).toBe(0)
+    expect(screen.getByRole('button', { name: 'Freeze this experiment…' })).toBeDisabled()
+  })
+
+  it('asks for a bundle when a template needs more variants than there are bundles', async () => {
+    const user = userEvent.setup()
+    service.laneBundles = service.laneBundles.slice(0, 1)
+    await renderApp('/experiments/new', service)
+
+    await startFromTemplate(user, 'Rules variant comparison')
+    await user.click(screen.getByRole('button', { name: 'Preview matrix' }))
+
+    const [first, second] = screen.getAllByRole('combobox', { name: 'Bundle' })
+    expect(first).toHaveDisplayValue(/threshold-20/)
+    expect(second).toHaveValue('')
+    expect(second).toHaveAccessibleDescription(/Choose the bundle this variant runs\./)
+  })
+
+  it('says no lane is configured, offers no digest field and keeps freezing unavailable', async () => {
+    const user = userEvent.setup()
+    service.laneBundles = []
+    await renderApp('/experiments/new', service)
+
+    expect(await screen.findByText(/No lane is configured, so there is no bundle to run a variant on\./)).toBeInTheDocument()
+    await startFromTemplate(user, 'Baseline policy comparison')
+    expect(screen.queryByRole('combobox', { name: 'Bundle' })).toBeNull()
+    expect(screen.queryByRole('textbox', { name: /digest/i })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Freeze this experiment…' })).toBeDisabled()
+    expect(screen.getByText('No lane is configured, so nothing frozen now could run.')).toBeInTheDocument()
+  })
+
+  it('names the missing read scope when the bundles or templates are refused', async () => {
+    service.override('GET', /^\/api\/v1\/lane-bundles$/, () => problem(403, 'INSUFFICIENT_SCOPE', 'simulation:read is required'))
+    service.override('GET', /^\/api\/v1\/experiment-templates$/, () => problem(403, 'INSUFFICIENT_SCOPE', 'simulation:read is required'))
+    await renderApp('/experiments/new', service)
+
+    expect(
+      await screen.findByText(`You cannot load the bundles the lanes serve: your session lacks the ${READ_SCOPE} scope.`),
+    ).toBeInTheDocument()
+    expect(
+      await screen.findByText(`You cannot load the experiment templates: your session lacks the ${READ_SCOPE} scope.`),
+    ).toBeInTheDocument()
+  })
+
+  it('offers every lane bundle when there are more than one page of them', async () => {
+    const base = laneBundles()[0]!
+    service.laneBundles = Array.from({ length: 501 }, (_, index) => ({
+      ...base,
+      effectiveRulesDigest: index.toString(16).padStart(64, '0'),
+    }))
+    await renderApp('/experiments/new', service)
+
+    const select = (await screen.findAllByRole('combobox', { name: 'Bundle' }))[0]!
+    await waitFor(() => expect(within(select).getAllByRole('option')).toHaveLength(501 + 1))
+    expect(service.count('GET', /^\/api\/v1\/lane-bundles$/)).toBe(2)
+  })
+
+  it('makes the designer choose again a restored bundle a lane now serves under other provenance', async () => {
+    const user = userEvent.setup()
+    service.laneBundles[1]!.contracts = { 'session-api': '3.1.0' }
+    saveDraft({ draft: manifestToDraft(manifest()), basedOn: null })
+    await renderApp('/experiments/new', service)
+
+    const second = (await screen.findAllByRole('combobox', { name: 'Bundle' }))[1]!
+    expect(second).toHaveDisplayValue(/\(not served by any configured lane\)/)
+    await user.click(screen.getByRole('button', { name: 'Preview matrix' }))
+    expect(await screen.findByText('Fix the highlighted fields before previewing the matrix.')).toBeInTheDocument()
+    expect(second).toHaveAccessibleDescription(/No configured lane serves this bundle as selected/)
+    expect(service.count('POST', PREVIEWS)).toBe(0)
+
+    const [, current] = laneBundles()
+    await user.selectOptions(second, `${current!.effectiveRulesDigest}/${current!.effectiveContentDigest}`)
+
+    expect(second).toHaveAccessibleDescription(expect.not.stringMatching(/No configured lane serves/))
+  })
+
+  it('marks the bundle of a frozen experiment that no lane serves any more', async () => {
+    service.laneBundles = service.laneBundles.slice(0, 1)
+    saveDraft({ draft: manifestToDraft(manifest()), basedOn: null })
+    await renderApp('/experiments/new', service)
+
+    const selects = await screen.findAllByRole('combobox', { name: 'Bundle' })
+    expect(selects[1]).toHaveDisplayValue(/\(not served by any configured lane\)/)
   })
 })

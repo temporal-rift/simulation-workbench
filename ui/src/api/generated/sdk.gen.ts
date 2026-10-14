@@ -2,8 +2,8 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { CancelRunData, CancelRunErrors, CancelRunResponses, CreateComparisonData, CreateComparisonErrors, CreateComparisonResponses, CreateExperimentData, CreateExperimentErrors, CreateExperimentResponses, GetCaseData, GetCaseErrors, GetCaseReplayData, GetCaseReplayErrors, GetCaseReplayResponses, GetCaseResponses, GetComparisonData, GetComparisonErrors, GetComparisonResponses, GetExperimentData, GetExperimentErrors, GetExperimentResponses, GetRunData, GetRunErrors, GetRunReportData, GetRunReportErrors, GetRunReportResponses, GetRunResponses, ListCasesData, ListCasesErrors, ListCasesResponses, ListComparisonsData, ListComparisonsErrors, ListComparisonsResponses, ListExperimentsData, ListExperimentsErrors, ListExperimentsResponses, ListPoliciesData, ListPoliciesErrors, ListPoliciesResponses, ListRunsData, ListRunsErrors, ListRunsResponses, PreviewExperimentData, PreviewExperimentErrors, PreviewExperimentResponses, ReproduceCaseData, ReproduceCaseErrors, ReproduceCaseResponses, ResumeRunData, ResumeRunErrors, ResumeRunResponses, StartRunData, StartRunErrors, StartRunResponses } from './types.gen';
-import { zCancelRunResponse, zCreateComparisonResponse, zCreateExperimentResponse, zGetCaseReplayResponse, zGetCaseResponse, zGetComparisonResponse, zGetExperimentResponse, zGetRunReportResponse, zGetRunResponse, zListCasesResponse, zListComparisonsResponse, zListExperimentsResponse, zListPoliciesResponse, zListRunsResponse, zPreviewExperimentResponse, zReproduceCaseResponse, zResumeRunResponse, zStartRunResponse } from './zod.gen';
+import type { CancelRunData, CancelRunErrors, CancelRunResponses, CreateComparisonData, CreateComparisonErrors, CreateComparisonResponses, CreateExperimentData, CreateExperimentErrors, CreateExperimentResponses, GetCaseData, GetCaseErrors, GetCaseReplayData, GetCaseReplayErrors, GetCaseReplayResponses, GetCaseResponses, GetComparisonData, GetComparisonErrors, GetComparisonResponses, GetExperimentData, GetExperimentErrors, GetExperimentResponses, GetRunData, GetRunErrors, GetRunReportData, GetRunReportErrors, GetRunReportResponses, GetRunResponses, ListCasesData, ListCasesErrors, ListCasesResponses, ListComparisonsData, ListComparisonsErrors, ListComparisonsResponses, ListExperimentsData, ListExperimentsErrors, ListExperimentsResponses, ListExperimentTemplatesData, ListExperimentTemplatesErrors, ListExperimentTemplatesResponses, ListLaneBundlesData, ListLaneBundlesErrors, ListLaneBundlesResponses, ListPoliciesData, ListPoliciesErrors, ListPoliciesResponses, ListRunsData, ListRunsErrors, ListRunsResponses, PreviewExperimentData, PreviewExperimentErrors, PreviewExperimentResponses, ReproduceCaseData, ReproduceCaseErrors, ReproduceCaseResponses, ResumeRunData, ResumeRunErrors, ResumeRunResponses, StartRunData, StartRunErrors, StartRunResponses } from './types.gen';
+import { zCancelRunResponse, zCreateComparisonResponse, zCreateExperimentResponse, zGetCaseReplayResponse, zGetCaseResponse, zGetComparisonResponse, zGetExperimentResponse, zGetRunReportResponse, zGetRunResponse, zListCasesResponse, zListComparisonsResponse, zListExperimentsResponse, zListExperimentTemplatesResponse, zListLaneBundlesResponse, zListPoliciesResponse, zListRunsResponse, zPreviewExperimentResponse, zReproduceCaseResponse, zResumeRunResponse, zStartRunResponse } from './zod.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -244,5 +244,29 @@ export const listPolicies = <ThrowOnError extends boolean = false>(options?: Opt
     responseValidator: async (data) => await zListPoliciesResponse.parseAsync(data),
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/api/v1/policies',
+    ...options
+});
+
+/**
+ * List distinct lane-served rules and content bundles
+ *
+ * Requires `simulation:read`. Returns every distinct bundle some configured lane serves, so a client can let the designer select a variant's rules and content instead of typing digests. A bundle is one pair of effective rules digest and effective content digest, together with the service provenance and contract versions of the lanes that serve it. Items are ordered ascending `effectiveRulesDigest`, then ascending `effectiveContentDigest`. With no configured lane the response is `200` with `items` empty and `total` 0. Never returns a lane identifier, URL, credential or bot identity.
+ */
+export const listLaneBundles = <ThrowOnError extends boolean = false>(options?: Options<ListLaneBundlesData, ThrowOnError>): RequestResult<ListLaneBundlesResponses, ListLaneBundlesErrors, ThrowOnError> => (options?.client ?? client).get<ListLaneBundlesResponses, ListLaneBundlesErrors, ThrowOnError>({
+    responseValidator: async (data) => await zListLaneBundlesResponse.parseAsync(data),
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/lane-bundles',
+    ...options
+});
+
+/**
+ * List named experiment starting points
+ *
+ * Requires `simulation:read`. Returns named starting points, each with complete defaults for every manifest field that does not identify a bundle, so a client can pre-fill a draft that it then assembles with the chosen bundles and the designer's edits into an `ExperimentManifest` for `createExperiment` or `previewExperiment`. Items are ordered ascending `templateId`.
+ */
+export const listExperimentTemplates = <ThrowOnError extends boolean = false>(options?: Options<ListExperimentTemplatesData, ThrowOnError>): RequestResult<ListExperimentTemplatesResponses, ListExperimentTemplatesErrors, ThrowOnError> => (options?.client ?? client).get<ListExperimentTemplatesResponses, ListExperimentTemplatesErrors, ThrowOnError>({
+    responseValidator: async (data) => await zListExperimentTemplatesResponse.parseAsync(data),
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/experiment-templates',
     ...options
 });

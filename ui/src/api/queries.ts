@@ -14,7 +14,9 @@ import {
   getRunReport,
   listCases,
   listComparisons,
+  listExperimentTemplates,
   listExperiments,
+  listLaneBundles,
   listPolicies,
   listRuns,
   previewExperiment,
@@ -61,6 +63,38 @@ export const policiesQuery = (client: Client) =>
     queryKey: ['policies'],
     queryFn: () => unwrap(() => listPolicies({ client })),
     staleTime: 5 * 60_000,
+  })
+
+/** The largest page a discovery list serves. */
+const MAX_PAGE = 500
+
+/** Every item of a paged list, read page by page until its total is covered, so a choice is never silently missing. */
+async function wholeList<T>(readPage: (offset: number) => Promise<{ readonly items: T[]; readonly total: number }>) {
+  const items: T[] = []
+  let total = 0
+  do {
+    const page = await readPage(items.length)
+    items.push(...page.items)
+    total = page.total
+    if (page.items.length === 0) {
+      break
+    }
+  } while (items.length < total)
+  return { items, total }
+}
+
+export const laneBundlesQuery = (client: Client) =>
+  queryOptions({
+    queryKey: ['lane-bundles'],
+    queryFn: () => wholeList((offset) => unwrap(() => listLaneBundles({ client, query: { limit: MAX_PAGE, offset } }))),
+    staleTime: 60_000,
+  })
+
+export const experimentTemplatesQuery = (client: Client) =>
+  queryOptions({
+    queryKey: ['experiment-templates'],
+    queryFn: () => wholeList((offset) => unwrap(() => listExperimentTemplates({ client, query: { limit: MAX_PAGE, offset } }))),
+    staleTime: 60_000,
   })
 
 export interface RunFilters {

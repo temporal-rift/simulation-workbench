@@ -89,10 +89,6 @@ public class LaneRoster {
                 .map(this::occupy);
     }
 
-    public Set<BundleDigests> servedBundles() {
-        return seats.values().stream().map(seat -> seat.member.bundle()).collect(Collectors.toUnmodifiableSet());
-    }
-
     public synchronized Map<String, BundleDigests> free() {
         return seats.values().stream()
                 .filter(seat -> seat.availability == Availability.FREE)

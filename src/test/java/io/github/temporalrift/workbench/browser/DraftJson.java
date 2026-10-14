@@ -1,7 +1,6 @@
 package io.github.temporalrift.workbench.browser;
 
 import java.util.ArrayList;
-import java.util.List;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -22,31 +21,13 @@ final class DraftJson {
         manifest.get("variants").forEach(variant -> {
             var entry = variants.addObject();
             entry.put("label", variant.get("label").asString());
-            entry.putObject("rulesArtifact")
-                    .put("digest", variant.at("/rulesArtifact/digest").asString());
-            entry.putObject("contentArtifact")
-                    .put("digest", variant.at("/contentArtifact/digest").asString());
-            entry.put(
-                    "effectiveRulesDigest", variant.get("effectiveRulesDigest").asString());
-            entry.put(
-                    "effectiveContentDigest",
-                    variant.get("effectiveContentDigest").asString());
-        });
-        var services = draft.putObject("services");
-        for (var name : List.of("gameService", "timelineService", "readService")) {
-            var service = services.putObject(name);
-            service.put(
-                    "imageDigest",
-                    manifest.at("/services/" + name + "/imageDigest").asString());
-            service.put(
-                    "sourceRevision",
-                    manifest.at("/services/" + name + "/sourceRevision").asString());
-        }
-        var contracts = draft.putArray("contracts");
-        manifest.get("contracts").properties().forEach(contract -> {
-            var entry = contracts.addObject();
-            entry.put("module", contract.getKey());
-            entry.put("version", contract.getValue().asString());
+            var bundle = entry.putObject("bundle");
+            bundle.set("rulesArtifact", variant.get("rulesArtifact"));
+            bundle.set("contentArtifact", variant.get("contentArtifact"));
+            bundle.set("effectiveRulesDigest", variant.get("effectiveRulesDigest"));
+            bundle.set("effectiveContentDigest", variant.get("effectiveContentDigest"));
+            bundle.set("services", manifest.get("services"));
+            bundle.set("contracts", manifest.get("contracts"));
         });
         var policies = draft.putArray("policies");
         manifest.get("policies").forEach(policy -> {

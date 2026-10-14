@@ -1,14 +1,22 @@
-import type { EnumsFaction, PolicyBundle } from '../api/generated'
+import type { EnumsFaction, LaneBundle, PolicyBundle } from '../api/generated'
 import { Field, TextField } from '../components/Field'
 import {
+  BUNDLES_FIELD,
   FACTIONS,
   PLAYER_COUNTS,
   SERVICE_NAMES,
+  bundleFromLane,
+  bundleKey,
+  bundleLabel,
   emptyPolicy,
   emptyVariant,
   errorAt,
   errorWithin,
+  isServed,
+  pinnedProvenance,
   type Draft,
+  type DraftArtifact,
+  type DraftBundle,
   type FieldErrors,
 } from './draft'
 
@@ -19,11 +27,11 @@ interface Props {
   readonly edit: EditDraft
   readonly errors: FieldErrors
   readonly catalog: readonly PolicyBundle[]
+  /** The bundles the configured lanes serve, or `null` while they are not known. */
+  readonly bundles: readonly LaneBundle[] | null
 }
 
-const DIGEST_HINT = 'Lowercase SHA-256 hex digest (64 characters).'
-
-export function ExperimentForm({ draft, edit, errors, catalog }: Props) {
+export function ExperimentForm({ draft, edit, errors, catalog, bundles }: Props) {
   return (
     <div className="form-sections">
       <section aria-labelledby="general-heading">
@@ -36,22 +44,40 @@ export function ExperimentForm({ draft, edit, errors, catalog }: Props) {
           onChange={(value) => edit((d) => void (d.name = value))}
         />
       </section>
-      <VariantsSection draft={draft} edit={edit} errors={errors} />
+      <VariantsSection draft={draft} edit={edit} errors={errors} bundles={bundles} />
+      <ProvenanceSection draft={draft} errors={errors} />
       <PoliciesSection draft={draft} edit={edit} errors={errors} catalog={catalog} />
       <MatrixSection draft={draft} edit={edit} errors={errors} />
       <BoundsSection draft={draft} edit={edit} errors={errors} />
-      <ProvenanceSection draft={draft} edit={edit} errors={errors} />
     </div>
   )
 }
 
-type SectionProps = Omit<Props, 'catalog'>
+type SectionProps = Pick<Props, 'draft' | 'edit' | 'errors'>
 
-function VariantsSection({ draft, edit, errors }: SectionProps) {
+/** The service reports a refused variant value on the path of that value; all of them belong to the bundle choice. */
+function variantBundleError(errors: FieldErrors, path: string): string | undefined {
+  return (
+    errorAt(errors, path) ??
+    errorWithin(errors, `${path}.rulesArtifact`) ??
+    errorWithin(errors, `${path}.contentArtifact`) ??
+    errorAt(errors, `${path}.effectiveRulesDigest`) ??
+    errorAt(errors, `${path}.effectiveContentDigest`)
+  )
+}
+
+function VariantsSection({ draft, edit, errors, bundles }: SectionProps & Pick<Props, 'bundles'>) {
+  const noLane = bundles !== null && bundles.length === 0
   return (
     <section aria-labelledby="variants-heading">
       <h2 id="variants-heading">Variants</h2>
       {errorAt(errors, 'variants') && <p className="field-error">{errorAt(errors, 'variants')}</p>}
+      {noLane && (
+        <p className="notice notice-warning">
+          No lane is configured, so there is no bundle to run a variant on. An experiment can be frozen once the deployment
+          configures a lane.
+        </p>
+      )}
       {draft.variants.map((variant, index) => {
         const path = `variants[${index}]`
         return (
@@ -64,38 +90,15 @@ function VariantsSection({ draft, edit, errors }: SectionProps) {
               hint="Unique within the experiment."
               onChange={(value) => edit((d) => void (d.variants[index]!.label = value))}
             />
-            <TextField
-              label="Rules artifact digest"
-              monospace
-              value={variant.rulesArtifact.digest}
-              error={errorAt(errors, `${path}.rulesArtifact`) ?? errorAt(errors, `${path}.rulesArtifact.digest`)}
-              hint={DIGEST_HINT}
-              onChange={(value) => edit((d) => void (d.variants[index]!.rulesArtifact.digest = value))}
-            />
-            <TextField
-              label="Content artifact digest"
-              monospace
-              value={variant.contentArtifact.digest}
-              error={errorAt(errors, `${path}.contentArtifact`) ?? errorAt(errors, `${path}.contentArtifact.digest`)}
-              hint={DIGEST_HINT}
-              onChange={(value) => edit((d) => void (d.variants[index]!.contentArtifact.digest = value))}
-            />
-            <TextField
-              label="Effective rules digest"
-              monospace
-              value={variant.effectiveRulesDigest}
-              error={errorAt(errors, `${path}.effectiveRulesDigest`)}
-              hint={DIGEST_HINT}
-              onChange={(value) => edit((d) => void (d.variants[index]!.effectiveRulesDigest = value))}
-            />
-            <TextField
-              label="Effective content digest"
-              monospace
-              value={variant.effectiveContentDigest}
-              error={errorAt(errors, `${path}.effectiveContentDigest`)}
-              hint={DIGEST_HINT}
-              onChange={(value) => edit((d) => void (d.variants[index]!.effectiveContentDigest = value))}
-            />
+            {bundles !== null && !noLane && (
+              <BundleSelect
+                bundles={bundles}
+                selected={variant.bundle}
+                error={variantBundleError(errors, path)}
+                onSelect={(bundle) => edit((d) => void (d.variants[index]!.bundle = bundle))}
+              />
+            )}
+            {variant.bundle && <BundleFacts bundle={variant.bundle} />}
             {draft.variants.length > 1 && (
               <button type="button" onClick={() => edit((d) => void d.variants.splice(index, 1))}>
                 Remove variant {index + 1}
@@ -107,6 +110,123 @@ function VariantsSection({ draft, edit, errors }: SectionProps) {
       <button type="button" onClick={() => edit((d) => void d.variants.push(emptyVariant()))}>
         Add variant
       </button>
+    </section>
+  )
+}
+
+interface BundleSelectProps {
+  readonly bundles: readonly LaneBundle[]
+  readonly selected: DraftBundle | null
+  readonly error: string | undefined
+  readonly onSelect: (bundle: DraftBundle) => void
+}
+
+/** Stands for a selected bundle no lane serves as selected, so choosing a served one always changes the value. */
+const UNSERVED = 'unserved'
+
+function BundleSelect({ bundles, selected, error, onSelect }: BundleSelectProps) {
+  const served = selected === null || isServed(selected, bundles)
+  const value = selected === null ? '' : served ? bundleKey(selected) : UNSERVED
+  return (
+    <Field label="Bundle" error={error} hint="The rules and content this variant runs, as a configured lane serves them.">
+      {(props) => (
+        <select
+          {...props}
+          value={value}
+          onChange={(event) => {
+            const chosen = bundles.find((bundle) => bundleKey(bundle) === event.target.value)
+            if (chosen) {
+              onSelect(bundleFromLane(chosen))
+            }
+          }}
+        >
+          <option value="">Choose a bundle…</option>
+          {selected && !served && (
+            <option value={UNSERVED}>{bundleLabel(selected)} (not served by any configured lane)</option>
+          )}
+          {bundles.map((bundle) => (
+            <option key={bundleKey(bundle)} value={bundleKey(bundle)}>
+              {bundleLabel(bundle)} ({bundle.laneCount} {bundle.laneCount === 1 ? 'lane' : 'lanes'})
+            </option>
+          ))}
+        </select>
+      )}
+    </Field>
+  )
+}
+
+function Artifact({ artifact }: { readonly artifact: DraftArtifact }) {
+  return (
+    <>
+      {artifact.name && <>{artifact.name} </>}
+      <code>{artifact.digest}</code>
+    </>
+  )
+}
+
+function BundleFacts({ bundle }: { readonly bundle: DraftBundle }) {
+  return (
+    <dl className="facts">
+      <div>
+        <dt>Rules artifact</dt>
+        <dd>
+          <Artifact artifact={bundle.rulesArtifact} />
+        </dd>
+      </div>
+      <div>
+        <dt>Content artifact</dt>
+        <dd>
+          <Artifact artifact={bundle.contentArtifact} />
+        </dd>
+      </div>
+      <div>
+        <dt>Effective rules digest</dt>
+        <dd>
+          <code>{bundle.effectiveRulesDigest}</code>
+        </dd>
+      </div>
+      <div>
+        <dt>Effective content digest</dt>
+        <dd>
+          <code>{bundle.effectiveContentDigest}</code>
+        </dd>
+      </div>
+    </dl>
+  )
+}
+
+function ProvenanceSection({ draft, errors }: Pick<Props, 'draft' | 'errors'>) {
+  const pinned = pinnedProvenance(draft)
+  const incomparable = errorAt(errors, BUNDLES_FIELD)
+  const refused = errorWithin(errors, 'services') ?? errorWithin(errors, 'contracts')
+  return (
+    <section aria-labelledby="provenance-heading">
+      <h2 id="provenance-heading">Service provenance and contracts</h2>
+      {incomparable && <p className="notice notice-error">{incomparable}</p>}
+      {refused && <p className="field-error">{refused}</p>}
+      {pinned === null ? (
+        <p className="hint">Taken from the selected bundles once a variant has one.</p>
+      ) : (
+        <>
+          <p className="hint">Pinned by the selected bundles{incomparable ? ' (shown for the first variant)' : ''}.</p>
+          <dl className="facts">
+            {SERVICE_NAMES.map((name) => (
+              <div key={name}>
+                <dt>{name}</dt>
+                <dd>
+                  <code>{pinned.services[name].imageDigest}</code> at revision <code>{pinned.services[name].sourceRevision}</code>
+                </dd>
+              </div>
+            ))}
+            {Object.entries(pinned.contracts).map(([module, version]) => (
+              <div key={module}>
+                <dt>{module}</dt>
+                <dd>{version}</dd>
+              </div>
+            ))}
+          </dl>
+        </>
+      )}
     </section>
   )
 }
@@ -309,63 +429,6 @@ function BoundsSection({ draft, edit, errors }: SectionProps) {
         error={errorAt(errors, 'maxRejectedCandidatesPerWindow')}
         onChange={(value) => edit((d) => void (d.maxRejectedCandidatesPerWindow = value))}
       />
-    </section>
-  )
-}
-
-function ProvenanceSection({ draft, edit, errors }: SectionProps) {
-  return (
-    <section aria-labelledby="provenance-heading">
-      <h2 id="provenance-heading">Service provenance and contracts</h2>
-      {SERVICE_NAMES.map((name) => (
-        <fieldset key={name}>
-          <legend>{name}</legend>
-          <TextField
-            label={`${name} image digest`}
-            monospace
-            value={draft.services[name].imageDigest}
-            error={errorAt(errors, `services.${name}`) ?? errorAt(errors, `services.${name}.imageDigest`)}
-            hint="sha256: followed by 64 lowercase hex characters."
-            onChange={(value) => edit((d) => void (d.services[name].imageDigest = value))}
-          />
-          <TextField
-            label={`${name} source revision`}
-            monospace
-            value={draft.services[name].sourceRevision}
-            error={errorAt(errors, `services.${name}.sourceRevision`)}
-            hint="7 to 64 lowercase hex characters."
-            onChange={(value) => edit((d) => void (d.services[name].sourceRevision = value))}
-          />
-        </fieldset>
-      ))}
-      <fieldset>
-        <legend>Pinned contract versions</legend>
-        {errorAt(errors, 'contracts') && <p className="field-error">{errorAt(errors, 'contracts')}</p>}
-        {draft.contracts.map((row, index) => (
-          <div key={index} className="inline">
-            <TextField
-              label={`Contract ${index + 1} module`}
-              value={row.module}
-              onChange={(value) => edit((d) => void (d.contracts[index]!.module = value))}
-            />
-            <TextField
-              label={`Contract ${index + 1} version`}
-              value={row.version}
-              error={row.module.trim() ? errorAt(errors, `contracts.${row.module.trim()}`) : undefined}
-              hint="Exact version such as 3.1.0."
-              onChange={(value) => edit((d) => void (d.contracts[index]!.version = value))}
-            />
-            {draft.contracts.length > 1 && (
-              <button type="button" onClick={() => edit((d) => void d.contracts.splice(index, 1))}>
-                Remove contract {index + 1}
-              </button>
-            )}
-          </div>
-        ))}
-        <button type="button" onClick={() => edit((d) => void d.contracts.push({ module: '', version: '' }))}>
-          Add contract
-        </button>
-      </fieldset>
     </section>
   )
 }

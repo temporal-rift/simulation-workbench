@@ -21,6 +21,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
+import io.github.temporalrift.workbench.execution.support.Provenances;
 
 class HttpLaneResetsTest {
 
@@ -164,6 +165,7 @@ class HttpLaneResetsTest {
                 "http://read",
                 "operator-token",
                 new BundleDigests("a".repeat(64), "b".repeat(64)),
+                Provenances.sample(),
                 "game.events",
                 "timeline.events",
                 null,

@@ -13,9 +13,11 @@ import org.junit.jupiter.api.Test;
 
 import io.github.temporalrift.workbench.execution.domain.port.out.LaneProvider;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
+import io.github.temporalrift.workbench.execution.domain.run.ServedBundle;
 import io.github.temporalrift.workbench.execution.support.InMemoryCommandLedger;
 import io.github.temporalrift.workbench.execution.support.InMemoryEvidenceLedger;
 import io.github.temporalrift.workbench.execution.support.ManualResetScheduler;
+import io.github.temporalrift.workbench.execution.support.Provenances;
 import io.github.temporalrift.workbench.execution.support.RecordingResets;
 import io.github.temporalrift.workbench.execution.support.StubEventObserver;
 
@@ -79,10 +81,13 @@ class ConfiguredLanePoolTest {
     }
 
     @Test
-    void servedBundlesIncludeBusyLanes() {
+    void servedBundlesCountEveryLaneServingThemBusyOrFreeInDigestOrder() {
         pool.acquire(CASE, CANDIDATE, null).orElseThrow();
 
-        assertThat(pool.servedBundles()).containsExactlyInAnyOrder(BASELINE, CANDIDATE);
+        assertThat(pool.servedBundles())
+                .containsExactly(
+                        new ServedBundle(BASELINE, Provenances.sample(), 2),
+                        new ServedBundle(CANDIDATE, Provenances.sample(), 1));
     }
 
     @Test
@@ -155,6 +160,7 @@ class ConfiguredLanePoolTest {
                 "http://read",
                 "operator",
                 bundle,
+                Provenances.sample(),
                 "game.events",
                 "timeline.events",
                 null,

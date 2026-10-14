@@ -1,4 +1,4 @@
-import type { Case, Comparison, Experiment, ExperimentManifest, ExperimentPreview, Metric, PolicyBundle, ReplayStep, Report, Run } from '../api/generated'
+import type { Case, Comparison, Experiment, ExperimentManifest, ExperimentPreview, ExperimentTemplate, LaneBundle, Metric, PolicyBundle, ReplayStep, Report, Run } from '../api/generated'
 
 export const IDS = {
   experiment: '6f3f2a52-4f0a-4c69-9a39-2a8f0e2b9d11',
@@ -17,14 +17,14 @@ export function manifest(overrides: Partial<ExperimentManifest> = {}): Experimen
     variants: [
       {
         label: 'baseline',
-        rulesArtifact: { digest: digest('a') },
+        rulesArtifact: { digest: digest('a'), name: 'threshold-20' },
         contentArtifact: { digest: digest('b') },
         effectiveRulesDigest: digest('c'),
         effectiveContentDigest: digest('d'),
       },
       {
         label: 'candidate',
-        rulesArtifact: { digest: digest('e') },
+        rulesArtifact: { digest: digest('e'), name: 'threshold-22' },
         contentArtifact: { digest: digest('b') },
         effectiveRulesDigest: digest('f'),
         effectiveContentDigest: digest('d'),
@@ -65,6 +65,72 @@ export const policyCatalog: PolicyBundle[] = [
   { id: 'random', version: 'v1', artifactDigest: digest('9'), description: 'Uniform random choice', parameters: {} },
   { id: 'faction-greedy', version: 'v1', artifactDigest: digest('8'), description: 'Plays toward the faction objective', parameters: { greed: 'weight' } },
 ]
+
+/** The bundles the lanes serve: the fixture manifest's baseline and candidate variants, in digest order. */
+export function laneBundles(): LaneBundle[] {
+  const { variants, services, contracts } = manifest()
+  return variants.map((variant, index) => ({
+    rulesArtifact: { ...variant.rulesArtifact },
+    contentArtifact: { ...variant.contentArtifact },
+    effectiveRulesDigest: variant.effectiveRulesDigest,
+    effectiveContentDigest: variant.effectiveContentDigest,
+    services: structuredClone(services),
+    contracts: { ...contracts },
+    laneCount: index === 0 ? 2 : 1,
+  }))
+}
+
+const EVERY_FACTION_SET: ExperimentManifest['factionSets'] = (() => {
+  const factions = ['ERASERS', 'PROPHETS', 'REVISIONISTS', 'WEAVERS', 'ACTIVISTS'] as const
+  const sets: ExperimentManifest['factionSets'] = []
+  const collect = (size: number, from: number, chosen: (typeof factions)[number][]) => {
+    if (chosen.length === size) {
+      sets.push([...chosen])
+      return
+    }
+    for (let index = from; index < factions.length; index += 1) {
+      collect(size, index + 1, [...chosen, factions[index]!])
+    }
+  }
+  ;[3, 4, 5].forEach((size) => collect(size, 0, []))
+  return sets
+})()
+
+function everySeat(id: string, version: string) {
+  return [0, 1, 2, 3, 4].map((seatIndex) => ({ seatIndex, policyId: id, policyVersion: version }))
+}
+
+export function experimentTemplates(): ExperimentTemplate[] {
+  const defaults = (policies: ExperimentTemplate['defaults']['policies']): ExperimentTemplate['defaults'] => ({
+    seeds: ['42'],
+    playerCounts: [3, 4, 5],
+    factionSets: EVERY_FACTION_SET.map((set) => [...set]),
+    seatRotationMode: 'CYCLIC',
+    timingMode: 'LOGICAL',
+    policies,
+    concurrency: 3,
+    caseWallTimeoutSeconds: 3600,
+    maxRejectedCandidatesPerWindow: 10,
+  })
+  const random = { id: 'random', version: 'v1', artifactDigest: digest('9'), parameters: {}, seatAssignment: everySeat('random', 'v1') }
+  const greedy = { id: 'faction-greedy', version: 'v1', artifactDigest: digest('8'), parameters: {}, seatAssignment: everySeat('faction-greedy', 'v1') }
+  return [
+    {
+      templateId: 'baseline-policy-comparison',
+      name: 'Baseline policy comparison',
+      description: 'Compares the random and faction-greedy baseline policies under one bundle.',
+      variantCount: 1,
+      defaults: defaults([random, greedy]),
+    },
+    {
+      templateId: 'rules-variant-comparison',
+      name: 'Rules variant comparison',
+      description: 'Compares two bundles with the random baseline policy on every seat.',
+      variantCount: 2,
+      defaults: defaults([random]),
+    },
+  ]
+}
 
 export function experiment(overrides: Partial<Experiment> = {}): Experiment {
   return {

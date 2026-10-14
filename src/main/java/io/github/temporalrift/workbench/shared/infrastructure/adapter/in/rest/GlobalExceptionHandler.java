@@ -26,7 +26,7 @@ class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 .map(violation -> parameterName(violation.getPropertyPath().toString()) + " " + violation.getMessage())
                 .sorted()
                 .collect(Collectors.joining("; "));
-        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Invalid request parameter: " + violations);
+        return ProblemDetails.of(HttpStatus.BAD_REQUEST, "Invalid request parameter: " + violations, "INVALID_REQUEST");
     }
 
     private static String parameterName(String propertyPath) {

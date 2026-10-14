@@ -17,6 +17,7 @@ import io.github.temporalrift.workbench.execution.domain.run.RunCommand;
 import io.github.temporalrift.workbench.execution.domain.run.RunCreation;
 import io.github.temporalrift.workbench.execution.domain.run.RunIdempotencyConflictException;
 import io.github.temporalrift.workbench.execution.domain.run.RunNotFoundException;
+import io.github.temporalrift.workbench.execution.domain.run.ServedBundle;
 import io.github.temporalrift.workbench.execution.domain.run.UnservedVariantsException;
 
 /**
@@ -79,7 +80,7 @@ public class StartRunCommandHandler implements StartRunUseCase {
 
     /** Each variant's bundle by label, once every one of them is served by some configured lane. */
     private Map<String, BundleDigests> servedBundles(ExperimentSource.Plan plan) {
-        var served = lanes.servedBundles();
+        var served = lanes.servedBundles().stream().map(ServedBundle::digests).collect(Collectors.toSet());
         var unserved = plan.variants().stream()
                 .filter(variant -> !served.contains(variant.bundle()))
                 .map(ExperimentSource.Variant::label)

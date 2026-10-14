@@ -9,6 +9,7 @@ import java.util.regex.Pattern;
 
 import tools.jackson.databind.JsonNode;
 
+import io.github.temporalrift.workbench.experiment.ManifestFormat;
 import io.github.temporalrift.workbench.experiment.domain.port.out.PolicyReferenceVerifier;
 
 /**
@@ -20,18 +21,14 @@ public final class ExperimentValidator {
 
     private static final Set<String> FACTIONS = Set.of("ERASERS", "PROPHETS", "REVISIONISTS", "WEAVERS", "ACTIVISTS");
     private static final Set<Integer> PLAYER_COUNTS = Set.of(3, 4, 5);
-    private static final Pattern SHA256 = Pattern.compile("^[a-f0-9]{64}$");
-    private static final Pattern IMAGE_DIGEST = Pattern.compile("^sha256:[a-f0-9]{64}$");
-    private static final Pattern SOURCE_REVISION = Pattern.compile("^[a-f0-9]{7,64}$");
-    private static final Pattern SEMVER = Pattern.compile("^\\d+\\.\\d+\\.\\d+(?:[-+][0-9A-Za-z.-]+)?$");
     private static final Pattern UINT64 = Pattern.compile("^(0|[1-9]\\d{0,19})$");
     private static final BigInteger MAX_UINT64 = new BigInteger("18446744073709551615");
     /** Bounds that keep one manifest from exhausting the scheduler or the database. */
     static final int MAX_CASES = 100_000;
 
-    static final int MAX_CONCURRENCY = 64;
-    static final int MAX_CASE_TIMEOUT_SECONDS = 86_400;
-    static final int MAX_REJECTED_CANDIDATES = 1_000;
+    public static final int MAX_CONCURRENCY = 64;
+    public static final int MAX_CASE_TIMEOUT_SECONDS = 86_400;
+    public static final int MAX_REJECTED_CANDIDATES = 1_000;
 
     private static final String SERVICES_PREFIX = "services.";
     private static final String SCHEMA_VERSION_FIELD = "schemaVersion";
@@ -127,7 +124,7 @@ public final class ExperimentValidator {
     }
 
     private static String digest(String value, String field) {
-        if (value == null || !SHA256.matcher(value).matches()) {
+        if (!ManifestFormat.isDigest(value)) {
             throw mismatch(field, field + " must be a lowercase SHA-256 hex digest");
         }
         return value;
@@ -144,11 +141,11 @@ public final class ExperimentValidator {
                 throw invalid(path, path + " is required");
             }
             var image = text(node, "imageDigest");
-            if (image == null || !IMAGE_DIGEST.matcher(image).matches()) {
+            if (!ManifestFormat.isImageDigest(image)) {
                 throw mismatch(path + ".imageDigest", path + ".imageDigest must match sha256:<hex>");
             }
             var revision = text(node, "sourceRevision");
-            if (revision == null || !SOURCE_REVISION.matcher(revision).matches()) {
+            if (!ManifestFormat.isSourceRevision(revision)) {
                 throw mismatch(path + ".sourceRevision", path + ".sourceRevision must be 7..64 lowercase hex");
             }
         }
@@ -160,7 +157,7 @@ public final class ExperimentValidator {
         }
         for (var entry : contracts.properties()) {
             if (!entry.getValue().isTextual()
-                    || !SEMVER.matcher(entry.getValue().asString()).matches()) {
+                    || !ManifestFormat.isContractVersion(entry.getValue().asString())) {
                 var path = "contracts." + entry.getKey();
                 throw mismatch(path, path + " must be an exact semantic version");
             }

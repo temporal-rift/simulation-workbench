@@ -1,12 +1,14 @@
 package io.github.temporalrift.workbench.execution.domain.port.out;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
+import io.github.temporalrift.workbench.execution.domain.run.ServedBundle;
 
 /**
  * Hands out isolated service lanes, at most one case per lane at a time. Each lane serves one frozen bundle, and a
@@ -27,8 +29,11 @@ public interface LaneProvider {
      */
     Optional<CaseLane> acquireExactly(String laneId, BundleDigests bundle);
 
-    /** The bundles some configured lane serves, whatever its availability. */
-    Set<BundleDigests> servedBundles();
+    /**
+     * The bundles some configured lane serves, whatever its availability: one per distinct digests, with its
+     * provenance and lane count, ordered by rules digest and then content digest.
+     */
+    List<ServedBundle> servedBundles();
 
     /** The lanes that are free right now, each with the bundle it serves. */
     Map<String, BundleDigests> freeLanes();

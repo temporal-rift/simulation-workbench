@@ -21,7 +21,9 @@ import tools.jackson.databind.ObjectMapper;
 import io.github.temporalrift.workbench.TestSecurityConfig;
 import io.github.temporalrift.workbench.experiment.application.port.in.CreateExperimentUseCase;
 import io.github.temporalrift.workbench.experiment.application.port.in.GetExperimentUseCase;
+import io.github.temporalrift.workbench.experiment.application.port.in.ListExperimentTemplatesUseCase;
 import io.github.temporalrift.workbench.experiment.application.port.in.ListExperimentsUseCase;
+import io.github.temporalrift.workbench.experiment.application.port.in.ListLaneBundlesUseCase;
 import io.github.temporalrift.workbench.experiment.application.port.in.PreviewExperimentUseCase;
 import io.github.temporalrift.workbench.shared.infrastructure.config.SecurityConfig;
 
@@ -51,6 +53,12 @@ class ExperimentSecurityIT {
 
     @MockitoBean
     private PreviewExperimentUseCase previewExperimentUseCase;
+
+    @MockitoBean
+    private ListLaneBundlesUseCase listLaneBundlesUseCase;
+
+    @MockitoBean
+    private ListExperimentTemplatesUseCase listExperimentTemplatesUseCase;
 
     @Test
     @DisplayName("Given no Authorization header, when createExperiment is called, then returns 401")
