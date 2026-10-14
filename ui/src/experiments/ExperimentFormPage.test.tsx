@@ -257,6 +257,38 @@ describe('choosing bundles and templates', () => {
     ).toBeInTheDocument()
   })
 
+  it('offers every lane bundle when there are more than one page of them', async () => {
+    const base = laneBundles()[0]!
+    service.laneBundles = Array.from({ length: 501 }, (_, index) => ({
+      ...base,
+      effectiveRulesDigest: index.toString(16).padStart(64, '0'),
+    }))
+    await renderApp('/experiments/new', service)
+
+    const select = (await screen.findAllByRole('combobox', { name: 'Bundle' }))[0]!
+    await waitFor(() => expect(within(select).getAllByRole('option')).toHaveLength(501 + 1))
+    expect(service.count('GET', /^\/api\/v1\/lane-bundles$/)).toBe(2)
+  })
+
+  it('makes the designer choose again a restored bundle a lane now serves under other provenance', async () => {
+    const user = userEvent.setup()
+    service.laneBundles[1]!.contracts = { 'session-api': '3.1.0' }
+    saveDraft({ draft: manifestToDraft(manifest()), basedOn: null })
+    await renderApp('/experiments/new', service)
+
+    const second = (await screen.findAllByRole('combobox', { name: 'Bundle' }))[1]!
+    expect(second).toHaveDisplayValue(/\(not served by any configured lane\)/)
+    await user.click(screen.getByRole('button', { name: 'Preview matrix' }))
+    expect(await screen.findByText('Fix the highlighted fields before previewing the matrix.')).toBeInTheDocument()
+    expect(second).toHaveAccessibleDescription(/No configured lane serves this bundle as selected/)
+    expect(service.count('POST', PREVIEWS)).toBe(0)
+
+    const [, current] = laneBundles()
+    await user.selectOptions(second, `${current!.effectiveRulesDigest}/${current!.effectiveContentDigest}`)
+
+    expect(second).toHaveAccessibleDescription(expect.not.stringMatching(/No configured lane serves/))
+  })
+
   it('marks the bundle of a frozen experiment that no lane serves any more', async () => {
     service.laneBundles = service.laneBundles.slice(0, 1)
     saveDraft({ draft: manifestToDraft(manifest()), basedOn: null })

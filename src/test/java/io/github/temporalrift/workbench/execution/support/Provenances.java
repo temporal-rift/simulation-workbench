@@ -5,18 +5,21 @@ import java.util.TreeMap;
 
 import io.github.temporalrift.workbench.execution.domain.run.BundleProvenance;
 
-/** The provenance test lanes declare for whichever bundle they serve. */
+/** The provenance test lanes declare for whichever bundle they serve: exactly what the test manifests pin. */
 public final class Provenances {
+
+    private static final BundleProvenance.ServiceBuild BUILD =
+            new BundleProvenance.ServiceBuild("sha256:" + "e".repeat(64), "abc1234");
 
     private Provenances() {}
 
     public static BundleProvenance sample() {
         return new BundleProvenance(
-                new BundleProvenance.Artifact("1".repeat(64), "rules"),
-                new BundleProvenance.Artifact("2".repeat(64), null),
-                new BundleProvenance.ServiceBuild("sha256:" + "3".repeat(64), "abcdef1"),
-                new BundleProvenance.ServiceBuild("sha256:" + "4".repeat(64), "abcdef2"),
-                new BundleProvenance.ServiceBuild("sha256:" + "5".repeat(64), "abcdef3"),
-                new TreeMap<>(Map.of("session-api", "3.0.0")));
+                new BundleProvenance.Artifact("c".repeat(64), null),
+                new BundleProvenance.Artifact("d".repeat(64), null),
+                BUILD,
+                BUILD,
+                BUILD,
+                new TreeMap<>(Map.of("session-api", "3.0.0", "action-api", "7.1.0")));
     }
 }

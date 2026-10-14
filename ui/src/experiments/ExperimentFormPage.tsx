@@ -60,7 +60,7 @@ export function ExperimentFormPage() {
   const noLane = bundles !== null && bundles.length === 0
   const manifest = useMemo(() => draftToManifest(draft), [draft])
   const current = useMemo(() => fingerprint(manifest), [manifest])
-  const local = useMemo(() => localProblems(draft), [draft])
+  const local = useMemo(() => localProblems(draft, bundles), [draft, bundles])
 
   useEffect(() => {
     saveDraft({ draft, basedOn })

@@ -12,6 +12,7 @@ import {
   emptyVariant,
   errorAt,
   errorWithin,
+  isServed,
   pinnedProvenance,
   type Draft,
   type DraftArtifact,
@@ -120,15 +121,18 @@ interface BundleSelectProps {
   readonly onSelect: (bundle: DraftBundle) => void
 }
 
+/** Stands for a selected bundle no lane serves as selected, so choosing a served one always changes the value. */
+const UNSERVED = 'unserved'
+
 function BundleSelect({ bundles, selected, error, onSelect }: BundleSelectProps) {
-  const selectedKey = selected ? bundleKey(selected) : ''
-  const served = bundles.some((bundle) => bundleKey(bundle) === selectedKey)
+  const served = selected === null || isServed(selected, bundles)
+  const value = selected === null ? '' : served ? bundleKey(selected) : UNSERVED
   return (
     <Field label="Bundle" error={error} hint="The rules and content this variant runs, as a configured lane serves them.">
       {(props) => (
         <select
           {...props}
-          value={selectedKey}
+          value={value}
           onChange={(event) => {
             const chosen = bundles.find((bundle) => bundleKey(bundle) === event.target.value)
             if (chosen) {
@@ -137,7 +141,9 @@ function BundleSelect({ bundles, selected, error, onSelect }: BundleSelectProps)
           }}
         >
           <option value="">Choose a bundle…</option>
-          {selected && !served && <option value={selectedKey}>{bundleLabel(selected)} (not served by any configured lane)</option>}
+          {selected && !served && (
+            <option value={UNSERVED}>{bundleLabel(selected)} (not served by any configured lane)</option>
+          )}
           {bundles.map((bundle) => (
             <option key={bundleKey(bundle)} value={bundleKey(bundle)}>
               {bundleLabel(bundle)} ({bundle.laneCount} {bundle.laneCount === 1 ? 'lane' : 'lanes'})

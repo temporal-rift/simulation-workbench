@@ -116,6 +116,36 @@ export function bundleFromLane(lane: LaneBundle): DraftBundle {
   }
 }
 
+function sameArtifact(a: DraftArtifact, b: DraftArtifact): boolean {
+  return a.digest === b.digest && (a.name ?? null) === (b.name ?? null) && (a.mediaType ?? null) === (b.mediaType ?? null)
+}
+
+function sameContracts(a: Record<string, string>, b: Record<string, string>): boolean {
+  const modules = Object.keys(a)
+  return modules.length === Object.keys(b).length && modules.every((module) => a[module] === b[module])
+}
+
+/** Whether two bundles name the same artifacts, effective digests, service builds and contract versions. */
+export function sameBundle(a: DraftBundle, b: DraftBundle): boolean {
+  return (
+    bundleKey(a) === bundleKey(b) &&
+    sameArtifact(a.rulesArtifact, b.rulesArtifact) &&
+    sameArtifact(a.contentArtifact, b.contentArtifact) &&
+    SERVICE_NAMES.every(
+      (name) => a.services[name].imageDigest === b.services[name].imageDigest && a.services[name].sourceRevision === b.services[name].sourceRevision,
+    ) &&
+    sameContracts(a.contracts, b.contracts)
+  )
+}
+
+/**
+ * Whether a configured lane serves exactly this bundle. A restored or copied bundle whose digests a lane still serves
+ * under other provenance is not served: freezing it would pin builds no lane runs.
+ */
+export function isServed(bundle: DraftBundle, lanes: readonly LaneBundle[]): boolean {
+  return lanes.some((lane) => sameBundle(bundleFromLane(lane), bundle))
+}
+
 function selectedBundles(draft: Draft): DraftBundle[] {
   return draft.variants.flatMap((variant) => (variant.bundle ? [variant.bundle] : []))
 }
@@ -177,12 +207,17 @@ function parsedParameters(text: string): Record<string, unknown> | null {
   }
 }
 
-/** Problems found before sending: the parts of a draft that cannot be turned into a manifest at all. */
-export function localProblems(draft: Draft): FieldErrors {
+/**
+ * Problems found before sending: the parts of a draft that cannot be turned into a manifest at all, and, once the
+ * lane bundles are known (`lanes` not `null`), a selected bundle no lane serves as selected.
+ */
+export function localProblems(draft: Draft, lanes: readonly LaneBundle[] | null): FieldErrors {
   const problems: Record<string, string> = {}
   draft.variants.forEach((variant, index) => {
     if (variant.bundle === null) {
       problems[`variants[${index}]`] = 'Choose the bundle this variant runs.'
+    } else if (lanes !== null && !isServed(variant.bundle, lanes)) {
+      problems[`variants[${index}]`] = 'No configured lane serves this bundle as selected. Choose the bundle again.'
     }
   })
   const incomparable = incomparableFields(draft)

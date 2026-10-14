@@ -253,8 +253,7 @@ class DiscoveryIT {
         assertThat(first.path("laneCount").asInt()).isEqualTo(2);
         assertThat(second.path("effectiveRulesDigest").asString()).isEqualTo("f".repeat(64));
         assertThat(second.path("laneCount").asInt()).isEqualTo(1);
-        assertThat(first.path("rulesArtifact").path("digest").asString()).isEqualTo("1".repeat(64));
-        assertThat(first.path("rulesArtifact").path("name").asString()).isEqualTo("rules");
+        assertThat(first.path("rulesArtifact").path("digest").asString()).isEqualTo("c".repeat(64));
         assertThat(first.path("contentArtifact").path("name").isMissingNode()
                         || first.path("contentArtifact").path("name").isNull())
                 .isTrue();
@@ -262,7 +261,7 @@ class DiscoveryIT {
                         .path("gameService")
                         .path("sourceRevision")
                         .asString())
-                .isEqualTo("abcdef1");
+                .isEqualTo("abc1234");
         assertThat(first.path("contracts").path("session-api").asString()).isEqualTo("3.0.0");
         assertThat(page.toString()).doesNotContain("lane-0", "lane-1", "lane-2");
     }

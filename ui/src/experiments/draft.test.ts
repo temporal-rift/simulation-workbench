@@ -53,15 +53,26 @@ describe('the draft and its manifest', () => {
     const draft = manifestToDraft(manifest())
     draft.policies[0]!.parameters = '[1]'
 
-    expect(localProblems(draft)).toEqual({ 'policies[0].parameters': 'Parameters must be a JSON object, for example {}.' })
-    expect(localProblems(manifestToDraft(manifest()))).toEqual({})
+    expect(localProblems(draft, null)).toEqual({ 'policies[0].parameters': 'Parameters must be a JSON object, for example {}.' })
+    expect(localProblems(manifestToDraft(manifest()), laneBundles())).toEqual({})
   })
 
   it('asks for a bundle on every variant that has none', () => {
     const draft = manifestToDraft(manifest())
     draft.variants[1]!.bundle = null
 
-    expect(localProblems(draft)).toEqual({ 'variants[1]': 'Choose the bundle this variant runs.' })
+    expect(localProblems(draft, laneBundles())).toEqual({ 'variants[1]': 'Choose the bundle this variant runs.' })
+  })
+
+  it('refuses a selected bundle no lane serves as selected, including under changed provenance', () => {
+    const draft = manifestToDraft(manifest())
+    const rebuilt = laneBundles()
+    rebuilt[1]!.services.gameService.sourceRevision = 'fedcba9'
+    const stale = 'No configured lane serves this bundle as selected. Choose the bundle again.'
+
+    expect(localProblems(draft, rebuilt)).toEqual({ 'variants[1]': stale })
+    expect(localProblems(draft, [])).toEqual({ 'variants[0]': stale, 'variants[1]': stale })
+    expect(localProblems(draft, null)).toEqual({})
   })
 
   it('sends the selected bundles exactly, with the services and contracts they share', () => {
@@ -92,7 +103,7 @@ describe('the draft and its manifest', () => {
     })
 
     expect(incomparableFields(draft)).toEqual(['contracts.action-api', 'contracts.session-api', 'services.readService.sourceRevision'])
-    expect(localProblems(draft)[BUNDLES_FIELD]).toBe(
+    expect(localProblems(draft, null)[BUNDLES_FIELD]).toBe(
       'The selected bundles are not comparable: they differ in contracts.action-api, contracts.session-api, services.readService.sourceRevision.',
     )
   })

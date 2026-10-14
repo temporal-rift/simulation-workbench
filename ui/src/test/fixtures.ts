@@ -17,14 +17,14 @@ export function manifest(overrides: Partial<ExperimentManifest> = {}): Experimen
     variants: [
       {
         label: 'baseline',
-        rulesArtifact: { digest: digest('a') },
+        rulesArtifact: { digest: digest('a'), name: 'threshold-20' },
         contentArtifact: { digest: digest('b') },
         effectiveRulesDigest: digest('c'),
         effectiveContentDigest: digest('d'),
       },
       {
         label: 'candidate',
-        rulesArtifact: { digest: digest('e') },
+        rulesArtifact: { digest: digest('e'), name: 'threshold-22' },
         contentArtifact: { digest: digest('b') },
         effectiveRulesDigest: digest('f'),
         effectiveContentDigest: digest('d'),
@@ -70,7 +70,7 @@ export const policyCatalog: PolicyBundle[] = [
 export function laneBundles(): LaneBundle[] {
   const { variants, services, contracts } = manifest()
   return variants.map((variant, index) => ({
-    rulesArtifact: { ...variant.rulesArtifact, name: index === 0 ? 'threshold-20' : 'threshold-22' },
+    rulesArtifact: { ...variant.rulesArtifact },
     contentArtifact: { ...variant.contentArtifact },
     effectiveRulesDigest: variant.effectiveRulesDigest,
     effectiveContentDigest: variant.effectiveContentDigest,

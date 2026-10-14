@@ -65,20 +65,35 @@ export const policiesQuery = (client: Client) =>
     staleTime: 5 * 60_000,
   })
 
-/** The most a discovery list returns at once; bundles and templates are few enough to read in one page. */
-const WHOLE_LIST = 500
+/** The largest page a discovery list serves. */
+const MAX_PAGE = 500
+
+/** Every item of a paged list, read page by page until its total is covered, so a choice is never silently missing. */
+async function wholeList<T>(readPage: (offset: number) => Promise<{ readonly items: T[]; readonly total: number }>) {
+  const items: T[] = []
+  let total = 0
+  do {
+    const page = await readPage(items.length)
+    items.push(...page.items)
+    total = page.total
+    if (page.items.length === 0) {
+      break
+    }
+  } while (items.length < total)
+  return { items, total }
+}
 
 export const laneBundlesQuery = (client: Client) =>
   queryOptions({
     queryKey: ['lane-bundles'],
-    queryFn: () => unwrap(() => listLaneBundles({ client, query: { limit: WHOLE_LIST } })),
+    queryFn: () => wholeList((offset) => unwrap(() => listLaneBundles({ client, query: { limit: MAX_PAGE, offset } }))),
     staleTime: 60_000,
   })
 
 export const experimentTemplatesQuery = (client: Client) =>
   queryOptions({
     queryKey: ['experiment-templates'],
-    queryFn: () => unwrap(() => listExperimentTemplates({ client, query: { limit: WHOLE_LIST } })),
+    queryFn: () => wholeList((offset) => unwrap(() => listExperimentTemplates({ client, query: { limit: MAX_PAGE, offset } }))),
     staleTime: 60_000,
   })
 

@@ -112,7 +112,11 @@ export class FakeService {
     const post = (pattern: RegExp, handler: Handler): Route => ({ method: 'POST', pattern, handler })
     return [
       get(/^\/api\/v1\/policies$/, () => json({ items: policyCatalog })),
-      get(/^\/api\/v1\/lane-bundles$/, () => json({ items: this.laneBundles, total: this.laneBundles.length })),
+      get(/^\/api\/v1\/lane-bundles$/, (request) => {
+        const offset = Number(request.query.get('offset') ?? 0)
+        const limit = Number(request.query.get('limit') ?? 50)
+        return json({ items: this.laneBundles.slice(offset, offset + limit), total: this.laneBundles.length })
+      }),
       get(/^\/api\/v1\/experiment-templates$/, () => json({ items: experimentTemplates(), total: 2 })),
       post(/^\/api\/v1\/experiment-previews$/, () => json(preview())),
       post(/^\/api\/v1\/experiments$/, (request) =>
