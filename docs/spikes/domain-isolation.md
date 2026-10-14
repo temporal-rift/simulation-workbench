@@ -3,10 +3,12 @@
 Answers [simulation-workbench#48](https://github.com/temporal-rift/simulation-workbench/issues/48), decision A-03 of
 [infrastructure#124](https://github.com/temporal-rift/infrastructure/issues/124).
 
-**Verdict: `GO WITH CHANGES`, for an in-process lane.** The simulator should host the real game-service,
-timeline-service and read-service code in one JVM, behind the workbench's existing lane ports. Three blockers must be
-fixed first (B1 to B3). Simulators that wire the rules code by hand, or that replace the services' persistence and
-messaging with new in-memory adapters, are rejected for now (see "Options").
+**Verdict: `GO WITH CHANGES`, with in-memory infrastructure adapters.** The simulator runs the real
+game-service, timeline-service and read-service code unchanged in one JVM: rules, application flow and Spring
+wiring. Only the infrastructure adapters behind their ports are swapped for in-memory implementations, enabled only
+in simulation. This is what the services' ports and adapters architecture is for. Nothing in the rules or the
+application layer is redone. The work is the in-memory adapters themselves (B1 to B3) and the simulator lane in the
+workbench (B4).
 
 Revisions inspected: game-service `1c42ad4`, timeline-service `7ae1a1c`, read-service `58ad175`,
 simulation-workbench `09b95f4`. No figure in this report is a measurement; throughput claims are marked as
@@ -79,57 +81,49 @@ this code as it is must reproduce that ordering exactly.
 - **No generated event types:** event payloads are not generated classes; each service maps the bundled AsyncAPI
   payloads itself. Generated REST models sit under each service's own package. No class clashes are expected.
 - **No reusable artifact:** none of the three services publishes a jar; lanes build images from source. The
-  simulator needs each service's classes at the lane's exact revision (blocker B2).
+  simulator needs each service's classes at the lane's exact revision (part of blockers B1 to B3).
 - **Not checked:** static mutable state in the services, which would leak between contexts in one JVM. It must be
-  checked in S-12.
+  checked in S-12a to S-12c of infrastructure#124.
 
 ## 6. Options
 
-| Option | What runs | Rules reuse | Fidelity risk | Change size |
-|---|---|---|---|---|
-| A. Hand-wired | Domain and application classes built without Spring, with new in-memory implementations of all 95 ports | Rules yes; orchestration re-built by hand | High: the async after-commit event semantics, the ordering of the 15 classes with Kafka listeners, and idempotency and locking behind PostgreSQL SQL must all be re-created | Large, mostly in the simulator, and it drifts with every service change |
-| B. In-process lane | The three Spring applications as separate contexts in one JVM, with one embedded PostgreSQL process (three databases) and one in-JVM Kafka broker | Everything, including adapters | Low: same code paths; only process boundaries change | Medium (B1 to B3) |
-| C. In-memory adapters | Each service ships an alternative set of persistence and messaging adapters for simulation | Rules and orchestration; adapters re-implemented | Medium: the in-memory adapters must reproduce idempotency, locking and ordering | Large, spread over three services |
 
-**Choice: B.** It is the only option where the simulator runs no code the real lanes do not, which keeps
-`MATCH` against a real lane a reasonable expectation. Most of the per-game time saving comes from removing the
-per-game restart, which needs the per-game execution context (B1) whichever option is built. **[Hypothesis]**
-B's further gain over a light real lane is memory density: one JVM instead of four, and no Docker. That allows more
-games in parallel on the same PC. This must be measured before C is considered.
+| Option | What changes | Rules and flow | Fidelity risk |
+|---|---|---|---|
+| A. Hand-wired | Domain and application classes built without Spring, with the flow re-created by hand | Flow re-implemented | High: the async after-commit event semantics, the ordering of the 15 classes with Kafka listeners, and idempotency and locking must be re-created |
+| B. In-process processes | The three services in one JVM, with an embedded PostgreSQL process and an in-JVM Kafka broker | Unchanged, including adapters | Low, but it removes only Docker: every game still pays real database and broker round trips |
+| C. In-memory adapters | The three services in one JVM, Spring and application layer unchanged; only the infrastructure adapters behind the ports are swapped for in-memory implementations in simulation | Unchanged | Low to medium: the in-memory adapters must keep the production adapters' behaviour (duplicate-event claims, due-time queries, ordering); a port contract test suite run against both adapter sets controls this |
 
-C is not built now. It becomes a candidate only if a measured B cannot meet the search budget, and then only for the
-adapters the measurement shows to be the bottleneck.
+**Choice: C.** The ports and adapters architecture was built so infrastructure can be swapped without touching the
+rules or the flow, and C uses exactly that. A re-creates the flow, so it is a second engine. B keeps the expensive
+part, real database and broker work on every step, and gains little over a light real lane. C removes it, so
+**[Hypothesis]** it is the only option that can be much faster per game; its games per hour must be measured.
 
 ## 7. Blockers
 
-| ID | Repo | Boundary change | Size |
+| ID | Repo | Change | Size |
 |---|---|---|---|
-| B1 | apis (`simulation-control-api`), game-service, timeline-service | The execution context, logical clock and entropy are scoped per game. A control operation closes the current context, clears its state and opens a new one carrying that game's rules, without restarting the service. This is story S-08 of infrastructure#124, needed by real lanes and the simulator alike | Large |
-| B2 | game-service, timeline-service, read-service | Each build also produces a plain library jar (not the repackaged boot jar) of the same revision, so the simulator can load the classes the lane images are built from | Small |
-| B3 | game-service, timeline-service, read-service | Each application starts as an embedded context with externally supplied datasource, broker and issuer settings and an ephemeral server port. No static mutable state is shared between contexts | Small to medium |
-| B4 | simulation-workbench | An in-process `LaneProvider` and `CaseLane` that start the embedded database, broker and three contexts once, mint deterministic bot, operator and observer tokens with an in-process signing key, and implement `GameSession` and `GameEventObserver` against them | Medium |
+| B1 | game-service | In-memory implementations, enabled only in simulation, of its 49 driven ports, of its inbound and outbound messaging, and of the event publication registry. The messaging boundary offers an outbound event sink and an inbound delivery entry that runs the same handling as its Kafka listeners. A port contract test suite runs against both the production and the in-memory adapters. The build also produces a plain library jar, and the application starts as an embedded context with no database, broker or fixed port | Large (mostly mechanical) |
+| B2 | timeline-service | Same as B1 for its 25 driven ports, keeping the per-game ordering of `TimelineGameEventsKafkaConsumer` | Medium |
+| B3 | read-service | Same as B1 for its 21 driven ports, so the bots' views come from its unchanged projection code | Medium |
+| B4 | simulation-workbench | An in-process `LaneProvider` and `CaseLane` that host the three services in one JVM, route their events in order per game, mint deterministic bot, operator and observer tokens in-process, and implement `GameSession` and `GameEventObserver` | Medium |
 | B5 | simulation-workbench | A case played in the simulator can be reproduced on a real lane, which today is refused because a reproduction runs only on the lane that played the case. Bot identities must be the same deterministic subjects on both | Small to medium |
 
-B1 to B3 must land before B4 can play a game. B5 is needed for the fidelity check.
+B1 to B3 can proceed in parallel and must all land before B4 can play a game. B5 is needed for the fidelity check.
 
-**Parallel games.** One service instance plays one game (section 3), so parallel games need several context sets
-in one JVM, each with its own databases and topics. Memory per context set is not known; S-12 must measure it.
+**Parallel games.** One service instance holds one execution and one logical clock (section 3). Parallel games need
+either several instances of the three services in the JVM, or the per-game execution context of story S-08 of
+infrastructure#124. With in-memory adapters, a service instance is cheap, but its memory is not measured yet.
 
 ## 8. Fidelity check
 
 Proposed protocol; the pass condition needs design agreement (A-03):
 
 1. Play a set of cases in the simulator: every player count, both baseline policies, at least two seeds.
-2. Reproduce each one on a light real lane through the existing reproduction (needs B5). Because option B runs the
-   same code, the expected result is `MATCH` for every case. Any divergence is a defect to fix, not noise to
-   tolerate.
+2. Reproduce each one on a light real lane through the existing reproduction (needs B5). The rules and flow are the
+   same code, so the expected result is `MATCH` for every case. Any divergence points at an in-memory adapter that
+   behaves differently from its production counterpart, and is a defect to fix.
 3. Run the same experiment on both and compare the reports. Identical semantic digests imply identical metric
    values; any difference identifies the cases to inspect.
 4. Repeat the check whenever a service revision or a lane bundle changes. The simulator is valid only for the
    revisions it was checked against.
-
-## 9. If the verdict is overturned
-
-If B1 is rejected or proves infeasible, no option is viable without re-implementing orchestration. The search then
-runs on one light real lane, with games played one after another, and the P-01 budget of infrastructure#124 bounds
-its size.
