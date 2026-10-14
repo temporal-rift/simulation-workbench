@@ -55,6 +55,7 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.session.model.StartGameResponse;
 import io.github.temporalrift.workbench.execution.support.InMemoryCommandLedger;
 import io.github.temporalrift.workbench.execution.support.InMemoryEvidenceLedger;
+import io.github.temporalrift.workbench.execution.support.Provenances;
 import io.github.temporalrift.workbench.execution.support.StubEventObserver;
 
 class HttpCaseLaneTest {
@@ -90,6 +91,7 @@ class HttpCaseLaneTest {
                 "http://read",
                 "operator-token",
                 new BundleDigests("a".repeat(64), "b".repeat(64)),
+                Provenances.sample(),
                 "game.events",
                 "timeline.events",
                 null,
@@ -297,6 +299,7 @@ class HttpCaseLaneTest {
                 "http://read",
                 "operator-token",
                 new BundleDigests("a".repeat(64), "b".repeat(64)),
+                Provenances.sample(),
                 "game.events",
                 "timeline.events",
                 null,

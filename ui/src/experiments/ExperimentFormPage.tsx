@@ -2,14 +2,15 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ApiProblemError } from '../api/client'
-import type { ExperimentPreview } from '../api/generated'
+import type { ExperimentPreview, ExperimentTemplate } from '../api/generated'
 import { describeFailure } from '../api/problems'
-import { freezeManifest, policiesQuery, previewManifest, useApiClient } from '../api/queries'
-import { WRITE_SCOPE } from '../auth/scopes'
+import { experimentTemplatesQuery, freezeManifest, laneBundlesQuery, policiesQuery, previewManifest, useApiClient } from '../api/queries'
+import { READ_SCOPE, WRITE_SCOPE } from '../auth/scopes'
 import { useAnnounce } from '../components/announceContext'
 import { ErrorNotice } from '../components/ErrorNotice'
 import { ScopedButton } from '../components/ScopedButton'
 import {
+  applyTemplate,
   clearDraft,
   draftToManifest,
   emptyDraft,
@@ -53,6 +54,10 @@ export function ExperimentFormPage() {
   const freezeIntent = useRef<{ readonly fingerprint: string; readonly key: string } | null>(null)
 
   const catalog = useQuery(policiesQuery(client))
+  const lanes = useQuery(laneBundlesQuery(client))
+  const templates = useQuery(experimentTemplatesQuery(client))
+  const bundles = lanes.data?.items ?? null
+  const noLane = bundles !== null && bundles.length === 0
   const manifest = useMemo(() => draftToManifest(draft), [draft])
   const current = useMemo(() => fingerprint(manifest), [manifest])
   const local = useMemo(() => localProblems(draft), [draft])
@@ -129,6 +134,11 @@ export function ExperimentFormPage() {
     preview.mutate({ offset })
   }
 
+  function startFrom(template: ExperimentTemplate) {
+    edit((d) => Object.assign(d, applyTemplate(d, template, bundles ?? [])))
+    announce(`Draft filled from the template “${template.name}”. Every value stays editable.`)
+  }
+
   function openConfirmation() {
     if (freezeIntent.current?.fingerprint !== current) {
       freezeIntent.current = { fingerprint: current, key: crypto.randomUUID() }
@@ -157,7 +167,37 @@ export function ExperimentFormPage() {
         {blockedNow && <ErrorNotice message="Fix the highlighted fields before previewing the matrix." />}
       </div>
       {catalog.isError && <ErrorNotice message={describeFailure(catalog.error, { action: 'load the bot policy catalog' })} onRetry={() => void catalog.refetch()} />}
-      <ExperimentForm draft={draft} edit={edit} errors={errors} catalog={catalog.data?.items ?? []} />
+      {lanes.isError && (
+        <ErrorNotice
+          message={describeFailure(lanes.error, { action: 'load the bundles the lanes serve', requiredScope: READ_SCOPE })}
+          onRetry={() => void lanes.refetch()}
+        />
+      )}
+      <section aria-labelledby="templates-heading">
+        <h2 id="templates-heading">Start from a template</h2>
+        {templates.isError ? (
+          <ErrorNotice
+            message={describeFailure(templates.error, { action: 'load the experiment templates', requiredScope: READ_SCOPE })}
+            onRetry={() => void templates.refetch()}
+          />
+        ) : (
+          <ul className="templates">
+            {(templates.data?.items ?? []).map((template) => (
+              <li key={template.templateId}>
+                <p>
+                  <strong>{template.name}</strong> ({template.variantCount} {template.variantCount === 1 ? 'variant' : 'variants'}).{' '}
+                  {template.description}
+                </p>
+                <button type="button" onClick={() => startFrom(template)}>
+                  Start from {template.name}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="hint">A template replaces the variants, policies, matrix and bounds of the draft; the name is kept.</p>
+      </section>
+      <ExperimentForm draft={draft} edit={edit} errors={errors} catalog={catalog.data?.items ?? []} bundles={bundles} />
       <div className="actions">
         <ScopedButton scope={WRITE_SCOPE} aria-busy={preview.isPending} onAction={() => requestPreview(0)}>
           Preview matrix
@@ -178,12 +218,16 @@ export function ExperimentFormPage() {
       {taken && <PreviewPanel preview={taken.preview} outdated={!upToDate} busy={preview.isPending} onPage={(offset) => requestPreview(offset)} />}
       <section aria-labelledby="freeze-heading">
         <h2 id="freeze-heading">Freeze</h2>
-        {confirming === null || !taken || !upToDate ? (
+        {confirming === null || !taken || !upToDate || noLane ? (
           <>
-            <ScopedButton scope={WRITE_SCOPE} disabled={!upToDate} onAction={openConfirmation}>
+            <ScopedButton scope={WRITE_SCOPE} disabled={!upToDate || noLane} onAction={openConfirmation}>
               Freeze this experiment…
             </ScopedButton>
-            {!upToDate && <p className="hint">Preview the current draft first; only a previewed matrix can be frozen.</p>}
+            {noLane ? (
+              <p className="hint">No lane is configured, so nothing frozen now could run.</p>
+            ) : (
+              !upToDate && <p className="hint">Preview the current draft first; only a previewed matrix can be frozen.</p>
+            )}
           </>
         ) : (
           <div ref={confirmation} tabIndex={-1} role="group" aria-labelledby="confirm-heading" className="notice">

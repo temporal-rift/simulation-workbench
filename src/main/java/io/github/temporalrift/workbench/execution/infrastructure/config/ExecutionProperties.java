@@ -4,13 +4,24 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.UUID;
+import java.util.function.BiConsumer;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
+import io.github.temporalrift.workbench.execution.domain.run.BundleProvenance;
+import io.github.temporalrift.workbench.experiment.ManifestFormat;
 
 /**
  * Runner configuration. Lane endpoints and bot credentials are supplied by the deployment that provisions
@@ -34,6 +45,32 @@ public record ExecutionProperties(
         @DefaultValue Client client,
         @DefaultValue List<Lane> lanes) {
 
+    public ExecutionProperties {
+        requireOneDeclarationPerBundle(lanes);
+    }
+
+    /** Lanes serving the same effective digests serve one bundle, so they must declare it identically. */
+    private static void requireOneDeclarationPerBundle(List<Lane> lanes) {
+        var first = new HashMap<BundleDigests, Lane>();
+        for (var lane : lanes) {
+            var earlier = first.putIfAbsent(lane.bundle(), lane);
+            if (earlier != null) {
+                var expected = earlier.bundleDeclaration();
+                var actual = lane.bundleDeclaration();
+                var keys = new LinkedHashSet<>(expected.keySet());
+                keys.addAll(actual.keySet());
+                keys.stream()
+                        .filter(key -> !Objects.equals(expected.get(key), actual.get(key)))
+                        .findFirst()
+                        .ifPresent(key -> {
+                            throw new IllegalArgumentException("workbench.execution.lanes[id=" + earlier.id()
+                                    + "] and workbench.execution.lanes[id=" + lane.id()
+                                    + "] serve the same rules and content digests but declare different " + key);
+                        });
+            }
+        }
+    }
+
     /** How long the runner waits for the services and projection to settle. */
     public record Barrier(
             @DefaultValue("500ms") Duration pollInterval,
@@ -46,9 +83,12 @@ public record ExecutionProperties(
             @DefaultValue("30s") Duration readTimeout) {}
 
     /**
-     * One isolated lane, the identities that play in it, and the effective rules and content digests of the frozen
-     * bundle it serves.
+     * One isolated lane, the identities that play in it, and the frozen bundle it serves: its effective rules and
+     * content digests and the provenance the deployment that provisioned it declares.
      *
+     * @param rulesArtifactName the rules artifact's name, or {@code null} when the deployment names none
+     * @param contentArtifactName the content artifact's name, or {@code null} when the deployment names none
+     * @param contracts exact versions keyed by contract module name
      * @param resetUrl the deployment hook that makes the lane clean for another case, or {@code null} when the lane is
      *     never reset
      */
@@ -60,6 +100,12 @@ public record ExecutionProperties(
             String operatorToken,
             String rulesDigest,
             String contentDigest,
+            String rulesArtifactDigest,
+            String rulesArtifactName,
+            String contentArtifactDigest,
+            String contentArtifactName,
+            Services services,
+            Map<String, String> contracts,
             @DefaultValue("game.events") String gameEventsTopic,
             @DefaultValue("timeline.events") String timelineEventsTopic,
             String kafkaBootstrapServers,
@@ -69,13 +115,52 @@ public record ExecutionProperties(
         public Lane {
             requireDigest(id, "rules-digest", rulesDigest);
             requireDigest(id, "content-digest", contentDigest);
+            requireDigest(id, "rules-artifact-digest", rulesArtifactDigest);
+            requireDigest(id, "content-artifact-digest", contentArtifactDigest);
+            requireName(id, "rules-artifact-name", rulesArtifactName);
+            requireName(id, "content-artifact-name", contentArtifactName);
+            requireServices(id, services);
+            contracts = requireContracts(id, contracts);
             requireResetUrl(id, resetUrl);
+        }
+
+        public BundleDigests bundle() {
+            return new BundleDigests(rulesDigest, contentDigest);
+        }
+
+        public BundleProvenance provenance() {
+            return new BundleProvenance(
+                    new BundleProvenance.Artifact(rulesArtifactDigest, rulesArtifactName),
+                    new BundleProvenance.Artifact(contentArtifactDigest, contentArtifactName),
+                    services.gameService().build(),
+                    services.timelineService().build(),
+                    services.readService().build(),
+                    new TreeMap<>(contracts));
+        }
+
+        /** Everything the lane declares about its bundle, keyed by property name in a stable order. */
+        Map<String, String> bundleDeclaration() {
+            var declaration = new LinkedHashMap<String, String>();
+            declaration.put("rules-artifact-digest", rulesArtifactDigest);
+            declaration.put("rules-artifact-name", rulesArtifactName);
+            declaration.put("content-artifact-digest", contentArtifactDigest);
+            declaration.put("content-artifact-name", contentArtifactName);
+            services.forEach((name, service) -> {
+                declaration.put("services." + name + ".image-digest", service.imageDigest());
+                declaration.put("services." + name + ".source-revision", service.sourceRevision());
+            });
+            contracts.forEach((module, version) -> declaration.put("contracts." + module, version));
+            return declaration;
+        }
+
+        private static String property(String laneId, String key) {
+            return "workbench.execution.lanes[id=" + laneId + "]." + key;
         }
 
         private static void requireResetUrl(String laneId, String value) {
             if (value != null && !isAbsoluteHttpUrl(value)) {
                 throw new IllegalArgumentException(
-                        "workbench.execution.lanes[id=" + laneId + "].reset-url must be an absolute http or https URL");
+                        property(laneId, "reset-url") + " must be an absolute http or https URL");
             }
         }
 
@@ -90,18 +175,81 @@ public record ExecutionProperties(
         }
 
         private static void requireDigest(String laneId, String key, String value) {
-            var property = "workbench.execution.lanes[id=" + laneId + "]." + key;
-            if (value == null || value.isBlank()) {
-                throw new IllegalArgumentException(property + " is required");
+            require(laneId, key, value, ManifestFormat.isDigest(value), "must be 64 lowercase hex characters");
+        }
+
+        private static void requireName(String laneId, String key, String value) {
+            if (value != null && value.isBlank()) {
+                throw new IllegalArgumentException(property(laneId, key) + " must not be blank");
             }
-            if (!BundleDigests.isDigest(value)) {
-                throw new IllegalArgumentException(property + " must be 64 lowercase hex characters");
+        }
+
+        private static void requireServices(String laneId, Services services) {
+            var declared = services == null ? new Services(null, null, null) : services;
+            declared.forEach((name, service) -> {
+                var prefix = "services." + name + ".";
+                var image = service == null ? null : service.imageDigest();
+                var revision = service == null ? null : service.sourceRevision();
+                require(
+                        laneId,
+                        prefix + "image-digest",
+                        image,
+                        ManifestFormat.isImageDigest(image),
+                        "must be sha256: followed by 64 lowercase hex characters");
+                require(
+                        laneId,
+                        prefix + "source-revision",
+                        revision,
+                        ManifestFormat.isSourceRevision(revision),
+                        "must be 7 to 64 lowercase hex characters");
+            });
+        }
+
+        private static SortedMap<String, String> requireContracts(String laneId, Map<String, String> contracts) {
+            if (contracts == null || contracts.isEmpty()) {
+                throw new IllegalArgumentException(property(laneId, "contracts") + " is required");
+            }
+            var sorted = new TreeMap<>(contracts);
+            sorted.forEach((module, version) -> require(
+                    laneId,
+                    "contracts." + module,
+                    version,
+                    ManifestFormat.isContractVersion(version),
+                    "must be an exact semantic version"));
+            return Collections.unmodifiableSortedMap(sorted);
+        }
+
+        private static void require(String laneId, String key, String value, boolean valid, String format) {
+            if (value == null || value.isBlank()) {
+                throw new IllegalArgumentException(property(laneId, key) + " is required");
+            }
+            if (!valid) {
+                throw new IllegalArgumentException(property(laneId, key) + " " + format);
             }
         }
 
         @Override
         public String toString() {
             return "Lane[id=" + id + ", bots=" + bots.size() + "]";
+        }
+    }
+
+    /** The builds of the three services a lane runs. */
+    public record Services(Service gameService, Service timelineService, Service readService) {
+
+        /** Visits each service under its property name in a stable order; an undeclared one is {@code null}. */
+        void forEach(BiConsumer<String, Service> visitor) {
+            visitor.accept("game-service", gameService);
+            visitor.accept("timeline-service", timelineService);
+            visitor.accept("read-service", readService);
+        }
+    }
+
+    /** The image and source revision a service runs from. */
+    public record Service(String imageDigest, String sourceRevision) {
+
+        BundleProvenance.ServiceBuild build() {
+            return new BundleProvenance.ServiceBuild(imageDigest, sourceRevision);
         }
     }
 

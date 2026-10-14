@@ -120,8 +120,8 @@ only its own scripts and styles and call only this service and the issuer.
 
 What a designer can do:
 
-- Configure an experiment (variants, catalog policies with their seats, seeds, player counts, faction sets,
-  timing and execution bounds), preview the exact case matrix the service would freeze, and freeze it only after
+- Configure an experiment, optionally from a template (variants, each running a bundle chosen from those the lanes
+  serve, catalog policies with their seats, seeds, player counts, faction sets, timing and execution bounds), preview the exact case matrix the service would freeze, and freeze it only after
   confirming the shown digest. An unsent draft is kept in the tab's session storage and survives an expired session.
 - Open a frozen experiment, which is read-only, and start a new draft from its manifest.
 - Launch a run and follow its state and counts while it is open; cancel while it is cancellable and resume from
@@ -165,11 +165,17 @@ started.
 
 ### 1. Configure and preview
 
-**Experiments → New experiment.** Name the experiment; add the variants to compare (each with its rules and content
-artifact digests and the effective digests they resolve to); pin the service images and contract versions; pick bot
-policies from the catalog and the seats each one plays; and set seeds, player counts, faction sets and the execution
-bounds. A value the service refuses is marked on its field, and your unsent draft survives a reload and an expired
-session.
+**Experiments → New experiment.** Optionally **Start from** a template: *Baseline policy comparison* (one variant, the
+random and faction-greedy policies each on every seat) or *Rules variant comparison* (two variants, the random policy on
+every seat). A template fills the variant slots with the bundles the lanes serve, in order, and sets seeds `42`, player
+counts 3, 4 and 5, every faction set, and the execution bounds; every value stays editable and your experiment name is
+kept. Then name the experiment, label each variant and choose its **Bundle** from those the configured lanes serve. The
+bundle's artifacts and effective digests, and the service images and contract versions it pins, are shown read-only:
+nothing that identifies a bundle is typed. Variants are comparable only when their bundles pin the same services and
+contracts; otherwise the page names the differing fields and the draft cannot be previewed or frozen. Pick bot policies
+from the catalog and the seats each one plays, and set seeds, player counts, faction sets and the execution bounds. If
+no lane is configured the page says so and nothing can be frozen. A value the service refuses is marked on its field,
+and your unsent draft survives a reload and an expired session.
 
 Press **Preview matrix**. The page shows the exact case count, the count per variant and player count, and a browsable
 page of case coordinates, all as the service computed them. Nothing is stored yet.
@@ -299,9 +305,26 @@ and take `limit` (1 to 500, default 50) and `offset`; a missing run for a case l
 | `listCases` | `GET /api/v1/runs/{runId}/cases` | Matrix order; `state`, `variantLabel` |
 | `listComparisons` | `GET /api/v1/comparisons` | Newest first; `runId` (either side). Summaries only: `getComparison` computes the result |
 | `listPolicies` | `GET /api/v1/policies` | The bundles a manifest may reference, with `id`, `version`, `artifactDigest`, `description` and `parameters` (none for the baselines) |
+| `listLaneBundles` | `GET /api/v1/lane-bundles` | One bundle per distinct effective rules and content digests the configured lanes serve, busy or free, ordered by those digests: artifacts, effective digests, `services`, `contracts` and `laneCount`. No lane identifier, URL or credential |
+| `listExperimentTemplates` | `GET /api/v1/experiment-templates` | `baseline-policy-comparison` and `rules-variant-comparison`, each with its `variantCount` and complete `defaults` for every manifest field that does not identify a bundle |
 
 A case summary carries `caseId`, `caseKey`, `runId`, `variantLabel`, `seed`, `playerCount`, `state` and a
 nullable `endReason` (present once the case has a result).
+
+### Guided setup
+
+The templates default seeds `["42"]`, player counts `[3, 4, 5]`, all 16 faction sets (10 at 3 players, 5 at 4, 1 at
+5), `CYCLIC` rotation and `LOGICAL` time; their `concurrency` is the number of configured lanes, at least 1 and at most
+64. Their two remaining bounds are configuration:
+
+| Property | Default | Bound |
+|---|---|---|
+| `workbench.experiment.templates.case-wall-timeout-seconds` | 3600 | 1 to 86,400; the workbench refuses to start otherwise |
+| `workbench.experiment.templates.max-rejected-candidates-per-window` | 10 | 1 to 1,000; the workbench refuses to start otherwise |
+
+A client assembles the `ExperimentManifest` it previews and freezes from a template's defaults, the selected bundles
+(each variant's artifacts and effective digests; the manifest's `services` and `contracts` from bundles that share them)
+and the designer's edits. A list `limit` or `offset` outside its bounds is `400 INVALID_REQUEST`.
 
 ## Runs and durable execution
 
@@ -408,14 +431,32 @@ workbench:
         operator-token: ${LANE_1_OPERATOR_TOKEN}
         rules-digest: 3f1c…        # effective rules digest of the bundle this lane serves
         content-digest: 9b07…      # effective content digest of the bundle this lane serves
+        rules-artifact-digest: 5d2a…     # the rules artifact the effective rules digest was resolved from
+        rules-artifact-name: threshold-22   # optional
+        content-artifact-digest: 0c8e…   # the content artifact the effective content digest was resolved from
+        content-artifact-name: base-content   # optional
+        services:
+          game-service: { image-digest: "sha256:4e1f…", source-revision: 1a2b3c4 }
+          timeline-service: { image-digest: "sha256:77aa…", source-revision: 1a2b3c4 }
+          read-service: { image-digest: "sha256:c0de…", source-revision: 9f8e7d6 }
+        contracts:                 # exact version of every contract module the lane's services implement
+          session-api: 3.0.0
+          action-api: 7.1.0
         reset-url: https://lanes.internal/lanes/lane-1/reset   # optional
         bots:
           - { player-id: 8a0c…, token: ${LANE_1_BOT_0_TOKEN} }
 ```
 
-Each lane declares the effective rules and content digests of the frozen bundle it serves, as published by the
-deployment that provisioned it. Both are required 64-character lowercase SHA-256 hex strings; the workbench refuses to
-start, naming the lane and the key, when one is missing or malformed. A case executes only on a free lane whose digests
+Each lane declares the frozen bundle it serves, as published by the deployment that provisioned it: its effective rules
+and content digests, the rules and content artifact digests they were resolved from (with optional names), the image
+digest and source revision of each of its three services, and the exact version of each contract module they
+implement. The values follow the manifest's formats: digests are 64-character lowercase SHA-256 hex strings, image
+digests `sha256:` followed by one, source revisions 7 to 64 lowercase hex characters, and contract versions exact
+semantic versions. The workbench refuses to start, naming the lane and the key (for example
+`services.game-service.image-digest` or `contracts.session-api`), when a required key is missing or malformed, and
+names both lanes and the first differing key when two lanes serving the same effective digests declare anything else
+differently: one bundle has one provenance. The designer application offers exactly these bundles for selection (see
+"Guided setup"); it never shows a lane's identifier, endpoints or credentials. A case executes only on a free lane whose digests
 equal its variant's `effectiveRulesDigest` and `effectiveContentDigest`, so a variant's results always come from its own
 bundle and each attempt records the lane that played it. Cases are taken in matrix order among those some free lane can
 serve: a case whose variant has no free lane stays pending without holding back the cases of other variants. A

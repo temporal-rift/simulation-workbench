@@ -14,7 +14,9 @@ import {
   getRunReport,
   listCases,
   listComparisons,
+  listExperimentTemplates,
   listExperiments,
+  listLaneBundles,
   listPolicies,
   listRuns,
   previewExperiment,
@@ -61,6 +63,23 @@ export const policiesQuery = (client: Client) =>
     queryKey: ['policies'],
     queryFn: () => unwrap(() => listPolicies({ client })),
     staleTime: 5 * 60_000,
+  })
+
+/** The most a discovery list returns at once; bundles and templates are few enough to read in one page. */
+const WHOLE_LIST = 500
+
+export const laneBundlesQuery = (client: Client) =>
+  queryOptions({
+    queryKey: ['lane-bundles'],
+    queryFn: () => unwrap(() => listLaneBundles({ client, query: { limit: WHOLE_LIST } })),
+    staleTime: 60_000,
+  })
+
+export const experimentTemplatesQuery = (client: Client) =>
+  queryOptions({
+    queryKey: ['experiment-templates'],
+    queryFn: () => unwrap(() => listExperimentTemplates({ client, query: { limit: WHOLE_LIST } })),
+    staleTime: 60_000,
   })
 
 export interface RunFilters {

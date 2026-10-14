@@ -16,8 +16,8 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -30,7 +30,9 @@ import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.CaseCounts;
 import io.github.temporalrift.workbench.execution.domain.run.Run;
 import io.github.temporalrift.workbench.execution.domain.run.RunCreation;
+import io.github.temporalrift.workbench.execution.domain.run.ServedBundle;
 import io.github.temporalrift.workbench.execution.domain.run.UnservedVariantsException;
+import io.github.temporalrift.workbench.execution.support.Provenances;
 
 class StartRunCommandHandlerTest {
 
@@ -50,7 +52,7 @@ class StartRunCommandHandlerTest {
     void everyCaseIsBoundToItsVariantsBundle() {
         givenExperiment(
                 List.of(variant("baseline", BASELINE), variant("candidate", CANDIDATE), variant("third", OTHER)));
-        when(lanes.servedBundles()).thenReturn(Set.of(BASELINE, CANDIDATE, OTHER));
+        when(lanes.servedBundles()).thenReturn(served(BASELINE, CANDIDATE, OTHER));
         when(runs.create(any(), anyString(), any(), anyInt(), any())).thenReturn(new RunCreation.Created());
         when(runs.find(any())).thenAnswer(call -> Optional.of(Run.queued(call.getArgument(0), EXPERIMENT, NOW)));
         when(runs.counts(any())).thenReturn(new CaseCounts(2, 2, 0, 0, 0, 0));
@@ -69,7 +71,7 @@ class StartRunCommandHandlerTest {
     void anExperimentWithUnservedVariantsCreatesNothingAndNamesThem() {
         givenExperiment(
                 List.of(variant("baseline", BASELINE), variant("candidate", CANDIDATE), variant("third", OTHER)));
-        when(lanes.servedBundles()).thenReturn(Set.of(BASELINE));
+        when(lanes.servedBundles()).thenReturn(served(BASELINE));
 
         assertThatThrownBy(() -> handler.handle(new StartRunUseCase.Command(EXPERIMENT, UUID.randomUUID())))
                 .isInstanceOfSatisfying(
@@ -91,5 +93,11 @@ class StartRunCommandHandlerTest {
 
     private static ExperimentSource.Variant variant(String label, BundleDigests bundle) {
         return new ExperimentSource.Variant(label, bundle);
+    }
+
+    private static List<ServedBundle> served(BundleDigests... bundles) {
+        return ServedBundle.counted(Stream.of(bundles)
+                .map(bundle -> ServedBundle.ofLane(bundle, Provenances.sample()))
+                .toList());
     }
 }

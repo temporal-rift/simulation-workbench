@@ -1,4 +1,4 @@
-import type { EnumsFaction, ExperimentManifest } from '../api/generated'
+import type { EnumsFaction, ExperimentManifest, ExperimentTemplate, LaneBundle } from '../api/generated'
 
 export const FACTIONS: readonly EnumsFaction[] = ['ERASERS', 'PROPHETS', 'REVISIONISTS', 'WEAVERS', 'ACTIVISTS']
 export const PLAYER_COUNTS = [3, 4, 5] as const
@@ -11,22 +11,28 @@ export interface DraftArtifact {
   name?: string | null
 }
 
-export interface DraftVariant {
-  label: string
-  rulesArtifact: DraftArtifact
-  contentArtifact: DraftArtifact
-  effectiveRulesDigest: string
-  effectiveContentDigest: string
-}
-
 export interface DraftService {
   imageDigest: string
   sourceRevision: string
 }
 
-export interface DraftContract {
-  module: string
-  version: string
+/**
+ * What a variant runs, exactly as a lane bundle (or the frozen experiment it was copied from) states it. It is chosen,
+ * never typed, so it is kept whole: a draft restored later still sends the values that were chosen.
+ */
+export interface DraftBundle {
+  rulesArtifact: DraftArtifact
+  contentArtifact: DraftArtifact
+  effectiveRulesDigest: string
+  effectiveContentDigest: string
+  services: Record<ServiceName, DraftService>
+  contracts: Record<string, string>
+}
+
+export interface DraftVariant {
+  label: string
+  /** `null` until the designer selects the bundle this variant runs. */
+  bundle: DraftBundle | null
 }
 
 export interface DraftPolicy {
@@ -42,13 +48,12 @@ export interface DraftPolicy {
 /**
  * The experiment under edit, shaped like the manifest it becomes so that the path the service reports for a
  * refused value (`policies[0].seatAssignment[1].seatIndex`) leads straight to the input holding it. Values the
- * designer types are kept as text until the draft is sent.
+ * designer types are kept as text until the draft is sent; the manifest's services and contracts are those of the
+ * selected bundles.
  */
 export interface Draft {
   name: string
   variants: DraftVariant[]
-  services: Record<ServiceName, DraftService>
-  contracts: DraftContract[]
   policies: DraftPolicy[]
   seeds: string
   playerCounts: number[]
@@ -59,13 +64,7 @@ export interface Draft {
 }
 
 export function emptyVariant(): DraftVariant {
-  return {
-    label: '',
-    rulesArtifact: { digest: '' },
-    contentArtifact: { digest: '' },
-    effectiveRulesDigest: '',
-    effectiveContentDigest: '',
-  }
+  return { label: '', bundle: null }
 }
 
 export function emptyPolicy(): DraftPolicy {
@@ -73,12 +72,9 @@ export function emptyPolicy(): DraftPolicy {
 }
 
 export function emptyDraft(): Draft {
-  const service = (): DraftService => ({ imageDigest: '', sourceRevision: '' })
   return {
     name: '',
     variants: [emptyVariant()],
-    services: { gameService: service(), timelineService: service(), readService: service() },
-    contracts: [{ module: '', version: '' }],
     policies: [],
     seeds: '',
     playerCounts: [],
@@ -87,6 +83,74 @@ export function emptyDraft(): Draft {
     caseWallTimeoutSeconds: '',
     maxRejectedCandidatesPerWindow: '',
   }
+}
+
+/** Identifies a bundle by the effective digests a lane serves it under. */
+export function bundleKey(bundle: Pick<DraftBundle, 'effectiveRulesDigest' | 'effectiveContentDigest'>): string {
+  return `${bundle.effectiveRulesDigest}/${bundle.effectiveContentDigest}`
+}
+
+function shortDigest(digest: string): string {
+  return `${digest.slice(0, 12)}…`
+}
+
+/** A bundle as a designer recognises it: its artifacts' names, or the start of their effective digests. */
+export function bundleLabel(bundle: DraftBundle): string {
+  const rules = bundle.rulesArtifact.name ?? `rules ${shortDigest(bundle.effectiveRulesDigest)}`
+  const content = bundle.contentArtifact.name ?? `content ${shortDigest(bundle.effectiveContentDigest)}`
+  return `${rules} · ${content}`
+}
+
+export function bundleFromLane(lane: LaneBundle): DraftBundle {
+  return {
+    rulesArtifact: { ...lane.rulesArtifact },
+    contentArtifact: { ...lane.contentArtifact },
+    effectiveRulesDigest: lane.effectiveRulesDigest,
+    effectiveContentDigest: lane.effectiveContentDigest,
+    services: {
+      gameService: { ...lane.services.gameService },
+      timelineService: { ...lane.services.timelineService },
+      readService: { ...lane.services.readService },
+    },
+    contracts: { ...lane.contracts },
+  }
+}
+
+function selectedBundles(draft: Draft): DraftBundle[] {
+  return draft.variants.flatMap((variant) => (variant.bundle ? [variant.bundle] : []))
+}
+
+/**
+ * The manifest fields in which the selected bundles disagree, such as `contracts.session-api`. A manifest pins one
+ * set of services and contracts, so variants are comparable only when their bundles share them.
+ */
+export function incomparableFields(draft: Draft): string[] {
+  const [first, ...others] = selectedBundles(draft)
+  if (!first) {
+    return []
+  }
+  const fields = new Set<string>()
+  for (const other of others) {
+    for (const name of SERVICE_NAMES) {
+      for (const key of ['imageDigest', 'sourceRevision'] as const) {
+        if (first.services[name][key] !== other.services[name][key]) {
+          fields.add(`services.${name}.${key}`)
+        }
+      }
+    }
+    for (const module of new Set([...Object.keys(first.contracts), ...Object.keys(other.contracts)])) {
+      if (first.contracts[module] !== other.contracts[module]) {
+        fields.add(`contracts.${module}`)
+      }
+    }
+  }
+  return [...fields].sort()
+}
+
+/** The services and contracts the manifest pins: those every selected bundle shares, taken from the first. */
+export function pinnedProvenance(draft: Draft): Pick<DraftBundle, 'services' | 'contracts'> | null {
+  const first = selectedBundles(draft)[0]
+  return first ? { services: first.services, contracts: first.contracts } : null
 }
 
 /** Seeds are typed one per line or separated by commas or spaces. */
@@ -101,6 +165,9 @@ function wholeNumber(value: string): number | undefined {
 
 export type FieldErrors = Readonly<Record<string, string>>
 
+/** Where a problem with the selected bundles as a whole is reported. */
+export const BUNDLES_FIELD = 'bundles'
+
 function parsedParameters(text: string): Record<string, unknown> | null {
   try {
     const parsed: unknown = JSON.parse(text.trim() || '{}')
@@ -113,6 +180,15 @@ function parsedParameters(text: string): Record<string, unknown> | null {
 /** Problems found before sending: the parts of a draft that cannot be turned into a manifest at all. */
 export function localProblems(draft: Draft): FieldErrors {
   const problems: Record<string, string> = {}
+  draft.variants.forEach((variant, index) => {
+    if (variant.bundle === null) {
+      problems[`variants[${index}]`] = 'Choose the bundle this variant runs.'
+    }
+  })
+  const incomparable = incomparableFields(draft)
+  if (incomparable.length > 0) {
+    problems[BUNDLES_FIELD] = `The selected bundles are not comparable: they differ in ${incomparable.join(', ')}.`
+  }
   draft.policies.forEach((policy, index) => {
     if (parsedParameters(policy.parameters) === null) {
       problems[`policies[${index}].parameters`] = 'Parameters must be a JSON object, for example {}.'
@@ -123,7 +199,7 @@ export function localProblems(draft: Draft): FieldErrors {
 
 function artifactOf(artifact: DraftArtifact) {
   return {
-    digest: artifact.digest.trim(),
+    digest: artifact.digest,
     ...(artifact.mediaType ? { mediaType: artifact.mediaType } : {}),
     ...(artifact.name ? { name: artifact.name } : {}),
   }
@@ -134,24 +210,20 @@ function artifactOf(artifact: DraftArtifact) {
  * left out, a non-number becomes `null`) so the service, which owns validation, reports them per field.
  */
 export function draftToManifest(draft: Draft): ExperimentManifest {
-  const service = (name: ServiceName) => ({
-    imageDigest: draft.services[name].imageDigest.trim(),
-    sourceRevision: draft.services[name].sourceRevision.trim(),
-  })
+  const pinned = pinnedProvenance(draft)
+  const service = (name: ServiceName) => ({ ...(pinned?.services[name] ?? { imageDigest: '', sourceRevision: '' }) })
   const manifest = {
     schemaVersion: 1,
     name: draft.name.trim(),
     variants: draft.variants.map((variant) => ({
       label: variant.label.trim(),
-      rulesArtifact: artifactOf(variant.rulesArtifact),
-      contentArtifact: artifactOf(variant.contentArtifact),
-      effectiveRulesDigest: variant.effectiveRulesDigest.trim(),
-      effectiveContentDigest: variant.effectiveContentDigest.trim(),
+      rulesArtifact: artifactOf(variant.bundle?.rulesArtifact ?? { digest: '' }),
+      contentArtifact: artifactOf(variant.bundle?.contentArtifact ?? { digest: '' }),
+      effectiveRulesDigest: variant.bundle?.effectiveRulesDigest ?? '',
+      effectiveContentDigest: variant.bundle?.effectiveContentDigest ?? '',
     })),
     services: { gameService: service('gameService'), timelineService: service('timelineService'), readService: service('readService') },
-    contracts: Object.fromEntries(
-      draft.contracts.filter((row) => row.module.trim() !== '').map((row) => [row.module.trim(), row.version.trim()]),
-    ),
+    contracts: { ...(pinned?.contracts ?? {}) },
     policies: draft.policies.map((policy) => ({
       id: policy.id,
       version: policy.version,
@@ -178,17 +250,19 @@ export function manifestToDraft(manifest: ExperimentManifest): Draft {
     name: manifest.name,
     variants: manifest.variants.map((variant) => ({
       label: variant.label,
-      rulesArtifact: { ...variant.rulesArtifact },
-      contentArtifact: { ...variant.contentArtifact },
-      effectiveRulesDigest: variant.effectiveRulesDigest,
-      effectiveContentDigest: variant.effectiveContentDigest,
+      bundle: {
+        rulesArtifact: { ...variant.rulesArtifact },
+        contentArtifact: { ...variant.contentArtifact },
+        effectiveRulesDigest: variant.effectiveRulesDigest,
+        effectiveContentDigest: variant.effectiveContentDigest,
+        services: {
+          gameService: { ...manifest.services.gameService },
+          timelineService: { ...manifest.services.timelineService },
+          readService: { ...manifest.services.readService },
+        },
+        contracts: { ...manifest.contracts },
+      },
     })),
-    services: {
-      gameService: { ...manifest.services.gameService },
-      timelineService: { ...manifest.services.timelineService },
-      readService: { ...manifest.services.readService },
-    },
-    contracts: Object.entries(manifest.contracts).map(([module, version]) => ({ module, version })),
     policies: manifest.policies.map((policy) => ({
       id: policy.id,
       version: policy.version,
@@ -202,6 +276,41 @@ export function manifestToDraft(manifest: ExperimentManifest): Draft {
     concurrency: String(manifest.concurrency),
     caseWallTimeoutSeconds: String(manifest.caseWallTimeoutSeconds),
     maxRejectedCandidatesPerWindow: String(manifest.maxRejectedCandidatesPerWindow),
+  }
+}
+
+function templateLabel(index: number, variantCount: number): string {
+  if (index === 0) {
+    return 'baseline'
+  }
+  return variantCount === 2 ? 'candidate' : `candidate-${index}`
+}
+
+/**
+ * The draft a template proposes: its defaults and one variant slot per variant it needs, each slot holding the next
+ * distinct bundle while there are bundles left. The name stays the designer's.
+ */
+export function applyTemplate(draft: Draft, template: ExperimentTemplate, bundles: readonly LaneBundle[]): Draft {
+  const { defaults } = template
+  return {
+    name: draft.name,
+    variants: Array.from({ length: template.variantCount }, (_, index) => {
+      const bundle = bundles[index]
+      return { label: templateLabel(index, template.variantCount), bundle: bundle ? bundleFromLane(bundle) : null }
+    }),
+    policies: defaults.policies.map((policy) => ({
+      id: policy.id,
+      version: policy.version,
+      artifactDigest: policy.artifactDigest,
+      parameters: JSON.stringify(policy.parameters),
+      seats: policy.seatAssignment.map((seat) => String(seat.seatIndex)),
+    })),
+    seeds: defaults.seeds.join('\n'),
+    playerCounts: [...defaults.playerCounts],
+    factionSets: defaults.factionSets.map((set) => [...set]),
+    concurrency: String(defaults.concurrency),
+    caseWallTimeoutSeconds: String(defaults.caseWallTimeoutSeconds),
+    maxRejectedCandidatesPerWindow: String(defaults.maxRejectedCandidatesPerWindow),
   }
 }
 
@@ -220,7 +329,7 @@ export function errorWithin(errors: FieldErrors, path: string): string | undefin
   return key === undefined ? undefined : errors[key]
 }
 
-const STORAGE_KEY = 'workbench.experiment-draft.v1'
+const STORAGE_KEY = 'workbench.experiment-draft.v2'
 
 export interface StoredDraft {
   readonly draft: Draft

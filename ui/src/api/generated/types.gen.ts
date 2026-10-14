@@ -547,6 +547,61 @@ export type PolicyCatalog = {
     items: Array<PolicyBundle>;
 };
 
+/**
+ * One distinct bundle some configured lane serves: one pair of effective rules and content digests with the service provenance and contract versions of the lanes that serve it. Carries no lane identifier, URL, credential or bot identity. Lanes serving exactly this bundle are counted in `laneCount`, busy or free.
+ */
+export type LaneBundle = {
+    rulesArtifact: ArtifactReference;
+    contentArtifact: ArtifactReference;
+    effectiveRulesDigest: Sha256Digest;
+    effectiveContentDigest: Sha256Digest;
+    services: ServiceProvenanceMap;
+    contracts: ContractVersions;
+    laneCount: number;
+};
+
+export type LaneBundlePage = {
+    items: Array<LaneBundle>;
+    total: number;
+};
+
+/**
+ * Complete defaults for every manifest field that does not identify a bundle, each with exactly the type and constraints it has in `ExperimentManifest`. A client assembles an `ExperimentManifest` from a template's defaults, the chosen bundles and the designer's edits for `createExperiment` or `previewExperiment`.
+ */
+export type ExperimentDefaults = {
+    seeds: Array<DecimalUint64>;
+    playerCounts: Array<3 | 4 | 5>;
+    /**
+     * Every set's size must match a selected player count.
+     */
+    factionSets: Array<FactionSet>;
+    seatRotationMode: 'CYCLIC';
+    timingMode: 'LOGICAL';
+    policies: Array<Policy>;
+    concurrency: number;
+    caseWallTimeoutSeconds: number;
+    maxRejectedCandidatesPerWindow: number;
+};
+
+/**
+ * A named starting point for the common experiment shapes, with complete defaults for every manifest field that does not identify a bundle.
+ */
+export type ExperimentTemplate = {
+    templateId: string;
+    name: string;
+    description: string;
+    /**
+     * Variants the template needs, each from a distinct bundle.
+     */
+    variantCount: number;
+    defaults: ExperimentDefaults;
+};
+
+export type ExperimentTemplatePage = {
+    items: Array<ExperimentTemplate>;
+    total: number;
+};
+
 export type ProblemDetail = {
     type: string;
     title: string;
@@ -557,7 +612,7 @@ export type ProblemDetail = {
      * Path of the offending manifest value, such as `seeds` or `policies[0].seatAssignment`. Present on `INVALID_EXPERIMENT` and `MANIFEST_MISMATCH` when the refusal is attributable to one value; absent otherwise.
      */
     field?: string;
-    code: 'INVALID_EXPERIMENT' | 'INVALID_REPLAY_PERSPECTIVE' | 'INVALID_COMPARISON' | 'IDEMPOTENCY_CONFLICT' | 'EXPERIMENT_IMMUTABLE' | 'INVALID_RUN_STATE' | 'MANIFEST_MISMATCH' | 'INCOMPARABLE_RUNS' | 'UNAUTHORIZED' | 'INSUFFICIENT_SCOPE' | 'RESOURCE_NOT_FOUND';
+    code: 'INVALID_EXPERIMENT' | 'INVALID_REPLAY_PERSPECTIVE' | 'INVALID_COMPARISON' | 'IDEMPOTENCY_CONFLICT' | 'EXPERIMENT_IMMUTABLE' | 'INVALID_RUN_STATE' | 'MANIFEST_MISMATCH' | 'INCOMPARABLE_RUNS' | 'INVALID_REQUEST' | 'UNAUTHORIZED' | 'INSUFFICIENT_SCOPE' | 'RESOURCE_NOT_FOUND';
     [key: string]: unknown;
 };
 
@@ -1298,3 +1353,75 @@ export type ListPoliciesResponses = {
 };
 
 export type ListPoliciesResponse = ListPoliciesResponses[keyof ListPoliciesResponses];
+
+export type ListLaneBundlesData = {
+    body?: never;
+    path?: never;
+    query?: {
+        limit?: number;
+        offset?: number;
+    };
+    url: '/api/v1/lane-bundles';
+};
+
+export type ListLaneBundlesErrors = {
+    /**
+     * The request paging is invalid, such as a limit outside 1 to 500 (code INVALID_REQUEST)
+     */
+    400: ProblemDetail;
+    /**
+     * Missing, invalid, or expired bearer token
+     */
+    401: ProblemDetail;
+    /**
+     * The bearer token lacks a required simulation scope
+     */
+    403: ProblemDetail;
+};
+
+export type ListLaneBundlesError = ListLaneBundlesErrors[keyof ListLaneBundlesErrors];
+
+export type ListLaneBundlesResponses = {
+    /**
+     * One page of lane bundles in digest order
+     */
+    200: LaneBundlePage;
+};
+
+export type ListLaneBundlesResponse = ListLaneBundlesResponses[keyof ListLaneBundlesResponses];
+
+export type ListExperimentTemplatesData = {
+    body?: never;
+    path?: never;
+    query?: {
+        limit?: number;
+        offset?: number;
+    };
+    url: '/api/v1/experiment-templates';
+};
+
+export type ListExperimentTemplatesErrors = {
+    /**
+     * The request paging is invalid, such as a limit outside 1 to 500 (code INVALID_REQUEST)
+     */
+    400: ProblemDetail;
+    /**
+     * Missing, invalid, or expired bearer token
+     */
+    401: ProblemDetail;
+    /**
+     * The bearer token lacks a required simulation scope
+     */
+    403: ProblemDetail;
+};
+
+export type ListExperimentTemplatesError = ListExperimentTemplatesErrors[keyof ListExperimentTemplatesErrors];
+
+export type ListExperimentTemplatesResponses = {
+    /**
+     * One page of experiment templates in template order
+     */
+    200: ExperimentTemplatePage;
+};
+
+export type ListExperimentTemplatesResponse = ListExperimentTemplatesResponses[keyof ListExperimentTemplatesResponses];

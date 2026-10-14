@@ -315,6 +315,24 @@ export const zPolicyCatalog = z.object({
     items: z.array(zPolicyBundle)
 });
 
+/**
+ * One distinct bundle some configured lane serves: one pair of effective rules and content digests with the service provenance and contract versions of the lanes that serve it. Carries no lane identifier, URL, credential or bot identity. Lanes serving exactly this bundle are counted in `laneCount`, busy or free.
+ */
+export const zLaneBundle = z.object({
+    rulesArtifact: zArtifactReference,
+    contentArtifact: zArtifactReference,
+    effectiveRulesDigest: zSha256Digest,
+    effectiveContentDigest: zSha256Digest,
+    services: zServiceProvenanceMap,
+    contracts: zContractVersions,
+    laneCount: z.int().gte(1)
+});
+
+export const zLaneBundlePage = z.object({
+    items: z.array(zLaneBundle),
+    total: z.int().gte(0)
+});
+
 export const zProblemDetail = z.object({
     type: z.url(),
     title: z.string(),
@@ -331,6 +349,7 @@ export const zProblemDetail = z.object({
         'INVALID_RUN_STATE',
         'MANIFEST_MISMATCH',
         'INCOMPARABLE_RUNS',
+        'INVALID_REQUEST',
         'UNAUTHORIZED',
         'INSUFFICIENT_SCOPE',
         'RESOURCE_NOT_FOUND'
@@ -496,6 +515,41 @@ export const zExperimentPreview = z.object({
     cases: z.array(zPreviewCase),
     limit: z.int().gte(1),
     offset: z.int().gte(0)
+});
+
+/**
+ * Complete defaults for every manifest field that does not identify a bundle, each with exactly the type and constraints it has in `ExperimentManifest`. A client assembles an `ExperimentManifest` from a template's defaults, the chosen bundles and the designer's edits for `createExperiment` or `previewExperiment`.
+ */
+export const zExperimentDefaults = z.object({
+    seeds: z.array(zDecimalUint64).min(1),
+    playerCounts: z.array(z.union([
+        z.literal(3),
+        z.literal(4),
+        z.literal(5)
+    ])).min(1),
+    factionSets: z.array(zFactionSet).min(1),
+    seatRotationMode: z.enum(['CYCLIC']),
+    timingMode: z.enum(['LOGICAL']),
+    policies: z.array(zPolicy).min(1),
+    concurrency: z.int().gte(1),
+    caseWallTimeoutSeconds: z.int().gte(1),
+    maxRejectedCandidatesPerWindow: z.int().gte(1)
+});
+
+/**
+ * A named starting point for the common experiment shapes, with complete defaults for every manifest field that does not identify a bundle.
+ */
+export const zExperimentTemplate = z.object({
+    templateId: z.string().min(1),
+    name: z.string().min(1),
+    description: z.string().min(1),
+    variantCount: z.int().gte(1),
+    defaults: zExperimentDefaults
+});
+
+export const zExperimentTemplatePage = z.object({
+    items: z.array(zExperimentTemplate),
+    total: z.int().gte(0)
 });
 
 export const zEnumsParadoxType = z.enum([
@@ -845,3 +899,23 @@ export const zReproduceCaseResponse = zReproduction;
  * Every referenceable policy bundle
  */
 export const zListPoliciesResponse = zPolicyCatalog;
+
+export const zListLaneBundlesQuery = z.object({
+    limit: z.int().gte(1).lte(500).optional().default(50),
+    offset: z.int().gte(0).optional().default(0)
+});
+
+/**
+ * One page of lane bundles in digest order
+ */
+export const zListLaneBundlesResponse = zLaneBundlePage;
+
+export const zListExperimentTemplatesQuery = z.object({
+    limit: z.int().gte(1).lte(500).optional().default(50),
+    offset: z.int().gte(0).optional().default(0)
+});
+
+/**
+ * One page of experiment templates in template order
+ */
+export const zListExperimentTemplatesResponse = zExperimentTemplatePage;

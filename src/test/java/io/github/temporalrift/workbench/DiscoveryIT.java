@@ -242,6 +242,86 @@ class DiscoveryIT {
     }
 
     @Test
+    void theLaneBundlesAreTheDistinctBundlesTheLanesServeWithTheirLaneCounts() throws Exception {
+        var page = objectMapper.readTree(
+                read(mockMvc.perform(get("/api/v1/lane-bundles").with(read())).andExpect(status().isOk())));
+
+        assertThat(page.path("total").asInt()).isEqualTo(2);
+        var first = page.path("items").get(0);
+        var second = page.path("items").get(1);
+        assertThat(first.path("effectiveRulesDigest").asString()).isEqualTo("a".repeat(64));
+        assertThat(first.path("laneCount").asInt()).isEqualTo(2);
+        assertThat(second.path("effectiveRulesDigest").asString()).isEqualTo("f".repeat(64));
+        assertThat(second.path("laneCount").asInt()).isEqualTo(1);
+        assertThat(first.path("rulesArtifact").path("digest").asString()).isEqualTo("1".repeat(64));
+        assertThat(first.path("rulesArtifact").path("name").asString()).isEqualTo("rules");
+        assertThat(first.path("contentArtifact").path("name").isMissingNode()
+                        || first.path("contentArtifact").path("name").isNull())
+                .isTrue();
+        assertThat(first.path("services")
+                        .path("gameService")
+                        .path("sourceRevision")
+                        .asString())
+                .isEqualTo("abcdef1");
+        assertThat(first.path("contracts").path("session-api").asString()).isEqualTo("3.0.0");
+        assertThat(page.toString()).doesNotContain("lane-0", "lane-1", "lane-2");
+    }
+
+    @Test
+    void withoutLanesThereIsNoBundleAndTemplatesProposeOneConcurrentCase() throws Exception {
+        lanes.serve();
+
+        mockMvc.perform(get("/api/v1/lane-bundles").with(read()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(0))
+                .andExpect(jsonPath("$.total").value(0));
+        mockMvc.perform(get("/api/v1/experiment-templates").with(read()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].defaults.concurrency").value(1));
+    }
+
+    @Test
+    void aManifestAssembledFromATemplateAndTwoLaneBundlesPreviewsItsWholeMatrix() throws Exception {
+        var templates = objectMapper.readTree(
+                read(mockMvc.perform(get("/api/v1/experiment-templates").with(read()))
+                        .andExpect(status().isOk())));
+        var bundles = objectMapper.readTree(
+                read(mockMvc.perform(get("/api/v1/lane-bundles").with(read())).andExpect(status().isOk())));
+
+        assertThat(templates.path("total").asInt()).isEqualTo(2);
+        assertThat(templates.path("items").get(0).path("templateId").asString())
+                .isEqualTo("baseline-policy-comparison");
+        var template = templates.path("items").get(1);
+        assertThat(template.path("templateId").asString()).isEqualTo("rules-variant-comparison");
+        assertThat(template.path("variantCount").asInt()).isEqualTo(2);
+        var defaults = template.path("defaults");
+        assertThat(defaults.path("factionSets")).hasSize(16);
+        assertThat(defaults.path("concurrency").asInt()).isEqualTo(3);
+        assertThat(defaults.path("caseWallTimeoutSeconds").asInt()).isEqualTo(3600);
+        assertThat(defaults.path("maxRejectedCandidatesPerWindow").asInt()).isEqualTo(10);
+
+        var manifest = (ObjectNode) defaults.deepCopy();
+        manifest.put("schemaVersion", 1);
+        manifest.put("name", "threshold 20 against 22");
+        var variants = manifest.putArray("variants");
+        for (var index = 0; index < 2; index++) {
+            var bundle = bundles.path("items").get(index);
+            var variant = variants.addObject();
+            variant.put("label", index == 0 ? "baseline" : "candidate");
+            variant.set("rulesArtifact", bundle.path("rulesArtifact"));
+            variant.set("contentArtifact", bundle.path("contentArtifact"));
+            variant.set("effectiveRulesDigest", bundle.path("effectiveRulesDigest"));
+            variant.set("effectiveContentDigest", bundle.path("effectiveContentDigest"));
+        }
+        manifest.set("services", bundles.path("items").get(0).path("services"));
+        manifest.set("contracts", bundles.path("items").get(0).path("contracts"));
+
+        var preview = objectMapper.readTree(read(preview(manifest, 1, 0).andExpect(status().isOk())));
+
+        assertThat(preview.path("caseCount").asInt()).isEqualTo(110);
+    }
+
+    @Test
     void discoveryReadsNeedTheirScopes() throws Exception {
         var manifest = ExperimentManifests.valid();
         var write = jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:write"));
@@ -251,9 +331,13 @@ class DiscoveryIT {
                 "/api/v1/runs",
                 "/api/v1/comparisons",
                 "/api/v1/policies",
+                "/api/v1/lane-bundles",
+                "/api/v1/experiment-templates",
                 "/api/v1/experiments/" + UUID.randomUUID(),
                 "/api/v1/runs/" + UUID.randomUUID() + "/cases")) {
-            mockMvc.perform(get(path).with(write)).andExpect(status().isForbidden());
+            mockMvc.perform(get(path).with(write))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("INSUFFICIENT_SCOPE"));
             mockMvc.perform(get(path)).andExpect(status().isUnauthorized());
         }
         mockMvc.perform(post("/api/v1/experiment-previews")
@@ -285,7 +369,11 @@ class DiscoveryIT {
 
     @Test
     void pagingParametersAreBounded() throws Exception {
-        mockMvc.perform(get("/api/v1/runs").param("limit", "0").with(read())).andExpect(status().isBadRequest());
+        for (var path : List.of("/api/v1/runs", "/api/v1/lane-bundles", "/api/v1/experiment-templates")) {
+            mockMvc.perform(get(path).param("limit", "0").with(read()))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        }
         mockMvc.perform(get("/api/v1/runs").param("limit", "501").with(read())).andExpect(status().isBadRequest());
         mockMvc.perform(get("/api/v1/runs").param("offset", "-1").with(read())).andExpect(status().isBadRequest());
         mockMvc.perform(get("/api/v1/runs").with(read()))

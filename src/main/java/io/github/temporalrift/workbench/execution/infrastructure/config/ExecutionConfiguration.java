@@ -42,6 +42,7 @@ import io.github.temporalrift.workbench.execution.application.port.in.StartRunUs
 import io.github.temporalrift.workbench.execution.application.query.GetCaseQueryHandler;
 import io.github.temporalrift.workbench.execution.application.query.GetCaseReplayQueryHandler;
 import io.github.temporalrift.workbench.execution.application.query.GetRunQueryHandler;
+import io.github.temporalrift.workbench.execution.application.query.LaneBundleCatalogQueryHandler;
 import io.github.temporalrift.workbench.execution.application.query.ListCasesQueryHandler;
 import io.github.temporalrift.workbench.execution.application.query.ListRunsQueryHandler;
 import io.github.temporalrift.workbench.execution.application.query.RunCatalogQueryHandler;
@@ -53,7 +54,6 @@ import io.github.temporalrift.workbench.execution.domain.port.out.ExperimentSour
 import io.github.temporalrift.workbench.execution.domain.port.out.LaneProvider;
 import io.github.temporalrift.workbench.execution.domain.port.out.ReproductionRepository;
 import io.github.temporalrift.workbench.execution.domain.port.out.RunRepository;
-import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.in.scheduler.BatchWorker;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.experiment.ExperimentSourceAdapter;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.kafka.KafkaGameEventObservers;
@@ -69,6 +69,7 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.Sleeper;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.policy.DecisionRuntimeAdapter;
 import io.github.temporalrift.workbench.experiment.ExperimentCatalog;
+import io.github.temporalrift.workbench.experiment.LaneBundleCatalog;
 import io.github.temporalrift.workbench.policy.PolicyRuntime;
 
 @Configuration
@@ -138,7 +139,8 @@ public class ExecutionConfiguration {
                         lane.timelineServiceUrl(),
                         lane.readServiceUrl(),
                         lane.operatorToken(),
-                        new BundleDigests(lane.rulesDigest(), lane.contentDigest()),
+                        lane.bundle(),
+                        lane.provenance(),
                         lane.gameEventsTopic(),
                         lane.timelineEventsTopic(),
                         lane.kafkaBootstrapServers(),
@@ -205,6 +207,11 @@ public class ExecutionConfiguration {
     @Bean
     RunCatalog runCatalog(RunRepository runs, EvidenceLedger evidence) {
         return new RunCatalogQueryHandler(runs, evidence);
+    }
+
+    @Bean
+    LaneBundleCatalog laneBundleCatalog(LaneProvider lanes) {
+        return new LaneBundleCatalogQueryHandler(lanes);
     }
 
     @Bean

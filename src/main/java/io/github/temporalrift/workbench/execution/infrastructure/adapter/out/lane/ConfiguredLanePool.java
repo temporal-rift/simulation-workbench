@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.port.out.LaneProvider;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
+import io.github.temporalrift.workbench.execution.domain.run.ServedBundle;
 
 /**
  * The lanes this deployment was configured with; each hosts one case at a time of the bundle it serves, and a lane
@@ -21,6 +22,7 @@ import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 public class ConfiguredLanePool implements LaneProvider {
 
     private final Map<String, LaneEndpoints> lanes;
+    private final List<ServedBundle> servedBundles;
     private final LaneRoster roster;
     private final ApiClients clients;
     private final LaneServices services;
@@ -38,6 +40,9 @@ public class ConfiguredLanePool implements LaneProvider {
             LaneEndpoints.Barrier barrier,
             Sleeper sleeper) {
         this.lanes = lanes.stream().collect(Collectors.toUnmodifiableMap(LaneEndpoints::id, Function.identity()));
+        this.servedBundles = ServedBundle.counted(lanes.stream()
+                .map(lane -> ServedBundle.ofLane(lane.bundle(), lane.provenance()))
+                .toList());
         this.roster = roster;
         this.clients = clients;
         this.services = services;
@@ -57,8 +62,8 @@ public class ConfiguredLanePool implements LaneProvider {
     }
 
     @Override
-    public Set<BundleDigests> servedBundles() {
-        return roster.servedBundles();
+    public List<ServedBundle> servedBundles() {
+        return servedBundles;
     }
 
     @Override

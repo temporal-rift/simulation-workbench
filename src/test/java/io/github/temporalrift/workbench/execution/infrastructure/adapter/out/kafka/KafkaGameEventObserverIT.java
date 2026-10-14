@@ -33,6 +33,7 @@ import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.GameEventObservers;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneEndpoints;
+import io.github.temporalrift.workbench.execution.support.Provenances;
 
 @WorkbenchIntegrationTest
 class KafkaGameEventObserverIT {
@@ -229,6 +230,7 @@ class KafkaGameEventObserverIT {
                 "http://r",
                 "op",
                 new BundleDigests("a".repeat(64), "b".repeat(64)),
+                Provenances.sample(),
                 gameTopic,
                 timelineTopic,
                 OTHER_BROKER.getBootstrapServers(),
@@ -261,6 +263,7 @@ class KafkaGameEventObserverIT {
                 "http://r",
                 "op",
                 new BundleDigests("a".repeat(64), "b".repeat(64)),
+                Provenances.sample(),
                 gameTopic,
                 timelineTopic,
                 null,

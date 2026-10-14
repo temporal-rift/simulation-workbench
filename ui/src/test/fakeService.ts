@@ -1,5 +1,5 @@
-import type { Case, Comparison, Experiment, ExperimentManifest, Report, Reproduction, ReproductionState, Run } from '../api/generated'
-import { IDS, REPORT_CSV, SEAT_STEPS, caseDetail, comparison, eventStep, experiment, policyCatalog, preview, report, run } from './fixtures'
+import type { Case, Comparison, Experiment, ExperimentManifest, LaneBundle, Report, Reproduction, ReproductionState, Run } from '../api/generated'
+import { IDS, REPORT_CSV, SEAT_STEPS, caseDetail, comparison, eventStep, experiment, experimentTemplates, laneBundles, policyCatalog, preview, report, run } from './fixtures'
 
 export interface RecordedRequest {
   readonly method: string
@@ -33,6 +33,8 @@ export class FakeService {
   readonly cases = new Map<string, Case[]>()
   readonly comparisons = new Map<string, Comparison>()
   readonly reports = new Map<string, Report>()
+  /** What the configured lanes serve; empty models a deployment without lanes. */
+  laneBundles: LaneBundle[] = laneBundles()
   /** The states successive reproduction requests report, the last one repeating. */
   reproductionScript: ReproductionState[] = ['QUEUED', 'MATCH']
   reproductionDivergence: Reproduction['firstDivergence'] = null
@@ -110,6 +112,8 @@ export class FakeService {
     const post = (pattern: RegExp, handler: Handler): Route => ({ method: 'POST', pattern, handler })
     return [
       get(/^\/api\/v1\/policies$/, () => json({ items: policyCatalog })),
+      get(/^\/api\/v1\/lane-bundles$/, () => json({ items: this.laneBundles, total: this.laneBundles.length })),
+      get(/^\/api\/v1\/experiment-templates$/, () => json({ items: experimentTemplates(), total: 2 })),
       post(/^\/api\/v1\/experiment-previews$/, () => json(preview())),
       post(/^\/api\/v1\/experiments$/, (request) =>
         this.once(request, () => {

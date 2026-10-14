@@ -12,7 +12,9 @@ import tools.jackson.databind.ObjectMapper;
 
 import io.github.temporalrift.workbench.experiment.application.port.in.CreateExperimentUseCase;
 import io.github.temporalrift.workbench.experiment.application.port.in.GetExperimentUseCase;
+import io.github.temporalrift.workbench.experiment.application.port.in.ListExperimentTemplatesUseCase;
 import io.github.temporalrift.workbench.experiment.application.port.in.ListExperimentsUseCase;
+import io.github.temporalrift.workbench.experiment.application.port.in.ListLaneBundlesUseCase;
 import io.github.temporalrift.workbench.experiment.application.port.in.PreviewExperimentUseCase;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.ExperimentsApi;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Experiment;
@@ -20,6 +22,8 @@ import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ExperimentManifest;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ExperimentPreview;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ExperimentSummary;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ExperimentTemplatePage;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.LaneBundlePage;
 
 @RestController
 class ExperimentController implements ExperimentsApi {
@@ -28,6 +32,8 @@ class ExperimentController implements ExperimentsApi {
     private final GetExperimentUseCase getExperimentUseCase;
     private final ListExperimentsUseCase listExperimentsUseCase;
     private final PreviewExperimentUseCase previewExperimentUseCase;
+    private final ListLaneBundlesUseCase listLaneBundlesUseCase;
+    private final ListExperimentTemplatesUseCase listExperimentTemplatesUseCase;
     private final ObjectMapper objectMapper;
 
     ExperimentController(
@@ -35,11 +41,15 @@ class ExperimentController implements ExperimentsApi {
             GetExperimentUseCase getExperimentUseCase,
             ListExperimentsUseCase listExperimentsUseCase,
             PreviewExperimentUseCase previewExperimentUseCase,
+            ListLaneBundlesUseCase listLaneBundlesUseCase,
+            ListExperimentTemplatesUseCase listExperimentTemplatesUseCase,
             ObjectMapper objectMapper) {
         this.createExperimentUseCase = createExperimentUseCase;
         this.getExperimentUseCase = getExperimentUseCase;
         this.listExperimentsUseCase = listExperimentsUseCase;
         this.previewExperimentUseCase = previewExperimentUseCase;
+        this.listLaneBundlesUseCase = listLaneBundlesUseCase;
+        this.listExperimentTemplatesUseCase = listExperimentTemplatesUseCase;
         this.objectMapper = objectMapper;
     }
 
@@ -82,6 +92,16 @@ class ExperimentController implements ExperimentsApi {
         JsonNode manifest = objectMapper.convertValue(experimentManifest, JsonNode.class);
         var preview = previewExperimentUseCase.handle(new PreviewExperimentUseCase.Query(manifest, limit, offset));
         return ResponseEntity.ok(ExperimentPreviewMapper.toApi(preview));
+    }
+
+    @Override
+    public ResponseEntity<LaneBundlePage> listLaneBundles(Integer limit, Integer offset) {
+        return ResponseEntity.ok(ExperimentSetupMapper.laneBundles(listLaneBundlesUseCase.handle(limit, offset)));
+    }
+
+    @Override
+    public ResponseEntity<ExperimentTemplatePage> listExperimentTemplates(Integer limit, Integer offset) {
+        return ResponseEntity.ok(ExperimentSetupMapper.templates(listExperimentTemplatesUseCase.handle(limit, offset)));
     }
 
     private Experiment experiment(UUID experimentId, JsonNode manifest, String manifestDigest, Instant createdAt) {

@@ -2,34 +2,44 @@ package io.github.temporalrift.workbench.experiment.infrastructure.config;
 
 import java.time.Clock;
 
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import tools.jackson.databind.ObjectMapper;
 
 import io.github.temporalrift.workbench.experiment.ExperimentCatalog;
+import io.github.temporalrift.workbench.experiment.LaneBundleCatalog;
 import io.github.temporalrift.workbench.experiment.application.command.CreateExperimentCommandHandler;
 import io.github.temporalrift.workbench.experiment.application.port.in.CreateExperimentUseCase;
 import io.github.temporalrift.workbench.experiment.application.port.in.GetExperimentUseCase;
+import io.github.temporalrift.workbench.experiment.application.port.in.ListExperimentTemplatesUseCase;
 import io.github.temporalrift.workbench.experiment.application.port.in.ListExperimentsUseCase;
+import io.github.temporalrift.workbench.experiment.application.port.in.ListLaneBundlesUseCase;
 import io.github.temporalrift.workbench.experiment.application.port.in.PreviewExperimentUseCase;
 import io.github.temporalrift.workbench.experiment.application.port.in.PreviewMatrixUseCase;
 import io.github.temporalrift.workbench.experiment.application.query.ExperimentCatalogQueryHandler;
 import io.github.temporalrift.workbench.experiment.application.query.GetExperimentQueryHandler;
+import io.github.temporalrift.workbench.experiment.application.query.ListExperimentTemplatesQueryHandler;
 import io.github.temporalrift.workbench.experiment.application.query.ListExperimentsQueryHandler;
+import io.github.temporalrift.workbench.experiment.application.query.ListLaneBundlesQueryHandler;
 import io.github.temporalrift.workbench.experiment.application.query.PreviewExperimentQueryHandler;
 import io.github.temporalrift.workbench.experiment.application.query.PreviewMatrixQueryHandler;
 import io.github.temporalrift.workbench.experiment.domain.port.out.ExperimentRepository;
 import io.github.temporalrift.workbench.experiment.domain.port.out.IdempotencyStore;
+import io.github.temporalrift.workbench.experiment.domain.port.out.PolicyArtifacts;
 import io.github.temporalrift.workbench.experiment.domain.port.out.PolicyReferenceVerifier;
+import io.github.temporalrift.workbench.experiment.domain.template.TemplateBounds;
 import io.github.temporalrift.workbench.experiment.infrastructure.adapter.out.persistence.ExperimentJpaRepository;
 import io.github.temporalrift.workbench.experiment.infrastructure.adapter.out.persistence.ExperimentRepositoryAdapter;
 import io.github.temporalrift.workbench.experiment.infrastructure.adapter.out.persistence.IdempotencyKeyJpaRepository;
 import io.github.temporalrift.workbench.experiment.infrastructure.adapter.out.persistence.IdempotencyStoreAdapter;
+import io.github.temporalrift.workbench.experiment.infrastructure.adapter.out.policy.PolicyArtifactsAdapter;
 import io.github.temporalrift.workbench.experiment.infrastructure.adapter.out.policy.PolicyReferenceVerifierAdapter;
 import io.github.temporalrift.workbench.policy.PolicyCatalog;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.InsertOnce;
 
 @Configuration
+@EnableConfigurationProperties(ExperimentProperties.class)
 public class ExperimentConfiguration {
 
     @Bean
@@ -50,6 +60,27 @@ public class ExperimentConfiguration {
     @Bean
     PolicyReferenceVerifier policyReferenceVerifier(PolicyCatalog catalog) {
         return new PolicyReferenceVerifierAdapter(catalog);
+    }
+
+    @Bean
+    PolicyArtifacts policyArtifacts(PolicyCatalog catalog) {
+        return new PolicyArtifactsAdapter(catalog);
+    }
+
+    @Bean
+    TemplateBounds templateBounds(ExperimentProperties properties) {
+        return properties.templates().bounds();
+    }
+
+    @Bean
+    ListLaneBundlesUseCase listLaneBundlesUseCase(LaneBundleCatalog bundles) {
+        return new ListLaneBundlesQueryHandler(bundles);
+    }
+
+    @Bean
+    ListExperimentTemplatesUseCase listExperimentTemplatesUseCase(
+            LaneBundleCatalog bundles, PolicyArtifacts policies, TemplateBounds bounds) {
+        return new ListExperimentTemplatesQueryHandler(bundles, policies, bounds);
     }
 
     @Bean
