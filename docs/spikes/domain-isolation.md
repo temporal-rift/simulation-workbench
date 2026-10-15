@@ -80,8 +80,9 @@ this code as it is must reproduce that ordering exactly.
 - **Shared BOM:** all three use `temporal-rift-bom` 2.0.1, so their dependency versions align.
 - **No generated event types:** event payloads are not generated classes; each service maps the bundled AsyncAPI
   payloads itself. Generated REST models sit under each service's own package. No class clashes are expected.
-- **No reusable artifact:** none of the three services publishes a jar; lanes build images from source. The
-  simulator needs each service's classes at the lane's exact revision (part of blockers B1 to B3).
+- **No new artifact needed:** none of the three services publishes a jar; lanes build images from source. The
+  simulator loads the executable jar each service's build already produces, in its extracted layout, built from
+  source at the lane's exact revision.
 - **Not checked:** static mutable state in the services, which would leak between contexts in one JVM. It must be
   checked in S-12a to S-12c of infrastructure#124.
 
@@ -103,7 +104,7 @@ part, real database and broker work on every step, and gains little over a light
 
 | ID | Repo | Change | Size |
 |---|---|---|---|
-| B1 | game-service | In-memory implementations, enabled only in simulation, of its 49 driven ports, of its inbound and outbound messaging, and of the event publication registry. The messaging boundary offers an outbound event sink and an inbound delivery entry that runs the same handling as its Kafka listeners. A port contract test suite runs against both the production and the in-memory adapters. The build also produces a plain library jar, and the application starts as an embedded context with no database, broker or fixed port | Large (mostly mechanical) |
+| B1 | game-service | In-memory implementations, enabled only in simulation, of its 49 driven ports, of its inbound and outbound messaging, and of the event publication registry. The messaging boundary offers an outbound event sink and an inbound delivery entry that runs the same handling as its Kafka listeners. A port contract test suite runs against both the production and the in-memory adapters. The application starts in-process, from its existing executable jar, as a child of a host context with no database, broker or fixed port | Large (mostly mechanical) |
 | B2 | timeline-service | Same as B1 for its 25 driven ports, keeping the per-game ordering of `TimelineGameEventsKafkaConsumer` | Medium |
 | B3 | read-service | Same as B1 for its 21 driven ports, so the bots' views come from its unchanged projection code | Medium |
 | B4 | simulation-workbench | An in-process `LaneProvider` and `CaseLane` that host the three services in one JVM, route their events in order per game, mint deterministic bot, operator and observer tokens in-process, and implement `GameSession` and `GameEventObserver` | Medium |
