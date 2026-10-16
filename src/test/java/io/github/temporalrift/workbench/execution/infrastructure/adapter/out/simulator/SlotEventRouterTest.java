@@ -28,8 +28,8 @@ class SlotEventRouterTest {
         private final List<String> payloads = Collections.synchronizedList(new ArrayList<>());
 
         @Override
-        public void accept(Map<String, Object> record) {
-            payloads.add(new String((byte[]) record.get("payload"), StandardCharsets.UTF_8));
+        public void accept(Map<String, Object> item) {
+            payloads.add(new String((byte[]) item.get("payload"), StandardCharsets.UTF_8));
         }
 
         List<String> payloads() {
@@ -46,7 +46,7 @@ class SlotEventRouterTest {
     void aGameEventsRecordReachesTimelineAndReadOnceAndNeverGame() {
         bindAll();
 
-        router.publish(record(SlotEventRouter.GAME_EVENTS, "a"));
+        router.publish(message(SlotEventRouter.GAME_EVENTS, "a"));
         awaitIdle();
 
         assertThat(timeline.payloads()).containsExactly("a");
@@ -58,7 +58,7 @@ class SlotEventRouterTest {
     void aTimelineEventsRecordReachesGameAndReadOnceAndNeverTimeline() {
         bindAll();
 
-        router.publish(record(SlotEventRouter.TIMELINE_EVENTS, "t"));
+        router.publish(message(SlotEventRouter.TIMELINE_EVENTS, "t"));
         awaitIdle();
 
         assertThat(game.payloads()).containsExactly("t");
@@ -67,12 +67,12 @@ class SlotEventRouterTest {
     }
 
     @Test
-    void aRecordIsDeliveredToAServiceOnlyAfterItsPreviousDeliveryReturned() throws Exception {
+    void aRecordIsDeliveredToAServiceOnlyAfterItsPreviousDeliveryReturned() {
         var firstEntered = new CountDownLatch(1);
         var releaseFirst = new CountDownLatch(1);
         var order = Collections.synchronizedList(new ArrayList<String>());
-        Consumer<Map<String, Object>> slowTimeline = record -> {
-            var payload = new String((byte[]) record.get("payload"), StandardCharsets.UTF_8);
+        Consumer<Map<String, Object>> slowTimeline = item -> {
+            var payload = new String((byte[]) item.get("payload"), StandardCharsets.UTF_8);
             order.add("start " + payload);
             if (payload.equals("first")) {
                 firstEntered.countDown();
@@ -85,8 +85,8 @@ class SlotEventRouterTest {
                 SlotEventRouter.TIMELINE_SERVICE, slowTimeline,
                 SlotEventRouter.READ_SERVICE, read));
 
-        router.publish(record(SlotEventRouter.GAME_EVENTS, "first"));
-        router.publish(record(SlotEventRouter.GAME_EVENTS, "second"));
+        router.publish(message(SlotEventRouter.GAME_EVENTS, "first"));
+        router.publish(message(SlotEventRouter.GAME_EVENTS, "second"));
         await(firstEntered);
 
         assertThat(router.idle()).isFalse();
@@ -101,11 +101,11 @@ class SlotEventRouterTest {
 
     @Test
     void recordsPublishedBeforeTheServicesAreBoundAreDeliveredFirstAndInOrder() {
-        router.publish(record(SlotEventRouter.GAME_EVENTS, "early-1"));
-        router.publish(record(SlotEventRouter.GAME_EVENTS, "early-2"));
+        router.publish(message(SlotEventRouter.GAME_EVENTS, "early-1"));
+        router.publish(message(SlotEventRouter.GAME_EVENTS, "early-2"));
 
         bindAll();
-        router.publish(record(SlotEventRouter.GAME_EVENTS, "late"));
+        router.publish(message(SlotEventRouter.GAME_EVENTS, "late"));
         awaitIdle();
 
         assertThat(timeline.payloads()).containsExactly("early-1", "early-2", "late");
@@ -115,9 +115,9 @@ class SlotEventRouterTest {
     void everyRoutedRecordIsRetainedAtItsOffsetOnItsTopic() {
         bindAll();
 
-        router.publish(record(SlotEventRouter.GAME_EVENTS, "a"));
-        router.publish(record(SlotEventRouter.TIMELINE_EVENTS, "b"));
-        router.publish(record(SlotEventRouter.GAME_EVENTS, "c"));
+        router.publish(message(SlotEventRouter.GAME_EVENTS, "a"));
+        router.publish(message(SlotEventRouter.TIMELINE_EVENTS, "b"));
+        router.publish(message(SlotEventRouter.GAME_EVENTS, "c"));
         awaitIdle();
 
         assertThat(router.routed(SlotEventRouter.GAME_EVENTS, 0))
@@ -131,7 +131,7 @@ class SlotEventRouterTest {
 
     @Test
     void aFailedDeliveryIsReportedAndDoesNotStopLaterOnes() {
-        Consumer<Map<String, Object>> failing = record -> {
+        Consumer<Map<String, Object>> failing = item -> {
             throw new IllegalStateException("handler failed");
         };
         router.bind(Map.of(
@@ -139,8 +139,8 @@ class SlotEventRouterTest {
                 SlotEventRouter.TIMELINE_SERVICE, failing,
                 SlotEventRouter.READ_SERVICE, read));
 
-        router.publish(record(SlotEventRouter.GAME_EVENTS, "a"));
-        router.publish(record(SlotEventRouter.GAME_EVENTS, "b"));
+        router.publish(message(SlotEventRouter.GAME_EVENTS, "a"));
+        router.publish(message(SlotEventRouter.GAME_EVENTS, "b"));
         awaitIdle();
 
         assertThat(router.failure()).hasMessageContaining("timeline-service").hasMessageContaining("handler failed");
@@ -149,7 +149,7 @@ class SlotEventRouterTest {
 
     @Test
     void aRecordOnAnUnknownTopicIsRefused() {
-        assertThatThrownBy(() -> router.publish(record("other.events", "x")))
+        assertThatThrownBy(() -> router.publish(message("other.events", "x")))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("other.events");
     }
@@ -174,7 +174,7 @@ class SlotEventRouterTest {
         }
     }
 
-    static Map<String, Object> record(String topic, String payload) {
+    static Map<String, Object> message(String topic, String payload) {
         return Map.of(
                 "topic",
                 topic,

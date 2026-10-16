@@ -85,36 +85,36 @@ final class SimulatorEventObserver implements GameEventObserver {
         // The slot owns the routed records; there is nothing to release.
     }
 
-    private boolean isThisGame(SlotEventRouter.Routed record) {
-        var header = record.headers().get("gameId");
-        return target.gameId().toString().equals(header != null ? header : record.key());
+    private boolean isThisGame(SlotEventRouter.Routed item) {
+        var header = item.headers().get("gameId");
+        return target.gameId().toString().equals(header != null ? header : item.key());
     }
 
-    private void observe(SlotEventRouter.Routed record) {
-        var event = event(record);
+    private void observe(SlotEventRouter.Routed item) {
+        var event = event(item);
         evidence.retain(target.scopeId(), target.attemptId(), event);
         if (GameEndedParser.EVENT_TYPE.equals(event.eventType())) {
             gameEnded = GameEndedParser.parse(objectMapper, event);
         }
     }
 
-    private ObservedEvent event(SlotEventRouter.Routed record) {
-        var headers = record.headers();
+    private ObservedEvent event(SlotEventRouter.Routed item) {
+        var headers = item.headers();
         var eventId = headers.get("eventId");
         var eventType = headers.get("eventType");
         if (eventId == null || eventType == null) {
             throw new AttemptFailedException(
                     FailureCode.CONTRACT_MISMATCH,
-                    "A record of " + record.topic() + " at offset " + record.offset()
+                    "A record of " + item.topic() + " at offset " + item.offset()
                             + " carries no event identifier or type");
         }
         var occurredAt = headers.get("occurredAt");
         var aggregateId = headers.get("aggregateId");
         var version = headers.get("version");
         return new ObservedEvent(
-                record.topic(),
+                item.topic(),
                 PARTITION,
-                record.offset(),
+                item.offset(),
                 UUID.fromString(eventId),
                 eventType,
                 aggregateId == null ? null : UUID.fromString(aggregateId),
@@ -122,6 +122,6 @@ final class SimulatorEventObserver implements GameEventObserver {
                 target.gameId(),
                 occurredAt == null ? null : Instant.parse(occurredAt),
                 version == null ? 0 : Integer.parseInt(version),
-                new String(record.payload(), StandardCharsets.UTF_8));
+                new String(item.payload(), StandardCharsets.UTF_8));
     }
 }

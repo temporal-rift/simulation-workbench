@@ -157,8 +157,9 @@ final class ServiceJar {
 
     private static void deleteTree(Path directory) {
         try (Stream<Path> paths = Files.walk(directory)) {
-            paths.sorted(Comparator.reverseOrder())
-                    .forEach(path -> path.toFile().delete());
+            for (var path : paths.sorted(Comparator.reverseOrder()).toList()) {
+                Files.deleteIfExists(path);
+            }
         } catch (IOException _) {
             // Leftovers of a failed extraction are never used: only a directory with the marker is.
         }

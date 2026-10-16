@@ -90,10 +90,14 @@ class CompositeLaneProviderTest {
         }
 
         @Override
-        public void retainForRecovery() {}
+        public void retainForRecovery() {
+            // A scripted lane keeps no game.
+        }
 
         @Override
-        public void close() {}
+        public void close() {
+            // A scripted lane holds nothing to release.
+        }
     }
 
     @Test

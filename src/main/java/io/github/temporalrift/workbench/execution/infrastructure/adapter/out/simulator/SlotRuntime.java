@@ -1,5 +1,6 @@
 package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.simulator;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.ArrayList;
@@ -36,9 +37,12 @@ final class SlotRuntime implements AutoCloseable {
     /** The builds a slot hosts and the rules it plays under. */
     record Build(ServiceJar game, ServiceJar timeline, ServiceJar read, PropertySource<?> rules) {}
 
+    /** A started service and the class loader that holds its jar open until the service is gone. */
+    private record Hosted(ConfigurableApplicationContext context, ServiceClassLoader loader) {}
+
     private final SlotEventRouter router;
     private final AnnotationConfigApplicationContext parent;
-    private final List<ConfigurableApplicationContext> children;
+    private final List<Hosted> children;
     private final String gameServiceUrl;
     private final String timelineServiceUrl;
     private final String readServiceUrl;
@@ -48,7 +52,7 @@ final class SlotRuntime implements AutoCloseable {
     private SlotRuntime(
             SlotEventRouter router,
             AnnotationConfigApplicationContext parent,
-            List<ConfigurableApplicationContext> children,
+            List<Hosted> children,
             List<String> urls,
             String operatorToken,
             List<LaneEndpoints.BotIdentity> bots) {
@@ -76,7 +80,8 @@ final class SlotRuntime implements AutoCloseable {
                 "simulationEventSink", Consumer.class, () -> (Consumer<Map<String, Object>>) router::publish);
         parent.registerBean(JwtDecoder.class, issuer::decoder);
         parent.refresh();
-        var children = new ArrayList<ConfigurableApplicationContext>();
+        var children = new ArrayList<Hosted>();
+        var started = false;
         try {
             var read = host(build.read(), parent, children);
             var timeline = host(build.timeline(), parent, children, "game.simulation.enabled=true");
@@ -88,11 +93,14 @@ final class SlotRuntime implements AutoCloseable {
             var bots = IntStream.range(0, botCount)
                     .mapToObj(seat -> bot(seat, issuer))
                     .toList();
-            return new SlotRuntime(
+            var runtime = new SlotRuntime(
                     router, parent, children, List.of(url(game), url(timeline), url(read)), issuer.operator(), bots);
-        } catch (RuntimeException | Error e) {
-            close(router, parent, children);
-            throw e;
+            started = true;
+            return runtime;
+        } finally {
+            if (!started) {
+                close(router, parent, children);
+            }
         }
     }
 
@@ -102,14 +110,12 @@ final class SlotRuntime implements AutoCloseable {
     }
 
     private static ConfigurableApplicationContext host(
-            ServiceJar jar,
-            ConfigurableApplicationContext parent,
-            List<ConfigurableApplicationContext> started,
-            String... properties) {
+            ServiceJar jar, ConfigurableApplicationContext parent, List<Hosted> started, String... properties) {
         var loader = new ServiceClassLoader(jar, SlotRuntime.class.getClassLoader());
         var thread = Thread.currentThread();
         var previous = thread.getContextClassLoader();
         thread.setContextClassLoader(loader);
+        var running = false;
         try {
             var builder = new SpringApplicationBuilder(loader.loadClass(jar.startClass()))
                     .parent(parent)
@@ -125,12 +131,16 @@ final class SlotRuntime implements AutoCloseable {
                     .filter(listener -> !(listener instanceof LoggingApplicationListener))
                     .toList());
             var context = builder.run();
-            started.add(context);
+            started.add(new Hosted(context, loader));
+            running = true;
             return context;
         } catch (ClassNotFoundException e) {
             throw new IllegalStateException("The start class " + jar.startClass() + " is not in its jar", e);
         } finally {
             thread.setContextClassLoader(previous);
+            if (!running) {
+                closeLoader(loader);
+            }
         }
     }
 
@@ -175,14 +185,21 @@ final class SlotRuntime implements AutoCloseable {
 
     /** Stops the services last started first, then everything they depended on; one failing close stops no other. */
     private static void close(
-            SlotEventRouter router,
-            AnnotationConfigApplicationContext parent,
-            List<ConfigurableApplicationContext> children) {
+            SlotEventRouter router, AnnotationConfigApplicationContext parent, List<Hosted> children) {
         for (var child : children.reversed()) {
-            closeQuietly(child);
+            closeQuietly(child.context());
+            closeLoader(child.loader());
         }
         closeQuietly(parent);
         router.close();
+    }
+
+    private static void closeLoader(ServiceClassLoader loader) {
+        try {
+            loader.close();
+        } catch (IOException e) {
+            LOG.warn("A hosted service's class loader did not close cleanly: {}", e.getMessage());
+        }
     }
 
     private static void closeQuietly(ConfigurableApplicationContext context) {

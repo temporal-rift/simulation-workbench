@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -18,8 +19,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import tools.jackson.databind.json.JsonMapper;
 
+import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
+import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.BundleProvenance;
+import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneEndpoints;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.Sleeper;
 import io.github.temporalrift.workbench.execution.support.InMemoryCommandLedger;
@@ -99,6 +103,51 @@ class SimulatorLanePoolTest {
     }
 
     @Test
+    void aSlotWhoseServicesCannotStartFailsTheAttemptAndIsFreeAgainOnceReturned() {
+        var pool = pool(1);
+        pool.prepare(List.of());
+        scheduler.runAll();
+        var lane = pool.acquire(CASE, BUNDLE, null).orElseThrow();
+
+        assertThatThrownBy(() -> lane.open(context(), null)).isInstanceOfSatisfying(AttemptFailedException.class, e -> {
+            assertThat(e.failure().code()).isEqualTo(FailureCode.EXECUTION_FAILED);
+            assertThat(e.getMessage()).contains("simulator-1").contains("could not start");
+        });
+        lane.close();
+        scheduler.runAll();
+
+        assertThat(pool.freeLanes()).containsOnlyKeys("simulator-1");
+    }
+
+    @Test
+    void aSlotWhoseAttemptWasInterruptedIsHeldForThatCase() {
+        var pool = pool(1);
+        pool.prepare(List.of());
+        scheduler.runAll();
+        var lane = pool.acquire(CASE, BUNDLE, null).orElseThrow();
+        assertThatThrownBy(() -> lane.open(context(), null)).isInstanceOf(AttemptFailedException.class);
+
+        lane.retainForRecovery();
+        lane.close();
+
+        assertThat(pool.heldCases()).containsExactly(CASE);
+        pool.releaseHeld(CASE);
+        scheduler.runAll();
+        assertThat(pool.freeLanes()).containsOnlyKeys("simulator-1");
+    }
+
+    @Test
+    void aLaneClosedBeforeItWasOpenedIsFreeAtOnce() {
+        var pool = pool(1);
+        pool.prepare(List.of());
+        scheduler.runAll();
+
+        pool.acquire(CASE, BUNDLE, null).orElseThrow().close();
+
+        assertThat(pool.freeLanes()).containsOnlyKeys("simulator-1");
+    }
+
+    @Test
     void aCaseOfAnotherBundleGetsNoSlot() {
         var pool = pool(1);
         pool.prepare(List.of());
@@ -145,6 +194,17 @@ class SimulatorLanePoolTest {
         assertThatThrownBy(() -> pool(1))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Start-Class");
+    }
+
+    private static CaseLane.CaseContext context() {
+        return new CaseLane.CaseContext(
+                CASE,
+                new UUID(5, 5),
+                new UUID(6, 6),
+                "42",
+                "f".repeat(64),
+                List.of(),
+                Instant.parse("2026-01-01T00:00:00Z"));
     }
 
     private SimulatorLanePool pool(int slots) {

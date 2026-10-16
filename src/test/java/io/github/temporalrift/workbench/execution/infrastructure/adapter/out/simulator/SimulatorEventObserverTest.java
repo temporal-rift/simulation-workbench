@@ -62,12 +62,12 @@ class SimulatorEventObserverTest {
     }
 
     @Test
-    void doesNotReportTheEndOfTheSourcesWhileADeliveryIsStillOnItsWay() throws Exception {
+    void doesNotReportTheEndOfTheSourcesWhileADeliveryIsStillOnItsWay() {
         var release = new CountDownLatch(1);
         Consumer<Map<String, Object>> blocked = _ -> {
             try {
                 release.await(5, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
+            } catch (InterruptedException _) {
                 Thread.currentThread().interrupt();
             }
         };

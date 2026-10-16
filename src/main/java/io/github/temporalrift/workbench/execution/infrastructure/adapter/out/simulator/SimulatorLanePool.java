@@ -39,6 +39,7 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 public final class SimulatorLanePool extends RosterBackedLaneProvider {
 
     static final String SLOT_PREFIX = "simulator-";
+    private static final String RULES_SOURCE = "simulatorRules";
 
     private final Map<String, SimulatorSlot> slots;
     private final Hosting hosting;
@@ -172,14 +173,14 @@ public final class SimulatorLanePool extends RosterBackedLaneProvider {
         try {
             List<PropertySource<?>> sources;
             if (name.endsWith(".yml") || name.endsWith(".yaml")) {
-                sources = new YamlPropertySourceLoader().load("simulatorRules", resource);
+                sources = new YamlPropertySourceLoader().load(RULES_SOURCE, resource);
             } else if (name.endsWith(".properties")) {
-                sources = new PropertiesPropertySourceLoader().load("simulatorRules", resource);
+                sources = new PropertiesPropertySourceLoader().load(RULES_SOURCE, resource);
             } else {
                 throw new IllegalStateException(
                         "The simulator rules file " + file + " must be a .yml, .yaml or .properties file");
             }
-            var rules = new CompositePropertySource("simulatorRules");
+            var rules = new CompositePropertySource(RULES_SOURCE);
             sources.forEach(rules::addPropertySource);
             return rules;
         } catch (IOException e) {

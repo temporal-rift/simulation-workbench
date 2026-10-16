@@ -1,9 +1,11 @@
 package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.simulator;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -36,6 +38,26 @@ final class SlotEventRouter implements AutoCloseable {
         Map<String, Object> asDelivered() {
             return Map.of("topic", topic, "key", key, "headers", headers, "payload", payload);
         }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof Routed routed
+                    && offset == routed.offset
+                    && topic.equals(routed.topic)
+                    && key.equals(routed.key)
+                    && headers.equals(routed.headers)
+                    && Arrays.equals(payload, routed.payload);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(topic, offset, key, headers) * 31 + Arrays.hashCode(payload);
+        }
+
+        @Override
+        public String toString() {
+            return "Routed[" + topic + "@" + offset + ", key=" + key + ", " + payload.length + " bytes]";
+        }
     }
 
     private final Map<String, List<Routed>> log = new HashMap<>();
@@ -59,17 +81,17 @@ final class SlotEventRouter implements AutoCloseable {
                     .factory());
         }
 
-        private void offer(Routed record) {
+        private void offer(Routed item) {
             pending.incrementAndGet();
             queue.execute(() -> {
                 try {
-                    consumer.accept(record.asDelivered());
+                    consumer.accept(item.asDelivered());
                 } catch (RuntimeException e) {
                     failure.compareAndSet(
                             null,
                             new IllegalStateException(
-                                    service + " failed to handle a record of " + record.topic() + " at offset "
-                                            + record.offset() + ": " + e.getMessage(),
+                                    service + " failed to handle a record of " + item.topic() + " at offset "
+                                            + item.offset() + ": " + e.getMessage(),
                                     e));
                 } finally {
                     pending.decrementAndGet();
@@ -80,8 +102,8 @@ final class SlotEventRouter implements AutoCloseable {
 
     /** The sink a publishing service hands each record to. */
     @SuppressWarnings("unchecked")
-    void publish(Map<String, Object> record) {
-        var topic = (String) record.get("topic");
+    void publish(Map<String, Object> item) {
+        var topic = (String) item.get("topic");
         if (!CONSUMERS.containsKey(topic)) {
             throw new IllegalArgumentException("A record was published on the unknown topic " + topic);
         }
@@ -90,9 +112,9 @@ final class SlotEventRouter implements AutoCloseable {
             var routed = new Routed(
                     topic,
                     onTopic.size(),
-                    (String) record.get("key"),
-                    Map.copyOf((Map<String, String>) record.get("headers")),
-                    ((byte[]) record.get("payload")).clone());
+                    (String) item.get("key"),
+                    Map.copyOf((Map<String, String>) item.get("headers")),
+                    ((byte[]) item.get("payload")).clone());
             onTopic.add(routed);
             if (bound) {
                 deliveries.get(topic).forEach(delivery -> delivery.offer(routed));
@@ -112,7 +134,7 @@ final class SlotEventRouter implements AutoCloseable {
                         .toList()));
         bound = true;
         log.forEach((topic, records) ->
-                records.forEach(record -> deliveries.get(topic).forEach(delivery -> delivery.offer(record))));
+                records.forEach(item -> deliveries.get(topic).forEach(delivery -> delivery.offer(item))));
     }
 
     /** Whether every routed record has been delivered to every consuming service. */
