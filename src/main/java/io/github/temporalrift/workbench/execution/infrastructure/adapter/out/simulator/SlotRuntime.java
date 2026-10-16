@@ -1,0 +1,195 @@
+package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.simulator;
+
+import java.nio.charset.StandardCharsets;
+import java.time.Clock;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.function.Consumer;
+import java.util.stream.IntStream;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.boot.Banner;
+import org.springframework.boot.builder.SpringApplicationBuilder;
+import org.springframework.boot.context.logging.LoggingApplicationListener;
+import org.springframework.boot.web.server.context.WebServerApplicationContext;
+import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.core.env.PropertySource;
+import org.springframework.core.io.DefaultResourceLoader;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneEndpoints;
+
+/**
+ * The three services of one slot, started in this JVM under profile {@code in-memory} as children of a parent context
+ * that supplies what they cannot get from a deployment: the event sink their publications leave through, the rules
+ * they play under, and the issuer whose tokens they trust. They listen on loopback ports of the operating system's
+ * choosing and keep all state in their contexts, so closing the runtime leaves nothing behind.
+ */
+final class SlotRuntime implements AutoCloseable {
+
+    private static final Logger LOG = LoggerFactory.getLogger(SlotRuntime.class);
+
+    /** The builds a slot hosts and the rules it plays under. */
+    record Build(ServiceJar game, ServiceJar timeline, ServiceJar read, PropertySource<?> rules) {}
+
+    private final SlotEventRouter router;
+    private final AnnotationConfigApplicationContext parent;
+    private final List<ConfigurableApplicationContext> children;
+    private final String gameServiceUrl;
+    private final String timelineServiceUrl;
+    private final String readServiceUrl;
+    private final String operatorToken;
+    private final List<LaneEndpoints.BotIdentity> bots;
+
+    private SlotRuntime(
+            SlotEventRouter router,
+            AnnotationConfigApplicationContext parent,
+            List<ConfigurableApplicationContext> children,
+            List<String> urls,
+            String operatorToken,
+            List<LaneEndpoints.BotIdentity> bots) {
+        this.router = router;
+        this.parent = parent;
+        this.children = children;
+        this.gameServiceUrl = urls.get(0);
+        this.timelineServiceUrl = urls.get(1);
+        this.readServiceUrl = urls.get(2);
+        this.operatorToken = operatorToken;
+        this.bots = bots;
+    }
+
+    /**
+     * Starts the three services and begins routing their records.
+     *
+     * @param botCount how many bot identities to mint; they are the same players in every slot
+     */
+    static SlotRuntime start(Build build, int botCount, Clock clock) {
+        var router = new SlotEventRouter();
+        var issuer = new SimulatorIssuer(clock);
+        var parent = new AnnotationConfigApplicationContext();
+        parent.getEnvironment().getPropertySources().addFirst(build.rules());
+        parent.registerBean(
+                "simulationEventSink", Consumer.class, () -> (Consumer<Map<String, Object>>) router::publish);
+        parent.registerBean(JwtDecoder.class, issuer::decoder);
+        parent.refresh();
+        var children = new ArrayList<ConfigurableApplicationContext>();
+        try {
+            var read = host(build.read(), parent, children);
+            var timeline = host(build.timeline(), parent, children, "game.simulation.enabled=true");
+            var game = host(build.game(), parent, children, "game.simulation.enabled=true");
+            router.bind(Map.of(
+                    SlotEventRouter.GAME_SERVICE, delivery(game),
+                    SlotEventRouter.TIMELINE_SERVICE, delivery(timeline),
+                    SlotEventRouter.READ_SERVICE, delivery(read)));
+            var bots = IntStream.range(0, botCount)
+                    .mapToObj(seat -> bot(seat, issuer))
+                    .toList();
+            return new SlotRuntime(
+                    router, parent, children, List.of(url(game), url(timeline), url(read)), issuer.operator(), bots);
+        } catch (RuntimeException | Error e) {
+            close(router, parent, children);
+            throw e;
+        }
+    }
+
+    private static LaneEndpoints.BotIdentity bot(int seat, SimulatorIssuer issuer) {
+        var playerId = UUID.nameUUIDFromBytes(("simulator-bot-" + seat).getBytes(StandardCharsets.UTF_8));
+        return new LaneEndpoints.BotIdentity(playerId, issuer.bot(playerId));
+    }
+
+    private static ConfigurableApplicationContext host(
+            ServiceJar jar,
+            ConfigurableApplicationContext parent,
+            List<ConfigurableApplicationContext> started,
+            String... properties) {
+        var loader = new ServiceClassLoader(jar, SlotRuntime.class.getClassLoader());
+        var thread = Thread.currentThread();
+        var previous = thread.getContextClassLoader();
+        thread.setContextClassLoader(loader);
+        try {
+            var builder = new SpringApplicationBuilder(loader.loadClass(jar.startClass()))
+                    .parent(parent)
+                    .profiles("in-memory")
+                    .resourceLoader(new DefaultResourceLoader(loader))
+                    .bannerMode(Banner.Mode.OFF)
+                    .registerShutdownHook(false)
+                    .properties("server.port=0", "server.address=127.0.0.1")
+                    .properties(properties);
+            // The workbench has configured logging; a hosted service must not reconfigure it for the whole JVM.
+            var application = builder.application();
+            application.setListeners(application.getListeners().stream()
+                    .filter(listener -> !(listener instanceof LoggingApplicationListener))
+                    .toList());
+            var context = builder.run();
+            started.add(context);
+            return context;
+        } catch (ClassNotFoundException e) {
+            throw new IllegalStateException("The start class " + jar.startClass() + " is not in its jar", e);
+        } finally {
+            thread.setContextClassLoader(previous);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Consumer<Map<String, Object>> delivery(ConfigurableApplicationContext context) {
+        return context.getBean("simulationEventDelivery", Consumer.class);
+    }
+
+    private static String url(ConfigurableApplicationContext context) {
+        return "http://127.0.0.1:"
+                + ((WebServerApplicationContext) context).getWebServer().getPort();
+    }
+
+    SlotEventRouter router() {
+        return router;
+    }
+
+    String gameServiceUrl() {
+        return gameServiceUrl;
+    }
+
+    String timelineServiceUrl() {
+        return timelineServiceUrl;
+    }
+
+    String readServiceUrl() {
+        return readServiceUrl;
+    }
+
+    String operatorToken() {
+        return operatorToken;
+    }
+
+    List<LaneEndpoints.BotIdentity> bots() {
+        return bots;
+    }
+
+    @Override
+    public void close() {
+        close(router, parent, children);
+    }
+
+    /** Stops the services last started first, then everything they depended on; one failing close stops no other. */
+    private static void close(
+            SlotEventRouter router,
+            AnnotationConfigApplicationContext parent,
+            List<ConfigurableApplicationContext> children) {
+        for (var child : children.reversed()) {
+            closeQuietly(child);
+        }
+        closeQuietly(parent);
+        router.close();
+    }
+
+    private static void closeQuietly(ConfigurableApplicationContext context) {
+        try {
+            context.close();
+        } catch (RuntimeException e) {
+            LOG.warn("A hosted service did not close cleanly: {}", e.getMessage());
+        }
+    }
+}

@@ -1,7 +1,9 @@
 package io.github.temporalrift.workbench.execution.infrastructure.config;
 
 import java.net.URI;
+import java.nio.file.Path;
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -54,10 +56,12 @@ import io.github.temporalrift.workbench.execution.domain.port.out.ExperimentSour
 import io.github.temporalrift.workbench.execution.domain.port.out.LaneProvider;
 import io.github.temporalrift.workbench.execution.domain.port.out.ReproductionRepository;
 import io.github.temporalrift.workbench.execution.domain.port.out.RunRepository;
+import io.github.temporalrift.workbench.execution.domain.run.BundleProvenance;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.in.scheduler.BatchWorker;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.experiment.ExperimentSourceAdapter;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.kafka.KafkaGameEventObservers;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.ApiClients;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.CompositeLaneProvider;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.ConfiguredLanePool;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.GameEventObservers;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.HttpLaneResets;
@@ -68,6 +72,7 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.RestApiClients;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.Sleeper;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.policy.DecisionRuntimeAdapter;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.simulator.SimulatorLanePool;
 import io.github.temporalrift.workbench.experiment.ExperimentCatalog;
 import io.github.temporalrift.workbench.experiment.LaneBundleCatalog;
 import io.github.temporalrift.workbench.policy.PolicyRuntime;
@@ -117,20 +122,52 @@ public class ExecutionConfiguration {
      * lane has at most one reset in flight, so one thread per lane keeps a slow lane from delaying the others.
      */
     @Bean(destroyMethod = "shutdownNow")
-    ScheduledExecutorService laneResetExecutor(ExecutionProperties properties) {
+    ScheduledExecutorService laneResetExecutor(ExecutionProperties properties, SimulatorProperties simulator) {
         return Executors.newScheduledThreadPool(
-                Math.max(1, properties.lanes().size()),
+                Math.max(1, properties.lanes().size() + simulator.slots()),
                 Thread.ofVirtual().name("lane-reset-", 0).factory());
     }
 
     @Bean
     LaneProvider laneProvider(
             ExecutionProperties properties,
+            SimulatorProperties simulator,
             ApiClients clients,
             CommandLedger ledger,
             EvidenceLedger evidence,
             GameEventObservers observers,
+            ObjectMapper objectMapper,
             Clock clock,
+            ScheduledExecutorService laneResetExecutor) {
+        var barrier = new LaneEndpoints.Barrier(
+                properties.barrier().pollInterval(),
+                properties.barrier().stablePolls(),
+                properties.barrier().maxPolls());
+        var providers = new ArrayList<LaneProvider>();
+        providers.add(httpLanes(
+                properties, clients, new LaneServices(ledger, evidence, observers), clock, barrier, laneResetExecutor));
+        if (simulator.enabled()) {
+            providers.add(simulatorLanes(
+                    simulator,
+                    new SimulatorLanePool.Collaborators(
+                            clients,
+                            ledger,
+                            evidence,
+                            objectMapper,
+                            clock,
+                            barrier,
+                            Sleeper.thread(),
+                            ResetScheduler.on(laneResetExecutor))));
+        }
+        return providers.size() == 1 ? providers.getFirst() : new CompositeLaneProvider(providers);
+    }
+
+    private static LaneProvider httpLanes(
+            ExecutionProperties properties,
+            ApiClients clients,
+            LaneServices services,
+            Clock clock,
+            LaneEndpoints.Barrier barrier,
             ScheduledExecutorService laneResetExecutor) {
         List<LaneEndpoints> lanes = properties.lanes().stream()
                 .map(lane -> new LaneEndpoints(
@@ -149,22 +186,39 @@ public class ExecutionConfiguration {
                                 .map(bot -> new LaneEndpoints.BotIdentity(bot.playerId(), bot.token()))
                                 .toList()))
                 .toList();
-        var barrier = new LaneEndpoints.Barrier(
-                properties.barrier().pollInterval(),
-                properties.barrier().stablePolls(),
-                properties.barrier().maxPolls());
         var roster = new LaneRoster(
                 lanes.stream().map(LaneEndpoints::member).toList(),
                 new HttpLaneResets(lanes, properties.client().connectTimeout(), properties.resetTimeout()),
                 ResetScheduler.on(laneResetExecutor));
-        return new ConfiguredLanePool(
-                lanes,
-                roster,
-                clients,
-                new LaneServices(ledger, evidence, observers),
-                clock,
-                barrier,
-                Sleeper.thread());
+        return new ConfiguredLanePool(lanes, roster, clients, services, clock, barrier, Sleeper.thread());
+    }
+
+    private static LaneProvider simulatorLanes(
+            SimulatorProperties simulator, SimulatorLanePool.Collaborators collaborators) {
+        var bundle = simulator.bundle();
+        var revisions = bundle.sourceRevisions();
+        var workDirectory = simulator.workDirectory() != null
+                ? simulator.workDirectory()
+                : Path.of(System.getProperty("java.io.tmpdir"), "workbench-simulator");
+        return SimulatorLanePool.create(
+                new SimulatorLanePool.Deployment(
+                        simulator.slots(),
+                        simulator.gameServiceJar(),
+                        simulator.timelineServiceJar(),
+                        simulator.readServiceJar(),
+                        simulator.rulesFile(),
+                        workDirectory,
+                        simulator.bots(),
+                        bundle.digests(),
+                        new SimulatorLanePool.Declared(
+                                new BundleProvenance.Artifact(bundle.rulesArtifactDigest(), bundle.rulesArtifactName()),
+                                new BundleProvenance.Artifact(
+                                        bundle.contentArtifactDigest(), bundle.contentArtifactName()),
+                                revisions.gameService(),
+                                revisions.timelineService(),
+                                revisions.readService(),
+                                bundle.sortedContracts())),
+                collaborators);
     }
 
     @Bean
@@ -272,7 +326,11 @@ public class ExecutionConfiguration {
     @Bean
     @ConditionalOnProperty(name = "workbench.execution.worker-enabled", havingValue = "true", matchIfMissing = true)
     BatchWorker batchWorker(
-            RunBatchUseCase batch, RunReproductionUseCase reproductions, ExecutionProperties properties) {
-        return new BatchWorker(batch, reproductions, properties.effectiveWorkerThreads(), properties.pollInterval());
+            RunBatchUseCase batch,
+            RunReproductionUseCase reproductions,
+            ExecutionProperties properties,
+            SimulatorProperties simulator) {
+        return new BatchWorker(
+                batch, reproductions, properties.effectiveWorkerThreads(simulator.slots()), properties.pollInterval());
     }
 }
