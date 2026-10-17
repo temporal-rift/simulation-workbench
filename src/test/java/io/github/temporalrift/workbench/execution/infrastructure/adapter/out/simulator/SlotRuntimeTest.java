@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.core.env.MapPropertySource;
 
-import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.simulator.fixture.FakeServiceApplication;
+import io.github.temporalrift.simulatorfixture.FakeServiceApplication;
 
 /** Starts three stand-in services through the real hosting path: class loaders, parent context, profile, ports. */
 class SlotRuntimeTest {

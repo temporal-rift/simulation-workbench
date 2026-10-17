@@ -1,4 +1,4 @@
-package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.simulator.fixture;
+package io.github.temporalrift.simulatorfixture;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
