@@ -1,0 +1,488 @@
+# The baseline lane bundle's game configuration (rules, timers, limits and future-event catalog) merged into one file: the services of a
+# simulator slot share one environment, so the per-service files a lane serves cannot stay separate.
+game:
+  rate-limit:
+    requests-per-minute: 120
+    cleanup-interval: 60s
+  request-body-limit:
+    max-bytes: 1048576
+  timers:
+    event-resubmit-min-age: 2m
+    event-resubmit-interval: 30s
+    action-round-sweep-interval: 1s
+    hand-selection-sweep-interval: 1s
+    reconnect-sweep-interval: 1s
+    scoring-completion-sweep-interval: 1s
+    era-saga-scores-updated-sweep-interval: 1s
+    paradox-resolution-sweep-interval: 1s
+  rules:
+    paradox-resolution-timer-seconds: 120
+    min-players: 3
+    max-players: 5
+    max-cascaded-paradoxes: 3
+    events-per-era: 3
+    cards-per-hand: 5
+    cards-per-deal: 7
+    win-score-threshold: 20
+    reconnect-grace-period-seconds: 30
+    action-round-timer-seconds:
+      3: 180
+      4: 180
+      5: 180
+    hand-selection-timer-seconds: 300
+    declaration-timer-seconds:
+      3: 120
+      4: 120
+      5: 120
+    card-category-weights:
+      PROBABILITY_SHIFTER: 35
+      INFORMATION: 25
+      DISRUPTION: 25
+      PARADOX: 15
+    card-grade-weights:
+      I: 60
+      II: 30
+      III: 10
+    stabilization:
+      prophet-written-resolutions: 3
+      weaver-active-chain-links: 2
+    once-era-budgeted-specials:
+      - ANNIHILATE
+      - SEAL
+      - CORRUPT
+      - MIMIC
+      - REWEAVE
+    hand-deal-forced-types: []
+    scoring:
+      score-deltas:
+        ANNIHILATED_OUTCOME: 3
+        CORRUPTED_OPPONENT_CARD: 2
+        EVENT_RESOLVED_AS_WRITTEN: 4
+        FULFILLMENT_SUCCEEDED: 8
+        EVENT_RESOLVED_DIFFERENTLY_THAN_WRITTEN: -2
+        SECRET_OUTCOME_WON: 4
+        MIMIC_NEVER_TRACED: 6
+        MIMIC_CONTRIBUTED_TO_WIN: 2
+        CHAIN_LINK_ADDED: 2
+        CHAIN_COMPLETED: 10
+        CHAIN_BROKEN: -3
+        DECLARED_OUTCOME_WON_WITH_RALLY: 6
+        DECLARED_OUTCOME_WON: 5
+        EXPOSE_SIGNATURE_REVEALED: 2
+        PARADOX_CASCADE_PENALTY: -2
+    max-eras: 2
+    probability:
+      floor: 0
+      ceiling: 90
+      push-shift:
+        I: 10
+        II: 20
+        III: 30
+      suppress-shift:
+        I: -10
+        II: -20
+        III: -30
+      swing-shift:
+        I: 15
+        II: 30
+        III: 45
+      amplify-multiplier:
+        I: 1.5
+        II: 2.0
+        III: 3.0
+      band-low-max: 30
+      band-medium-max: 60
+      momentum-bonus: 10
+      rally-multiplier: 1.5
+      thread-shift: 10
+  catalog:
+    events:
+      - eventId: 12606191-eafe-4d1c-a014-b676bf094db0
+        title: "The Assassination Attempt on the Peace Delegate"
+        outcomes:
+          - outcomeId: 3cd52940-1dad-413c-8a68-b04a58b8258f
+            description: "The delegate survives and the peace summit proceeds"
+            probability: 42
+          - outcomeId: 8aa6c6a8-5de9-45bd-931d-435f216faac4
+            description: "The delegate is wounded; negotiations collapse"
+            probability: 42
+          - outcomeId: 6c9eda04-25a1-425e-a10f-55abd9463c83
+            description: "The attacker is captured and becomes a political martyr"
+            probability: 16
+
+      - eventId: ab0d99ea-6f75-4d8d-b1a7-7a1a063635a4
+        title: "The Collapse of the Northern Trade Pact"
+        outcomes:
+          - outcomeId: 1f677b68-7a6a-4d2e-91d3-faf3e10c5098
+            description: "The pact holds under emergency renegotiation"
+            probability: 35
+          - outcomeId: 77aff15a-9585-4204-88a6-f0a3562423eb
+            description: "The pact dissolves; rival factions fill the vacuum"
+            probability: 45
+          - outcomeId: 58b5d6b0-e10b-4609-858e-4e55a9cd381c
+            description: "A splinter agreement forms between two minor states"
+            probability: 20
+
+      - eventId: 400e3361-301f-4ec1-9edd-cb0c6e14fbc6
+        title: "The Quantum Reactor's First Ignition"
+        outcomes:
+          - outcomeId: d374fd86-e5dc-4278-8020-531f31436a6c
+            description: "Ignition succeeds; a new era of clean energy begins"
+            probability: 33
+          - outcomeId: 75093c06-c82b-403c-af91-bdc12f12da15
+            description: "Ignition fails catastrophically; the facility is destroyed"
+            probability: 33
+          - outcomeId: 379b99ed-7333-4d42-9e9c-cbd9c257466a
+            description: "Partial ignition triggers an uncontrolled temporal anomaly"
+            probability: 34
+
+      - eventId: deafa163-28f7-4563-85af-a91dbf324360
+        title: "The Lost Library of the Meridian Coast"
+        outcomes:
+          - outcomeId: b4c39f56-dc6e-44d0-8792-0ea78832b16b
+            description: "The library is recovered intact and its knowledge preserved"
+            probability: 20
+          - outcomeId: c698eced-fd8e-47bf-8c69-04f1a6755823
+            description: "The library is destroyed before it can be reached"
+            probability: 30
+          - outcomeId: 9a68f053-36c4-48d1-b938-fc1fc401d7c3
+            description: "The library is seized by a rival faction"
+            probability: 50
+
+      - eventId: 6b17534a-f7fa-4169-9e6a-bb4a47a51e1d
+        title: "The General's Defection"
+        outcomes:
+          - outcomeId: 975f3ffd-5656-4d29-8212-cfce51e96850
+            description: "The general defects and delivers critical intelligence"
+            probability: 33
+          - outcomeId: e0e865d5-d56e-49b8-b1b1-99d17ae931cf
+            description: "The defection is exposed; the general is executed"
+            probability: 33
+          - outcomeId: 80ea5184-0dfd-407f-8771-90b82a2d71e9
+            description: "The general feigns defection as a double agent"
+            probability: 34
+
+      - eventId: cadd24bc-9e2b-477e-a9fa-46bc34d5b218
+        title: "The Plague Ship in Harbor"
+        outcomes:
+          - outcomeId: fb2d2d01-df5c-4930-a4b2-aa1020b1fd35
+            description: "The ship is quarantined; the outbreak is contained"
+            probability: 60
+          - outcomeId: a4588185-1956-4768-a413-21d160aed2a2
+            description: "The plague spreads through the port city"
+            probability: 25
+          - outcomeId: f0ed2373-6588-4f2a-ba57-1679918f09c3
+            description: "The ship is sunk; survivors scatter to the coast"
+            probability: 15
+
+      - eventId: 002809a2-26ca-4bf8-bbe9-15f4410ab963
+        title: "The Final Broadcast of the Underground Radio"
+        outcomes:
+          - outcomeId: 773f9fdb-d380-4650-bf9b-84d3896fdb51
+            description: "The broadcast sparks a mass uprising"
+            probability: 30
+          - outcomeId: 6fa9ab4c-5791-4fd7-906a-34b4224bbe20
+            description: "Authorities jam the signal; the resistance network collapses"
+            probability: 50
+          - outcomeId: 6f2f9a3d-bfbd-41f5-8cc6-9809b3b6a1f3
+            description: "The broadcast is co-opted by a rival faction"
+            probability: 20
+
+      - eventId: a0775498-2b18-43bd-bbc0-1a9477b8c378
+        title: "The Election of the Iron Chancellor"
+        outcomes:
+          - outcomeId: d79514fc-f90c-47d9-a530-abd7abeaefda
+            description: "The chancellor wins by a landslide; consolidates power"
+            probability: 60
+          - outcomeId: 2e24a9fb-6a04-4cc5-9e8d-161e4edf3cad
+            description: "The election is contested; the nation fractures"
+            probability: 25
+          - outcomeId: e6189462-a775-47ac-a1b8-26933fc692b4
+            description: "The chancellor loses narrowly and calls for revolution"
+            probability: 15
+
+      - eventId: 31515461-7ebb-4560-beff-78e091287acb
+        title: "The Excavation of the Forbidden Ruins"
+        outcomes:
+          - outcomeId: bd51dfb1-6e08-4171-8fa2-a605e50aed6b
+            description: "The ruins yield technology decades ahead of its time"
+            probability: 35
+          - outcomeId: 36063d0a-ccdc-47fd-8815-92a2f2dd5b19
+            description: "The excavation triggers a structural collapse; the site is lost"
+            probability: 20
+          - outcomeId: 827f7fc1-05af-4b04-aa8f-19147e27fbbd
+            description: "The ruins are found empty; the discovery is declared a hoax"
+            probability: 45
+
+      - eventId: ef09c944-721c-42d1-b30f-e261b9e48547
+        title: "The Signing of the Ceasefire Accord"
+        outcomes:
+          - outcomeId: 5c18f966-d976-441b-87cb-8c095c4aa2a9
+            description: "The accord is signed; a fragile peace takes hold"
+            probability: 42
+          - outcomeId: f9f1cfd0-98b1-498a-8b04-465b089932c5
+            description: "A key signatory withdraws at the last moment"
+            probability: 42
+          - outcomeId: 663782c7-a46a-46ee-a3b1-6295d0120a6a
+            description: "The accord is sabotaged; war resumes with greater intensity"
+            probability: 16
+
+      - eventId: ba29e0b0-443d-401a-8d60-fcc2e9b9bfdd
+        title: "The Eruption of Mount Vethara"
+        outcomes:
+          - outcomeId: 1a6b6d1d-be69-4e72-b5ea-2a1c0b02bd6a
+            description: "The eruption is minor; early evacuation prevents casualties"
+            probability: 50
+          - outcomeId: 2e657bee-f191-4857-82f5-873876f52538
+            description: "A catastrophic eruption buries three settlements"
+            probability: 30
+          - outcomeId: 2ae90df9-d612-4ced-8aad-643e59061d63
+            description: "The eruption reveals a previously unknown mineral deposit"
+            probability: 20
+
+      - eventId: b642507f-a0a1-4e8c-a8c6-7d3e91f794ba
+        title: "The Heir's Disappearance"
+        outcomes:
+          - outcomeId: 1b489c1e-9c62-4c7f-b8f2-843e14f29f41
+            description: "The heir is found; the succession crisis is averted"
+            probability: 33
+          - outcomeId: 79129f67-88db-4b97-b05b-4603f752299e
+            description: "The heir vanishes permanently; a succession war erupts"
+            probability: 33
+          - outcomeId: b49eaed6-6ad4-4417-984d-3cb29f182c7e
+            description: "The heir resurfaces aligned with a rival faction"
+            probability: 34
+
+      - eventId: f1a98cff-92eb-4e02-9e03-aa8d745567b5
+        title: "The Discovery of the Paradox Engine Blueprints"
+        outcomes:
+          - outcomeId: 3bc58b82-91de-4b66-b4b1-93a90482d022
+            description: "The blueprints are secured by temporal authorities"
+            probability: 35
+          - outcomeId: bf2e924e-d4d1-4dda-a975-c40f04c2c305
+            description: "The blueprints are stolen and distributed on the black market"
+            probability: 45
+          - outcomeId: 62467db2-b7f5-42f5-8922-6e3632337981
+            description: "The blueprints are destroyed; the knowledge is lost"
+            probability: 20
+
+      - eventId: 6792194d-3de5-45c1-8689-bea5b3ed609d
+        title: "The Parliament's Vote on the Temporal Act"
+        outcomes:
+          - outcomeId: ccd30dd0-e007-4a2a-8ae7-c5d146e83890
+            description: "The act passes; time travel is regulated and taxed"
+            probability: 42
+          - outcomeId: d2b555b0-4f6c-47e5-bf32-993df066bbc5
+            description: "The act fails; factions operate without oversight"
+            probability: 42
+          - outcomeId: e3c87f50-4649-4ff0-85ac-0a389730adeb
+            description: "The vote is deadlocked; a constitutional crisis follows"
+            probability: 16
+
+      - eventId: 6b7b54b1-7686-4c9d-a738-b1096a5b9f32
+        title: "The Collapse of the Eastern Bridge"
+        outcomes:
+          - outcomeId: b53f597e-7d88-4c55-87d0-c4f9497f5827
+            description: "The bridge holds; the supply route remains open"
+            probability: 60
+          - outcomeId: e9e5e650-5f03-427d-a8fd-92553db15694
+            description: "The bridge collapses; the eastern province is cut off"
+            probability: 25
+          - outcomeId: 2a693403-8b3d-48c3-a1ea-dc2bce276905
+            description: "The collapse is blamed on sabotage; war is declared"
+            probability: 15
+
+      - eventId: a34e8dd7-85d2-45bd-99c1-dccabc2a856e
+        title: "The Oracle's Final Prophecy"
+        outcomes:
+          - outcomeId: cfd9da96-696b-41ad-b5fc-efa35c987987
+            description: "The prophecy is fulfilled exactly as spoken"
+            probability: 33
+          - outcomeId: db5ca3be-2252-4173-a061-a262b12b56d4
+            description: "The prophecy is misinterpreted; disaster follows"
+            probability: 33
+          - outcomeId: f4b6814a-7ac0-4984-801b-1b48453937b6
+            description: "The oracle recants; the prophecy is revealed as fabricated"
+            probability: 34
+
+      - eventId: 9b7911a9-a976-4840-8dbd-69bf94e1d1d3
+        title: "The Synthetic Soldier's First Deployment"
+        outcomes:
+          - outcomeId: b152c193-5289-4515-a337-225ba94f49d7
+            description: "The deployment succeeds; synthetic forces reshape the front"
+            probability: 50
+          - outcomeId: 6cfd263e-3d97-4ff0-b98b-707010f36a26
+            description: "The units malfunction; they turn on their own commanders"
+            probability: 20
+          - outcomeId: d7ed415a-ce5c-4471-aebd-5e43f7fd7d1f
+            description: "The deployment is leaked; international condemnation halts the program"
+            probability: 30
+
+      - eventId: fefb7c8c-b455-42f8-944b-0b4f5bc82d6b
+        title: "The Last Transmission from the Frontier Station"
+        outcomes:
+          - outcomeId: 802911af-6756-468b-aa1c-b3a503ca3785
+            description: "The station is rescued; its data changes the course of history"
+            probability: 35
+          - outcomeId: 8f5ee4c9-6784-4a3e-95bf-bd49dba42764
+            description: "The station goes dark; its fate remains unknown"
+            probability: 45
+          - outcomeId: ec4a8965-9a08-4f7e-9ddf-3be07f324fc0
+            description: "The transmission reveals a coordinates for a new timeline branch"
+            probability: 20
+
+      - eventId: 071e77a8-13f1-4b69-94b6-c505de755ff3
+        title: "The Trial of the Time Architect"
+        outcomes:
+          - outcomeId: 36febb91-3592-4020-8a74-633fbd5c72ef
+            description: "The architect is convicted; temporal engineering is banned"
+            probability: 30
+          - outcomeId: e4946ea5-dd70-4dc1-b3af-0c9a9978fdd7
+            description: "The architect is acquitted and continues their work in secret"
+            probability: 50
+          - outcomeId: 16d1d855-3404-4845-a7e4-8693d9ddf509
+            description: "The trial collapses; the architect escapes to another era"
+            probability: 20
+
+      - eventId: 641db543-f364-4d62-8a33-54fdafea4345
+        title: "The Fall of the Meridian Gate"
+        outcomes:
+          - outcomeId: 1c090513-c790-4a11-8efb-3b1b4e8f666b
+            description: "The gate falls; the invading force floods the inner city"
+            probability: 42
+          - outcomeId: 1c2f77e2-697a-46ce-a7e1-b09183f096d3
+            description: "Defenders hold the gate; the siege is broken"
+            probability: 42
+          - outcomeId: 9792ae27-f75a-4826-960c-01ec87f6ea9b
+            description: "The gate is destroyed by its own defenders to prevent capture"
+            probability: 16
+
+      - eventId: a7e1660a-d758-4b56-afe3-004b3ff39023
+        title: "The Awakening of the Sleeping Fleet"
+        outcomes:
+          - outcomeId: 8d30b8b8-dc56-4aae-816f-6754b2144702
+            description: "The fleet activates and joins the dominant faction"
+            probability: 33
+          - outcomeId: 999d5f54-c32c-4faa-b5ac-87eda645bbf2
+            description: "The fleet's systems are corrupted; it attacks indiscriminately"
+            probability: 33
+          - outcomeId: 740f61d5-7240-4751-bd09-37f0e269f59a
+            description: "The fleet self-destructs rather than serve any faction"
+            probability: 34
+
+      - eventId: 4e2cfe30-4ca6-4dce-9293-1aab2014ddac
+        title: "The Burning of the Archive"
+        outcomes:
+          - outcomeId: 454c7001-4728-4074-8861-08d29e90fa9e
+            description: "The archive burns; centuries of history are erased"
+            probability: 30
+          - outcomeId: d7107e3c-c0ad-43b4-8a88-b78ae94a6661
+            description: "Archivists rescue the most critical records before the fire spreads"
+            probability: 50
+          - outcomeId: 6aac240f-845b-4f6b-bdd0-a73fcacc9ac8
+            description: "The fire is extinguished; the arsonist reveals a hidden agenda"
+            probability: 20
+
+      - eventId: 7e27e136-9959-49ac-90b5-9564decf9f1b
+        title: "The Birth of the Resistance Leader"
+        outcomes:
+          - outcomeId: 5b059228-f755-42cb-a966-c7110c696c31
+            description: "The child is born and grows into a symbol of hope"
+            probability: 45
+          - outcomeId: 99397c96-ed35-4313-a832-41ea7a9e3ae7
+            description: "The child is taken by the regime; becomes its instrument"
+            probability: 35
+          - outcomeId: 83299fc5-c78f-466b-baa2-1cb7a69b13f7
+            description: "The child disappears; their legend inspires others in their absence"
+            probability: 20
+
+      - eventId: e2fbac19-eca9-49a7-95dd-07fd93be7655
+        title: "The Detonation of the Null Bomb"
+        outcomes:
+          - outcomeId: ee2f7a15-cfb8-4466-a17e-82488aeab280
+            description: "The bomb detonates; a pocket of erased history forms"
+            probability: 25
+          - outcomeId: 75cd1744-526d-4d54-95f0-250f016edcca
+            description: "The bomb is defused; its components are reverse-engineered"
+            probability: 60
+          - outcomeId: fcc5274d-17b2-4a2b-b6ce-daaede9dab66
+            description: "The detonation fails; a temporal echo loop begins instead"
+            probability: 15
+
+      - eventId: 4dd81d1e-5c35-4dcf-a7e2-1a97739db3f3
+        title: "The Coronation of the Child Empress"
+        outcomes:
+          - outcomeId: b1d446c6-d76f-4af0-95d3-536eae0950bf
+            description: "The coronation unites the fractured provinces under her rule"
+            probability: 30
+          - outcomeId: aa8d4717-9d37-49bc-852a-74746e223e86
+            description: "The coronation is interrupted by an assassination attempt"
+            probability: 20
+          - outcomeId: 1a1a81ac-185b-4c20-bb96-7b13145cd6b6
+            description: "Regents seize power using the coronation as cover"
+            probability: 50
+
+      - eventId: d0f70b4d-4efe-47f2-8d15-594cfdabf4da
+        title: "The Breach of the Temporal Quarantine"
+        outcomes:
+          - outcomeId: 7b82f97e-d4f1-4297-babd-31a5673fd1ee
+            description: "The quarantine holds; the contaminated timeline is sealed"
+            probability: 60
+          - outcomeId: 37460d0c-a26d-45e8-a3be-60bbfcfc978f
+            description: "The breach spreads; two timelines begin to merge"
+            probability: 25
+          - outcomeId: ac1b87a8-7efa-4a09-99d0-78096a228a56
+            description: "Agents exploit the breach to extract forbidden artifacts"
+            probability: 15
+
+      - eventId: 612f7eae-dc03-47b3-b00b-a04d8198dba2
+        title: "The Revelation of the Second Timeline"
+        outcomes:
+          - outcomeId: bf9613aa-2f11-4d3b-be52-6fc6203b05c5
+            description: "The second timeline is revealed; factions race to control it"
+            probability: 45
+          - outcomeId: 420fbf2e-c45d-4e1e-acd1-ee169c0353db
+            description: "The revelation is suppressed; the knowledge is classified"
+            probability: 35
+          - outcomeId: 1de43006-a604-4949-b342-9a93724ba461
+            description: "The second timeline collapses before it can be exploited"
+            probability: 20
+
+      - eventId: 7b3aaec0-9c59-4105-a0d4-40b3faa72771
+        title: "The Defection of the Double Agent"
+        outcomes:
+          - outcomeId: 84cdc9eb-4f06-4ade-a86c-440db6753d83
+            description: "The agent defects and exposes an entire sleeper network"
+            probability: 42
+          - outcomeId: eeb83405-6e36-45d5-a840-46c5e3b4e04e
+            description: "The defection is a ruse; the agent eliminates key targets"
+            probability: 42
+          - outcomeId: 88ed092b-95f2-404c-b176-5cf67a663405
+            description: "The agent is captured mid-defection; both sides are compromised"
+            probability: 16
+
+      - eventId: a3861263-3faf-45c2-88ec-87834fbdedb2
+        title: "The Launch of the First Deep-Space Probe"
+        outcomes:
+          - outcomeId: 57b49d9d-9dc9-433d-8881-fab97ddfd1ea
+            description: "The probe launches successfully and returns alien coordinates"
+            probability: 50
+          - outcomeId: 3bc0cc23-b193-4aa1-aeb3-35505a58e8bc
+            description: "The probe is destroyed shortly after launch"
+            probability: 30
+          - outcomeId: 6b638c08-acc3-4677-8db3-3d1bee36414e
+            description: "The probe disappears into a temporal fold and is never recovered"
+            probability: 20
+
+      - eventId: deeda4b1-7b7f-47b4-88db-60e380c7ac02
+        title: "The Convergence Point"
+        outcomes:
+          - outcomeId: 039fb183-d0c8-4b7d-b743-11d9d0686aac
+            description: "All timelines converge peacefully into a single stable history"
+            probability: 33
+          - outcomeId: a09fbd6e-dcf0-4f59-9807-0502001d235f
+            description: "The convergence triggers a paradox cascade; history fractures"
+            probability: 33
+          - outcomeId: ded4c94b-7454-4d25-85da-f40cf4702b41
+            description: "One faction seizes the convergence point and rewrites the past"
+            probability: 34

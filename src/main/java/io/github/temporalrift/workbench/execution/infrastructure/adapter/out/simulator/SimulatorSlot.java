@@ -2,6 +2,8 @@ package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.si
 
 import java.time.Clock;
 
+import org.springframework.core.NestedExceptionUtils;
+
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
 import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 
@@ -43,7 +45,8 @@ final class SimulatorSlot {
         } catch (RuntimeException e) {
             throw new AttemptFailedException(
                     FailureCode.EXECUTION_FAILED,
-                    "Simulator slot " + id + " could not start its services: " + e.getMessage(),
+                    "Simulator slot " + id + " could not start its services: "
+                            + NestedExceptionUtils.getMostSpecificCause(e).getMessage(),
                     e);
         }
         return runtime;

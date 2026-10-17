@@ -34,6 +34,39 @@ class ServiceClassLoaderTest {
     }
 
     @Test
+    void theAutoConfigurationsOfTheHostAreNotListedForTheService() throws IOException {
+        var imports = "META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports";
+        var hosted = hosted(Map.of(imports, "service.Configuration", "META-INF/spring.factories", "service=true"));
+        var hostFile = directory.resolve("host").resolve(imports);
+        Files.createDirectories(hostFile.getParent());
+        Files.writeString(hostFile, "host.Configuration");
+        Files.writeString(directory.resolve("host").resolve("META-INF/spring.factories"), "host=true");
+
+        try (var host = new URLClassLoader(
+                        new URL[] {directory.resolve("host").toUri().toURL()}, null);
+                var loader = new ServiceClassLoader(hosted, host)) {
+            assertThat(Collections.list(loader.getResources(imports))).hasSize(1);
+            assertThat(Collections.list(loader.getResources("META-INF/spring.factories")))
+                    .hasSize(1);
+        }
+    }
+
+    @Test
+    void aServiceWithoutSpringMetadataOfItsOwnGetsTheHosts() throws IOException {
+        var factories = "META-INF/spring.factories";
+        var hosted = hosted(Map.of());
+        var hostFile = directory.resolve("host").resolve(factories);
+        Files.createDirectories(hostFile.getParent());
+        Files.writeString(hostFile, "host=true");
+
+        try (var host = new URLClassLoader(
+                        new URL[] {directory.resolve("host").toUri().toURL()}, null);
+                var loader = new ServiceClassLoader(hosted, host)) {
+            assertThat(Collections.list(loader.getResources(factories))).hasSize(1);
+        }
+    }
+
+    @Test
     void aResourceOnlyTheHostHasIsStillFound() throws IOException {
         var hosted = hosted(Map.of());
         var hostDirectory = Files.createDirectory(directory.resolve("host"));
