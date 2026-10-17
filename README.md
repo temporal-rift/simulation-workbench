@@ -544,6 +544,12 @@ them when the case ends; stopping them is what makes the slot clean. A case that
 interruption keeps the running services. State lives only in memory, so a workbench restart cannot resume a game on a
 slot.
 
+The slots' behavior on the real service jars is covered by integration tests that run only when
+`-Dsimulator.builds=<directory>` names a directory holding `game-service.jar`, `timeline-service.jar` and
+`read-service.jar`: `SlotRuntimeRealJarsIT` starts the three services, `SimulatorLaneIT` plays a seeded case twice and
+compares the semantic digests, and `SimulatorParallelSlotsIT` plays cases on two slots at once. `SimulatorCapacityIT`
+measures one slot count; its results are in [docs/capacity/simulator-v1.md](docs/capacity/simulator-v1.md).
+
 ## Timing metrics
 
 The workbench publishes Micrometer timers on its Prometheus endpoint (`/actuator/prometheus`) that split a game's wall
