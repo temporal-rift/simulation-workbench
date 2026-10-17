@@ -28,7 +28,7 @@ public class LaneWaits {
         return registry.config().clock().monotonicTime();
     }
 
-    public void record(Kind kind, long nanos) {
+    public void waited(Kind kind, long nanos) {
         registry.timer("workbench.lane.wait", "kind", kind.name()).record(nanos, TimeUnit.NANOSECONDS);
     }
 }

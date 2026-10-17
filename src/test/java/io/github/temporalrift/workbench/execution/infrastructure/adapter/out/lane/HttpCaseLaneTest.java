@@ -328,9 +328,8 @@ class HttpCaseLaneTest {
                 clients,
                 new LaneServices(ledger, evidence, (_, _, _, _, _) -> events),
                 Clock.fixed(EPOCH, ZoneOffset.UTC),
-                new LaneEndpoints.Barrier(Duration.ZERO, 1, 2),
-                _ -> {},
-                new LaneWaits(registry),
+                new HttpGameSession.Pacing(
+                        new LaneEndpoints.Barrier(Duration.ZERO, 1, 2), _ -> {}, new LaneWaits(registry)),
                 roster.takeExactly(endpoints.id(), endpoints.bundle()).orElseThrow());
     }
 

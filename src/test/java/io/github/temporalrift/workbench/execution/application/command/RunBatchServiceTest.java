@@ -61,11 +61,9 @@ class RunBatchServiceTest {
             runs,
             cases,
             experiments,
-            lanes,
-            driver,
+            new RunBatchService.Playing(lanes, driver, timings),
             Clock.fixed(NOW, ZoneOffset.UTC),
-            new ExecutionSettings(Duration.ofSeconds(30), Duration.ofSeconds(5), 2, NOW),
-            timings);
+            new ExecutionSettings(Duration.ofSeconds(30), Duration.ofSeconds(5), 2, NOW));
 
     @Test
     void aRunWhoseFrozenExperimentIsGoneFailsAndItsPendingCasesAreCancelled() {

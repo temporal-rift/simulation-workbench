@@ -65,6 +65,7 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.CompositeLaneProvider;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.ConfiguredLanePool;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.GameEventObservers;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.HttpGameSession;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.HttpLaneResets;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneEndpoints;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneRoster;
@@ -150,13 +151,13 @@ public class ExecutionConfiguration {
                 properties.barrier().maxPolls());
         var providers = new ArrayList<LaneProvider>();
         var waits = new LaneWaits(registry);
+        var pacing = new HttpGameSession.Pacing(barrier, Sleeper.thread(), waits);
         providers.add(httpLanes(
                 properties,
                 clients,
                 new LaneServices(ledger, evidence, observers),
                 clock,
-                barrier,
-                waits,
+                pacing,
                 registry,
                 laneResetExecutor));
         if (simulator.enabled()) {
@@ -181,8 +182,7 @@ public class ExecutionConfiguration {
             ApiClients clients,
             LaneServices services,
             Clock clock,
-            LaneEndpoints.Barrier barrier,
-            LaneWaits waits,
+            HttpGameSession.Pacing pacing,
             MeterRegistry registry,
             ScheduledExecutorService laneResetExecutor) {
         List<LaneEndpoints> lanes = properties.lanes().stream()
@@ -208,7 +208,7 @@ public class ExecutionConfiguration {
                         new HttpLaneResets(lanes, properties.client().connectTimeout(), properties.resetTimeout()),
                         registry),
                 ResetScheduler.on(laneResetExecutor));
-        return new ConfiguredLanePool(lanes, roster, clients, services, clock, barrier, Sleeper.thread(), waits);
+        return new ConfiguredLanePool(lanes, roster, clients, services, clock, pacing);
     }
 
     private static LaneProvider simulatorLanes(
@@ -340,7 +340,12 @@ public class ExecutionConfiguration {
             ExecutionSettings settings,
             MeterRegistry registry) {
         return new RunBatchService(
-                runs, cases, experiments, lanes, driver, clock, settings, new MicrometerAttemptTimings(registry));
+                runs,
+                cases,
+                experiments,
+                new RunBatchService.Playing(lanes, driver, new MicrometerAttemptTimings(registry)),
+                clock,
+                settings);
     }
 
     @Bean

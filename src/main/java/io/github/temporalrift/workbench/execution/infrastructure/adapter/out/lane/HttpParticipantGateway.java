@@ -105,7 +105,7 @@ public class HttpParticipantGateway implements ParticipantGateway, SlotReconcile
         } catch (RestClientException e) {
             return ProblemCodes.outcomeOf(e);
         } finally {
-            waits.record(LaneWaits.Kind.ACKNOWLEDGEMENT, waits.now() - sent);
+            waits.waited(LaneWaits.Kind.ACKNOWLEDGEMENT, waits.now() - sent);
         }
     }
 

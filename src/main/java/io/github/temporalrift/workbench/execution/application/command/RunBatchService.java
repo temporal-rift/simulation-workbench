@@ -32,38 +32,35 @@ import io.github.temporalrift.workbench.execution.domain.run.RunState;
  */
 public class RunBatchService implements RunBatchUseCase {
 
+    /** What plays a claimed case: where it runs, how it is driven, and how its attempt is timed. */
+    public record Playing(LaneProvider lanes, CaseDriver driver, AttemptTimings timings) {}
+
     private final RunRepository runs;
     private final CaseLedger cases;
     private final ExperimentSource experiments;
-    private final LaneProvider lanes;
-    private final CaseDriver driver;
+    private final Playing playing;
     private final Clock clock;
     private final ExecutionSettings settings;
-    private final AttemptTimings timings;
 
     public RunBatchService(
             RunRepository runs,
             CaseLedger cases,
             ExperimentSource experiments,
-            LaneProvider lanes,
-            CaseDriver driver,
+            Playing playing,
             Clock clock,
-            ExecutionSettings settings,
-            AttemptTimings timings) {
+            ExecutionSettings settings) {
         this.runs = runs;
         this.cases = cases;
         this.experiments = experiments;
-        this.lanes = lanes;
-        this.driver = driver;
+        this.playing = playing;
         this.clock = clock;
         this.settings = settings;
-        this.timings = timings;
     }
 
     @Override
     public void recoverAfterRestart() {
         cases.interruptAllRunning(clock.instant());
-        lanes.prepare(cases.interruptedLanes());
+        playing.lanes().prepare(cases.interruptedLanes());
     }
 
     @Override
@@ -72,13 +69,13 @@ public class RunBatchService implements RunBatchUseCase {
         runs.findByState(RunState.QUEUED).forEach(this::begin);
         runs.findByState(RunState.RUNNING).forEach(this::settleRunning);
         runs.findByState(RunState.CANCELLING).forEach(this::settleCancelling);
-        cases.finished(lanes.heldCases()).forEach(lanes::releaseHeld);
+        cases.finished(playing.lanes().heldCases()).forEach(playing.lanes()::releaseHeld);
     }
 
     @Override
     public boolean runNextCase(String owner) {
-        var freeBundles = Set.copyOf(lanes.freeLanes().values());
-        var heldCases = lanes.heldCases();
+        var freeBundles = Set.copyOf(playing.lanes().freeLanes().values());
+        var heldCases = playing.lanes().heldCases();
         if (freeBundles.isEmpty() && heldCases.isEmpty()) {
             return false;
         }
@@ -96,8 +93,8 @@ public class RunBatchService implements RunBatchUseCase {
             return true;
         }
         var logicalCase = claim.get().logicalCase();
-        var lane =
-                lanes.acquire(logicalCase.caseId(), logicalCase.bundle(), previous == null ? null : previous.laneId());
+        var lane = playing.lanes()
+                .acquire(logicalCase.caseId(), logicalCase.bundle(), previous == null ? null : previous.laneId());
         if (lane.isEmpty()) {
             cases.release(attempt.attemptId(), owner, now);
             return false;
@@ -126,8 +123,8 @@ public class RunBatchService implements RunBatchUseCase {
         var attempt = claim.attempt();
         var started = clock.instant();
         try {
-            var result = driver.play(
-                    claim.logicalCase(), attempt, previous, plan, lane, guard(attempt.attemptId(), claim, owner));
+            var result = playing.driver()
+                    .play(claim.logicalCase(), attempt, previous, plan, lane, guard(attempt.attemptId(), claim, owner));
             return ended(
                     claim,
                     lane,
@@ -168,12 +165,13 @@ public class RunBatchService implements RunBatchUseCase {
             boolean owned,
             AttemptState state,
             FailureCode failure) {
-        timings.ended(
-                lane.laneId(),
-                claim.logicalCase().seats().size(),
-                owned ? state : AttemptState.INTERRUPTED,
-                owned ? failure : null,
-                Duration.between(started, clock.instant()));
+        playing.timings()
+                .ended(
+                        lane.laneId(),
+                        claim.logicalCase().seats().size(),
+                        owned ? state : AttemptState.INTERRUPTED,
+                        owned ? failure : null,
+                        Duration.between(started, clock.instant()));
         return owned;
     }
 

@@ -105,7 +105,9 @@ public class HttpGameSession implements GameSession {
 
     /** Whether the services and projection have settled; the gateway uses it to judge accepted state current. */
     public boolean isSettled() {
-        return causallyDrained() & projectionSettled();
+        var drained = causallyDrained();
+        var projected = projectionSettled();
+        return drained && projected;
     }
 
     /** Whether both services report their work for the case drained. */
@@ -210,17 +212,18 @@ public class HttpGameSession implements GameSession {
     public boolean awaitSettled() {
         var causalNanos = 0L;
         var projectionNanos = 0L;
-        var settled = false;
-        for (var poll = 0; poll < barrier.maxPolls() && !settled; poll++) {
-            var checking = waits.now();
-            var drained = causallyDrained();
-            var drainChecked = waits.now();
-            var projected = projectionSettled();
-            var projectionChecked = waits.now();
-            causalNanos += drainChecked - checking;
-            projectionNanos += projectionChecked - drainChecked;
-            settled = drained && projected;
-            if (!settled) {
+        try {
+            for (var poll = 0; poll < barrier.maxPolls(); poll++) {
+                var checking = waits.now();
+                var drained = causallyDrained();
+                var drainChecked = waits.now();
+                causalNanos += drainChecked - checking;
+                var projected = projectionSettled();
+                var projectionChecked = waits.now();
+                projectionNanos += projectionChecked - drainChecked;
+                if (drained && projected) {
+                    return true;
+                }
                 sleeper.sleep(barrier.pollInterval());
                 // The pause is spent on whichever barrier was still unmet.
                 var paused = waits.now() - projectionChecked;
@@ -230,10 +233,11 @@ public class HttpGameSession implements GameSession {
                     causalNanos += paused;
                 }
             }
+            return false;
+        } finally {
+            waits.waited(LaneWaits.Kind.CAUSAL_BARRIER, causalNanos);
+            waits.waited(LaneWaits.Kind.PROJECTION_BARRIER, projectionNanos);
         }
-        waits.record(LaneWaits.Kind.CAUSAL_BARRIER, causalNanos);
-        waits.record(LaneWaits.Kind.PROJECTION_BARRIER, projectionNanos);
-        return settled;
     }
 
     private Optional<Map<UUID, Integer>> scores() {

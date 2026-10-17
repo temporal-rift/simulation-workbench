@@ -64,7 +64,7 @@ class CapacityTimersTest {
         new MicrometerDecisionTimings(registry).time("random-v1", PolicyDecision.Exhausted::new);
         var waits = new LaneWaits(registry);
         for (var kind : LaneWaits.Kind.values()) {
-            waits.record(kind, 1);
+            waits.waited(kind, 1);
         }
         new MeteredLaneResets((_, _, _) -> {}, registry).reset("lane-1", UUID.randomUUID(), UUID.randomUUID());
 

@@ -144,9 +144,10 @@ class ConfiguredLanePoolTest {
                 new RestApiClients(Duration.ofSeconds(1), Duration.ofSeconds(1)),
                 services(),
                 Clock.systemUTC(),
-                new LaneEndpoints.Barrier(Duration.ZERO, 1, 1),
-                _ -> {},
-                new LaneWaits(new SimpleMeterRegistry()));
+                new HttpGameSession.Pacing(
+                        new LaneEndpoints.Barrier(Duration.ZERO, 1, 1),
+                        _ -> {},
+                        new LaneWaits(new SimpleMeterRegistry())));
     }
 
     private static LaneServices services() {
