@@ -59,7 +59,14 @@ final class SimulatorCaseLane implements CaseLane {
                         hosting.objectMapper(),
                         new SimulatorEventObserver.Target(scopeId, attemptId, gameId)));
         hosted = new HttpCaseLane(
-                endpoints, hosting.clients(), services, hosting.clock(), hosting.barrier(), hosting.sleeper(), tenancy);
+                endpoints,
+                hosting.clients(),
+                services,
+                hosting.clock(),
+                hosting.barrier(),
+                hosting.sleeper(),
+                hosting.waits(),
+                tenancy);
         return hosted.open(context, resumeGameId);
     }
 

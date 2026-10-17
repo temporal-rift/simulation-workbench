@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -69,6 +70,8 @@ class HttpGameSessionTest {
     private final SimulationExecutionApi gameControl = mock(SimulationExecutionApi.class);
     private final SimulationExecutionApi timelineControl = mock(SimulationExecutionApi.class);
     private final ScoringApi scoring = mock(ScoringApi.class);
+    private final SimpleMeterRegistry registry = new SimpleMeterRegistry();
+    private final LaneWaits waits = new LaneWaits(registry);
     private final AtomicInteger sleeps = new AtomicInteger();
     private final StubEventObserver events = new StubEventObserver();
     private HttpGameSession session;
@@ -84,7 +87,7 @@ class HttpGameSessionTest {
             plans.add(new SeatPlan(seat, FACTIONS.get(seat), "random", "1.0.0"));
             setState(seat, handSelection());
         }
-        var gateway = new HttpParticipantGateway(GAME, seats, () -> true);
+        var gateway = new HttpParticipantGateway(GAME, seats, () -> true, waits);
         var context = new CaseLane.CaseContext(
                 new UUID(1, 1), new UUID(2, 2), CASE_KEY, "42", DIGEST, plans, Instant.parse("2026-01-01T00:00:00Z"));
         session = new HttpGameSession(
@@ -94,7 +97,7 @@ class HttpGameSessionTest {
                 gateway,
                 scoring,
                 new HttpGameSession.Pacing(
-                        new LaneEndpoints.Barrier(Duration.ZERO, 2, 3), _ -> sleeps.incrementAndGet()),
+                        new LaneEndpoints.Barrier(Duration.ZERO, 2, 3), _ -> sleeps.incrementAndGet(), waits),
                 events);
         checkpoints(true, null);
     }
@@ -114,6 +117,21 @@ class HttpGameSessionTest {
 
         assertThat(progress).isInstanceOf(GameProgress.Waiting.class);
         assertThat(sleeps.get()).isEqualTo(3);
+    }
+
+    @Test
+    void aSettleWaitAddsOneSampleOfEachBarrierKind() {
+        session.poll();
+
+        assertThat(waitSamples(LaneWaits.Kind.CAUSAL_BARRIER)).isEqualTo(1);
+        assertThat(waitSamples(LaneWaits.Kind.PROJECTION_BARRIER)).isEqualTo(1);
+    }
+
+    private long waitSamples(LaneWaits.Kind kind) {
+        return registry.get("workbench.lane.wait")
+                .tag("kind", kind.name())
+                .timer()
+                .count();
     }
 
     @Test

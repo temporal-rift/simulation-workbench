@@ -45,6 +45,7 @@ public class HttpParticipantGateway implements ParticipantGateway, SlotReconcile
     private final UUID gameId;
     private final Map<Integer, Participant> participants;
     private final BooleanSupplier settled;
+    private final LaneWaits waits;
     private final Map<Integer, ObservationMapper.Owed> open = new ConcurrentHashMap<>();
     private final Map<Integer, Boolean> ready = new ConcurrentHashMap<>();
 
@@ -54,11 +55,12 @@ public class HttpParticipantGateway implements ParticipantGateway, SlotReconcile
     /**
      * @param settled whether the services and projection have settled, so accepted state is current
      */
-    public HttpParticipantGateway(UUID gameId, List<Participant> seats, BooleanSupplier settled) {
+    public HttpParticipantGateway(UUID gameId, List<Participant> seats, BooleanSupplier settled, LaneWaits waits) {
         this.gameId = gameId;
         this.participants = new ConcurrentHashMap<>();
         seats.forEach(seat -> participants.put(seat.seatIndex(), seat));
         this.settled = settled;
+        this.waits = waits;
     }
 
     UUID gameId() {
@@ -96,11 +98,14 @@ public class HttpParticipantGateway implements ParticipantGateway, SlotReconcile
             throw new WindowClosedException(seatIndex);
         }
         var action = participant(seatIndex).action();
+        var sent = waits.now();
         try {
             send(action, owed, candidate);
             return new SubmissionOutcome.Accepted();
         } catch (RestClientException e) {
             return ProblemCodes.outcomeOf(e);
+        } finally {
+            waits.record(LaneWaits.Kind.ACKNOWLEDGEMENT, waits.now() - sent);
         }
     }
 

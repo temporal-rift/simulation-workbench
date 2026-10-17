@@ -21,6 +21,7 @@ public class ConfiguredLanePool extends RosterBackedLaneProvider {
     private final Clock clock;
     private final LaneEndpoints.Barrier barrier;
     private final Sleeper sleeper;
+    private final LaneWaits waits;
 
     /** @param roster the availability of exactly these lanes, each as its {@link LaneEndpoints#member() member} */
     public ConfiguredLanePool(
@@ -30,7 +31,8 @@ public class ConfiguredLanePool extends RosterBackedLaneProvider {
             LaneServices services,
             Clock clock,
             LaneEndpoints.Barrier barrier,
-            Sleeper sleeper) {
+            Sleeper sleeper,
+            LaneWaits waits) {
         super(
                 roster,
                 ServedBundle.counted(lanes.stream()
@@ -42,10 +44,12 @@ public class ConfiguredLanePool extends RosterBackedLaneProvider {
         this.clock = clock;
         this.barrier = barrier;
         this.sleeper = sleeper;
+        this.waits = waits;
     }
 
     @Override
     protected CaseLane lane(LaneRoster.Tenancy tenancy) {
-        return new HttpCaseLane(lanes.get(tenancy.laneId()), clients, services, clock, barrier, sleeper, tenancy);
+        return new HttpCaseLane(
+                lanes.get(tenancy.laneId()), clients, services, clock, barrier, sleeper, waits, tenancy);
     }
 }

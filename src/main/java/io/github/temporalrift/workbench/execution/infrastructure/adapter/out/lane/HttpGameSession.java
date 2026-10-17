@@ -56,6 +56,7 @@ public class HttpGameSession implements GameSession {
     private final ScoringApi scoring;
     private final LaneEndpoints.Barrier barrier;
     private final Sleeper sleeper;
+    private final LaneWaits waits;
     private final GameEventObserver events;
 
     private Map<Integer, Integer> lastRevisions = Map.of();
@@ -65,7 +66,7 @@ public class HttpGameSession implements GameSession {
     public record ServiceControls(SimulationExecutionApi game, SimulationExecutionApi timeline) {}
 
     /** How the session waits for the services and projection to settle. */
-    public record Pacing(LaneEndpoints.Barrier barrier, Sleeper sleeper) {}
+    public record Pacing(LaneEndpoints.Barrier barrier, Sleeper sleeper, LaneWaits waits) {}
 
     /**
      * @param gateway the raw participant operations of the game, which also name its id and seats
@@ -88,6 +89,7 @@ public class HttpGameSession implements GameSession {
         this.scoring = scoring;
         this.barrier = pacing.barrier();
         this.sleeper = pacing.sleeper();
+        this.waits = pacing.waits();
         this.events = events;
     }
 
@@ -103,9 +105,18 @@ public class HttpGameSession implements GameSession {
 
     /** Whether the services and projection have settled; the gateway uses it to judge accepted state current. */
     public boolean isSettled() {
+        return causallyDrained() & projectionSettled();
+    }
+
+    /** Whether both services report their work for the case drained. */
+    private boolean causallyDrained() {
         var game = checkpoint(gameControl, GAME_SERVICE);
         var timeline = checkpoint(timelineControl, TIMELINE_SERVICE);
-        var drained = Boolean.TRUE.equals(game.getDrained()) && Boolean.TRUE.equals(timeline.getDrained());
+        return Boolean.TRUE.equals(game.getDrained()) && Boolean.TRUE.equals(timeline.getDrained());
+    }
+
+    /** Whether every seat's projection has stopped changing and the observer has seen all events. */
+    private boolean projectionSettled() {
         var revisions = new HashMap<Integer, Integer>();
         var complete = true;
         for (var seat : seats) {
@@ -115,7 +126,7 @@ public class HttpGameSession implements GameSession {
         }
         stableReads = complete && revisions.equals(lastRevisions) ? stableReads + 1 : 0;
         lastRevisions = revisions;
-        return drained && stableReads >= barrier.stablePolls() && events.drain();
+        return stableReads >= barrier.stablePolls() && events.drain();
     }
 
     @Override
@@ -197,13 +208,32 @@ public class HttpGameSession implements GameSession {
 
     /** Waits a bounded number of checks for the services and projection to settle. */
     public boolean awaitSettled() {
-        for (var poll = 0; poll < barrier.maxPolls(); poll++) {
-            if (isSettled()) {
-                return true;
+        var causalNanos = 0L;
+        var projectionNanos = 0L;
+        var settled = false;
+        for (var poll = 0; poll < barrier.maxPolls() && !settled; poll++) {
+            var checking = waits.now();
+            var drained = causallyDrained();
+            var drainChecked = waits.now();
+            var projected = projectionSettled();
+            var projectionChecked = waits.now();
+            causalNanos += drainChecked - checking;
+            projectionNanos += projectionChecked - drainChecked;
+            settled = drained && projected;
+            if (!settled) {
+                sleeper.sleep(barrier.pollInterval());
+                // The pause is spent on whichever barrier was still unmet.
+                var paused = waits.now() - projectionChecked;
+                if (drained) {
+                    projectionNanos += paused;
+                } else {
+                    causalNanos += paused;
+                }
             }
-            sleeper.sleep(barrier.pollInterval());
         }
-        return false;
+        waits.record(LaneWaits.Kind.CAUSAL_BARRIER, causalNanos);
+        waits.record(LaneWaits.Kind.PROJECTION_BARRIER, projectionNanos);
+        return settled;
     }
 
     private Optional<Map<UUID, Integer>> scores() {

@@ -38,6 +38,8 @@ public final class CaseDriver {
 
     private static final String SEAT_INDEX = "seatIndex";
     private static final String WINDOW = "window";
+    /** Replay decisions come from the pinned transcript, not from a policy, and are published under this id. */
+    private static final String REPLAY_POLICY_ID = "transcript";
 
     private final DecisionRuntime decisions;
     private final CommandLedger commands;
@@ -119,7 +121,7 @@ public final class CaseDriver {
         var policy = new TranscriptPolicy(transcript);
         var policySeed = Long.parseUnsignedLong(logicalCase.seed());
         var seats = logicalCase.seats().stream()
-                .map(seat -> new SeatPolicy(seat.seatIndex(), policy, policySeed))
+                .map(seat -> new SeatPolicy(seat.seatIndex(), REPLAY_POLICY_ID, policy, policySeed))
                 .toList();
 
         var ending = playToEnd(session, player, seats, plan, guard, deadline, (seat, codes) -> {
@@ -244,7 +246,7 @@ public final class CaseDriver {
                     .orElseThrow(() -> new AttemptFailedException(
                             FailureCode.CONTRACT_MISMATCH,
                             "Policy " + plan.policyId() + "@" + plan.policyVersion() + " is not defined"));
-            seats.add(new SeatPolicy(plan.seatIndex(), policy, policySeed));
+            seats.add(new SeatPolicy(plan.seatIndex(), plan.policyId(), policy, policySeed));
         }
         return seats;
     }

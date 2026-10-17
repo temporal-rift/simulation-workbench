@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 
 import io.github.temporalrift.workbench.execution.domain.port.out.LaneProvider;
@@ -144,7 +145,8 @@ class ConfiguredLanePoolTest {
                 services(),
                 Clock.systemUTC(),
                 new LaneEndpoints.Barrier(Duration.ZERO, 1, 1),
-                _ -> {});
+                _ -> {},
+                new LaneWaits(new SimpleMeterRegistry()));
     }
 
     private static LaneServices services() {

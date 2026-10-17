@@ -51,6 +51,7 @@ public class HttpCaseLane implements CaseLane {
     private final Clock clock;
     private final LaneEndpoints.Barrier barrier;
     private final Sleeper sleeper;
+    private final LaneWaits waits;
     private final LaneRoster.Tenancy tenancy;
 
     public HttpCaseLane(
@@ -60,6 +61,7 @@ public class HttpCaseLane implements CaseLane {
             Clock clock,
             LaneEndpoints.Barrier barrier,
             Sleeper sleeper,
+            LaneWaits waits,
             LaneRoster.Tenancy tenancy) {
         this.lane = lane;
         this.clients = clients;
@@ -69,6 +71,7 @@ public class HttpCaseLane implements CaseLane {
         this.clock = clock;
         this.barrier = barrier;
         this.sleeper = sleeper;
+        this.waits = waits;
         this.tenancy = tenancy;
     }
 
@@ -140,7 +143,7 @@ public class HttpCaseLane implements CaseLane {
                 ScoringApi.class, lane.gameServiceUrl(), lane.bots().getFirst().token());
         var sessionRef = new AtomicReference<HttpGameSession>();
         var raw = new HttpParticipantGateway(
-                gameId, participants, () -> sessionRef.get().isSettled());
+                gameId, participants, () -> sessionRef.get().isSettled(), waits);
         var recorder = new StepRecorder(
                 evidence,
                 context.caseId(),
@@ -158,7 +161,7 @@ public class HttpCaseLane implements CaseLane {
                 raw,
                 durable,
                 scoring,
-                new HttpGameSession.Pacing(barrier, sleeper),
+                new HttpGameSession.Pacing(barrier, sleeper, waits),
                 events);
         sessionRef.set(session);
         return new Attached(session, durable);

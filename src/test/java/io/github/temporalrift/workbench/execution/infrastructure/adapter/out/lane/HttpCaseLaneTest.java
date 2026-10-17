@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -67,6 +68,7 @@ class HttpCaseLaneTest {
     private static final String DIGEST = "c".repeat(64);
     private static final Instant EPOCH = Instant.parse("2026-01-01T00:00:00Z");
 
+    private final SimpleMeterRegistry registry = new SimpleMeterRegistry();
     private final FakeClients clients = new FakeClients();
     private final InMemoryCommandLedger ledger = new InMemoryCommandLedger();
     private final InMemoryEvidenceLedger evidence = new InMemoryEvidenceLedger();
@@ -328,6 +330,7 @@ class HttpCaseLaneTest {
                 Clock.fixed(EPOCH, ZoneOffset.UTC),
                 new LaneEndpoints.Barrier(Duration.ZERO, 1, 2),
                 _ -> {},
+                new LaneWaits(registry),
                 roster.takeExactly(endpoints.id(), endpoints.bundle()).orElseThrow());
     }
 

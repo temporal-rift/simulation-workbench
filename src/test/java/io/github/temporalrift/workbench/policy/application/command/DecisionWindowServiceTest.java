@@ -23,6 +23,7 @@ import io.github.temporalrift.workbench.policy.domain.decision.SubmissionOutcome
 import io.github.temporalrift.workbench.policy.domain.decision.Target;
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
 import io.github.temporalrift.workbench.policy.domain.observation.Faction;
+import io.github.temporalrift.workbench.policy.domain.port.out.DecisionTimings;
 import io.github.temporalrift.workbench.policy.domain.port.out.ParticipantGateway;
 
 class DecisionWindowServiceTest {
@@ -40,8 +41,10 @@ class DecisionWindowServiceTest {
             return BaselinePolicies.RANDOM_V1.policy().decide(observation, excluded, entropy);
         };
 
-        new DecisionWindowService(gateway)
-                .play(List.of(new SeatPolicy(1, recording, 5), new SeatPolicy(0, recording, 5)), BUDGET);
+        new DecisionWindowService(gateway, DecisionTimings.untimed())
+                .play(
+                        List.of(new SeatPolicy(1, "test", recording, 5), new SeatPolicy(0, "test", recording, 5)),
+                        BUDGET);
 
         assertThat(decided).containsExactly("decide0:submissionsSoFar=0", "decide1:submissionsSoFar=0");
         assertThat(gateway.log).startsWith("observe0", "observe1");
@@ -214,8 +217,8 @@ class DecisionWindowServiceTest {
         gateway.pendingReconciliation = true;
         var policy = BaselinePolicies.RANDOM_V1.policy();
 
-        var results = new DecisionWindowService(gateway)
-                .play(List.of(new SeatPolicy(0, policy, 1), new SeatPolicy(1, policy, 1)), BUDGET);
+        var results = new DecisionWindowService(gateway, DecisionTimings.untimed())
+                .play(List.of(new SeatPolicy(0, "test", policy, 1), new SeatPolicy(1, "test", policy, 1)), BUDGET);
 
         assertThat(results.get(0).result()).isInstanceOf(DecisionResult.Submitted.class);
         assertThat(results.get(1).result()).isInstanceOf(DecisionResult.ReconciliationPending.class);
@@ -240,8 +243,8 @@ class DecisionWindowServiceTest {
     }
 
     private static DecisionResult play(FakeGateway gateway, BotPolicy policy, int budget) {
-        return new DecisionWindowService(gateway)
-                .play(List.of(new SeatPolicy(0, policy, 99)), budget)
+        return new DecisionWindowService(gateway, DecisionTimings.untimed())
+                .play(List.of(new SeatPolicy(0, "test", policy, 99)), budget)
                 .getFirst()
                 .result();
     }
