@@ -544,7 +544,7 @@ them when the case ends; stopping them is what makes the slot clean. A case that
 interruption keeps the running services. State lives only in memory, so a workbench restart cannot resume a game on a
 slot.
 
-## Measuring capacity
+## Timing metrics
 
 The workbench publishes Micrometer timers on its Prometheus endpoint (`/actuator/prometheus`) that split a game's wall
 time. None carries a case key, seed, game id, player id or credential as a tag.
@@ -562,54 +562,6 @@ sample each per settle wait: the time until both services report their work drai
 projection has stopped changing and the event observer has caught up. Each poll's pause is attributed to the barrier
 that was still unmet. An attempt whose lane lost its lease or was fenced out is recorded as `INTERRUPTED`.
 Slots of the simulator have no reset hook and record no `workbench.lane.reset`.
-
-### Procedure
-
-The procedure measures **exactly one real lane** at the **baseline** configuration. Never configure or provision a
-second lane for it.
-
-1. **Set the reference spec and cap the lane to it.** The spec defaults to 4 cores / 8 threads and 16 GB.
-
-   ```bash
-   export REFERENCE_CORES="${REFERENCE_CORES:-4}" REFERENCE_THREADS="${REFERENCE_THREADS:-8}" REFERENCE_MEMORY_GB="${REFERENCE_MEMORY_GB:-16}"
-   ```
-
-   The cap must bound the lane's containers together, on a machine at least that large. On Linux, create a cgroup
-   slice limited to `REFERENCE_THREADS` CPUs (`AllowedCPUs`) and `REFERENCE_MEMORY_GB` GB (`MemoryMax`), and give every
-   service of the lane project that slice as its `cgroup_parent` in a Compose override file. With Docker Desktop on
-   Windows, set the WSL2 VM to `processors=$REFERENCE_THREADS` and `memory=${REFERENCE_MEMORY_GB}GB`, leave no other
-   container running in it, and run the workbench outside the VM. Record the host, the caps and how they were applied.
-2. **Provision the lane with the baseline bundle** as described in the infrastructure repository's simulation lane
-   documentation (`compose.yml` with `compose.simulation.yml` and `compose.simulation-observer.yml`, the baseline
-   bundle made with `scripts/prepare-simulation-bundle.sh`, and its recycler as the lane's `reset-url`), using the
-   cap from step 1. Provision one lane project and no other.
-3. **Configure the workbench with that one lane** under `workbench.execution.lanes` (see "Operating the runner"),
-   `workbench.simulator.slots: 0`, and `worker-threads: 1`. Confirm that `GET /api/v1/lane-bundles` lists one bundle.
-4. **Freeze an experiment from the `baseline-policy-comparison` template** with its defaults
-   (`GET /api/v1/experiment-templates`), then start a run of it. Do not change the template's seeds, player counts,
-   factions, rotation or policies.
-5. **Sample the lane while the run is going.** Every few seconds, record each container of the lane project
-   (`docker stats --no-stream --format json --filter label=com.docker.compose.project=temporal-rift-sim-<lane>`) and
-   keep the peak memory and CPU of each. Once, record each JVM's heap settings with
-   `docker exec <container> java -XX:+PrintFlagsFinal -version`, reading `InitialHeapSize`, `MaxHeapSize` and the
-   collector in use, and any `JAVA_TOOL_OPTIONS` or `-Xmx` the container sets.
-6. **Read the timers** from `/actuator/prometheus` after the run, and the per-game wall times and failures from the
-   run's cases and attempts. Repeat steps 4 to 6 on the same lane once more, for the run-to-run variation.
-
-### Report
-
-The result is committed as `docs/capacity/baseline.md`. It states:
-
-- the reference spec and the caps applied, and the host machine it ran on;
-- the service image digests and the effective rules and content digests of the lane;
-- games measured per player count and policy;
-- games per hour on the one lane;
-- the lane's footprint: peak memory and CPU per container, and each JVM's heap settings;
-- per-game wall-time quantiles 0.1, 0.5 and 0.9, per player count and policy;
-- the share of wall time spent in play, policy decisions, service waits and lane resets, and the games per hour the
-  play share alone would allow (play being wall time less decisions, waits and resets);
-- failed attempts by failure code;
-- the run-to-run variation observed between the two repetitions.
 
 ## Evidence, replay, and reproduction
 
