@@ -16,15 +16,14 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.OffsetAndTimestamp;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.header.Header;
-import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
-import io.github.temporalrift.asyncapi.sessionevents.GeneratedChannelContract.GameEndedPayload;
 import io.github.temporalrift.workbench.execution.domain.evidence.ObservedEvent;
 import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
 import io.github.temporalrift.workbench.execution.domain.port.out.GameEventObserver;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
 import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.GameEndedParser;
 
 /**
  * Reads the lane event topics and retains the records of one game as evidence. It resumes from the offsets it
@@ -34,8 +33,6 @@ import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
  * per drain, after its records, and no order across topics is inferred.
  */
 public final class KafkaGameEventObserver implements GameEventObserver {
-
-    private static final String GAME_ENDED = "GameEnded";
 
     private final Consumer<String, byte[]> consumer;
     private final List<TopicPartition> partitions;
@@ -76,9 +73,9 @@ public final class KafkaGameEventObserver implements GameEventObserver {
         consumer.assign(partitions);
         seek(since);
         evidence.events(target.scopeId(), target.gameId()).stream()
-                .filter(event -> GAME_ENDED.equals(event.eventType()))
+                .filter(event -> GameEndedParser.EVENT_TYPE.equals(event.eventType()))
                 .findFirst()
-                .ifPresent(event -> gameEnded = parseGameEnded(event));
+                .ifPresent(event -> gameEnded = GameEndedParser.parse(objectMapper, event));
     }
 
     /** Resumes from the retained offsets; otherwise from the game's start time, otherwise from the beginning. */
@@ -154,8 +151,8 @@ public final class KafkaGameEventObserver implements GameEventObserver {
         if (isThisGame(message)) {
             var event = event(message);
             evidence.retain(target.scopeId(), target.attemptId(), event);
-            if (GAME_ENDED.equals(event.eventType())) {
-                gameEnded = parseGameEnded(event);
+            if (GameEndedParser.EVENT_TYPE.equals(event.eventType())) {
+                gameEnded = GameEndedParser.parse(objectMapper, event);
             }
         }
     }
@@ -189,18 +186,6 @@ public final class KafkaGameEventObserver implements GameEventObserver {
                 occurredAt == null ? null : Instant.parse(occurredAt),
                 version == null ? 0 : Integer.parseInt(version),
                 message.value() == null ? "" : new String(message.value(), StandardCharsets.UTF_8));
-    }
-
-    private GameEnded parseGameEnded(ObservedEvent event) {
-        try {
-            var payload = objectMapper.readValue(event.payload(), GameEndedPayload.class);
-            var scores = new HashMap<UUID, Integer>();
-            payload.finalScores().forEach(score -> scores.put(score.playerId(), score.score()));
-            return new GameEnded(payload.endReason(), scores);
-        } catch (JacksonException e) {
-            throw new AttemptFailedException(
-                    FailureCode.CONTRACT_MISMATCH, "GameEnded " + event.eventId() + " is not a valid payload", e);
-        }
     }
 
     private static String text(ConsumerRecord<String, byte[]> message, String name) {

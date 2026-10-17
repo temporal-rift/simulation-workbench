@@ -4,14 +4,12 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.function.BiConsumer;
@@ -28,7 +26,7 @@ import io.github.temporalrift.workbench.experiment.ManifestFormat;
  * the isolated lanes; they live only here and are never persisted with experiments, runs or evidence.
  *
  * @param workerEnabled whether this process executes pending cases
- * @param workerThreads parallel case executions; defaults to one per configured lane
+ * @param workerThreads parallel case executions; defaults to one per configured lane and simulator slot
  * @param resetTimeout how long one call of a lane's reset hook may take
  */
 @ConfigurationProperties("workbench.execution")
@@ -115,14 +113,15 @@ public record ExecutionProperties(
         private static final String SERVICES_PREFIX = "services.";
 
         public Lane {
-            requireDigest(id, "rules-digest", rulesDigest);
-            requireDigest(id, "content-digest", contentDigest);
-            requireDigest(id, "rules-artifact-digest", rulesArtifactDigest);
-            requireDigest(id, "content-artifact-digest", contentArtifactDigest);
-            requireName(id, "rules-artifact-name", rulesArtifactName);
-            requireName(id, "content-artifact-name", contentArtifactName);
-            requireServices(id, services);
-            contracts = requireContracts(id, contracts);
+            var scope = scope(id);
+            BundleChecks.digest(scope, "rules-digest", rulesDigest);
+            BundleChecks.digest(scope, "content-digest", contentDigest);
+            BundleChecks.digest(scope, "rules-artifact-digest", rulesArtifactDigest);
+            BundleChecks.digest(scope, "content-artifact-digest", contentArtifactDigest);
+            BundleChecks.name(scope, "rules-artifact-name", rulesArtifactName);
+            BundleChecks.name(scope, "content-artifact-name", contentArtifactName);
+            requireServices(scope, services);
+            contracts = BundleChecks.contracts(scope, contracts);
             requireResetUrl(id, resetUrl);
         }
 
@@ -155,14 +154,9 @@ public record ExecutionProperties(
             return declaration;
         }
 
-        private static String property(String laneId, String key) {
-            return "workbench.execution.lanes[id=" + laneId + "]." + key;
-        }
-
         private static void requireResetUrl(String laneId, String value) {
             if (value != null && !isAbsoluteHttpUrl(value)) {
-                throw new IllegalArgumentException(
-                        property(laneId, "reset-url") + " must be an absolute http or https URL");
+                throw new IllegalArgumentException(scope(laneId) + "reset-url must be an absolute http or https URL");
             }
         }
 
@@ -176,58 +170,24 @@ public record ExecutionProperties(
             }
         }
 
-        private static void requireDigest(String laneId, String key, String value) {
-            require(laneId, key, value, ManifestFormat.isDigest(value), "must be 64 lowercase hex characters");
-        }
-
-        private static void requireName(String laneId, String key, String value) {
-            if (value != null && value.isBlank()) {
-                throw new IllegalArgumentException(property(laneId, key) + " must not be blank");
-            }
-        }
-
-        private static void requireServices(String laneId, Services services) {
+        private static void requireServices(String scope, Services services) {
             var declared = services == null ? new Services(null, null, null) : services;
             declared.forEach((name, service) -> {
                 var prefix = SERVICES_PREFIX + name + ".";
                 var image = service == null ? null : service.imageDigest();
                 var revision = service == null ? null : service.sourceRevision();
-                require(
-                        laneId,
+                BundleChecks.require(
+                        scope,
                         prefix + "image-digest",
                         image,
                         ManifestFormat.isImageDigest(image),
                         "must be sha256: followed by 64 lowercase hex characters");
-                require(
-                        laneId,
-                        prefix + "source-revision",
-                        revision,
-                        ManifestFormat.isSourceRevision(revision),
-                        "must be 7 to 64 lowercase hex characters");
+                BundleChecks.sourceRevision(scope, prefix + "source-revision", revision);
             });
         }
 
-        private static SortedMap<String, String> requireContracts(String laneId, Map<String, String> contracts) {
-            if (contracts == null || contracts.isEmpty()) {
-                throw new IllegalArgumentException(property(laneId, "contracts") + " is required");
-            }
-            var sorted = new TreeMap<>(contracts);
-            sorted.forEach((module, version) -> require(
-                    laneId,
-                    "contracts." + module,
-                    version,
-                    ManifestFormat.isContractVersion(version),
-                    "must be an exact semantic version"));
-            return Collections.unmodifiableSortedMap(sorted);
-        }
-
-        private static void require(String laneId, String key, String value, boolean valid, String format) {
-            if (value == null || value.isBlank()) {
-                throw new IllegalArgumentException(property(laneId, key) + " is required");
-            }
-            if (!valid) {
-                throw new IllegalArgumentException(property(laneId, key) + " " + format);
-            }
+        private static String scope(String laneId) {
+            return "workbench.execution.lanes[id=" + laneId + "].";
         }
 
         @Override
@@ -264,7 +224,8 @@ public record ExecutionProperties(
         }
     }
 
-    public int effectiveWorkerThreads() {
-        return workerThreads != null ? workerThreads : Math.max(1, lanes.size());
+    /** One worker per lane and simulator slot unless configured. */
+    public int effectiveWorkerThreads(int simulatorSlots) {
+        return workerThreads != null ? workerThreads : Math.max(1, lanes.size() + simulatorSlots);
     }
 }

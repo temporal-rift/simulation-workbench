@@ -499,6 +499,51 @@ execute against a database.
 retried on a clean lane. Lane provisioning, cleanup, and image attestation belong to the deployment that owns the
 lanes; the runner detects a case or manifest mismatch but does not provision anything.
 
+### Simulator slots
+
+A real lane is about thirteen containers. To play many more cases on an ordinary PC, the workbench can host the
+three services in its own JVM instead. Each service runs unchanged under its `in-memory` Spring profile, which swaps
+only its infrastructure adapters (database, broker, outbox) for in-memory ones. A **slot** is one such set of three
+services. A slot plays one case at a time, and slots play in parallel. The runner, bot policies, evidence, reports and
+reproduction are the ones real lanes use; an attempt records its slot as its lane (`simulator-1`, `simulator-2`, ...).
+
+```yaml
+workbench:
+  simulator:
+    slots: 2                      # 0 (the default) disables the simulator
+    game-service-jar: /builds/game-service.jar
+    timeline-service-jar: /builds/timeline-service.jar
+    read-service-jar: /builds/read-service.jar
+    rules-file: /builds/rules.yml   # the game.rules.* properties every service plays under (.yml, .yaml, .properties)
+    work-directory: /var/tmp/workbench-simulator   # optional; where the jars are extracted
+    bots: 6                       # bot identities per slot; at least the largest player count of a case
+    bundle:                       # declared like a lane's; every slot serves this one bundle
+      rules-digest: 3f1c…
+      content-digest: 9b07…
+      rules-artifact-digest: 5d2a…
+      content-artifact-digest: 0c8e…
+      source-revisions: { game-service: 1a2b3c4, timeline-service: 1a2b3c4, read-service: 9f8e7d6 }
+      contracts: { session-api: 3.0.0, action-api: 7.1.0 }
+```
+
+The jars are the executable jars the services' builds produce, built from the declared source revisions. A service's
+image digest in the bundle's provenance is the digest of its jar. The workbench refuses to start, naming the slot and
+the path, when a jar or the rules file is missing or unreadable, and names the key when a declaration is missing or
+malformed.
+
+Bots call the services' REST operations on loopback ports, exactly as on a real lane, with tokens an in-process issuer
+mints; the slot's services trust only that issuer, and its key never leaves the process. The services publish through
+the slot's event sink, which delivers every record to the services that consume its topic: `game.events` to
+`timeline-service` and `read-service`, `timeline.events` to `game-service` and `read-service`. Per topic and consuming
+service, records arrive in publication order and one at a time, as a partition would deliver them for one game; the
+settlement barrier waits until every routed record has been delivered. The observer retains each routed record as
+delivered, the same raw evidence a real lane's observer retains.
+
+A service keeps one case's execution context for its lifetime, so a slot starts fresh services for each case and stops
+them when the case ends; stopping them is what makes the slot clean. A case that resumes its own game after an
+interruption keeps the running services. State lives only in memory, so a workbench restart cannot resume a game on a
+slot.
+
 ## Evidence, replay, and reproduction
 
 ### What a case retains
