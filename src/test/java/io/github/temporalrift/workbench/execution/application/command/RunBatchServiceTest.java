@@ -14,6 +14,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -23,6 +24,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import io.github.temporalrift.workbench.execution.domain.port.out.AttemptTimings;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLedger;
 import io.github.temporalrift.workbench.execution.domain.port.out.ExperimentSource;
@@ -52,12 +54,14 @@ class RunBatchServiceTest {
     private final ExperimentSource experiments = mock(ExperimentSource.class);
     private final LaneProvider lanes = mock(LaneProvider.class);
     private final CaseDriver driver = mock(CaseDriver.class);
+    private final List<Timed> ended = new ArrayList<>();
+    private final AttemptTimings timings =
+            (lane, players, state, failure, elapsed) -> ended.add(new Timed(lane, players, state, failure));
     private final RunBatchService service = new RunBatchService(
             runs,
             cases,
             experiments,
-            lanes,
-            driver,
+            new RunBatchService.Playing(lanes, driver, timings),
             Clock.fixed(NOW, ZoneOffset.UTC),
             new ExecutionSettings(Duration.ofSeconds(30), Duration.ofSeconds(5), 2, NOW));
 
@@ -229,10 +233,63 @@ class RunBatchServiceTest {
         verify(lane).retainForRecovery();
     }
 
+    @Test
+    void anAttemptThatSucceedsIsTimedAsSucceededWithoutAFailure() {
+        playing();
+        when(cases.succeed(any(), any(), any(), any())).thenReturn(true);
+
+        service.runNextCase("worker");
+
+        assertThat(ended).containsExactly(new Timed("lane-a", 0, AttemptState.SUCCEEDED, null));
+    }
+
+    @Test
+    void anAttemptThatTimesOutIsTimedAsFailedWithItsFailureCode() {
+        playing();
+        when(driver.play(any(), any(), any(), any(), any(), any()))
+                .thenThrow(new AttemptFailedException(FailureCode.RUNNER_TIMEOUT, "too slow"));
+        when(cases.fail(any(), any(), any(), anyBoolean(), any())).thenReturn(CaseLedger.FailOutcome.RETRY);
+
+        service.runNextCase("worker");
+
+        assertThat(ended).containsExactly(new Timed("lane-a", 0, AttemptState.FAILED, FailureCode.RUNNER_TIMEOUT));
+    }
+
+    @Test
+    void aCancelledAttemptIsTimedAsCancelled() {
+        playing();
+        when(driver.play(any(), any(), any(), any(), any(), any())).thenThrow(new RunCancelledException());
+        when(cases.cancel(any(), any(), any())).thenReturn(true);
+
+        service.runNextCase("worker");
+
+        assertThat(ended).containsExactly(new Timed("lane-a", 0, AttemptState.CANCELLED, null));
+    }
+
+    @Test
+    void anAttemptThatLostItsLeaseOrWasFencedOutIsTimedAsInterrupted() {
+        playing();
+        when(driver.play(any(), any(), any(), any(), any(), any()))
+                .thenThrow(new LeaseLostException())
+                .thenThrow(new AttemptFailedException(FailureCode.POLICY_EXHAUSTED, "exhausted"));
+        when(cases.fail(any(), any(), any(), anyBoolean(), any())).thenReturn(CaseLedger.FailOutcome.LOST);
+
+        service.runNextCase("worker");
+        service.runNextCase("worker");
+
+        assertThat(ended)
+                .containsExactly(
+                        new Timed("lane-a", 0, AttemptState.INTERRUPTED, null),
+                        new Timed("lane-a", 0, AttemptState.INTERRUPTED, null));
+    }
+
+    private record Timed(String lane, int players, AttemptState state, FailureCode failure) {}
+
     /** A claimed case that acquired a lane and is about to play on it. */
     private CaseLane playing() {
         var logicalCase = logicalCase(BASELINE);
         var lane = mock(CaseLane.class);
+        when(lane.laneId()).thenReturn("lane-a");
         when(lanes.freeLanes()).thenReturn(Map.of("lane-a", BASELINE));
         when(cases.claimNext(any(), any(), any(), any(), any()))
                 .thenReturn(Optional.of(new CaseLedger.Claim(logicalCase, attempt(logicalCase), Optional.empty(), 1)));

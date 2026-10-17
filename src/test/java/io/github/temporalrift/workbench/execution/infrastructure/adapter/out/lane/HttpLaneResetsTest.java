@@ -110,7 +110,7 @@ class HttpLaneResetsTest {
         var resets = resets(Duration.ofMillis(200));
 
         assertThatThrownBy(() -> resets.reset("lane-1", CASE_KEY, IDEMPOTENCY_KEY))
-                .isInstanceOf(RuntimeException.class);
+                .isInstanceOf(ResetTimeoutException.class);
     }
 
     @Test

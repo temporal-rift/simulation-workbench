@@ -1,11 +1,13 @@
 package io.github.temporalrift.workbench.execution.application.command;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Set;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.execution.application.port.in.RunBatchUseCase;
+import io.github.temporalrift.workbench.execution.domain.port.out.AttemptTimings;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLedger;
 import io.github.temporalrift.workbench.execution.domain.port.out.ExperimentSource;
@@ -13,6 +15,7 @@ import io.github.temporalrift.workbench.execution.domain.port.out.LaneProvider;
 import io.github.temporalrift.workbench.execution.domain.port.out.RunRepository;
 import io.github.temporalrift.workbench.execution.domain.run.Attempt;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
+import io.github.temporalrift.workbench.execution.domain.run.AttemptState;
 import io.github.temporalrift.workbench.execution.domain.run.Failure;
 import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.domain.run.LeaseLostException;
@@ -29,11 +32,13 @@ import io.github.temporalrift.workbench.execution.domain.run.RunState;
  */
 public class RunBatchService implements RunBatchUseCase {
 
+    /** What plays a claimed case: where it runs, how it is driven, and how its attempt is timed. */
+    public record Playing(LaneProvider lanes, CaseDriver driver, AttemptTimings timings) {}
+
     private final RunRepository runs;
     private final CaseLedger cases;
     private final ExperimentSource experiments;
-    private final LaneProvider lanes;
-    private final CaseDriver driver;
+    private final Playing playing;
     private final Clock clock;
     private final ExecutionSettings settings;
 
@@ -41,15 +46,13 @@ public class RunBatchService implements RunBatchUseCase {
             RunRepository runs,
             CaseLedger cases,
             ExperimentSource experiments,
-            LaneProvider lanes,
-            CaseDriver driver,
+            Playing playing,
             Clock clock,
             ExecutionSettings settings) {
         this.runs = runs;
         this.cases = cases;
         this.experiments = experiments;
-        this.lanes = lanes;
-        this.driver = driver;
+        this.playing = playing;
         this.clock = clock;
         this.settings = settings;
     }
@@ -57,7 +60,7 @@ public class RunBatchService implements RunBatchUseCase {
     @Override
     public void recoverAfterRestart() {
         cases.interruptAllRunning(clock.instant());
-        lanes.prepare(cases.interruptedLanes());
+        playing.lanes().prepare(cases.interruptedLanes());
     }
 
     @Override
@@ -66,13 +69,13 @@ public class RunBatchService implements RunBatchUseCase {
         runs.findByState(RunState.QUEUED).forEach(this::begin);
         runs.findByState(RunState.RUNNING).forEach(this::settleRunning);
         runs.findByState(RunState.CANCELLING).forEach(this::settleCancelling);
-        cases.finished(lanes.heldCases()).forEach(lanes::releaseHeld);
+        cases.finished(playing.lanes().heldCases()).forEach(playing.lanes()::releaseHeld);
     }
 
     @Override
     public boolean runNextCase(String owner) {
-        var freeBundles = Set.copyOf(lanes.freeLanes().values());
-        var heldCases = lanes.heldCases();
+        var freeBundles = Set.copyOf(playing.lanes().freeLanes().values());
+        var heldCases = playing.lanes().heldCases();
         if (freeBundles.isEmpty() && heldCases.isEmpty()) {
             return false;
         }
@@ -90,8 +93,8 @@ public class RunBatchService implements RunBatchUseCase {
             return true;
         }
         var logicalCase = claim.get().logicalCase();
-        var lane =
-                lanes.acquire(logicalCase.caseId(), logicalCase.bundle(), previous == null ? null : previous.laneId());
+        var lane = playing.lanes()
+                .acquire(logicalCase.caseId(), logicalCase.bundle(), previous == null ? null : previous.laneId());
         if (lane.isEmpty()) {
             cases.release(attempt.attemptId(), owner, now);
             return false;
@@ -118,20 +121,58 @@ public class RunBatchService implements RunBatchUseCase {
     private boolean playToOutcome(
             CaseLedger.Claim claim, Attempt previous, ExperimentSource.Plan plan, CaseLane lane, String owner) {
         var attempt = claim.attempt();
+        var started = clock.instant();
         try {
-            var result = driver.play(
-                    claim.logicalCase(), attempt, previous, plan, lane, guard(attempt.attemptId(), claim, owner));
-            return cases.succeed(attempt.attemptId(), owner, result, clock.instant());
+            var result = playing.driver()
+                    .play(claim.logicalCase(), attempt, previous, plan, lane, guard(attempt.attemptId(), claim, owner));
+            return ended(
+                    claim,
+                    lane,
+                    started,
+                    cases.succeed(attempt.attemptId(), owner, result, clock.instant()),
+                    AttemptState.SUCCEEDED,
+                    null);
         } catch (AttemptFailedException e) {
-            return fail(attempt, owner, e.failure());
+            return ended(
+                    claim,
+                    lane,
+                    started,
+                    fail(attempt, owner, e.failure()),
+                    AttemptState.FAILED,
+                    e.failure().code());
         } catch (RunCancelledException _) {
-            return cases.cancel(attempt.attemptId(), owner, clock.instant());
+            return ended(
+                    claim,
+                    lane,
+                    started,
+                    cases.cancel(attempt.attemptId(), owner, clock.instant()),
+                    AttemptState.CANCELLED,
+                    null);
         } catch (LeaseLostException _) {
             // Another attempt owns the case now; nothing this worker holds is left to settle.
-            return false;
+            return ended(claim, lane, started, false, AttemptState.INTERRUPTED, null);
         } catch (RuntimeException e) {
-            return fail(attempt, owner, new Failure(FailureCode.EXECUTION_FAILED, describe(e)));
+            var failure = new Failure(FailureCode.EXECUTION_FAILED, describe(e));
+            return ended(claim, lane, started, fail(attempt, owner, failure), AttemptState.FAILED, failure.code());
         }
+    }
+
+    /** Reports the attempt's wall time; an attempt that no longer owns its case ended interrupted, whatever it saw. */
+    private boolean ended(
+            CaseLedger.Claim claim,
+            CaseLane lane,
+            Instant started,
+            boolean owned,
+            AttemptState state,
+            FailureCode failure) {
+        playing.timings()
+                .ended(
+                        lane.laneId(),
+                        claim.logicalCase().seats().size(),
+                        owned ? state : AttemptState.INTERRUPTED,
+                        owned ? failure : null,
+                        Duration.between(started, clock.instant()));
+        return owned;
     }
 
     /** The frozen experiment is gone, so no case of the run can ever execute: the run itself fails. */

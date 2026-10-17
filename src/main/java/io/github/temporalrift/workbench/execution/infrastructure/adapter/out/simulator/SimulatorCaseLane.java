@@ -5,6 +5,7 @@ import java.util.UUID;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.port.out.GameSession;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.HttpCaseLane;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.HttpGameSession;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneEndpoints;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneRoster;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneServices;
@@ -59,7 +60,12 @@ final class SimulatorCaseLane implements CaseLane {
                         hosting.objectMapper(),
                         new SimulatorEventObserver.Target(scopeId, attemptId, gameId)));
         hosted = new HttpCaseLane(
-                endpoints, hosting.clients(), services, hosting.clock(), hosting.barrier(), hosting.sleeper(), tenancy);
+                endpoints,
+                hosting.clients(),
+                services,
+                hosting.clock(),
+                new HttpGameSession.Pacing(hosting.barrier(), hosting.sleeper(), hosting.waits()),
+                tenancy);
         return hosted.open(context, resumeGameId);
     }
 

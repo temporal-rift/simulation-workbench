@@ -49,8 +49,7 @@ public class HttpCaseLane implements CaseLane {
     private final GameEventObservers observers;
     private final List<GameEventObserver> opened = new CopyOnWriteArrayList<>();
     private final Clock clock;
-    private final LaneEndpoints.Barrier barrier;
-    private final Sleeper sleeper;
+    private final HttpGameSession.Pacing pacing;
     private final LaneRoster.Tenancy tenancy;
 
     public HttpCaseLane(
@@ -58,8 +57,7 @@ public class HttpCaseLane implements CaseLane {
             ApiClients clients,
             LaneServices services,
             Clock clock,
-            LaneEndpoints.Barrier barrier,
-            Sleeper sleeper,
+            HttpGameSession.Pacing pacing,
             LaneRoster.Tenancy tenancy) {
         this.lane = lane;
         this.clients = clients;
@@ -67,8 +65,7 @@ public class HttpCaseLane implements CaseLane {
         this.evidence = services.evidence();
         this.observers = services.observers();
         this.clock = clock;
-        this.barrier = barrier;
-        this.sleeper = sleeper;
+        this.pacing = pacing;
         this.tenancy = tenancy;
     }
 
@@ -140,7 +137,7 @@ public class HttpCaseLane implements CaseLane {
                 ScoringApi.class, lane.gameServiceUrl(), lane.bots().getFirst().token());
         var sessionRef = new AtomicReference<HttpGameSession>();
         var raw = new HttpParticipantGateway(
-                gameId, participants, () -> sessionRef.get().isSettled());
+                gameId, participants, () -> sessionRef.get().isSettled(), pacing.waits());
         var recorder = new StepRecorder(
                 evidence,
                 context.caseId(),
@@ -158,7 +155,7 @@ public class HttpCaseLane implements CaseLane {
                 raw,
                 durable,
                 scoring,
-                new HttpGameSession.Pacing(barrier, sleeper),
+                pacing,
                 events);
         sessionRef.set(session);
         return new Attached(session, durable);
@@ -313,7 +310,7 @@ public class HttpCaseLane implements CaseLane {
             } catch (RestClientException _) {
                 // Try again after the pause.
             }
-            sleeper.sleep(barrier.pollInterval());
+            pacing.sleeper().sleep(pacing.barrier().pollInterval());
         }
         throw new AttemptFailedException(
                 FailureCode.EXECUTION_FAILED, "The outcome of starting lobby " + lobbyId + " could not be confirmed");

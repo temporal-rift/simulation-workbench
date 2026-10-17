@@ -27,6 +27,7 @@ import io.github.temporalrift.workbench.execution.domain.run.ServedBundle;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.ApiClients;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneEndpoints;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneRoster;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneWaits;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.ResetScheduler;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.RosterBackedLaneProvider;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.Sleeper;
@@ -53,6 +54,7 @@ public final class SimulatorLanePool extends RosterBackedLaneProvider {
             Clock clock,
             LaneEndpoints.Barrier barrier,
             Sleeper sleeper,
+            LaneWaits waits,
             BundleDigests bundle,
             BundleProvenance provenance) {}
 
@@ -92,6 +94,7 @@ public final class SimulatorLanePool extends RosterBackedLaneProvider {
             Clock clock,
             LaneEndpoints.Barrier barrier,
             Sleeper sleeper,
+            LaneWaits waits,
             ResetScheduler scheduler) {}
 
     private SimulatorLanePool(
@@ -139,6 +142,7 @@ public final class SimulatorLanePool extends RosterBackedLaneProvider {
                 with.clock(),
                 with.barrier(),
                 with.sleeper(),
+                with.waits(),
                 deployment.bundle(),
                 provenance);
         var served = ServedBundle.counted(slotIds.stream()

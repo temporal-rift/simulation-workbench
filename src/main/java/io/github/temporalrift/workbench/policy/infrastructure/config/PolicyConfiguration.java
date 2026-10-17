@@ -1,5 +1,6 @@
 package io.github.temporalrift.workbench.policy.infrastructure.config;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -9,6 +10,8 @@ import io.github.temporalrift.workbench.policy.application.command.BaselinePolic
 import io.github.temporalrift.workbench.policy.application.port.in.ListPoliciesUseCase;
 import io.github.temporalrift.workbench.policy.application.query.BaselinePolicyCatalog;
 import io.github.temporalrift.workbench.policy.application.query.ListPoliciesQueryHandler;
+import io.github.temporalrift.workbench.policy.domain.port.out.DecisionTimings;
+import io.github.temporalrift.workbench.policy.infrastructure.adapter.out.metrics.MicrometerDecisionTimings;
 
 @Configuration
 public class PolicyConfiguration {
@@ -24,7 +27,12 @@ public class PolicyConfiguration {
     }
 
     @Bean
-    PolicyRuntime policyRuntime() {
-        return new BaselinePolicyRuntime();
+    DecisionTimings decisionTimings(MeterRegistry registry) {
+        return new MicrometerDecisionTimings(registry);
+    }
+
+    @Bean
+    PolicyRuntime policyRuntime(DecisionTimings timings) {
+        return new BaselinePolicyRuntime(timings);
     }
 }

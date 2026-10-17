@@ -15,8 +15,8 @@ public interface PlayDecisionWindowUseCase {
      */
     List<SeatResult> play(List<SeatPolicy> seats, int maxRejectedCandidatesPerWindow);
 
-    /** A seat's policy and its policy seed. */
-    record SeatPolicy(int seatIndex, BotPolicy policy, long policySeed) {}
+    /** A seat's policy, the id it is published under, and its policy seed. */
+    record SeatPolicy(int seatIndex, String policyId, BotPolicy policy, long policySeed) {}
 
     record SeatResult(int seatIndex, DecisionResult result) {}
 

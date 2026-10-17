@@ -14,6 +14,7 @@ import io.github.temporalrift.workbench.policy.domain.decision.PolicyEntropy;
 import io.github.temporalrift.workbench.policy.domain.decision.Reconciliation;
 import io.github.temporalrift.workbench.policy.domain.decision.SubmissionOutcome;
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
+import io.github.temporalrift.workbench.policy.domain.port.out.DecisionTimings;
 import io.github.temporalrift.workbench.policy.domain.port.out.ParticipantGateway;
 
 /**
@@ -28,9 +29,11 @@ public class DecisionWindowService implements PlayDecisionWindowUseCase {
     private static final int MAX_SUBMISSIONS_PER_CANDIDATE = 2;
 
     private final ParticipantGateway gateway;
+    private final DecisionTimings timings;
 
-    public DecisionWindowService(ParticipantGateway gateway) {
+    public DecisionWindowService(ParticipantGateway gateway, DecisionTimings timings) {
         this.gateway = gateway;
+        this.timings = timings;
     }
 
     @Override
@@ -114,11 +117,11 @@ public class DecisionWindowService implements PlayDecisionWindowUseCase {
         return state;
     }
 
-    private static PolicyDecision decide(
+    private PolicyDecision decide(
             SeatPolicy seat, EntitledObservation observation, Set<Candidate> excluded, int rejections) {
         var entropy = PolicyEntropy.derive(
                 seat.policySeed(), seat.seatIndex(), observation.window().key(), rejections);
-        return seat.policy().decide(observation, excluded, entropy);
+        return timings.time(seat.policyId(), () -> seat.policy().decide(observation, excluded, entropy));
     }
 
     private static PolicyDecision fallback(EntitledObservation observation, Set<Candidate> excluded) {

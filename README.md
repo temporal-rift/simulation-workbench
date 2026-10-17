@@ -544,6 +544,25 @@ them when the case ends; stopping them is what makes the slot clean. A case that
 interruption keeps the running services. State lives only in memory, so a workbench restart cannot resume a game on a
 slot.
 
+## Timing metrics
+
+The workbench publishes Micrometer timers on its Prometheus endpoint (`/actuator/prometheus`) that split a game's wall
+time. None carries a case key, seed, game id, player id or credential as a tag.
+
+| Timer | Measures | Tags |
+|---|---|---|
+| `workbench.case.attempt` | Wall time of one attempt, from its start to its final state | `lane`, `players`, `state` (`SUCCEEDED`, `FAILED`, `CANCELLED`, `INTERRUPTED`), `failure` (failure code, or `none`) |
+| `workbench.policy.decision` | Time a policy takes to produce one decision | `policy` (policy id; reproductions use `transcript`) |
+| `workbench.lane.wait` | Time spent waiting for the services after a command | `kind` |
+| `workbench.lane.reset` | Duration of one reset-hook call | `lane`, `outcome` (`CLEAN`, `FAILED`, `TIMEOUT`) |
+
+`workbench.lane.wait` has three kinds. `ACKNOWLEDGEMENT` is one sample per command sent, from the request until the
+service answers (terminal readiness sends nothing and adds none). `CAUSAL_BARRIER` and `PROJECTION_BARRIER` are one
+sample each per settle wait: the time until both services report their work drained, and the time until every seat's
+projection has stopped changing and the event observer has caught up. Each poll's pause is attributed to the barrier
+that was still unmet. An attempt whose lane lost its lease or was fenced out is recorded as `INTERRUPTED`.
+Slots of the simulator have no reset hook and record no `workbench.lane.reset`.
+
 ## Evidence, replay, and reproduction
 
 ### What a case retains

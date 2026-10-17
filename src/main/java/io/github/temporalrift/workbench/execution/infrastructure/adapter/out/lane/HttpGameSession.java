@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
 import org.springframework.web.client.RestClientException;
@@ -56,6 +57,7 @@ public class HttpGameSession implements GameSession {
     private final ScoringApi scoring;
     private final LaneEndpoints.Barrier barrier;
     private final Sleeper sleeper;
+    private final LaneWaits waits;
     private final GameEventObserver events;
 
     private Map<Integer, Integer> lastRevisions = Map.of();
@@ -65,7 +67,7 @@ public class HttpGameSession implements GameSession {
     public record ServiceControls(SimulationExecutionApi game, SimulationExecutionApi timeline) {}
 
     /** How the session waits for the services and projection to settle. */
-    public record Pacing(LaneEndpoints.Barrier barrier, Sleeper sleeper) {}
+    public record Pacing(LaneEndpoints.Barrier barrier, Sleeper sleeper, LaneWaits waits) {}
 
     /**
      * @param gateway the raw participant operations of the game, which also name its id and seats
@@ -88,6 +90,7 @@ public class HttpGameSession implements GameSession {
         this.scoring = scoring;
         this.barrier = pacing.barrier();
         this.sleeper = pacing.sleeper();
+        this.waits = pacing.waits();
         this.events = events;
     }
 
@@ -103,9 +106,20 @@ public class HttpGameSession implements GameSession {
 
     /** Whether the services and projection have settled; the gateway uses it to judge accepted state current. */
     public boolean isSettled() {
+        var drained = causallyDrained();
+        var projected = projectionSettled();
+        return drained && projected;
+    }
+
+    /** Whether both services report their work for the case drained. */
+    private boolean causallyDrained() {
         var game = checkpoint(gameControl, GAME_SERVICE);
         var timeline = checkpoint(timelineControl, TIMELINE_SERVICE);
-        var drained = Boolean.TRUE.equals(game.getDrained()) && Boolean.TRUE.equals(timeline.getDrained());
+        return Boolean.TRUE.equals(game.getDrained()) && Boolean.TRUE.equals(timeline.getDrained());
+    }
+
+    /** Whether every seat's projection has stopped changing and the observer has seen all events. */
+    private boolean projectionSettled() {
         var revisions = new HashMap<Integer, Integer>();
         var complete = true;
         for (var seat : seats) {
@@ -115,7 +129,7 @@ public class HttpGameSession implements GameSession {
         }
         stableReads = complete && revisions.equals(lastRevisions) ? stableReads + 1 : 0;
         lastRevisions = revisions;
-        return drained && stableReads >= barrier.stablePolls() && events.drain();
+        return stableReads >= barrier.stablePolls() && events.drain();
     }
 
     @Override
@@ -197,13 +211,50 @@ public class HttpGameSession implements GameSession {
 
     /** Waits a bounded number of checks for the services and projection to settle. */
     public boolean awaitSettled() {
-        for (var poll = 0; poll < barrier.maxPolls(); poll++) {
-            if (isSettled()) {
-                return true;
+        var spent = new Spent();
+        try {
+            for (var poll = 0; poll < barrier.maxPolls(); poll++) {
+                var drained = timed(LaneWaits.Kind.CAUSAL_BARRIER, this::causallyDrained, spent);
+                var projected = timed(LaneWaits.Kind.PROJECTION_BARRIER, this::projectionSettled, spent);
+                if (drained && projected) {
+                    return true;
+                }
+                // The pause is spent on whichever barrier was still unmet.
+                var pausing = waits.now();
+                sleeper.sleep(barrier.pollInterval());
+                spent.add(
+                        drained ? LaneWaits.Kind.PROJECTION_BARRIER : LaneWaits.Kind.CAUSAL_BARRIER,
+                        waits.now() - pausing);
             }
-            sleeper.sleep(barrier.pollInterval());
+            return false;
+        } finally {
+            waits.waited(LaneWaits.Kind.CAUSAL_BARRIER, spent.causal);
+            waits.waited(LaneWaits.Kind.PROJECTION_BARRIER, spent.projection);
         }
-        return false;
+    }
+
+    /** Runs one barrier check, charging its duration to the barrier even when the check throws. */
+    private boolean timed(LaneWaits.Kind kind, BooleanSupplier check, Spent spent) {
+        var started = waits.now();
+        try {
+            return check.getAsBoolean();
+        } finally {
+            spent.add(kind, waits.now() - started);
+        }
+    }
+
+    /** Nanoseconds one settle wait has spent on each barrier. */
+    private static final class Spent {
+        private long causal;
+        private long projection;
+
+        void add(LaneWaits.Kind kind, long nanos) {
+            if (kind == LaneWaits.Kind.CAUSAL_BARRIER) {
+                causal += nanos;
+            } else {
+                projection += nanos;
+            }
+        }
     }
 
     private Optional<Map<UUID, Integer>> scores() {

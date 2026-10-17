@@ -17,6 +17,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -64,6 +65,7 @@ class HttpParticipantGatewayTest {
 
     private final ProjectionApi projection = mock(ProjectionApi.class);
     private final ActionApi action = mock(ActionApi.class);
+    private final SimpleMeterRegistry registry = new SimpleMeterRegistry();
     private final AtomicBoolean settled = new AtomicBoolean(true);
     private HttpParticipantGateway gateway;
 
@@ -72,7 +74,8 @@ class HttpParticipantGatewayTest {
         gateway = new HttpParticipantGateway(
                 ProjectionStates.GAME,
                 List.of(new HttpParticipantGateway.Participant(1, ProjectionStates.ME, projection, action)),
-                settled::get);
+                settled::get,
+                new LaneWaits(registry));
     }
 
     @Test
@@ -108,6 +111,25 @@ class HttpParticipantGatewayTest {
     void submittingWithoutAnObservedWindowIsRefused() {
         var pass = new Candidate.Pass();
         assertThatThrownBy(() -> gateway.submit(1, pass)).isInstanceOf(WindowClosedException.class);
+    }
+
+    @Test
+    void everyCommandSentAddsOneAcknowledgementWaitAndTerminalReadinessAddsNone() {
+        state(ProjectionStates.handSelection(2));
+        gateway.observe(1);
+        var kept = List.of(new UUID(0, 100), new UUID(0, 101), new UUID(0, 102), new UUID(0, 103), new UUID(0, 104));
+
+        gateway.submit(1, new Candidate.KeepHand(kept));
+        gateway.submit(1, new Candidate.KeepHand(kept));
+        state(ProjectionStates.base(Phase.GAME_ENDED, 5));
+        gateway.observe(1);
+        gateway.submit(1, new Candidate.ConfirmReady());
+
+        assertThat(registry.get("workbench.lane.wait")
+                        .tag("kind", "ACKNOWLEDGEMENT")
+                        .timer()
+                        .count())
+                .isEqualTo(2);
     }
 
     @Test
