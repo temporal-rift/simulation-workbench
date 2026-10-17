@@ -52,7 +52,9 @@ class ServiceJarTest {
     void aJarWithoutAStartClassIsNotAnExecutableSpringBootJar() {
         var jar = FakeServiceJars.write(directory, "plain.jar", null, Map.of());
 
-        assertThatThrownBy(() -> ServiceJar.open(jar, directory.resolve("work")))
+        var work = directory.resolve("work");
+
+        assertThatThrownBy(() -> ServiceJar.open(jar, work))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining(jar.toString())
                 .hasMessageContaining("Start-Class");
@@ -62,7 +64,9 @@ class ServiceJarTest {
     void anEntryThatLeavesItsDirectoryIsRefused() {
         var jar = FakeServiceJars.write(directory, "evil.jar", "x.Main", Map.of("../../escape.txt", "x"));
 
-        assertThatThrownBy(() -> ServiceJar.open(jar, directory.resolve("work")))
+        var work = directory.resolve("work");
+
+        assertThatThrownBy(() -> ServiceJar.open(jar, work))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("leaves its directory");
         assertThat(directory.resolve("escape.txt")).doesNotExist();
@@ -72,7 +76,9 @@ class ServiceJarTest {
     void aFileThatIsNotAJarCannotBeRead() throws IOException {
         var notAJar = Files.writeString(directory.resolve("broken.jar"), "nope");
 
-        assertThatThrownBy(() -> ServiceJar.open(notAJar, directory.resolve("work")))
+        var work = directory.resolve("work");
+
+        assertThatThrownBy(() -> ServiceJar.open(notAJar, work))
                 .isInstanceOf(UncheckedIOException.class)
                 .hasMessageContaining(notAJar.toString());
     }

@@ -125,7 +125,8 @@ class SimulatorLanePoolTest {
         pool.prepare(List.of());
         scheduler.runAll();
         var lane = pool.acquire(CASE, BUNDLE, null).orElseThrow();
-        assertThatThrownBy(() -> lane.open(context(), null)).isInstanceOf(AttemptFailedException.class);
+        var context = context();
+        assertThatThrownBy(() -> lane.open(context, null)).isInstanceOf(AttemptFailedException.class);
 
         lane.retainForRecovery();
         lane.close();

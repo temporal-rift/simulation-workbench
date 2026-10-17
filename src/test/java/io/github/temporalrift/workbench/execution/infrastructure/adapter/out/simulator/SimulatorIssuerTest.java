@@ -43,6 +43,8 @@ class SimulatorIssuerTest {
     void aTokenOfAnotherIssuerIsNotTrusted() {
         var foreign = new SimulatorIssuer(clock).bot(PLAYER);
 
-        assertThatThrownBy(() -> issuer.decoder().decode(foreign)).isInstanceOf(BadJwtException.class);
+        var decoder = issuer.decoder();
+
+        assertThatThrownBy(() -> decoder.decode(foreign)).isInstanceOf(BadJwtException.class);
     }
 }

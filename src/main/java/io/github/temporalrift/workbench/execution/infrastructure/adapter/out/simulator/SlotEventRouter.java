@@ -41,12 +41,19 @@ final class SlotEventRouter implements AutoCloseable {
 
         @Override
         public boolean equals(Object other) {
-            return other instanceof Routed routed
-                    && offset == routed.offset
-                    && topic.equals(routed.topic)
-                    && key.equals(routed.key)
-                    && headers.equals(routed.headers)
-                    && Arrays.equals(payload, routed.payload);
+            return other
+                            instanceof
+                            Routed(
+                                    String otherTopic,
+                                    long otherOffset,
+                                    String otherKey,
+                                    Map<String, String> otherHeaders,
+                                    byte[] otherPayload)
+                    && offset == otherOffset
+                    && topic.equals(otherTopic)
+                    && key.equals(otherKey)
+                    && headers.equals(otherHeaders)
+                    && Arrays.equals(payload, otherPayload);
         }
 
         @Override

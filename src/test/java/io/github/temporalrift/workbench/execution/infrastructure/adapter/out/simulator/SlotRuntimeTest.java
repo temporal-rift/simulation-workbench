@@ -21,6 +21,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.springframework.core.env.MapPropertySource;
 
 import io.github.temporalrift.simulatorfixture.FakeServiceApplication;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneEndpoints.BotIdentity;
 
 /** Starts three stand-in services through the real hosting path: class loaders, parent context, profile, ports. */
 class SlotRuntimeTest {
@@ -61,11 +62,11 @@ class SlotRuntimeTest {
         var other = SlotRuntime.start(build("game", "timeline", "read"), 3, Clock.systemUTC());
         try {
             assertThat(runtime.bots()).hasSize(3);
-            assertThat(runtime.bots()).extracting(bot -> bot.playerId()).doesNotHaveDuplicates();
+            assertThat(runtime.bots()).extracting(BotIdentity::playerId).doesNotHaveDuplicates();
             assertThat(other.bots())
-                    .extracting(bot -> bot.playerId())
+                    .extracting(BotIdentity::playerId)
                     .isEqualTo(
-                            runtime.bots().stream().map(bot -> bot.playerId()).toList());
+                            runtime.bots().stream().map(BotIdentity::playerId).toList());
             assertThat(runtime.operatorToken()).isNotBlank().isNotEqualTo(other.operatorToken());
         } finally {
             other.close();
@@ -90,13 +91,15 @@ class SlotRuntimeTest {
                 open("read", FIXTURE),
                 rules());
 
-        assertThatThrownBy(() -> SlotRuntime.start(broken, 1, Clock.systemUTC()))
+        var clock = Clock.systemUTC();
+
+        assertThatThrownBy(() -> SlotRuntime.start(broken, 1, clock))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("io.github.temporalrift.missing.Main");
     }
 
     @Test
-    void stoppingFreesThePorts() throws Exception {
+    void stoppingFreesThePorts() {
         runtime = SlotRuntime.start(build("game", "timeline", "read"), 1, Clock.systemUTC());
         var url = runtime.gameServiceUrl();
 

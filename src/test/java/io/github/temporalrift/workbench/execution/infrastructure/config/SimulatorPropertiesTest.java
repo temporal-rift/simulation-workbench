@@ -85,7 +85,9 @@ class SimulatorPropertiesTest {
 
     @Test
     void aNegativeNumberOfSlotsFails() {
-        assertThatThrownBy(() -> bind(Map.of(PREFIX + "slots", "-1")))
+        var values = Map.of(PREFIX + "slots", "-1");
+
+        assertThatThrownBy(() -> bind(values))
                 .isInstanceOf(BindException.class)
                 .rootCause()
                 .hasMessage(PREFIX + "slots must not be negative");

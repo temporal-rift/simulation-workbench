@@ -81,8 +81,7 @@ final class SlotRuntime implements AutoCloseable {
         parent.registerBean(JwtDecoder.class, issuer::decoder);
         parent.refresh();
         var children = new ArrayList<Hosted>();
-        var started = false;
-        try {
+        try (var startup = new Startup(router, parent, children)) {
             var read = host(build.read(), parent, children);
             var timeline = host(build.timeline(), parent, children, "game.simulation.enabled=true");
             var game = host(build.game(), parent, children, "game.simulation.enabled=true");
@@ -95,11 +94,32 @@ final class SlotRuntime implements AutoCloseable {
                     .toList();
             var runtime = new SlotRuntime(
                     router, parent, children, List.of(url(game), url(timeline), url(read)), issuer.operator(), bots);
-            started = true;
+            startup.succeeded();
             return runtime;
-        } finally {
-            if (!started) {
-                close(router, parent, children);
+        }
+    }
+
+    /** Stops whatever a startup brought up unless it succeeded. */
+    private static final class Startup implements AutoCloseable {
+        private final SlotEventRouter router;
+        private final AnnotationConfigApplicationContext parent;
+        private final List<Hosted> children;
+        private boolean succeeded;
+
+        private Startup(SlotEventRouter router, AnnotationConfigApplicationContext parent, List<Hosted> children) {
+            this.router = router;
+            this.parent = parent;
+            this.children = children;
+        }
+
+        private void succeeded() {
+            succeeded = true;
+        }
+
+        @Override
+        public void close() {
+            if (!succeeded) {
+                SlotRuntime.close(router, parent, children);
             }
         }
     }

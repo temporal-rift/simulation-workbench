@@ -149,7 +149,9 @@ class SlotEventRouterTest {
 
     @Test
     void aRecordOnAnUnknownTopicIsRefused() {
-        assertThatThrownBy(() -> router.publish(message("other.events", "x")))
+        var unknown = message("other.events", "x");
+
+        assertThatThrownBy(() -> router.publish(unknown))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("other.events");
     }
