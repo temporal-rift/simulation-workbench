@@ -30,6 +30,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestClientException;
 
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.port.out.GameEventObserver;
@@ -122,6 +123,16 @@ class HttpGameSessionTest {
     @Test
     void aSettleWaitAddsOneSampleOfEachBarrierKind() {
         session.poll();
+
+        assertThat(waitSamples(LaneWaits.Kind.CAUSAL_BARRIER)).isEqualTo(1);
+        assertThat(waitSamples(LaneWaits.Kind.PROJECTION_BARRIER)).isEqualTo(1);
+    }
+
+    @Test
+    void aSettleWaitWhoseCheckpointReadFailsStillAddsItsSamples() {
+        when(gameControl.getSimulationCheckpoint()).thenThrow(new RestClientException("down"));
+
+        assertThatThrownBy(session::poll).isInstanceOf(AttemptFailedException.class);
 
         assertThat(waitSamples(LaneWaits.Kind.CAUSAL_BARRIER)).isEqualTo(1);
         assertThat(waitSamples(LaneWaits.Kind.PROJECTION_BARRIER)).isEqualTo(1);

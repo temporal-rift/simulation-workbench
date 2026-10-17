@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
 import org.springframework.web.client.RestClientException;
@@ -210,33 +211,49 @@ public class HttpGameSession implements GameSession {
 
     /** Waits a bounded number of checks for the services and projection to settle. */
     public boolean awaitSettled() {
-        var causalNanos = 0L;
-        var projectionNanos = 0L;
+        var spent = new Spent();
         try {
             for (var poll = 0; poll < barrier.maxPolls(); poll++) {
-                var checking = waits.now();
-                var drained = causallyDrained();
-                var drainChecked = waits.now();
-                causalNanos += drainChecked - checking;
-                var projected = projectionSettled();
-                var projectionChecked = waits.now();
-                projectionNanos += projectionChecked - drainChecked;
+                var drained = timed(LaneWaits.Kind.CAUSAL_BARRIER, this::causallyDrained, spent);
+                var projected = timed(LaneWaits.Kind.PROJECTION_BARRIER, this::projectionSettled, spent);
                 if (drained && projected) {
                     return true;
                 }
-                sleeper.sleep(barrier.pollInterval());
                 // The pause is spent on whichever barrier was still unmet.
-                var paused = waits.now() - projectionChecked;
-                if (drained) {
-                    projectionNanos += paused;
-                } else {
-                    causalNanos += paused;
-                }
+                var pausing = waits.now();
+                sleeper.sleep(barrier.pollInterval());
+                spent.add(
+                        drained ? LaneWaits.Kind.PROJECTION_BARRIER : LaneWaits.Kind.CAUSAL_BARRIER,
+                        waits.now() - pausing);
             }
             return false;
         } finally {
-            waits.waited(LaneWaits.Kind.CAUSAL_BARRIER, causalNanos);
-            waits.waited(LaneWaits.Kind.PROJECTION_BARRIER, projectionNanos);
+            waits.waited(LaneWaits.Kind.CAUSAL_BARRIER, spent.causal);
+            waits.waited(LaneWaits.Kind.PROJECTION_BARRIER, spent.projection);
+        }
+    }
+
+    /** Runs one barrier check, charging its duration to the barrier even when the check throws. */
+    private boolean timed(LaneWaits.Kind kind, BooleanSupplier check, Spent spent) {
+        var started = waits.now();
+        try {
+            return check.getAsBoolean();
+        } finally {
+            spent.add(kind, waits.now() - started);
+        }
+    }
+
+    /** Nanoseconds one settle wait has spent on each barrier. */
+    private static final class Spent {
+        private long causal;
+        private long projection;
+
+        void add(LaneWaits.Kind kind, long nanos) {
+            if (kind == LaneWaits.Kind.CAUSAL_BARRIER) {
+                causal += nanos;
+            } else {
+                projection += nanos;
+            }
         }
     }
 
