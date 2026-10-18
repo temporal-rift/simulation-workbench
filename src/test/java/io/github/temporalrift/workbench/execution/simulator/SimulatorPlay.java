@@ -1,5 +1,6 @@
 package io.github.temporalrift.workbench.execution.simulator;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -10,6 +11,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.awaitility.Awaitility;
 import org.springframework.jdbc.core.JdbcTemplate;
 import tools.jackson.databind.JsonNode;
 
@@ -81,12 +83,17 @@ final class SimulatorPlay {
         batch.maintain();
     }
 
-    private Void play(UUID runId, String worker) throws InterruptedException {
-        while (!isPlayed(runId)) {
-            if (!batch.runNextCase(worker)) {
-                Thread.sleep(50);
-            }
-        }
+    /** Claims cases until none is pending, waiting for slots that are still resetting. */
+    private Void play(UUID runId, String worker) {
+        Awaitility.await()
+                .atMost(Duration.ofMinutes(30))
+                .pollInterval(Duration.ofMillis(50))
+                .until(() -> {
+                    while (batch.runNextCase(worker)) {
+                        // keep claiming until nothing is pending
+                    }
+                    return isPlayed(runId);
+                });
         return null;
     }
 
@@ -151,14 +158,10 @@ final class SimulatorPlay {
                     .filter(i -> !left.get(i).equals(right.get(i)))
                     .findFirst()
                     .orElse(-1);
-            report.append("\n%s first difference at %d (sizes %d vs %d): A=%s B=%s"
+            report.append("%n%s first difference at %d (sizes %d vs %d): A=%s B=%s"
                     .formatted(topic, index, left.size(), right.size(), around(left, index), around(right, index)));
         }
         return report.toString();
-    }
-
-    private static String typeOf(String event) {
-        return event.substring(0, event.indexOf('|'));
     }
 
     private static List<String> around(List<String> events, int index) {

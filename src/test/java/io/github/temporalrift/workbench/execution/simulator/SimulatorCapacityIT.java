@@ -6,6 +6,8 @@ import java.lang.management.ManagementFactory;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -73,13 +75,15 @@ class SimulatorCapacityIT {
         play.drain(play.start(workload(1001, SLOTS / CASES_PER_SEED + 1)), SLOTS);
         var memory = ManagementFactory.getMemoryMXBean();
         var peak = new PeakHeap(memory);
-        var sampler = Thread.ofPlatform().daemon().start(peak);
+        var sampler = Executors.newSingleThreadScheduledExecutor(
+                task -> Thread.ofPlatform().daemon().unstarted(task));
+        sampler.scheduleAtFixedRate(peak, 0, 250, TimeUnit.MILLISECONDS);
 
         var started = System.nanoTime();
         var run = play.start(workload(1, SEEDS));
         play.drain(run, SLOTS);
         var elapsed = Duration.ofNanos(System.nanoTime() - started);
-        sampler.interrupt();
+        sampler.shutdownNow();
 
         var cases = SEEDS * CASES_PER_SEED;
         assertThat(play.states(run).values()).hasSize(cases).containsOnly("SUCCEEDED");
@@ -110,7 +114,7 @@ class SimulatorCapacityIT {
         return manifest;
     }
 
-    /** Samples the heap in use until interrupted. */
+    /** Records the largest heap in use seen by each sample. */
     private static final class PeakHeap implements Runnable {
         private final java.lang.management.MemoryMXBean memory;
         private volatile long max;
@@ -121,14 +125,7 @@ class SimulatorCapacityIT {
 
         @Override
         public void run() {
-            while (!Thread.currentThread().isInterrupted()) {
-                max = Math.max(max, memory.getHeapMemoryUsage().getUsed());
-                try {
-                    Thread.sleep(250);
-                } catch (InterruptedException _) {
-                    return;
-                }
-            }
+            max = Math.max(max, memory.getHeapMemoryUsage().getUsed());
         }
 
         long maxUsed() {
