@@ -2,7 +2,6 @@ package io.github.temporalrift.workbench.analysis.infrastructure.adapter.in.rest
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import io.github.temporalrift.workbench.analysis.domain.criterion.BalanceCriterion;
 import io.github.temporalrift.workbench.analysis.domain.evaluation.RunEvaluation;
@@ -155,7 +154,7 @@ final class EvaluationApiMapper {
                                         ? null
                                         : dimensions.failureCodes().stream()
                                                 .map(code -> AttemptFailureCode.fromValue(code.name()))
-                                                .collect(Collectors.toList())))
+                                                .toList()))
                 .policyId(line.policyId())
                 .playerCount(EvaluatedLine.PlayerCountEnum.fromValue(line.playerCount()))
                 .factionSet(line.factionSet() == null ? null : AnalysisApiMapper.factions(line.factionSet()))

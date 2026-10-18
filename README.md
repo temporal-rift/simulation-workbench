@@ -754,8 +754,9 @@ listed only when they occur somewhere in the run.
 metric, so a configuration that stalls games would otherwise look healthy. A case counts under the code of its final
 failed attempt; a case that failed and then succeeded on a retry counts only in the denominator, and cancelled,
 pending, and running cases count in neither. It appears in the cohorts that pool seats (pooled and per faction set),
-once without `failureCode` (every code) and once for each failure code that occurs anywhere in the run. A seed whose
-cases all failed is still a seed, so it takes part in the resampling.
+once without `failureCode` (every code) and once for each failure code that occurs anywhere in the run. It is resampled
+over the seeds that have finished cases, so a seed whose cases all failed counts there; game metrics keep resampling the
+seeds that have games, so their values and intervals do not depend on the analysis version.
 
 ### Uncertainty
 
@@ -789,8 +790,9 @@ from current results on every read.
 A balance criterion version is a read-only document served from configuration: its lines (a metric, a dimension, the
 bot policies and player counts it covers, a band, a role as `GATE` or `SCORED`, a weight), its aggregation, and its
 evidence rule. `GET /api/v1/balance-criteria` lists the served versions and `GET /api/v1/balance-criteria/{version}`
-reads one; its `digest` is the SHA-256 of its canonical serialisation (object keys sorted, no whitespace), so any change
-of any value changes it. A new version is added by adding `balance-criteria/v<N>.json` to the application's
+reads one; its `digest` is the SHA-256 of its canonical serialisation (object keys sorted, no whitespace, numbers by value
+without trailing zeros), so any change of any value changes it. A version whose evidence rule the evaluator cannot apply
+(another confidence level, other invalidating causes, another aggregation) is refused at startup. A new version is added by adding `balance-criteria/v<N>.json` to the application's
 configuration, never through the API; version 1 equals `docs/balance-criteria/v1.md` line by line, which a test checks.
 A criterion names a policy as its id with the major version (`faction-greedy-v1` is policy `faction-greedy` at
 `1.0.0`).

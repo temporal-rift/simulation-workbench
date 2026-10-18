@@ -11,6 +11,7 @@ import java.util.function.ToDoubleFunction;
 
 import io.github.temporalrift.workbench.analysis.domain.AnalysisVersion;
 import io.github.temporalrift.workbench.analysis.domain.criterion.BalanceCriterion;
+import io.github.temporalrift.workbench.analysis.domain.criterion.CriterionDimension;
 import io.github.temporalrift.workbench.analysis.domain.criterion.CriterionLine;
 import io.github.temporalrift.workbench.analysis.domain.criterion.PolicyReference;
 import io.github.temporalrift.workbench.analysis.domain.criterion.Pooling;
@@ -32,8 +33,6 @@ import io.github.temporalrift.workbench.analysis.domain.statistics.BlockSeries;
  * of the derived value itself.
  */
 final class LineExpansion {
-
-    private static final String FACTION_WIN_RATE = "faction_win_rate";
 
     private static final Comparator<List<Faction>> FACTION_SETS = Comparator.comparing((List<Faction> set) ->
             set == null ? "" : set.stream().map(Faction::name).toList().toString());
@@ -88,10 +87,7 @@ final class LineExpansion {
         var dimension = line.dimension();
         return switch (line.derivation()) {
             case DIRECT -> {
-                var dimensions = dimension.endReason() != null
-                        ? Dimensions.of(dimension.endReason())
-                        : dimension.quantile() != null ? Dimensions.NONE.at(dimension.quantile()) : Dimensions.NONE;
-                var series = cohort.series(line.metric(), dimensions);
+                var series = cohort.series(line.metric(), reportDimensions(dimension));
                 yield List.of(evaluated(
                         line,
                         key,
@@ -119,9 +115,19 @@ final class LineExpansion {
                 var total = cohort.failureShare(null);
                 var counted = codes.stream().map(cohort::failureShare).toList();
                 yield List.of(evaluated(
-                        line, key, new LineDimensions(null, null, null, codes), cohort.estimate(sum(total, counted))));
+                        line,
+                        key,
+                        new LineDimensions(null, null, null, codes),
+                        cohort.failureEstimate(sum(total, counted))));
             }
         };
+    }
+
+    private static Dimensions reportDimensions(CriterionDimension dimension) {
+        if (dimension.endReason() != null) {
+            return Dimensions.of(dimension.endReason());
+        }
+        return dimension.quantile() != null ? Dimensions.NONE.at(dimension.quantile()) : Dimensions.NONE;
     }
 
     private static List<Faction> factionsOf(CohortKey key, Vocabulary vocabulary) {

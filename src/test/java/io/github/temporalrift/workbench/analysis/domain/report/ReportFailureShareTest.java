@@ -83,15 +83,37 @@ class ReportFailureShareTest {
     }
 
     @Test
-    void aSeedWhoseEveryCaseFailedStillCountsSoAStalledConfigurationShowsItsFailures() {
+    void aCohortWhoseEveryCaseFailedStillShowsItsFailureShareOverItsFinishedSeeds() {
         run.failed("1", EPW, FailureCode.RUNNER_TIMEOUT).failed("2", EPW, FailureCode.RUNNER_TIMEOUT);
 
         var pooled = report(AnalysisVersion.CURRENT).cohorts().getFirst();
 
-        assertThat(pooled.independentBlocks()).isEqualTo(2);
+        assertThat(pooled.independentBlocks()).isZero();
         var share = pooled(report(AnalysisVersion.CURRENT)).getFirst();
         assertThat(share.value()).isEqualTo(1.0);
         assertThat(share.interval()).isEqualTo(new Interval(1.0, 1.0));
+    }
+
+    @Test
+    void aSeedWithOnlyFailedCasesLeavesEveryGameMetricAsVersionOneComputedIt() {
+        run.win("1", EPW, 0).failed("2", EPW, FailureCode.EXECUTION_FAILED);
+
+        var one = report(new AnalysisVersion("1", 1L));
+        var two = report(AnalysisVersion.CURRENT);
+
+        var pooledOne = one.cohorts().getFirst();
+        var pooledTwo = two.cohorts().getFirst();
+        assertThat(pooledTwo.independentBlocks()).isEqualTo(1).isEqualTo(pooledOne.independentBlocks());
+        assertThat(pooledTwo.metrics().stream()
+                        .filter(metric -> !metric.name().equals("failure_share"))
+                        .toList())
+                .isEqualTo(pooledOne.metrics());
+        assertThat(pooledTwo.metrics())
+                .filteredOn(metric -> !metric.name().equals("failure_share") && metric.status() != MetricStatus.NO_DATA)
+                .allSatisfy(metric -> assertThat(metric.status()).isEqualTo(MetricStatus.INSUFFICIENT_SAMPLE));
+        var share = pooled(two).getFirst();
+        assertThat(share.status()).isEqualTo(MetricStatus.AVAILABLE);
+        assertThat(share.value()).isEqualTo(0.5);
     }
 
     @Test
@@ -105,6 +127,7 @@ class ReportFailureShareTest {
         var two = report(AnalysisVersion.CURRENT);
 
         assertThat(one.cohorts())
+                .isNotEmpty()
                 .allSatisfy(cohort ->
                         assertThat(cohort.metrics()).extracting(Metric::name).doesNotContain("failure_share"));
         assertThat(two.cohorts()).hasSameSizeAs(one.cohorts());

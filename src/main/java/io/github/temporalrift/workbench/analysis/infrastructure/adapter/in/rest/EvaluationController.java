@@ -30,7 +30,7 @@ class EvaluationController implements EvaluationsApi {
     private static EvaluationMode parse(String mode) {
         try {
             return EvaluationMode.valueOf(mode);
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException _) {
             throw new InvalidEvaluationRequestException("mode must be SCREENING or CONFIRMATION");
         }
     }

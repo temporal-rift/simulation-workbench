@@ -12,6 +12,8 @@ public record AnalysisVersion(String version, long seed) {
 
     private static final Set<String> SUPPORTED = Set.of("1", "2");
     private static final int FAILURE_SHARE_SINCE = 2;
+    private static final String RESAMPLING_KEY = "1";
+    private static final String FACTS_VERSION = "1";
 
     /** The seed as a decimal unsigned 64-bit string. */
     public String seedText() {
@@ -29,11 +31,11 @@ public record AnalysisVersion(String version, long seed) {
 
     /** What the resampling streams are keyed by: the scheme, which no version has changed, not the version. */
     public String resamplingKey() {
-        return "1";
+        return RESAMPLING_KEY;
     }
 
     /** The version under which facts are stored: extraction is the same for every supported version. */
     public String factsVersion() {
-        return "1";
+        return FACTS_VERSION;
     }
 }

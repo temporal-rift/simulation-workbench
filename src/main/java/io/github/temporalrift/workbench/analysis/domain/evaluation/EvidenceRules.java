@@ -182,7 +182,7 @@ final class EvidenceRules {
         for (var index = from; index < roster.size(); index++) {
             current.add(roster.get(index));
             collect(roster, size, index + 1, current, sets);
-            current.remove(current.size() - 1);
+            current.removeLast();
         }
     }
 }

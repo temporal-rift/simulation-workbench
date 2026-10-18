@@ -10,6 +10,7 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
+import io.github.temporalrift.workbench.execution.RunCase;
 import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
 import io.github.temporalrift.workbench.execution.domain.port.out.RunRepository;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
@@ -37,7 +38,7 @@ class RunCatalogQueryHandlerTest {
 
         var cases = catalog.cases(RUN);
 
-        assertThat(cases).extracting(runCase -> runCase.failureCode()).containsExactly("POLICY_EXHAUSTED", null, null);
+        assertThat(cases).extracting(RunCase::failureCode).containsExactly("POLICY_EXHAUSTED", null, null);
     }
 
     private static LogicalCase logicalCase(UUID caseId, CaseState state) {

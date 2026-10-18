@@ -1,6 +1,7 @@
 package io.github.temporalrift.workbench.analysis.infrastructure.adapter.out.configuration;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -100,6 +101,34 @@ class ConfiguredBalanceCriteriaTest {
             assertThat(changed).isNotEqualTo(source);
             var digest = tryDigest(changed);
             assertThat(digest).as(change[0]).isNotEqualTo(original);
+        }
+    }
+
+    @Test
+    void numbersAreHashedByValueSoTwoAndTwoPointZeroAreTheSameNumber() {
+        var source = TestCriteria.source();
+        var original = ConfiguredBalanceCriteria.parse(MAPPER, source).digest();
+
+        var rewritten = source.replace("\"upper\": 2.0", "\"upper\": 2").replace("\"lower\": 0.5", "\"lower\": 0.50");
+
+        assertThat(rewritten).isNotEqualTo(source);
+        assertThat(ConfiguredBalanceCriteria.parse(MAPPER, rewritten).digest()).isEqualTo(original);
+    }
+
+    @Test
+    void evidenceTheEvaluatorCannotApplyFailsAtLoadInsteadOfBeingServedWithOtherBehaviour() {
+        var source = TestCriteria.source();
+
+        for (var change : List.of(
+                new String[] {"\"confidenceLevel\": 0.95", "\"confidenceLevel\": 0.9"},
+                new String[] {"\"CONFIGURATION_DRIFT\"\n    ]", "\"EXECUTION_FAILED\"\n    ]"},
+                new String[] {"\"ALL_PLAYERS_ABANDONED\"", "\"DECK_EXHAUSTED\""},
+                new String[] {"WEIGHTED_SUM_OF_SQUARED_DEVIATIONS", "WORST_LINE"})) {
+            var changed = source.replace(change[0], change[1]);
+            assertThat(changed).as(change[0]).isNotEqualTo(source);
+            assertThatThrownBy(() -> ConfiguredBalanceCriteria.parse(MAPPER, changed))
+                    .as(change[1])
+                    .isInstanceOf(RuntimeException.class);
         }
     }
 

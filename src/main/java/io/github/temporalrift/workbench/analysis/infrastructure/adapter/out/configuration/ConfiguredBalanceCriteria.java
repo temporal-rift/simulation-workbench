@@ -2,6 +2,7 @@ package io.github.temporalrift.workbench.analysis.infrastructure.adapter.out.con
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -40,6 +41,7 @@ import io.github.temporalrift.workbench.analysis.domain.port.out.BalanceCriteria
  */
 public class ConfiguredBalanceCriteria implements BalanceCriteria {
 
+    private static final String AGGREGATION = "WEIGHTED_SUM_OF_SQUARED_DEVIATIONS";
     private static final String LOCATION = "classpath*:balance-criteria/v*.json";
 
     private final List<BalanceCriterion> criteria;
@@ -97,6 +99,9 @@ public class ConfiguredBalanceCriteria implements BalanceCriteria {
     }
 
     private static BalanceCriterion criterion(JsonNode document) {
+        if (!AGGREGATION.equals(document.get("aggregation").asString())) {
+            throw new IllegalStateException("Only the " + AGGREGATION + " aggregation is implemented");
+        }
         return new BalanceCriterion(
                 document.get("version").asInt(),
                 digestOf(document),
@@ -175,6 +180,12 @@ public class ConfiguredBalanceCriteria implements BalanceCriteria {
             node.forEach(item -> result.add(canonical(item)));
             return result;
         }
-        return node;
+        return node.isNumber() ? JsonNodeFactory.instance.numberNode(numeric(node)) : node;
+    }
+
+    /** Numbers are hashed by value, so 2 and 2.0 are the same number. */
+    private static BigDecimal numeric(JsonNode node) {
+        var value = node.decimalValue();
+        return value.signum() == 0 ? BigDecimal.ZERO : value.stripTrailingZeros();
     }
 }

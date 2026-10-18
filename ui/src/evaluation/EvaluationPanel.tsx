@@ -39,6 +39,8 @@ export function EvaluationPanel({ run }: { readonly run: Run }) {
   const ready = chosenVariant !== undefined && chosenVersion !== undefined
   const evaluation = useQuery({
     ...evaluationQuery(client, run.runId, chosenVariant ?? '', chosenVersion ?? 0, mode),
+    // The evaluation is derived from the cases of the run, so it is read again when they change.
+    queryKey: ['evaluation', run.runId, chosenVariant ?? '', chosenVersion ?? 0, mode, run.state, ...Object.values(run.counts)],
     enabled: ready,
   })
 
