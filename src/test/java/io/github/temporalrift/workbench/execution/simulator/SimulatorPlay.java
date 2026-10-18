@@ -65,7 +65,7 @@ final class SimulatorPlay {
     /** Plays every case of the run with {@code workers} threads at once, waiting for slots still resetting. */
     void drain(UUID runId, int workers) {
         batch.maintain();
-        try (var pool = Executors.newFixedThreadPool(workers)) {
+        try (var pool = Executors.newVirtualThreadPerTaskExecutor()) {
             var done = IntStream.range(0, workers)
                     .mapToObj(worker -> pool.submit(() -> play(runId, "simulator-worker-" + worker)))
                     .toList();

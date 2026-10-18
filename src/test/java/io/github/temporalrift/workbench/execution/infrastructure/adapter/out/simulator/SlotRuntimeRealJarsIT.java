@@ -26,6 +26,7 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.model.ExecutionContext;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.model.Faction;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.model.SimulationSeat;
+import io.github.temporalrift.workbench.execution.simulator.SimulatorBuilds;
 
 /**
  * Starts the real executable jars as a slot hosts them. {@code simulator.builds} names the directory holding
@@ -83,23 +84,19 @@ class SlotRuntimeRealJarsIT {
     }
 
     private static SlotRuntime.Build build() {
-        var builds = Path.of(System.getProperty("simulator.builds"));
         var work = Path.of(System.getProperty("java.io.tmpdir"), "workbench-simulator-it");
         var rules = new CompositePropertySource("rules");
         try {
             new YamlPropertySourceLoader()
-                    .load(
-                            "rules",
-                            new FileSystemResource(Path.of("src/test/resources/simulator/baseline-rules.yml")
-                                    .toAbsolutePath()))
+                    .load("rules", new FileSystemResource(SimulatorBuilds.rules()))
                     .forEach(rules::addPropertySource);
         } catch (java.io.IOException e) {
             throw new java.io.UncheckedIOException(e);
         }
         return new SlotRuntime.Build(
-                ServiceJar.open(builds.resolve("game-service.jar"), work),
-                ServiceJar.open(builds.resolve("timeline-service.jar"), work),
-                ServiceJar.open(builds.resolve("read-service.jar"), work),
+                ServiceJar.open(SimulatorBuilds.jar("game-service"), work),
+                ServiceJar.open(SimulatorBuilds.jar("timeline-service"), work),
+                ServiceJar.open(SimulatorBuilds.jar("read-service"), work),
                 rules);
     }
 }

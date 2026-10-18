@@ -32,13 +32,15 @@ import io.github.temporalrift.workbench.experiment.application.port.in.CreateExp
 /**
  * Measures the simulator at one slot count: how many games per hour the slots play and how much memory the JVM uses
  * doing it. {@code simulator.capacity.slots} is the slot count and {@code simulator.capacity.seeds} the seeds of the
- * measured workload (three cases per seed, three players each); one case per slot is played first, unmeasured, so
- * the services' classes are loaded. The measurement is written to {@code target/capacity/slots-N.txt}.
+ * measured workload (three cases per seed, three players each); one seed per three slots, plus one, is played first,
+ * unmeasured, so every slot plays a case and the services' classes are loaded. The measurement is written to
+ * {@code target/capacity/slots-N.txt}.
  */
 @SpringBootTest(properties = "workbench.simulator.slots=${simulator.capacity.slots}")
 @ActiveProfiles("test")
 @Import({TestcontainersConfiguration.class, TestSecurityConfig.class})
 @EnabledIfSystemProperty(named = "simulator.capacity.slots", matches = "[1-9][0-9]*")
+@EnabledIfSystemProperty(named = SimulatorBuilds.DIRECTORY_PROPERTY, matches = ".+")
 class SimulatorCapacityIT {
 
     private static final int SLOTS = Integer.getInteger("simulator.capacity.slots", 1);

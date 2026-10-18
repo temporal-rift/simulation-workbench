@@ -13,9 +13,10 @@ games per hour stopped increasing.
 - **Builds.** `game-service` at `2a93def1` (branch `fix/in-memory-simulator-hosting`), `timeline-service` at `30c9a2e`
   and `read-service` at `b8bd2c4`, hosted unchanged under profile `in-memory`. The rules are the baseline lane bundle's
   game configuration (`src/test/resources/simulator/baseline-rules.yml`).
-- **Procedure.** `SimulatorCapacityIT` with `-Dsimulator.capacity.slots=N -Dsimulator.capacity.seeds=S`, once per slot
-  count, each in a fresh JVM against a fresh PostgreSQL test container (the workbench's own store; the hosted services
-  use none).
+- **Procedure.** `SimulatorCapacityIT` with `-Dsimulator.capacity.slots=N -Dsimulator.capacity.seeds=S`,
+  `-Dsimulator.builds=<directory of the three jars>` and `-Dsimulator.revisions=<game>,<timeline>,<read>`, once per
+  slot count, each in a fresh JVM against a fresh PostgreSQL test container (the workbench's own store; the hosted
+  services use none).
 - **Reference spec.** 4 cores / 8 threads and 16 GB. The machine is an Intel Core i7-13700H (14 cores, 20 threads) with
   32 GB. The measurement was capped to the spec with processor affinity for 8 logical processors,
   `-XX:ActiveProcessorCount=8` and `-Xmx12g`.
