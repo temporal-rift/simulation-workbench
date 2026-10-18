@@ -333,6 +333,147 @@ export const zLaneBundlePage = z.object({
     total: z.int().gte(0)
 });
 
+/**
+ * Recorded attempt-failure code. A case's code is the code of its final failed attempt; retried attempts that later succeeded do not count.
+ */
+export const zAttemptFailureCode = z.enum([
+    'RUNNER_TIMEOUT',
+    'EXECUTION_FAILED',
+    'CONTRACT_MISMATCH',
+    'CONFIGURATION_DRIFT',
+    'POLICY_EXHAUSTED'
+]);
+
+/**
+ * Closed interval `[lower, upper]`, or a one-sided limit (`>= lower` or `<= upper`) with the normalisation scale. At least one bound is present; `scale` (greater than 0) is required exactly when one bound is null.
+ */
+export const zBand = z.object({
+    lower: z.number().nullable(),
+    upper: z.number().nullable(),
+    scale: z.number().gt(0).nullable()
+});
+
+/**
+ * How the line's value is derived: directly from one report metric, as a faction ratio to the win reference, or as a sum of several `failure_share` codes.
+ */
+export const zCriterionDerivation = z.enum([
+    'DIRECT',
+    'RATIO_TO_WIN_REFERENCE',
+    'SUM_OF_FAILURE_CODES'
+]);
+
+export const zCriterionPooling = z.enum(['POOLED', 'PER_FACTION_SET']);
+
+/**
+ * `GATE` lines reject the configuration when they `FAIL`; `SCORED` lines contribute to the aggregate score.
+ */
+export const zCriterionRole = z.enum(['GATE', 'SCORED']);
+
+export const zCriterionAggregation = z.enum(['WEIGHTED_SUM_OF_SQUARED_DEVIATIONS']);
+
+export const zCriterionDimension = z.object({
+    eachFaction: z.boolean(),
+    endReason: z.enum([
+        'WIN_CONDITION_MET',
+        'TIMELINE_COLLAPSED',
+        'TIMELINE_STABILIZED',
+        'DECK_EXHAUSTED',
+        'RESOLUTION_FAILED',
+        'ALL_PLAYERS_ABANDONED'
+    ]).nullable(),
+    quantile: z.number().nullable(),
+    failureCodes: z.array(zAttemptFailureCode).nullable()
+});
+
+export const zCriterionLine = z.object({
+    id: z.string().regex(/^[GL]-[0-9]{2}$/),
+    metric: z.string().min(1),
+    derivation: zCriterionDerivation,
+    dimension: zCriterionDimension,
+    policies: z.array(z.string().min(1)).min(1),
+    playerCounts: z.array(z.union([
+        z.literal(3),
+        z.literal(4),
+        z.literal(5)
+    ])).min(1),
+    pooling: zCriterionPooling,
+    band: zBand,
+    weight: z.number().gt(0).nullable(),
+    role: zCriterionRole,
+    rationale: z.string().min(1)
+});
+
+export const zCriterionEvidence = z.object({
+    confidenceLevel: z.literal(0.95),
+    executionFailedShareLimit: z.number(),
+    invalidatingFailureCodes: z.array(zAttemptFailureCode),
+    invalidatingEndReasons: z.array(zTerminalEndReason),
+    confirmationMinimumSeeds: z.int().gte(2)
+});
+
+/**
+ * One read-only balance criterion version served from the workbench's configuration.
+ */
+export const zBalanceCriterion = z.object({
+    version: z.int().gte(1),
+    digest: zSha256Digest,
+    title: z.string().min(1),
+    analysisVersion: z.string().min(1),
+    lines: z.array(zCriterionLine),
+    aggregation: zCriterionAggregation,
+    evidence: zCriterionEvidence
+});
+
+export const zBalanceCriterionCatalog = z.object({
+    criteria: z.array(zBalanceCriterion)
+});
+
+export const zEvaluationMode = z.enum(['SCREENING', 'CONFIRMATION']);
+
+export const zEvaluationVerdict = z.enum([
+    'REJECTED',
+    'CONFIRMED',
+    'UNCONFIRMED',
+    'INVALID'
+]);
+
+/**
+ * `MEETS` when the interval lies inside the band; `FAILS` when it lies wholly outside; `INCONCLUSIVE` otherwise, and always when the status is `INSUFFICIENT_SAMPLE` or `NO_DATA`.
+ */
+export const zLineVerdict = z.enum([
+    'MEETS',
+    'FAILS',
+    'INCONCLUSIVE'
+]);
+
+export const zValidityReasonCode = z.enum([
+    'UNFINISHED_CASES',
+    'CONTRACT_MISMATCH',
+    'CONFIGURATION_DRIFT',
+    'EXECUTION_FAILED_SHARE',
+    'ALL_PLAYERS_ABANDONED'
+]);
+
+export const zEvaluationValidityReason = z.object({
+    code: zValidityReasonCode,
+    detail: z.string().min(1)
+});
+
+export const zEvaluationValidity = z.object({
+    valid: z.boolean(),
+    reasons: z.array(zEvaluationValidityReason)
+});
+
+/**
+ * The confirmation sample: at least the criterion's minimum seeds and the full case matrix with every policy the criterion names.
+ */
+export const zConfirmationSample = z.object({
+    requiredSeeds: z.int().gte(0),
+    seeds: z.int().gte(0),
+    fullMatrix: z.boolean(),
+    satisfied: z.boolean()
+});
+
 export const zProblemDetail = z.object({
     type: z.url(),
     title: z.string(),
@@ -588,7 +729,8 @@ export const zMetricDimensions = z.object({
     specialAction: zEnumsSpecialAction.optional(),
     paradoxType: zEnumsParadoxType.optional(),
     endReason: zTerminalEndReason.optional(),
-    quantile: z.number().gt(0).lt(1).optional()
+    quantile: z.number().gt(0).lt(1).optional(),
+    failureCode: zAttemptFailureCode.optional()
 });
 
 export const zMetric = z.object({
@@ -678,6 +820,70 @@ export const zComparison = z.object({
 export const zSpecialAction = zEnumsSpecialAction;
 
 /**
+ * What the evaluated line is restricted to: the report metric dimensions plus the `failureCodes` summed by a `SUM_OF_FAILURE_CODES` derivation. An absent property means the line is not split by it.
+ */
+export const zEvaluatedLineDimensions = z.object({
+    faction: zEnumsFaction.optional(),
+    cardType: zEnumsCardType.optional(),
+    cardGrade: zEnumsCardGrade.optional(),
+    specialAction: zEnumsSpecialAction.optional(),
+    paradoxType: zEnumsParadoxType.optional(),
+    endReason: z.enum([
+        'WIN_CONDITION_MET',
+        'TIMELINE_COLLAPSED',
+        'TIMELINE_STABILIZED',
+        'DECK_EXHAUSTED',
+        'RESOLUTION_FAILED',
+        'ALL_PLAYERS_ABANDONED'
+    ]).nullish(),
+    quantile: z.number().nullish(),
+    failureCode: zAttemptFailureCode.optional(),
+    failureCodes: z.array(zAttemptFailureCode).nullish()
+});
+
+/**
+ * One criterion line expanded for one cohort and dimension value. Deviation `d` is 0 inside the band; outside it `(lower - value) / w` or `(value - upper) / w`, where `w` is the band width for a two-sided band and `scale` for a one-sided limit. A `NO_DATA` line has `d = 0`.
+ */
+export const zEvaluatedLine = z.object({
+    lineId: z.string().min(1),
+    role: zCriterionRole,
+    metric: z.string().min(1),
+    dimensions: zEvaluatedLineDimensions,
+    policyId: z.string().min(1),
+    playerCount: z.union([
+        z.literal(3),
+        z.literal(4),
+        z.literal(5)
+    ]),
+    factionSet: zFactionSet.nullable(),
+    band: zBand,
+    value: z.number().nullable(),
+    interval: zConfidenceInterval.nullable(),
+    status: zMetricStatus,
+    deviation: z.number().gte(0),
+    verdict: zLineVerdict,
+    weight: z.number().gt(0).nullable()
+});
+
+/**
+ * The derived evaluation of one run variant against one criterion version. Score is the sum of `weight x deviation^2` over the `SCORED` lines; it is null when the evaluation is `INVALID`.
+ */
+export const zRunEvaluation = z.object({
+    runId: z.uuid(),
+    variantLabel: z.string().min(1),
+    criterionVersion: z.int().gte(1),
+    criterionDigest: zSha256Digest,
+    analysisVersion: z.string().min(1),
+    analysisSeed: zDecimalUint64,
+    mode: zEvaluationMode,
+    validity: zEvaluationValidity,
+    verdict: zEvaluationVerdict,
+    score: z.number().nullable(),
+    confirmationSample: zConfirmationSample.nullable(),
+    lines: z.array(zEvaluatedLine)
+});
+
+/**
  * UUID identifying one mutation request. Repeating a key with the same request representation returns the original resource; reusing it with a changed representation returns IDEMPOTENCY_CONFLICT.
  */
 export const zIdempotencyKey = z.uuid();
@@ -693,6 +899,8 @@ export const zRunId = z.uuid();
 export const zCaseId = z.uuid();
 
 export const zComparisonId = z.uuid();
+
+export const zCriterionVersion = z.int().gte(1);
 
 export const zListExperimentsQuery = z.object({
     limit: z.int().gte(1).lte(500).optional().default(50),
@@ -919,3 +1127,32 @@ export const zListExperimentTemplatesQuery = z.object({
  * One page of experiment templates in template order
  */
 export const zListExperimentTemplatesResponse = zExperimentTemplatePage;
+
+/**
+ * Every served criterion version in version order
+ */
+export const zListBalanceCriteriaResponse = zBalanceCriterionCatalog;
+
+export const zGetBalanceCriterionPath = z.object({
+    criterionVersion: z.int().gte(1)
+});
+
+/**
+ * The requested criterion version
+ */
+export const zGetBalanceCriterionResponse = zBalanceCriterion;
+
+export const zGetRunEvaluationPath = z.object({
+    runId: z.uuid()
+});
+
+export const zGetRunEvaluationQuery = z.object({
+    variantLabel: z.string().min(1),
+    criterionVersion: z.int().gte(1),
+    mode: z.enum(['SCREENING', 'CONFIRMATION']).optional().default('SCREENING')
+});
+
+/**
+ * Derived evaluation with validity, verdict, score and evaluated lines
+ */
+export const zGetRunEvaluationResponse = zRunEvaluation;

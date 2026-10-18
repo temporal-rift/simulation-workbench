@@ -1,5 +1,5 @@
-import type { Case, Comparison, Experiment, ExperimentManifest, LaneBundle, Report, Reproduction, ReproductionState, Run } from '../api/generated'
-import { IDS, REPORT_CSV, SEAT_STEPS, caseDetail, comparison, eventStep, experiment, experimentTemplates, laneBundles, policyCatalog, preview, report, run } from './fixtures'
+import type { Case, Comparison, Experiment, ExperimentManifest, LaneBundle, Report, Reproduction, ReproductionState, Run, RunEvaluation } from '../api/generated'
+import { IDS, REPORT_CSV, SEAT_STEPS, caseDetail, comparison, criterion, eventStep, evaluation, experiment, experimentTemplates, laneBundles, policyCatalog, preview, report, run } from './fixtures'
 
 export interface RecordedRequest {
   readonly method: string
@@ -33,6 +33,9 @@ export class FakeService {
   readonly cases = new Map<string, Case[]>()
   readonly comparisons = new Map<string, Comparison>()
   readonly reports = new Map<string, Report>()
+  /** What an evaluation read answers, from the variant, criterion version and mode the request names. */
+  evaluationFor: (variantLabel: string, criterionVersion: number, mode: RunEvaluation['mode']) => RunEvaluation = (variantLabel, criterionVersion, mode) =>
+    evaluation({ variantLabel, criterionVersion, mode })
   /** What the configured lanes serve; empty models a deployment without lanes. */
   laneBundles: LaneBundle[] = laneBundles()
   /** The states successive reproduction requests report, the last one repeating. */
@@ -215,6 +218,14 @@ export class FakeService {
         return request.headers.get('Accept') === 'text/csv'
           ? new Response(REPORT_CSV, { status: 200, headers: { 'Content-Type': 'text/csv; charset=UTF-8' } })
           : json(found)
+      }),
+      get(/^\/api\/v1\/balance-criteria$/, () => json({ criteria: [criterion()] })),
+      get(/^\/api\/v1\/runs\/([^/]+)\/evaluation$/, (request, match) => {
+        if (!this.runs.has(match[1]!)) {
+          return problem(404, 'RESOURCE_NOT_FOUND', 'Unknown run.')
+        }
+        const mode = request.query.get('mode') === 'CONFIRMATION' ? 'CONFIRMATION' : 'SCREENING'
+        return json(this.evaluationFor(request.query.get('variantLabel') ?? '', Number(request.query.get('criterionVersion')), mode))
       }),
       post(/^\/api\/v1\/comparisons$/, (request) =>
         this.once(request, () => {

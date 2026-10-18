@@ -1,4 +1,4 @@
-import type { Case, Comparison, Experiment, ExperimentManifest, ExperimentPreview, ExperimentTemplate, LaneBundle, Metric, PolicyBundle, ReplayStep, Report, Run } from '../api/generated'
+import type { BalanceCriterion, Case, Comparison, EvaluatedLine, Experiment, ExperimentManifest, ExperimentPreview, ExperimentTemplate, LaneBundle, Metric, PolicyBundle, ReplayStep, Report, Run, RunEvaluation } from '../api/generated'
 
 export const IDS = {
   experiment: '6f3f2a52-4f0a-4c69-9a39-2a8f0e2b9d11',
@@ -338,5 +338,84 @@ export function eventStep(step: number, source: string, offset: number): ReplayS
     observations: { source, partition: 0, offset, eventType: 'CardPlayed', payload: { note: `${source}-${offset}` } },
     decision: null,
     acceptedResult: null,
+  }
+}
+
+export function criterion(overrides: Partial<BalanceCriterion> = {}): BalanceCriterion {
+  return {
+    version: 1,
+    digest: digest('5'),
+    title: 'Balance criterion version 1',
+    analysisVersion: '2',
+    lines: [],
+    aggregation: 'WEIGHTED_SUM_OF_SQUARED_DEVIATIONS',
+    evidence: {
+      confidenceLevel: 0.95,
+      executionFailedShareLimit: 0.05,
+      invalidatingFailureCodes: ['CONTRACT_MISMATCH', 'CONFIGURATION_DRIFT'],
+      invalidatingEndReasons: ['ALL_PLAYERS_ABANDONED'],
+      confirmationMinimumSeeds: 100,
+    },
+    ...overrides,
+  }
+}
+
+export function evaluatedLine(overrides: Partial<EvaluatedLine> = {}): EvaluatedLine {
+  return {
+    lineId: 'L-01',
+    role: 'SCORED',
+    metric: 'faction_win_rate',
+    dimensions: { faction: 'ERASERS' },
+    policyId: 'faction-greedy-v1',
+    playerCount: 3,
+    factionSet: null,
+    band: { lower: 0.8, upper: 1.25, scale: null },
+    value: 1,
+    interval: { level: 0.95, lower: 0.9, upper: 1.1, method: 'BLOCK_BOOTSTRAP' },
+    status: 'AVAILABLE',
+    deviation: 0,
+    verdict: 'MEETS',
+    weight: 0.266667,
+    ...overrides,
+  }
+}
+
+export function evaluation(overrides: Partial<RunEvaluation> = {}): RunEvaluation {
+  return {
+    runId: IDS.run,
+    variantLabel: 'baseline',
+    criterionVersion: 1,
+    criterionDigest: digest('5'),
+    analysisVersion: '2',
+    analysisSeed: '1',
+    mode: 'SCREENING',
+    validity: { valid: true, reasons: [] },
+    verdict: 'REJECTED',
+    score: 0.029630,
+    confirmationSample: null,
+    lines: [
+      evaluatedLine({
+        lineId: 'G-05',
+        role: 'GATE',
+        band: { lower: 0.5, upper: 2, scale: null },
+        value: 2.4,
+        interval: { level: 0.95, lower: 2.2, upper: 2.6, method: 'BLOCK_BOOTSTRAP' },
+        deviation: 0.266667,
+        verdict: 'FAILS',
+        weight: null,
+      }),
+      evaluatedLine({ lineId: 'L-01', dimensions: { faction: 'PROPHETS' } }),
+      evaluatedLine({
+        lineId: 'L-07',
+        metric: 'paradox_cascade_rate',
+        dimensions: {},
+        band: { lower: 0.25, upper: 0.75, scale: null },
+        value: null,
+        interval: null,
+        status: 'NO_DATA',
+        verdict: 'INCONCLUSIVE',
+      }),
+    ],
+    ...overrides,
   }
 }

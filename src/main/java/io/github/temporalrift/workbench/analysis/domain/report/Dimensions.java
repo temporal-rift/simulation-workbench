@@ -3,6 +3,7 @@ package io.github.temporalrift.workbench.analysis.domain.report;
 import io.github.temporalrift.workbench.analysis.domain.game.CardKey;
 import io.github.temporalrift.workbench.analysis.domain.game.EndReason;
 import io.github.temporalrift.workbench.analysis.domain.game.Faction;
+import io.github.temporalrift.workbench.analysis.domain.game.FailureCode;
 import io.github.temporalrift.workbench.analysis.domain.game.ParadoxType;
 import io.github.temporalrift.workbench.analysis.domain.game.SpecialAction;
 
@@ -13,31 +14,36 @@ public record Dimensions(
         SpecialAction specialAction,
         ParadoxType paradoxType,
         EndReason endReason,
-        Double quantile) {
+        Double quantile,
+        FailureCode failureCode) {
 
-    public static final Dimensions NONE = new Dimensions(null, null, null, null, null, null);
+    public static final Dimensions NONE = new Dimensions(null, null, null, null, null, null, null);
 
     public static Dimensions of(Faction faction) {
-        return new Dimensions(faction, null, null, null, null, null);
+        return new Dimensions(faction, null, null, null, null, null, null);
     }
 
     public static Dimensions of(CardKey card) {
-        return new Dimensions(null, card, null, null, null, null);
+        return new Dimensions(null, card, null, null, null, null, null);
     }
 
     public static Dimensions of(SpecialAction specialAction) {
-        return new Dimensions(null, null, specialAction, null, null, null);
+        return new Dimensions(null, null, specialAction, null, null, null, null);
     }
 
     public static Dimensions of(ParadoxType paradoxType) {
-        return new Dimensions(null, null, null, paradoxType, null, null);
+        return new Dimensions(null, null, null, paradoxType, null, null, null);
     }
 
     public static Dimensions of(EndReason endReason) {
-        return new Dimensions(null, null, null, null, endReason, null);
+        return new Dimensions(null, null, null, null, endReason, null, null);
+    }
+
+    public static Dimensions of(FailureCode failureCode) {
+        return new Dimensions(null, null, null, null, null, null, failureCode);
     }
 
     public Dimensions at(double quantileValue) {
-        return new Dimensions(faction, card, specialAction, paradoxType, endReason, quantileValue);
+        return new Dimensions(faction, card, specialAction, paradoxType, endReason, quantileValue, failureCode);
     }
 }

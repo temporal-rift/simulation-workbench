@@ -10,6 +10,7 @@ import java.util.UUID;
  *
  * @param seatFactions the faction of each seat, indexed by seat
  * @param outcome present only when the case succeeded
+ * @param failureCode present only when the case failed
  */
 public record AnalyzedCase(
         UUID caseId,
@@ -20,12 +21,31 @@ public record AnalyzedCase(
         String policyVersion,
         List<Faction> seatFactions,
         CaseStatus status,
-        CaseOutcome outcome) {
+        CaseOutcome outcome,
+        FailureCode failureCode) {
 
     public AnalyzedCase {
         Objects.requireNonNull(caseId, "caseId");
         Objects.requireNonNull(status, "status");
         seatFactions = List.copyOf(seatFactions);
+    }
+
+    public AnalyzedCase(
+            UUID caseId,
+            String variantLabel,
+            String seed,
+            int playerCount,
+            String policyId,
+            String policyVersion,
+            List<Faction> seatFactions,
+            CaseStatus status,
+            CaseOutcome outcome) {
+        this(caseId, variantLabel, seed, playerCount, policyId, policyVersion, seatFactions, status, outcome, null);
+    }
+
+    /** Whether the case reached a final state that counts in a failure share. */
+    public boolean finished() {
+        return status == CaseStatus.SUCCEEDED || status == CaseStatus.FAILED;
     }
 
     public boolean succeeded() {

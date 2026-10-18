@@ -8,6 +8,8 @@ import java.util.UUID;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 interface CaseAttemptJpaRepository extends JpaRepository<CaseAttemptJpaEntity, UUID> {
 
@@ -27,4 +29,13 @@ interface CaseAttemptJpaRepository extends JpaRepository<CaseAttemptJpaEntity, U
     List<CaseAttemptJpaEntity> findAllByStateAndLeaseOwner(String state, String leaseOwner);
 
     List<CaseAttemptJpaEntity> findAllByStateAndLeaseExpiresAtBefore(String state, Instant now);
+
+    /** The failed attempts of the run's failed cases, each case's attempts in ordinal order. */
+    @Query("""
+            select a from CaseAttemptJpaEntity a
+            where a.state = 'FAILED'
+              and a.caseId in (select c.caseId from RunCaseJpaEntity c where c.runId = :runId and c.state = 'FAILED')
+            order by a.caseId, a.ordinal
+            """)
+    List<CaseAttemptJpaEntity> findFailedAttemptsOfFailedCases(@Param("runId") UUID runId);
 }

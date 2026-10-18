@@ -1,6 +1,7 @@
 package io.github.temporalrift.workbench.analysis.domain.report;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -34,7 +35,20 @@ public final class BlockTallies {
      */
     public static BlockTallies collect(
             List<MetricDefinition> definitions, Map<String, List<CaseFacts>> games, Integer seatIndex) {
+        return collect(definitions, games, seatIndex, games.keySet());
+    }
+
+    /**
+     * @param blockSeeds every seed that is a block; a seed without games is an empty block, as when all its cases
+     *     failed
+     */
+    public static BlockTallies collect(
+            List<MetricDefinition> definitions,
+            Map<String, List<CaseFacts>> games,
+            Integer seatIndex,
+            Collection<String> blockSeeds) {
         var bySeed = new TreeMap<String, List<CaseFacts>>(SEED_ORDER);
+        blockSeeds.forEach(seed -> bySeed.put(seed, List.of()));
         bySeed.putAll(games);
         var seeds = List.copyOf(bySeed.keySet());
         var series = new ArrayList<BlockSeries>();

@@ -17,6 +17,7 @@ import io.github.temporalrift.workbench.analysis.domain.report.Dimensions;
 import io.github.temporalrift.workbench.analysis.domain.report.Interval;
 import io.github.temporalrift.workbench.analysis.domain.report.Metric;
 import io.github.temporalrift.workbench.analysis.domain.report.RunReport;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.AttemptFailureCode;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CardGrade;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CardType;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CaseState;
@@ -206,6 +207,10 @@ final class AnalysisApiMapper {
         if (dimensions.quantile() != null) {
             api.quantile(BigDecimal.valueOf(dimensions.quantile()));
         }
+        if (dimensions.failureCode() != null) {
+            api.failureCode(
+                    AttemptFailureCode.fromValue(dimensions.failureCode().name()));
+        }
         return api;
     }
 
@@ -219,7 +224,7 @@ final class AnalysisApiMapper {
                 .cancelled(counts.cancelled());
     }
 
-    private static ConfidenceInterval interval(Interval interval) {
+    static ConfidenceInterval interval(Interval interval) {
         return interval == null
                 ? null
                 : new ConfidenceInterval()
@@ -229,8 +234,7 @@ final class AnalysisApiMapper {
                         .method(ConfidenceInterval.MethodEnum.BLOCK_BOOTSTRAP);
     }
 
-    private static LinkedHashSet<
-                    io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Faction>
+    static LinkedHashSet<io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Faction>
             factions(List<Faction> factions) {
         var set = new LinkedHashSet<
                 io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Faction>();
@@ -244,7 +248,7 @@ final class AnalysisApiMapper {
                 faction.name());
     }
 
-    private static BigDecimal decimal(Double value) {
+    static BigDecimal decimal(Double value) {
         return value == null ? null : BigDecimal.valueOf(value);
     }
 }

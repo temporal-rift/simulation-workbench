@@ -12,27 +12,37 @@ import tools.jackson.databind.ObjectMapper;
 import io.github.temporalrift.workbench.analysis.application.command.CreateComparisonCommandHandler;
 import io.github.temporalrift.workbench.analysis.application.port.in.CreateComparisonUseCase;
 import io.github.temporalrift.workbench.analysis.application.port.in.GetComparisonUseCase;
+import io.github.temporalrift.workbench.analysis.application.port.in.GetRunEvaluationUseCase;
 import io.github.temporalrift.workbench.analysis.application.port.in.GetRunReportUseCase;
 import io.github.temporalrift.workbench.analysis.application.port.in.ListComparisonsUseCase;
+import io.github.temporalrift.workbench.analysis.application.query.BalanceCriteriaQueryHandler;
 import io.github.temporalrift.workbench.analysis.application.query.CaseFactsProvider;
 import io.github.temporalrift.workbench.analysis.application.query.ComparisonEvaluator;
 import io.github.temporalrift.workbench.analysis.application.query.GetComparisonQueryHandler;
+import io.github.temporalrift.workbench.analysis.application.query.GetRunEvaluationQueryHandler;
 import io.github.temporalrift.workbench.analysis.application.query.GetRunReportQueryHandler;
 import io.github.temporalrift.workbench.analysis.application.query.ListComparisonsQueryHandler;
+import io.github.temporalrift.workbench.analysis.domain.port.out.BalanceCriteria;
 import io.github.temporalrift.workbench.analysis.domain.port.out.CaseFactsRepository;
 import io.github.temporalrift.workbench.analysis.domain.port.out.ComparisonRepository;
 import io.github.temporalrift.workbench.analysis.domain.port.out.ExperimentDefinitions;
 import io.github.temporalrift.workbench.analysis.domain.port.out.RunSource;
 import io.github.temporalrift.workbench.analysis.infrastructure.adapter.in.rest.AnalysisCsvConverter;
+import io.github.temporalrift.workbench.analysis.infrastructure.adapter.out.configuration.ConfiguredBalanceCriteria;
 import io.github.temporalrift.workbench.analysis.infrastructure.adapter.out.execution.RunSourceAdapter;
 import io.github.temporalrift.workbench.analysis.infrastructure.adapter.out.experiment.ExperimentDefinitionsAdapter;
 import io.github.temporalrift.workbench.execution.RunCatalog;
 import io.github.temporalrift.workbench.experiment.ExperimentCatalog;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Band;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Cohort;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ComparisonCohort;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CriterionDimension;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CriterionLine;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.EvaluatedLine;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ExcludedPair;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Metric;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.PairedMetricDifference;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.RunEvaluation;
 
 @Configuration
 public class AnalysisConfiguration {
@@ -83,6 +93,21 @@ public class AnalysisConfiguration {
     }
 
     @Bean
+    BalanceCriteria balanceCriteria(ObjectMapper objectMapper) {
+        return new ConfiguredBalanceCriteria(objectMapper);
+    }
+
+    @Bean
+    BalanceCriteriaQueryHandler balanceCriteriaQueryHandler(BalanceCriteria criteria) {
+        return new BalanceCriteriaQueryHandler(criteria);
+    }
+
+    @Bean
+    GetRunEvaluationUseCase getRunEvaluationUseCase(RunSource runs, BalanceCriteria criteria, CaseFactsProvider facts) {
+        return new GetRunEvaluationQueryHandler(runs, criteria, facts);
+    }
+
+    @Bean
     ServerHttpMessageConvertersCustomizer analysisCsvExports() {
         return builder -> builder.addCustomConverter(new AnalysisCsvConverter());
     }
@@ -99,7 +124,12 @@ public class AnalysisConfiguration {
                         Metric.class,
                         ComparisonCohort.class,
                         PairedMetricDifference.class,
-                        ExcludedPair.class)
+                        ExcludedPair.class,
+                        Band.class,
+                        CriterionDimension.class,
+                        CriterionLine.class,
+                        EvaluatedLine.class,
+                        RunEvaluation.class)
                 .forEach(type -> builder.withConfigOverride(type, override -> override.setInclude(always)));
     }
 }

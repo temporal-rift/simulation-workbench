@@ -227,6 +227,7 @@ export type MetricDimensions = {
     paradoxType?: EnumsParadoxType;
     endReason?: TerminalEndReason;
     quantile?: number;
+    failureCode?: AttemptFailureCode;
 };
 
 /**
@@ -241,7 +242,7 @@ export type ConfidenceInterval = {
 
 export type Metric = {
     /**
-     * Metric of the report's analysis version, such as faction_win_rate, faction_shared_win_rate, score, ending_cause_rate, eras, cards_played, card_playable_rate, special_accepts, paradox_findings, or distinct_cascaded_events.
+     * Metric of the report's analysis version, such as faction_win_rate, faction_shared_win_rate, score, ending_cause_rate, eras, cards_played, card_playable_rate, special_accepts, paradox_findings, or distinct_cascaded_events. Reports of analysis version `2` additionally carry `failure_share` (statistic `RATE`, unit `cases`) in every cohort that pools seats.
      */
     name: string;
     statistic: MetricStatistic;
@@ -602,6 +603,176 @@ export type ExperimentTemplatePage = {
     total: number;
 };
 
+/**
+ * Recorded attempt-failure code. A case's code is the code of its final failed attempt; retried attempts that later succeeded do not count.
+ */
+export type AttemptFailureCode = 'RUNNER_TIMEOUT' | 'EXECUTION_FAILED' | 'CONTRACT_MISMATCH' | 'CONFIGURATION_DRIFT' | 'POLICY_EXHAUSTED';
+
+/**
+ * Closed interval `[lower, upper]`, or a one-sided limit (`>= lower` or `<= upper`) with the normalisation scale. At least one bound is present; `scale` (greater than 0) is required exactly when one bound is null.
+ */
+export type Band = {
+    lower: number | null;
+    upper: number | null;
+    scale: number | null;
+};
+
+/**
+ * How the line's value is derived: directly from one report metric, as a faction ratio to the win reference, or as a sum of several `failure_share` codes.
+ */
+export type CriterionDerivation = 'DIRECT' | 'RATIO_TO_WIN_REFERENCE' | 'SUM_OF_FAILURE_CODES';
+
+export type CriterionPooling = 'POOLED' | 'PER_FACTION_SET';
+
+/**
+ * `GATE` lines reject the configuration when they `FAIL`; `SCORED` lines contribute to the aggregate score.
+ */
+export type CriterionRole = 'GATE' | 'SCORED';
+
+export type CriterionAggregation = 'WEIGHTED_SUM_OF_SQUARED_DEVIATIONS';
+
+export type CriterionDimension = {
+    /**
+     * One line per faction when true.
+     */
+    eachFaction: boolean;
+    /**
+     * The line's end-reason dimension; null when the line is not split by it.
+     */
+    endReason: 'WIN_CONDITION_MET' | 'TIMELINE_COLLAPSED' | 'TIMELINE_STABILIZED' | 'DECK_EXHAUSTED' | 'RESOLUTION_FAILED' | 'ALL_PLAYERS_ABANDONED' | null;
+    quantile: number | null;
+    /**
+     * Used by `SUM_OF_FAILURE_CODES` derivations.
+     */
+    failureCodes: Array<AttemptFailureCode> | null;
+};
+
+export type CriterionLine = {
+    id: string;
+    metric: string;
+    derivation: CriterionDerivation;
+    dimension: CriterionDimension;
+    policies: Array<string>;
+    playerCounts: Array<3 | 4 | 5>;
+    pooling: CriterionPooling;
+    band: Band;
+    /**
+     * Greater than 0 for `SCORED` lines; null for `GATE` lines.
+     */
+    weight: number | null;
+    role: CriterionRole;
+    rationale: string;
+};
+
+export type CriterionEvidence = {
+    confidenceLevel: 0.95;
+    executionFailedShareLimit: number;
+    invalidatingFailureCodes: Array<AttemptFailureCode>;
+    invalidatingEndReasons: Array<TerminalEndReason>;
+    confirmationMinimumSeeds: number;
+};
+
+/**
+ * One read-only balance criterion version served from the workbench's configuration.
+ */
+export type BalanceCriterion = {
+    version: number;
+    digest: Sha256Digest;
+    title: string;
+    analysisVersion: string;
+    lines: Array<CriterionLine>;
+    aggregation: CriterionAggregation;
+    evidence: CriterionEvidence;
+};
+
+export type BalanceCriterionCatalog = {
+    criteria: Array<BalanceCriterion>;
+};
+
+export type EvaluationMode = 'SCREENING' | 'CONFIRMATION';
+
+export type EvaluationVerdict = 'REJECTED' | 'CONFIRMED' | 'UNCONFIRMED' | 'INVALID';
+
+/**
+ * `MEETS` when the interval lies inside the band; `FAILS` when it lies wholly outside; `INCONCLUSIVE` otherwise, and always when the status is `INSUFFICIENT_SAMPLE` or `NO_DATA`.
+ */
+export type LineVerdict = 'MEETS' | 'FAILS' | 'INCONCLUSIVE';
+
+export type ValidityReasonCode = 'UNFINISHED_CASES' | 'CONTRACT_MISMATCH' | 'CONFIGURATION_DRIFT' | 'EXECUTION_FAILED_SHARE' | 'ALL_PLAYERS_ABANDONED';
+
+export type EvaluationValidityReason = {
+    code: ValidityReasonCode;
+    detail: string;
+};
+
+export type EvaluationValidity = {
+    valid: boolean;
+    reasons: Array<EvaluationValidityReason>;
+};
+
+/**
+ * The confirmation sample: at least the criterion's minimum seeds and the full case matrix with every policy the criterion names.
+ */
+export type ConfirmationSample = {
+    requiredSeeds: number;
+    seeds: number;
+    fullMatrix: boolean;
+    satisfied: boolean;
+};
+
+/**
+ * What the evaluated line is restricted to: the report metric dimensions plus the `failureCodes` summed by a `SUM_OF_FAILURE_CODES` derivation. An absent property means the line is not split by it.
+ */
+export type EvaluatedLineDimensions = {
+    faction?: EnumsFaction;
+    cardType?: EnumsCardType;
+    cardGrade?: EnumsCardGrade;
+    specialAction?: EnumsSpecialAction;
+    paradoxType?: EnumsParadoxType;
+    endReason?: 'WIN_CONDITION_MET' | 'TIMELINE_COLLAPSED' | 'TIMELINE_STABILIZED' | 'DECK_EXHAUSTED' | 'RESOLUTION_FAILED' | 'ALL_PLAYERS_ABANDONED' | null;
+    quantile?: number | null;
+    failureCode?: AttemptFailureCode;
+    failureCodes?: Array<AttemptFailureCode> | null;
+};
+
+/**
+ * One criterion line expanded for one cohort and dimension value. Deviation `d` is 0 inside the band; outside it `(lower - value) / w` or `(value - upper) / w`, where `w` is the band width for a two-sided band and `scale` for a one-sided limit. A `NO_DATA` line has `d = 0`.
+ */
+export type EvaluatedLine = {
+    lineId: string;
+    role: CriterionRole;
+    metric: string;
+    dimensions: EvaluatedLineDimensions;
+    policyId: string;
+    playerCount: 3 | 4 | 5;
+    factionSet: FactionSet | null;
+    band: Band;
+    value: number | null;
+    interval: ConfidenceInterval | null;
+    status: MetricStatus;
+    deviation: number;
+    verdict: LineVerdict;
+    weight: number | null;
+};
+
+/**
+ * The derived evaluation of one run variant against one criterion version. Score is the sum of `weight x deviation^2` over the `SCORED` lines; it is null when the evaluation is `INVALID`.
+ */
+export type RunEvaluation = {
+    runId: string;
+    variantLabel: string;
+    criterionVersion: number;
+    criterionDigest: Sha256Digest;
+    analysisVersion: string;
+    analysisSeed: DecimalUint64;
+    mode: EvaluationMode;
+    validity: EvaluationValidity;
+    verdict: EvaluationVerdict;
+    score: number | null;
+    confirmationSample: ConfirmationSample | null;
+    lines: Array<EvaluatedLine>;
+};
+
 export type ProblemDetail = {
     type: string;
     title: string;
@@ -642,6 +813,8 @@ export type RunId = string;
 export type CaseId = string;
 
 export type ComparisonId = string;
+
+export type CriterionVersion = number;
 
 export type ListExperimentsData = {
     body?: never;
@@ -1366,7 +1539,7 @@ export type ListLaneBundlesData = {
 
 export type ListLaneBundlesErrors = {
     /**
-     * The request paging is invalid, such as a limit outside 1 to 500 (code INVALID_REQUEST)
+     * The request is invalid, such as paging outside 1 to 500 or a missing or invalid evaluation query parameter (code INVALID_REQUEST)
      */
     400: ProblemDetail;
     /**
@@ -1402,7 +1575,7 @@ export type ListExperimentTemplatesData = {
 
 export type ListExperimentTemplatesErrors = {
     /**
-     * The request paging is invalid, such as a limit outside 1 to 500 (code INVALID_REQUEST)
+     * The request is invalid, such as paging outside 1 to 500 or a missing or invalid evaluation query parameter (code INVALID_REQUEST)
      */
     400: ProblemDetail;
     /**
@@ -1425,3 +1598,110 @@ export type ListExperimentTemplatesResponses = {
 };
 
 export type ListExperimentTemplatesResponse = ListExperimentTemplatesResponses[keyof ListExperimentTemplatesResponses];
+
+export type ListBalanceCriteriaData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/balance-criteria';
+};
+
+export type ListBalanceCriteriaErrors = {
+    /**
+     * Missing, invalid, or expired bearer token
+     */
+    401: ProblemDetail;
+    /**
+     * The bearer token lacks a required simulation scope
+     */
+    403: ProblemDetail;
+};
+
+export type ListBalanceCriteriaError = ListBalanceCriteriaErrors[keyof ListBalanceCriteriaErrors];
+
+export type ListBalanceCriteriaResponses = {
+    /**
+     * Every served criterion version in version order
+     */
+    200: BalanceCriterionCatalog;
+};
+
+export type ListBalanceCriteriaResponse = ListBalanceCriteriaResponses[keyof ListBalanceCriteriaResponses];
+
+export type GetBalanceCriterionData = {
+    body?: never;
+    path: {
+        criterionVersion: number;
+    };
+    query?: never;
+    url: '/api/v1/balance-criteria/{criterionVersion}';
+};
+
+export type GetBalanceCriterionErrors = {
+    /**
+     * Missing, invalid, or expired bearer token
+     */
+    401: ProblemDetail;
+    /**
+     * The bearer token lacks a required simulation scope
+     */
+    403: ProblemDetail;
+    /**
+     * The requested resource does not exist or is not visible to the caller
+     */
+    404: ProblemDetail;
+};
+
+export type GetBalanceCriterionError = GetBalanceCriterionErrors[keyof GetBalanceCriterionErrors];
+
+export type GetBalanceCriterionResponses = {
+    /**
+     * The requested criterion version
+     */
+    200: BalanceCriterion;
+};
+
+export type GetBalanceCriterionResponse = GetBalanceCriterionResponses[keyof GetBalanceCriterionResponses];
+
+export type GetRunEvaluationData = {
+    body?: never;
+    path: {
+        runId: string;
+    };
+    query: {
+        variantLabel: string;
+        criterionVersion: number;
+        mode?: 'SCREENING' | 'CONFIRMATION';
+    };
+    url: '/api/v1/runs/{runId}/evaluation';
+};
+
+export type GetRunEvaluationErrors = {
+    /**
+     * The request is invalid, such as paging outside 1 to 500 or a missing or invalid evaluation query parameter (code INVALID_REQUEST)
+     */
+    400: ProblemDetail;
+    /**
+     * Missing, invalid, or expired bearer token
+     */
+    401: ProblemDetail;
+    /**
+     * The bearer token lacks a required simulation scope
+     */
+    403: ProblemDetail;
+    /**
+     * The requested resource does not exist or is not visible to the caller
+     */
+    404: ProblemDetail;
+};
+
+export type GetRunEvaluationError = GetRunEvaluationErrors[keyof GetRunEvaluationErrors];
+
+export type GetRunEvaluationResponses = {
+    /**
+     * Derived evaluation with validity, verdict, score and evaluated lines
+     */
+    200: RunEvaluation;
+};
+
+export type GetRunEvaluationResponse = GetRunEvaluationResponses[keyof GetRunEvaluationResponses];

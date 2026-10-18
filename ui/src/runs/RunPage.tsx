@@ -11,6 +11,7 @@ import { ErrorNotice } from '../components/ErrorNotice'
 import { formatInstant } from '../components/format'
 import { QueryView } from '../components/QueryView'
 import { ScopedButton } from '../components/ScopedButton'
+import { EvaluationPanel } from '../evaluation/EvaluationPanel'
 import { CasesSection } from './CasesSection'
 import { FailuresSection } from './FailuresSection'
 import { RUN_STATE_LABELS, isCancellable, isResumable, partialNote } from './runView'
@@ -156,6 +157,7 @@ function RunDetail({ run, stale }: { readonly run: Run; readonly stale: boolean 
           onRetry={() => command.mutate(failedCommand)}
         />
       )}
+      <EvaluationPanel run={run} />
       <FailuresSection run={run} />
       <CasesSection run={run} />
     </>
