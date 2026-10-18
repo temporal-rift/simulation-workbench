@@ -126,10 +126,12 @@ class ReportFailureShareTest {
         var one = report(new AnalysisVersion("1", 1L));
         var two = report(AnalysisVersion.CURRENT);
 
-        assertThat(one.cohorts())
+        assertThat(one.cohorts()).isNotEmpty();
+        assertThat(one.cohorts().stream()
+                        .flatMap(cohort -> cohort.metrics().stream())
+                        .map(Metric::name))
                 .isNotEmpty()
-                .allSatisfy(cohort ->
-                        assertThat(cohort.metrics()).extracting(Metric::name).doesNotContain("failure_share"));
+                .doesNotContain("failure_share");
         assertThat(two.cohorts()).hasSameSizeAs(one.cohorts());
         for (var index = 0; index < one.cohorts().size(); index++) {
             var twoMetrics = two.cohorts().get(index).metrics().stream()
