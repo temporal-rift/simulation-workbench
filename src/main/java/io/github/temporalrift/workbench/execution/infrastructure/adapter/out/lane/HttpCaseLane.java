@@ -228,7 +228,8 @@ public class HttpCaseLane implements CaseLane {
         } catch (RestClientResponseException e) {
             throw new AttemptFailedException(
                     FailureCode.EXECUTION_FAILED,
-                    service + " refused the execution context: " + ProblemCodes.codeOf(e),
+                    service + " refused the execution context: " + ProblemCodes.codeOf(e) + " "
+                            + ProblemCodes.describe(e),
                     e);
         } catch (RestClientException e) {
             throw new AttemptFailedException(

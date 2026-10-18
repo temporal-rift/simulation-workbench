@@ -143,14 +143,14 @@ final class SlotRuntime implements AutoCloseable {
                     .resourceLoader(new DefaultResourceLoader(loader))
                     .bannerMode(Banner.Mode.OFF)
                     .registerShutdownHook(false)
-                    .properties("server.port=0", "server.address=127.0.0.1")
                     .properties(properties);
             // The workbench has configured logging; a hosted service must not reconfigure it for the whole JVM.
             var application = builder.application();
             application.setListeners(application.getListeners().stream()
                     .filter(listener -> !(listener instanceof LoggingApplicationListener))
                     .toList());
-            var context = builder.run();
+            // Arguments, because a service's own application.yml outranks the defaults that properties() sets.
+            var context = builder.run("--server.port=0", "--server.address=127.0.0.1");
             started.add(new Hosted(context, loader));
             running = true;
             return context;
