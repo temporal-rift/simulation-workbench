@@ -764,7 +764,7 @@ export const zCohort = z.object({
 });
 
 export const zReport = z.object({
-    formatVersion: z.literal(1),
+    formatVersion: z.literal(2),
     runId: z.uuid(),
     manifestDigest: zSha256Digest,
     analysisVersion: z.string().min(1),

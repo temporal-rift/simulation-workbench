@@ -39,8 +39,9 @@ public class AnalysisCsvConverter extends AbstractHttpMessageConverter<Object> {
             "specialAction",
             "paradoxType",
             "endReason",
-            "quantile",
-            "unit");
+            "quantile");
+    private static final String FAILURE_CODE = "failureCode";
+    private static final String UNIT = "unit";
     private static final List<String> REPORT_COLUMNS = concat(
             List.of(
                     "formatVersion",
@@ -64,7 +65,16 @@ public class AnalysisCsvConverter extends AbstractHttpMessageConverter<Object> {
                     "failed",
                     "cancelled"),
             ATTRIBUTION,
-            List.of("value", "numerator", "denominator", "status", "intervalLower", "intervalUpper", "unknownCount"));
+            List.of(
+                    FAILURE_CODE,
+                    UNIT,
+                    "value",
+                    "numerator",
+                    "denominator",
+                    "status",
+                    "intervalLower",
+                    "intervalUpper",
+                    "unknownCount"));
     private static final List<String> COMPARISON_COLUMNS = concat(
             List.of(
                     "formatVersion",
@@ -84,7 +94,7 @@ public class AnalysisCsvConverter extends AbstractHttpMessageConverter<Object> {
                     "matchedBlocks",
                     "excludedBlocks"),
             ATTRIBUTION,
-            List.of("baselineValue", "candidateValue", "difference", "status", "intervalLower", "intervalUpper"));
+            List.of(UNIT, "baselineValue", "candidateValue", "difference", "status", "intervalLower", "intervalUpper"));
 
     public AnalysisCsvConverter() {
         super(TEXT_CSV);
@@ -139,6 +149,7 @@ public class AnalysisCsvConverter extends AbstractHttpMessageConverter<Object> {
                 fields.add(metric.getName());
                 fields.add(metric.getStatistic());
                 fields.addAll(dimensions(metric.getDimensions()));
+                fields.add(metric.getDimensions().getFailureCode());
                 fields.add(metric.getUnit());
                 fields.add(metric.getValue());
                 fields.add(metric.getNumerator());
@@ -219,8 +230,6 @@ public class AnalysisCsvConverter extends AbstractHttpMessageConverter<Object> {
         fields.add(dimensions.getParadoxType());
         fields.add(dimensions.getEndReason());
         fields.add(dimensions.getQuantile());
-        // The published CSV has no failureCode column, so per-code failure_share rows look alike:
-        // temporal-rift/apis#177
         return fields;
     }
 

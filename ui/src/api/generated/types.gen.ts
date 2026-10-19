@@ -288,7 +288,7 @@ export type Report = {
     /**
      * Version of the report's JSON and CSV layout; the first CSV column.
      */
-    formatVersion: 1;
+    formatVersion: 2;
     runId: string;
     manifestDigest: Sha256Digest;
     analysisVersion: string;

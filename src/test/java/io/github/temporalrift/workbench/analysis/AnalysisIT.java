@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -96,7 +97,7 @@ class AnalysisIT {
         var json = read(report(runId, MediaType.APPLICATION_JSON).andExpect(status().isOk()));
         var report = objectMapper.readTree(json);
 
-        assertThat(report.path("formatVersion").asInt()).isEqualTo(1);
+        assertThat(report.path("formatVersion").asInt()).isEqualTo(2);
         assertThat(report.path("complete").asBoolean()).isTrue();
         assertThat(report.path("analysisVersion").asString()).isEqualTo("2");
         assertThat(report.path("caseCounts").path("succeeded").asInt()).isEqualTo(18);
@@ -128,6 +129,7 @@ class AnalysisIT {
         var lines = csv.split("\r\n");
         assertThat(lines[0])
                 .startsWith("formatVersion,runId,manifestDigest,analysisVersion,analysisSeed,complete,")
+                .contains(",endReason,quantile,failureCode,unit,value,")
                 .endsWith(",value,numerator,denominator,status,intervalLower,intervalUpper,unknownCount");
         var metrics = 0;
         for (var cohort : report.path("cohorts")) {
@@ -135,7 +137,7 @@ class AnalysisIT {
         }
         assertThat(lines).hasSize(1 + metrics);
         assertThat(lines[1])
-                .startsWith("1," + runId + "," + report.path("manifestDigest").asString() + ",2,1,true," + BASELINE
+                .startsWith("2," + runId + "," + report.path("manifestDigest").asString() + ",2,1,true," + BASELINE
                         + ",random,");
         assertThat(csv).doesNotContainIgnoringCase("bearer").doesNotContainIgnoringCase("token");
         assertThat(read(report(runId, CSV))).isEqualTo(csv);
@@ -334,6 +336,25 @@ class AnalysisIT {
                 .isEqualTo("CONFIGURATION_DRIFT");
         assertThat(shares.get(1).path("unit").asString()).isEqualTo("cases");
         assertThat(shares.get(1).path("numerator").asDouble()).isEqualTo(1.0);
+
+        var rows = read(report(runId, CSV)).split("\r\n");
+        var columns = Arrays.asList(rows[0].split(",", -1));
+        var failureCode = columns.indexOf("failureCode");
+        var metricName = columns.indexOf("metric");
+        assertThat(failureCode).isEqualTo(columns.indexOf("quantile") + 1);
+        var shareCodes = Arrays.stream(rows)
+                .skip(1)
+                .map(row -> row.split(",", -1))
+                .filter(row -> "failure_share".equals(row[metricName])
+                        && CANDIDATE.equals(row[columns.indexOf("variantLabel")]))
+                .map(row -> row[failureCode])
+                .toList();
+        assertThat(shareCodes).contains("", "CONFIGURATION_DRIFT");
+        Arrays.stream(rows)
+                .skip(1)
+                .map(row -> row.split(",", -1))
+                .filter(row -> !"failure_share".equals(row[metricName]))
+                .forEach(row -> assertThat(row[failureCode]).isEmpty());
     }
 
     @Test
