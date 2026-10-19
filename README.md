@@ -826,7 +826,9 @@ Bot results say nothing about balance among human players, and an evaluation mus
 
 CSV exports have a header row and repeat the full attribution on every row: the format version, the run or
 comparison, the analysis version and seed, completeness, the cohort, its counts, the metric with its statistic and
-dimensions, and the values. Empty fields are null values. Exports carry no credentials or machine-local paths.
+dimensions, and the values. Empty fields are null values. The report export's `failureCode` column, after `quantile`,
+is empty for every metric not split by failure code, including the all-codes `failure_share`, and holds the failure
+code of a per-code `failure_share` row. Exports carry no credentials or machine-local paths.
 
 ### Limitations
 

@@ -21,12 +21,17 @@ export const zArtifactReference = z.object({
     name: z.string().min(1).nullish()
 });
 
+/**
+ * A baseline rules document plus optional parameter overrides. `rulesArtifact` names the baseline; `effectiveRulesDigest` is the effective rules digest of that baseline with the overrides and their derived values applied. An empty `overrides` means the baseline itself.
+ */
 export const zVariant = z.object({
     label: z.string().min(1),
     rulesArtifact: zArtifactReference,
     contentArtifact: zArtifactReference,
     effectiveRulesDigest: zSha256Digest,
-    effectiveContentDigest: zSha256Digest
+    effectiveContentDigest: zSha256Digest,
+    parameterSpaceVersion: z.int().gte(1).optional(),
+    overrides: z.record(z.string(), z.number()).optional().default({})
 });
 
 export const zServiceProvenance = z.object({
@@ -316,7 +321,7 @@ export const zPolicyCatalog = z.object({
 });
 
 /**
- * One distinct bundle some configured lane serves: one pair of effective rules and content digests with the service provenance and contract versions of the lanes that serve it. Carries no lane identifier, URL, credential or bot identity. Lanes serving exactly this bundle are counted in `laneCount`, busy or free.
+ * One distinct bundle some configured lane serves: one pair of effective rules and content digests with the service provenance and contract versions of the lanes that serve it. `rulesArtifact` names the lane's baseline rules document and `effectiveRulesDigest` is that document's effective rules digest. Carries no lane identifier, URL, credential or bot identity. Lanes serving exactly this bundle are counted in `laneCount`, busy or free.
  */
 export const zLaneBundle = z.object({
     rulesArtifact: zArtifactReference,
@@ -474,6 +479,53 @@ export const zConfirmationSample = z.object({
     satisfied: z.boolean()
 });
 
+export const zParameterDefinition = z.object({
+    key: z.string().min(1),
+    services: z.array(z.string().min(1)).min(1),
+    baseline: z.number(),
+    min: z.number(),
+    max: z.number(),
+    step: z.number()
+});
+
+/**
+ * A derived value whose `key` always equals `factor` times `from`.
+ */
+export const zDerivedParameter = z.object({
+    key: z.string().min(1),
+    from: z.string().min(1),
+    factor: z.number()
+});
+
+export const zParameterConstraint = z.object({
+    id: z.string().min(1),
+    expression: z.string().min(1),
+    description: z.string().min(1)
+});
+
+export const zHeldFixedParameter = z.object({
+    key: z.string().min(1),
+    reason: z.string().min(1)
+});
+
+export const zParameterSpace = z.object({
+    version: z.int().gte(1),
+    parameters: z.array(zParameterDefinition),
+    derived: z.array(zDerivedParameter),
+    constraints: z.array(zParameterConstraint),
+    heldFixed: z.array(zHeldFixedParameter)
+});
+
+export const zParameterSpaceCatalog = z.object({
+    items: z.array(zParameterSpace)
+});
+
+export const zVariantRulesPreviewRequest = z.object({
+    rulesArtifact: zArtifactReference,
+    parameterSpaceVersion: z.int().gte(1),
+    overrides: z.record(z.string(), z.number())
+});
+
 export const zProblemDetail = z.object({
     type: z.url(),
     title: z.string(),
@@ -481,6 +533,15 @@ export const zProblemDetail = z.object({
     detail: z.string().optional(),
     instance: z.url().optional(),
     field: z.string().min(1).optional(),
+    reason: z.enum([
+        'UNKNOWN_PARAMETER_SPACE',
+        'UNKNOWN_BASELINE',
+        'UNKNOWN_PARAMETER',
+        'OUT_OF_RANGE',
+        'OFF_STEP',
+        'CONSTRAINT_VIOLATED'
+    ]).optional(),
+    constraintId: z.string().min(1).optional(),
     code: z.enum([
         'INVALID_EXPERIMENT',
         'INVALID_REPLAY_PERSPECTIVE',
@@ -495,6 +556,31 @@ export const zProblemDetail = z.object({
         'INSUFFICIENT_SCOPE',
         'RESOURCE_NOT_FOUND'
     ])
+});
+
+/**
+ * A complete, materialised rules document. `properties` holds every rules property keyed by its full path. Keys start with `game.rules.`; path segments are lowercase kebab-case, except map keys that are enum constants, which keep their constant name (for example `game.rules.card-category-weights.PROBABILITY_SHIFTER` or `game.rules.scoring.score-deltas.CHAIN_COMPLETED`), and nested maps are flattened with `.`. Values are JSON numbers, booleans, strings, or arrays of those, in served order. The effective rules digest is the lowercase hex SHA-256 of the UTF-8 bytes of the RFC 8785 (JSON Canonicalization Scheme) serialisation of `properties`, so key order and number spelling do not matter: `2.0` and `2` give the same digest. For example, the properties `{"game.rules.probability.amplify-multiplier.II": 2, "game.rules.win-score-threshold": 20}` canonicalise to `{"game.rules.probability.amplify-multiplier.II":2,"game.rules.win-score-threshold":20}` and have effective rules digest `2f4e77d6f2f5ad41eb3b05de091e524133995ef6f274a58f539adbf2d5b06fad`; the same keys supplied in the other order with `2.0` canonicalise to the same bytes and digest.
+ */
+export const zEffectiveRulesEffectiveRules = z.object({
+    schemaVersion: z.literal(1),
+    properties: z.record(z.string(), z.union([
+        z.number(),
+        z.boolean(),
+        z.string(),
+        z.array(z.union([
+            z.number(),
+            z.boolean(),
+            z.string()
+        ]))
+    ]))
+});
+
+export const zEffectiveRules = zEffectiveRulesEffectiveRules;
+
+export const zVariantRulesPreview = z.object({
+    rules: zEffectiveRulesEffectiveRules,
+    effectiveRulesDigest: zSha256Digest,
+    overrides: z.record(z.string(), z.number())
 });
 
 export const zEnumsCardGrade = z.enum([
@@ -764,7 +850,7 @@ export const zCohort = z.object({
 });
 
 export const zReport = z.object({
-    formatVersion: z.literal(1),
+    formatVersion: z.literal(2),
     runId: z.uuid(),
     manifestDigest: zSha256Digest,
     analysisVersion: z.string().min(1),
@@ -1156,3 +1242,34 @@ export const zGetRunEvaluationQuery = z.object({
  * Derived evaluation with validity, verdict, score and evaluated lines
  */
 export const zGetRunEvaluationResponse = zRunEvaluation;
+
+/**
+ * Every served parameter space version in version order
+ */
+export const zListParameterSpacesResponse = zParameterSpaceCatalog;
+
+export const zGetParameterSpacePath = z.object({
+    version: z.int().gte(1)
+});
+
+/**
+ * The requested parameter space
+ */
+export const zGetParameterSpaceResponse = zParameterSpace;
+
+export const zPreviewVariantRulesBody = zVariantRulesPreviewRequest;
+
+/**
+ * The effective rules the variant would freeze
+ */
+export const zPreviewVariantRulesResponse = zVariantRulesPreview;
+
+export const zGetVariantRulesPath = z.object({
+    experimentId: z.uuid(),
+    label: z.string().min(1)
+});
+
+/**
+ * The variant's frozen effective rules
+ */
+export const zGetVariantRulesResponse = zEffectiveRulesEffectiveRules;

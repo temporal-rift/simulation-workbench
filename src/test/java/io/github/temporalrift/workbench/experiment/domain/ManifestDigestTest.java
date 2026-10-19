@@ -36,6 +36,15 @@ class ManifestDigestTest {
     }
 
     @Test
+    void emptyOverridesDoNotChangeDigest() {
+        var spelledOut = (ObjectNode) ExperimentManifests.valid().deepCopy();
+        spelledOut.withArray("variants").forEach(variant -> ((ObjectNode) variant).putObject("overrides"));
+
+        assertThat(ManifestDigest.sha256Hex(spelledOut))
+                .isEqualTo(ManifestDigest.sha256Hex(ExperimentManifests.valid()));
+    }
+
+    @Test
     void variantOrderChangesDigest() {
         var first = (ObjectNode) ExperimentManifests.valid().deepCopy();
         var reordered = (ObjectNode) ExperimentManifests.valid().deepCopy();

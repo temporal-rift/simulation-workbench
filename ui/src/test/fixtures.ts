@@ -240,7 +240,7 @@ export function metric(overrides: Partial<Metric> = {}): Metric {
 
 export function report(overrides: Partial<Report> = {}): Report {
   return {
-    formatVersion: 1,
+    formatVersion: 2,
     runId: IDS.run,
     manifestDigest: digest('7'),
     analysisVersion: '1',

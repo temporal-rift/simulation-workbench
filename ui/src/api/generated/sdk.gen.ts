@@ -2,8 +2,8 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { CancelRunData, CancelRunErrors, CancelRunResponses, CreateComparisonData, CreateComparisonErrors, CreateComparisonResponses, CreateExperimentData, CreateExperimentErrors, CreateExperimentResponses, GetBalanceCriterionData, GetBalanceCriterionErrors, GetBalanceCriterionResponses, GetCaseData, GetCaseErrors, GetCaseReplayData, GetCaseReplayErrors, GetCaseReplayResponses, GetCaseResponses, GetComparisonData, GetComparisonErrors, GetComparisonResponses, GetExperimentData, GetExperimentErrors, GetExperimentResponses, GetRunData, GetRunErrors, GetRunEvaluationData, GetRunEvaluationErrors, GetRunEvaluationResponses, GetRunReportData, GetRunReportErrors, GetRunReportResponses, GetRunResponses, ListBalanceCriteriaData, ListBalanceCriteriaErrors, ListBalanceCriteriaResponses, ListCasesData, ListCasesErrors, ListCasesResponses, ListComparisonsData, ListComparisonsErrors, ListComparisonsResponses, ListExperimentsData, ListExperimentsErrors, ListExperimentsResponses, ListExperimentTemplatesData, ListExperimentTemplatesErrors, ListExperimentTemplatesResponses, ListLaneBundlesData, ListLaneBundlesErrors, ListLaneBundlesResponses, ListPoliciesData, ListPoliciesErrors, ListPoliciesResponses, ListRunsData, ListRunsErrors, ListRunsResponses, PreviewExperimentData, PreviewExperimentErrors, PreviewExperimentResponses, ReproduceCaseData, ReproduceCaseErrors, ReproduceCaseResponses, ResumeRunData, ResumeRunErrors, ResumeRunResponses, StartRunData, StartRunErrors, StartRunResponses } from './types.gen';
-import { zCancelRunResponse, zCreateComparisonResponse, zCreateExperimentResponse, zGetBalanceCriterionResponse, zGetCaseReplayResponse, zGetCaseResponse, zGetComparisonResponse, zGetExperimentResponse, zGetRunEvaluationResponse, zGetRunReportResponse, zGetRunResponse, zListBalanceCriteriaResponse, zListCasesResponse, zListComparisonsResponse, zListExperimentsResponse, zListExperimentTemplatesResponse, zListLaneBundlesResponse, zListPoliciesResponse, zListRunsResponse, zPreviewExperimentResponse, zReproduceCaseResponse, zResumeRunResponse, zStartRunResponse } from './zod.gen';
+import type { CancelRunData, CancelRunErrors, CancelRunResponses, CreateComparisonData, CreateComparisonErrors, CreateComparisonResponses, CreateExperimentData, CreateExperimentErrors, CreateExperimentResponses, GetBalanceCriterionData, GetBalanceCriterionErrors, GetBalanceCriterionResponses, GetCaseData, GetCaseErrors, GetCaseReplayData, GetCaseReplayErrors, GetCaseReplayResponses, GetCaseResponses, GetComparisonData, GetComparisonErrors, GetComparisonResponses, GetExperimentData, GetExperimentErrors, GetExperimentResponses, GetParameterSpaceData, GetParameterSpaceErrors, GetParameterSpaceResponses, GetRunData, GetRunErrors, GetRunEvaluationData, GetRunEvaluationErrors, GetRunEvaluationResponses, GetRunReportData, GetRunReportErrors, GetRunReportResponses, GetRunResponses, GetVariantRulesData, GetVariantRulesErrors, GetVariantRulesResponses, ListBalanceCriteriaData, ListBalanceCriteriaErrors, ListBalanceCriteriaResponses, ListCasesData, ListCasesErrors, ListCasesResponses, ListComparisonsData, ListComparisonsErrors, ListComparisonsResponses, ListExperimentsData, ListExperimentsErrors, ListExperimentsResponses, ListExperimentTemplatesData, ListExperimentTemplatesErrors, ListExperimentTemplatesResponses, ListLaneBundlesData, ListLaneBundlesErrors, ListLaneBundlesResponses, ListParameterSpacesData, ListParameterSpacesErrors, ListParameterSpacesResponses, ListPoliciesData, ListPoliciesErrors, ListPoliciesResponses, ListRunsData, ListRunsErrors, ListRunsResponses, PreviewExperimentData, PreviewExperimentErrors, PreviewExperimentResponses, PreviewVariantRulesData, PreviewVariantRulesErrors, PreviewVariantRulesResponses, ReproduceCaseData, ReproduceCaseErrors, ReproduceCaseResponses, ResumeRunData, ResumeRunErrors, ResumeRunResponses, StartRunData, StartRunErrors, StartRunResponses } from './types.gen';
+import { zCancelRunResponse, zCreateComparisonResponse, zCreateExperimentResponse, zGetBalanceCriterionResponse, zGetCaseReplayResponse, zGetCaseResponse, zGetComparisonResponse, zGetExperimentResponse, zGetParameterSpaceResponse, zGetRunEvaluationResponse, zGetRunReportResponse, zGetRunResponse, zGetVariantRulesResponse, zListBalanceCriteriaResponse, zListCasesResponse, zListComparisonsResponse, zListExperimentsResponse, zListExperimentTemplatesResponse, zListLaneBundlesResponse, zListParameterSpacesResponse, zListPoliciesResponse, zListRunsResponse, zPreviewExperimentResponse, zPreviewVariantRulesResponse, zReproduceCaseResponse, zResumeRunResponse, zStartRunResponse } from './zod.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -304,5 +304,57 @@ export const getRunEvaluation = <ThrowOnError extends boolean = false>(options: 
     responseValidator: async (data) => await zGetRunEvaluationResponse.parseAsync(data),
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/api/v1/runs/{runId}/evaluation',
+    ...options
+});
+
+/**
+ * List every parameter space version the workbench serves
+ *
+ * Requires `simulation:read`. Returns every parameter space version the workbench serves, ordered ascending by `version`.
+ */
+export const listParameterSpaces = <ThrowOnError extends boolean = false>(options?: Options<ListParameterSpacesData, ThrowOnError>): RequestResult<ListParameterSpacesResponses, ListParameterSpacesErrors, ThrowOnError> => (options?.client ?? client).get<ListParameterSpacesResponses, ListParameterSpacesErrors, ThrowOnError>({
+    responseValidator: async (data) => await zListParameterSpacesResponse.parseAsync(data),
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/parameter-spaces',
+    ...options
+});
+
+/**
+ * Get one served parameter space version
+ *
+ * Requires `simulation:read`. An unknown version is not found.
+ */
+export const getParameterSpace = <ThrowOnError extends boolean = false>(options: Options<GetParameterSpaceData, ThrowOnError>): RequestResult<GetParameterSpaceResponses, GetParameterSpaceErrors, ThrowOnError> => (options.client ?? client).get<GetParameterSpaceResponses, GetParameterSpaceErrors, ThrowOnError>({
+    responseValidator: async (data) => await zGetParameterSpaceResponse.parseAsync(data),
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/parameter-spaces/{version}',
+    ...options
+});
+
+/**
+ * Apply and validate a variant's overrides without persisting anything
+ *
+ * Requires `simulation:read`. Stateless: nothing is stored. Applies and validates the overrides against the named parameter space, drops overrides equal to the baseline value, and returns the effective rules, their digest and the normalised overrides that `createExperiment` would freeze.
+ */
+export const previewVariantRules = <ThrowOnError extends boolean = false>(options: Options<PreviewVariantRulesData, ThrowOnError>): RequestResult<PreviewVariantRulesResponses, PreviewVariantRulesErrors, ThrowOnError> => (options.client ?? client).post<PreviewVariantRulesResponses, PreviewVariantRulesErrors, ThrowOnError>({
+    responseValidator: async (data) => await zPreviewVariantRulesResponse.parseAsync(data),
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/variant-rules-previews',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Read the frozen effective rules of one experiment variant
+ *
+ * Requires `simulation:read`. An unknown experiment or variant label is not found.
+ */
+export const getVariantRules = <ThrowOnError extends boolean = false>(options: Options<GetVariantRulesData, ThrowOnError>): RequestResult<GetVariantRulesResponses, GetVariantRulesErrors, ThrowOnError> => (options.client ?? client).get<GetVariantRulesResponses, GetVariantRulesErrors, ThrowOnError>({
+    responseValidator: async (data) => await zGetVariantRulesResponse.parseAsync(data),
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/experiments/{experimentId}/variants/{label}/rules',
     ...options
 });
