@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -19,6 +20,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
@@ -96,7 +98,7 @@ class AnalysisIT {
 
         assertThat(report.path("formatVersion").asInt()).isEqualTo(1);
         assertThat(report.path("complete").asBoolean()).isTrue();
-        assertThat(report.path("analysisVersion").asString()).isEqualTo("1");
+        assertThat(report.path("analysisVersion").asString()).isEqualTo("2");
         assertThat(report.path("caseCounts").path("succeeded").asInt()).isEqualTo(18);
         assertThat(report.path("cohorts")).hasSize(2 * (1 + 3 + 1 + 3));
         var pooled = report.path("cohorts").get(0);
@@ -133,7 +135,7 @@ class AnalysisIT {
         }
         assertThat(lines).hasSize(1 + metrics);
         assertThat(lines[1])
-                .startsWith("1," + runId + "," + report.path("manifestDigest").asString() + ",1,1,true," + BASELINE
+                .startsWith("1," + runId + "," + report.path("manifestDigest").asString() + ",2,1,true," + BASELINE
                         + ",random,");
         assertThat(csv).doesNotContainIgnoringCase("bearer").doesNotContainIgnoringCase("token");
         assertThat(read(report(runId, CSV))).isEqualTo(csv);
@@ -179,6 +181,23 @@ class AnalysisIT {
     }
 
     @Test
+    void aComparisonStoredUnderAnalysisVersionOneKeepsItsVersionAndItsDocument() throws Exception {
+        lanes.script(this::thresholdDecides);
+        var runId = finishedRun(experiment(List.of("1", "2", "3")));
+        var created =
+                objectMapper.readTree(read(compare(UUID.randomUUID(), side(runId, BASELINE), side(runId, CANDIDATE))));
+        var comparisonId = created.path("comparisonId").asString();
+        assertThat(created.path("analysisVersion").asString()).isEqualTo("2");
+        jdbc.update("UPDATE analysis_comparison SET analysis_version = '1'");
+
+        var stored = objectMapper.readTree(read(comparison(comparisonId, MediaType.APPLICATION_JSON)));
+
+        assertThat(stored.path("analysisVersion").asString()).isEqualTo("1");
+        assertThat(stored.path("cohorts").get(0).path("metricDifferences"))
+                .isEqualTo(created.path("cohorts").get(0).path("metricDifferences"));
+    }
+
+    @Test
     void storedComparisonsAreListedNewestFirstAsSummariesAndFilteredByRun() throws Exception {
         lanes.script(this::thresholdDecides);
         var runId = finishedRun(experiment(List.of("1", "2")));
@@ -207,7 +226,7 @@ class AnalysisIT {
         var summary = listed.path("items").get(1);
         assertThat(summary.path("baseline").path("variantLabel").asString()).isEqualTo(BASELINE);
         assertThat(summary.path("candidate").path("runId").asString()).isEqualTo(runId.toString());
-        assertThat(summary.path("analysisVersion").asString()).isEqualTo("1");
+        assertThat(summary.path("analysisVersion").asString()).isEqualTo("2");
         assertThat(summary.path("createdAt").asString()).isNotBlank();
         assertThat(summary.has("cohorts")).isFalse();
         assertThat(unrelated.path("total").asInt()).isZero();
@@ -291,6 +310,171 @@ class AnalysisIT {
                 .isEqualTo(2);
         assertThat(comparison.path("cohorts").get(0).path("excludedBlocks").asInt())
                 .isEqualTo(1);
+    }
+
+    @Test
+    void aFailedCaseSurfacesItsFinalCodeInTheReportsFailureShare() throws Exception {
+        lanes.script(driftingScript());
+        var runId = finishedRun(experiment(List.of("1", "2", "3")));
+
+        var report = objectMapper.readTree(read(report(runId, MediaType.APPLICATION_JSON)));
+
+        // The candidate variant pooled cohort follows the eight cohorts of the baseline.
+        var pooled = report.path("cohorts").get(8);
+        assertThat(pooled.path("variantLabel").asString()).isEqualTo(CANDIDATE);
+        var shares = new ArrayList<JsonNode>();
+        pooled.path("metrics").forEach(metric -> {
+            if ("failure_share".equals(metric.path("name").asString())) {
+                shares.add(metric);
+            }
+        });
+        assertThat(shares).hasSize(2);
+        assertThat(shares.get(0).path("dimensions").has("failureCode")).isFalse();
+        assertThat(shares.get(1).path("dimensions").path("failureCode").asString())
+                .isEqualTo("CONFIGURATION_DRIFT");
+        assertThat(shares.get(1).path("unit").asString()).isEqualTo("cases");
+        assertThat(shares.get(1).path("numerator").asDouble()).isEqualTo(1.0);
+    }
+
+    @Test
+    void aRunVariantIsEvaluatedOnEveryReadAndTheDriftInvalidatesIt() throws Exception {
+        lanes.script(driftingScript());
+        var runId = finishedRun(experiment(List.of("1", "2", "3")));
+
+        var json = read(evaluation(runId, CANDIDATE, 1, null).andExpect(status().isOk()));
+        var evaluation = objectMapper.readTree(json);
+
+        assertThat(evaluation.path("runId").asString()).isEqualTo(runId.toString());
+        assertThat(evaluation.path("criterionVersion").asInt()).isEqualTo(1);
+        assertThat(evaluation.path("criterionDigest").asString()).matches("[a-f0-9]{64}");
+        assertThat(evaluation.path("analysisVersion").asString()).isEqualTo("2");
+        assertThat(evaluation.path("analysisSeed").asString()).isEqualTo("1");
+        assertThat(evaluation.path("mode").asString()).isEqualTo("SCREENING");
+        assertThat(evaluation.path("verdict").asString()).isEqualTo("INVALID");
+        assertThat(evaluation.path("score").isNull()).isTrue();
+        assertThat(evaluation.path("confirmationSample").isNull()).isTrue();
+        assertThat(evaluation.path("validity").path("valid").asBoolean()).isFalse();
+        assertThat(evaluation
+                        .path("validity")
+                        .path("reasons")
+                        .get(0)
+                        .path("code")
+                        .asString())
+                .isEqualTo("CONFIGURATION_DRIFT");
+        var line = evaluation.path("lines").get(0);
+        assertThat(line.path("lineId").asString()).isEqualTo("G-01");
+        assertThat(line.path("policyId").asString()).isEqualTo("random-v1");
+        assertThat(line.has("interval")).isTrue();
+        assertThat(line.has("factionSet")).isTrue();
+        assertThat(line.has("weight")).isTrue();
+        assertThat(line.path("band").has("lower")).isTrue();
+        assertThat(read(evaluation(runId, CANDIDATE, 1, null))).isEqualTo(json);
+    }
+
+    @Test
+    void anEvaluationOfACleanRunIsUnconfirmedAndConfirmationNeedsTheFullSample() throws Exception {
+        lanes.script(this::thresholdDecides);
+        var runId = finishedRun(experiment(List.of("1", "2", "3")));
+
+        var screening = objectMapper.readTree(
+                read(evaluation(runId, BASELINE, 1, "SCREENING").andExpect(status().isOk())));
+        var confirmation = objectMapper.readTree(
+                read(evaluation(runId, BASELINE, 1, "CONFIRMATION").andExpect(status().isOk())));
+
+        assertThat(screening.path("validity").path("valid").asBoolean()).isTrue();
+        assertThat(screening.path("verdict").asString())
+                .isNotEqualTo("CONFIRMED")
+                .isNotEqualTo("INVALID");
+        assertThat(confirmation.path("verdict").asString()).isNotEqualTo("CONFIRMED");
+        assertThat(confirmation.path("confirmationSample").path("requiredSeeds").asInt())
+                .isEqualTo(100);
+        assertThat(confirmation.path("confirmationSample").path("seeds").asInt())
+                .isEqualTo(3);
+        assertThat(confirmation.path("confirmationSample").path("satisfied").asBoolean())
+                .isFalse();
+    }
+
+    @Test
+    void evaluationRequestsAreValidatedAndScoped() throws Exception {
+        lanes.script(this::thresholdDecides);
+        var runId = finishedRun(experiment(List.of("1", "2")));
+
+        mockMvc.perform(get("/api/v1/runs/{id}/evaluation", runId)
+                        .param("criterionVersion", "1")
+                        .with(read()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        evaluation(runId, BASELINE, 1, "NONSENSE")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        evaluation(runId, BASELINE, 9999, null)
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
+        evaluation(runId, "no-such-variant", 1, null)
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
+        evaluation(UUID.randomUUID(), BASELINE, 1, null)
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
+        mockMvc.perform(get("/api/v1/runs/{id}/evaluation", runId)
+                        .param("variantLabel", BASELINE)
+                        .param("criterionVersion", "1")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:write"))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("INSUFFICIENT_SCOPE"));
+    }
+
+    @Test
+    void theCriterionCatalogServesVersionOneReadOnly() throws Exception {
+        var catalog = objectMapper.readTree(read(
+                mockMvc.perform(get("/api/v1/balance-criteria").with(read())).andExpect(status().isOk())));
+        var one = objectMapper.readTree(read(
+                mockMvc.perform(get("/api/v1/balance-criteria/1").with(read())).andExpect(status().isOk())));
+
+        assertThat(catalog.path("criteria")).hasSize(1);
+        assertThat(catalog.path("criteria").get(0)).isEqualTo(one);
+        assertThat(one.path("version").asInt()).isEqualTo(1);
+        assertThat(one.path("aggregation").asString()).isEqualTo("WEIGHTED_SUM_OF_SQUARED_DEVIATIONS");
+        assertThat(one.path("lines")).hasSize(15);
+        assertThat(one.path("lines").get(0).path("id").asString()).isEqualTo("G-01");
+        assertThat(one.path("lines").get(0).path("weight").isNull()).isTrue();
+        assertThat(one.path("evidence").path("confirmationMinimumSeeds").asInt())
+                .isEqualTo(100);
+        mockMvc.perform(get("/api/v1/balance-criteria/2").with(read()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
+        mockMvc.perform(post("/api/v1/balance-criteria").with(read()).contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().is4xxClientError());
+    }
+
+    private ScriptedLanes.Script driftingScript() {
+        return new ScriptedLanes.Script() {
+            @Override
+            public GameSession.AuthoritativeEnding ending(CaseLane.CaseContext context) {
+                return thresholdDecides(context);
+            }
+
+            @Override
+            public void onPoll(CaseLane.CaseContext context, FakeGame game) {
+                if (CANDIDATE.equals(variantOf(context))
+                        && "2".equals(context.seed())
+                        && "ERASERS".equals(context.seats().getFirst().faction())) {
+                    throw new AttemptFailedException(FailureCode.CONFIGURATION_DRIFT, "the lane drifted");
+                }
+            }
+        };
+    }
+
+    private ResultActions evaluation(UUID runId, String variant, int criterionVersion, String mode) throws Exception {
+        var request = get("/api/v1/runs/{id}/evaluation", runId)
+                .param("variantLabel", variant)
+                .param("criterionVersion", String.valueOf(criterionVersion))
+                .with(read());
+        return mockMvc.perform(mode == null ? request : request.param("mode", mode));
+    }
+
+    private static RequestPostProcessor read() {
+        return jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:read"));
     }
 
     /** Seat 0 wins under the baseline threshold; Erasers win wherever they sit under the candidate threshold. */

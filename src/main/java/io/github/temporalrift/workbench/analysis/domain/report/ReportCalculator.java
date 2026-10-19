@@ -1,11 +1,13 @@
 package io.github.temporalrift.workbench.analysis.domain.report;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.Objects;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 
@@ -13,9 +15,9 @@ import io.github.temporalrift.workbench.analysis.domain.AnalysisVersion;
 import io.github.temporalrift.workbench.analysis.domain.fact.CaseFacts;
 import io.github.temporalrift.workbench.analysis.domain.game.AnalyzedCase;
 import io.github.temporalrift.workbench.analysis.domain.game.Faction;
+import io.github.temporalrift.workbench.analysis.domain.game.FailureCode;
 import io.github.temporalrift.workbench.analysis.domain.statistics.BlockBootstrap;
 import io.github.temporalrift.workbench.analysis.domain.statistics.BlockSeries;
-import io.github.temporalrift.workbench.analysis.domain.statistics.SplitMix64;
 
 /** Builds a run's stratified report from its cases and the facts of its succeeded cases. */
 public final class ReportCalculator {
@@ -29,10 +31,19 @@ public final class ReportCalculator {
             List<AnalyzedCase> cases,
             Map<UUID, CaseFacts> facts) {
         var vocabulary = Vocabulary.of(cases, facts.values());
+        var failureCodes = failureCodes(cases);
         var cohorts = cohortKeys(cases).stream()
-                .map(key -> cohort(key, cases, facts, vocabulary, analysis))
+                .map(key -> CohortComputation.of(key, cases, facts, vocabulary, failureCodes, analysis)
+                        .cohort())
                 .toList();
         return new RunReport(runId, manifestDigest, analysis, CaseCounts.of(cases), cohorts);
+    }
+
+    /** The failure codes that occur anywhere in the run. */
+    public static Set<FailureCode> failureCodes(List<AnalyzedCase> cases) {
+        var codes = EnumSet.noneOf(FailureCode.class);
+        cases.stream().map(AnalyzedCase::failureCode).filter(Objects::nonNull).forEach(codes::add);
+        return codes;
     }
 
     /**
@@ -67,35 +78,7 @@ public final class ReportCalculator {
         return keys;
     }
 
-    private static Cohort cohort(
-            CohortKey key,
-            List<AnalyzedCase> cases,
-            Map<UUID, CaseFacts> facts,
-            Vocabulary vocabulary,
-            AnalysisVersion analysis) {
-        var members = cases.stream().filter(key::contains).toList();
-        var games = new LinkedHashMap<String, List<CaseFacts>>();
-        members.stream()
-                .filter(AnalyzedCase::succeeded)
-                .forEach(member -> Optional.ofNullable(facts.get(member.caseId()))
-                        .ifPresent(caseFacts -> games.computeIfAbsent(member.seed(), seed -> new ArrayList<>())
-                                .add(caseFacts)));
-        var eligible = games.values().stream().mapToInt(List::size).sum();
-        var definitions = MetricCatalog.definitions(key, vocabulary);
-        var tallies = BlockTallies.collect(definitions, games, key.seatIndex());
-        var blocks = tallies.seeds().size();
-        var bootstrap = blocks < 2
-                ? null
-                : BlockBootstrap.of(
-                        blocks, SplitMix64.seededBy("report", analysis.version(), analysis.seedText(), key.text()));
-        var metrics = new ArrayList<Metric>();
-        for (var index = 0; index < definitions.size(); index++) {
-            metrics.add(metric(definitions.get(index), tallies.series(index), blocks, bootstrap));
-        }
-        return new Cohort(key, CaseCounts.of(members), eligible, blocks, metrics);
-    }
-
-    static Metric metric(MetricDefinition definition, BlockSeries series, int blocks, BlockBootstrap bootstrap) {
+    static Metric metric(MetricHeader definition, BlockSeries series, int blocks, BlockBootstrap bootstrap) {
         var all = BlockBootstrap.identity(blocks);
         var quantile = definition.dimensions().quantile();
         var denominator = series.denominator(all);

@@ -127,7 +127,7 @@ public final class ComparisonCalculator {
                         matched,
                         SplitMix64.seededBy(
                                 "comparison",
-                                definition.analysis().version(),
+                                definition.analysis().resamplingKey(),
                                 definition.analysis().seedText(),
                                 key.text(),
                                 definition.candidate().variantLabel()));

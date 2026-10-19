@@ -1,0 +1,446 @@
+{
+  "version": 1,
+  "title": "Balance criterion version 1",
+  "analysisVersion": "2",
+  "lines": [
+    {
+      "id": "G-01",
+      "metric": "failure_share",
+      "derivation": "SUM_OF_FAILURE_CODES",
+      "dimension": {
+        "eachFaction": false,
+        "endReason": null,
+        "quantile": null,
+        "failureCodes": [
+          "RUNNER_TIMEOUT",
+          "POLICY_EXHAUSTED"
+        ]
+      },
+      "policies": [
+        "faction-greedy-v1",
+        "random-v1"
+      ],
+      "playerCounts": [
+        3,
+        4,
+        5
+      ],
+      "pooling": "POOLED",
+      "band": {
+        "lower": null,
+        "upper": 0.02,
+        "scale": 0.02
+      },
+      "role": "GATE",
+      "weight": null,
+      "rationale": "Games that never end are a defect; 2% keeps survivorship bias well below the narrowest band (D-12)"
+    },
+    {
+      "id": "G-02",
+      "metric": "ending_cause_rate",
+      "derivation": "DIRECT",
+      "dimension": {
+        "eachFaction": false,
+        "endReason": "RESOLUTION_FAILED",
+        "quantile": null,
+        "failureCodes": null
+      },
+      "policies": [
+        "faction-greedy-v1",
+        "random-v1"
+      ],
+      "playerCounts": [
+        3,
+        4,
+        5
+      ],
+      "pooling": "POOLED",
+      "band": {
+        "lower": null,
+        "upper": 0,
+        "scale": 0.01
+      },
+      "role": "GATE",
+      "weight": null,
+      "rationale": "Every designed ending has a winner (D-07)"
+    },
+    {
+      "id": "G-03",
+      "metric": "ending_cause_rate",
+      "derivation": "DIRECT",
+      "dimension": {
+        "eachFaction": false,
+        "endReason": "DECK_EXHAUSTED",
+        "quantile": null,
+        "failureCodes": null
+      },
+      "policies": [
+        "faction-greedy-v1",
+        "random-v1"
+      ],
+      "playerCounts": [
+        3,
+        4,
+        5
+      ],
+      "pooling": "POOLED",
+      "band": {
+        "lower": null,
+        "upper": 0,
+        "scale": 0.01
+      },
+      "role": "GATE",
+      "weight": null,
+      "rationale": "The era count must fit the event deck (D-07)"
+    },
+    {
+      "id": "G-04",
+      "metric": "eras",
+      "derivation": "DIRECT",
+      "dimension": {
+        "eachFaction": false,
+        "endReason": null,
+        "quantile": 0.1,
+        "failureCodes": null
+      },
+      "policies": [
+        "faction-greedy-v1",
+        "random-v1"
+      ],
+      "playerCounts": [
+        3,
+        4,
+        5
+      ],
+      "pooling": "POOLED",
+      "band": {
+        "lower": 3,
+        "upper": null,
+        "scale": 1
+      },
+      "role": "GATE",
+      "weight": null,
+      "rationale": "Endings by era 2 shut out the slower faction objectives (D-05)"
+    },
+    {
+      "id": "G-05",
+      "metric": "faction_win_rate",
+      "derivation": "RATIO_TO_WIN_REFERENCE",
+      "dimension": {
+        "eachFaction": true,
+        "endReason": null,
+        "quantile": null,
+        "failureCodes": null
+      },
+      "policies": [
+        "faction-greedy-v1"
+      ],
+      "playerCounts": [
+        3,
+        4,
+        5
+      ],
+      "pooling": "POOLED",
+      "band": {
+        "lower": 0.5,
+        "upper": 2.0,
+        "scale": null
+      },
+      "role": "GATE",
+      "weight": null,
+      "rationale": "Twice or half as likely to win as an average seat is a broken faction under any tuning philosophy"
+    },
+    {
+      "id": "G-06",
+      "metric": "faction_win_rate",
+      "derivation": "RATIO_TO_WIN_REFERENCE",
+      "dimension": {
+        "eachFaction": true,
+        "endReason": null,
+        "quantile": null,
+        "failureCodes": null
+      },
+      "policies": [
+        "faction-greedy-v1"
+      ],
+      "playerCounts": [
+        3,
+        4
+      ],
+      "pooling": "PER_FACTION_SET",
+      "band": {
+        "lower": 0.5,
+        "upper": 2.0,
+        "scale": null
+      },
+      "role": "GATE",
+      "weight": null,
+      "rationale": "The same defect in a particular matchup (D-04)"
+    },
+    {
+      "id": "G-07",
+      "metric": "faction_win_rate",
+      "derivation": "RATIO_TO_WIN_REFERENCE",
+      "dimension": {
+        "eachFaction": true,
+        "endReason": null,
+        "quantile": null,
+        "failureCodes": null
+      },
+      "policies": [
+        "random-v1"
+      ],
+      "playerCounts": [
+        3,
+        4,
+        5
+      ],
+      "pooling": "POOLED",
+      "band": {
+        "lower": null,
+        "upper": 2.0,
+        "scale": 1
+      },
+      "role": "GATE",
+      "weight": null,
+      "rationale": "A faction that wins twice its share while choosing at random wins without decisions; losing under random play is expected for factions whose route needs intent, so no lower limit"
+    },
+    {
+      "id": "G-08",
+      "metric": "shared_win_rate",
+      "derivation": "DIRECT",
+      "dimension": {
+        "eachFaction": false,
+        "endReason": null,
+        "quantile": null,
+        "failureCodes": null
+      },
+      "policies": [
+        "faction-greedy-v1"
+      ],
+      "playerCounts": [
+        3,
+        4,
+        5
+      ],
+      "pooling": "POOLED",
+      "band": {
+        "lower": null,
+        "upper": 0.5,
+        "scale": 0.5
+      },
+      "role": "GATE",
+      "weight": null,
+      "rationale": "If most games are shared, victory stops distinguishing players and the faction reference hides it"
+    },
+    {
+      "id": "L-01",
+      "metric": "faction_win_rate",
+      "derivation": "RATIO_TO_WIN_REFERENCE",
+      "dimension": {
+        "eachFaction": true,
+        "endReason": null,
+        "quantile": null,
+        "failureCodes": null
+      },
+      "policies": [
+        "faction-greedy-v1"
+      ],
+      "playerCounts": [
+        3,
+        4,
+        5
+      ],
+      "pooling": "POOLED",
+      "band": {
+        "lower": 0.8,
+        "upper": 1.25,
+        "scale": null
+      },
+      "role": "SCORED",
+      "weight": 0.26666666666666666,
+      "rationale": "Within the same factor (1.25) of an average seat either way; tighter targets would tune to bot behaviour that playtesting will move anyway"
+    },
+    {
+      "id": "L-02",
+      "metric": "eras",
+      "derivation": "DIRECT",
+      "dimension": {
+        "eachFaction": false,
+        "endReason": null,
+        "quantile": null,
+        "failureCodes": null
+      },
+      "policies": [
+        "faction-greedy-v1"
+      ],
+      "playerCounts": [
+        3,
+        4,
+        5
+      ],
+      "pooling": "POOLED",
+      "band": {
+        "lower": 3.5,
+        "upper": 4.5,
+        "scale": null
+      },
+      "role": "SCORED",
+      "weight": 0.6666666666666666,
+      "rationale": "Typical game uses most of the five-era arc (D-05)"
+    },
+    {
+      "id": "L-03",
+      "metric": "ending_cause_rate",
+      "derivation": "DIRECT",
+      "dimension": {
+        "eachFaction": false,
+        "endReason": "TIMELINE_STABILIZED",
+        "quantile": null,
+        "failureCodes": null
+      },
+      "policies": [
+        "faction-greedy-v1"
+      ],
+      "playerCounts": [
+        3,
+        4,
+        5
+      ],
+      "pooling": "POOLED",
+      "band": {
+        "lower": null,
+        "upper": 0.2,
+        "scale": 0.2
+      },
+      "role": "SCORED",
+      "weight": 0.3333333333333333,
+      "rationale": "Running out the arc without a normal winner is a designed fallback, not the usual ending"
+    },
+    {
+      "id": "L-04",
+      "metric": "ending_cause_rate",
+      "derivation": "DIRECT",
+      "dimension": {
+        "eachFaction": false,
+        "endReason": "TIMELINE_COLLAPSED",
+        "quantile": null,
+        "failureCodes": null
+      },
+      "policies": [
+        "faction-greedy-v1"
+      ],
+      "playerCounts": [
+        3,
+        4,
+        5
+      ],
+      "pooling": "POOLED",
+      "band": {
+        "lower": null,
+        "upper": 0.1,
+        "scale": 0.1
+      },
+      "role": "SCORED",
+      "weight": 0.3333333333333333,
+      "rationale": "Collapse is the paradox system's threat; it must stay possible and rare, or paradoxes override faction goals"
+    },
+    {
+      "id": "L-05",
+      "metric": "shared_win_rate",
+      "derivation": "DIRECT",
+      "dimension": {
+        "eachFaction": false,
+        "endReason": null,
+        "quantile": null,
+        "failureCodes": null
+      },
+      "policies": [
+        "faction-greedy-v1"
+      ],
+      "playerCounts": [
+        3,
+        4,
+        5
+      ],
+      "pooling": "POOLED",
+      "band": {
+        "lower": null,
+        "upper": 0.2,
+        "scale": 0.2
+      },
+      "role": "SCORED",
+      "weight": 0.3333333333333333,
+      "rationale": "Shared victory is legitimate at a scoring boundary but should be the minority of wins"
+    },
+    {
+      "id": "L-06",
+      "metric": "paradox_findings",
+      "derivation": "DIRECT",
+      "dimension": {
+        "eachFaction": false,
+        "endReason": null,
+        "quantile": null,
+        "failureCodes": null
+      },
+      "policies": [
+        "faction-greedy-v1"
+      ],
+      "playerCounts": [
+        3,
+        4,
+        5
+      ],
+      "pooling": "POOLED",
+      "band": {
+        "lower": 1,
+        "upper": 3,
+        "scale": null
+      },
+      "role": "SCORED",
+      "weight": 0.3333333333333333,
+      "rationale": "The core mechanic occurs in a typical game without becoming routine (D-06)"
+    },
+    {
+      "id": "L-07",
+      "metric": "paradox_cascade_rate",
+      "derivation": "DIRECT",
+      "dimension": {
+        "eachFaction": false,
+        "endReason": null,
+        "quantile": null,
+        "failureCodes": null
+      },
+      "policies": [
+        "faction-greedy-v1"
+      ],
+      "playerCounts": [
+        3,
+        4,
+        5
+      ],
+      "pooling": "POOLED",
+      "band": {
+        "lower": 0.25,
+        "upper": 0.75,
+        "scale": null
+      },
+      "role": "SCORED",
+      "weight": 0.3333333333333333,
+      "rationale": "Resolution is a contest whose outcome is not foregone (D-06)"
+    }
+  ],
+  "aggregation": "WEIGHTED_SUM_OF_SQUARED_DEVIATIONS",
+  "evidence": {
+    "confidenceLevel": 0.95,
+    "executionFailedShareLimit": 0.05,
+    "invalidatingFailureCodes": [
+      "CONTRACT_MISMATCH",
+      "CONFIGURATION_DRIFT"
+    ],
+    "invalidatingEndReasons": [
+      "ALL_PLAYERS_ABANDONED"
+    ],
+    "confirmationMinimumSeeds": 100
+  }
+}

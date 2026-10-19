@@ -11,6 +11,7 @@ import io.github.temporalrift.workbench.execution.domain.run.Attempt;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.CaseCounts;
 import io.github.temporalrift.workbench.execution.domain.run.CaseState;
+import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.domain.run.LogicalCase;
 import io.github.temporalrift.workbench.execution.domain.run.Run;
 import io.github.temporalrift.workbench.execution.domain.run.RunCommand;
@@ -55,6 +56,9 @@ public interface RunRepository {
 
     /** Every logical case of the run in matrix order. */
     List<LogicalCase> cases(UUID runId);
+
+    /** The code of the final failed attempt of each failed case of the run. */
+    Map<UUID, FailureCode> finalFailureCodes(UUID runId);
 
     /** A page of the run's cases in matrix order, optionally of one state and one variant. */
     List<LogicalCase> listCases(UUID runId, CaseState state, String variantLabel, int limit, int offset);

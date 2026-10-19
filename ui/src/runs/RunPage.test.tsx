@@ -168,6 +168,7 @@ describe('an unreachable service', () => {
     const user = userEvent.setup()
     const { queryClient } = await renderApp(path, service)
     await screen.findByText('State: Running')
+    await screen.findByText(/Verdict:/)
 
     service.unreachable = true
     await queryClient.refetchQueries({ queryKey: ['run', IDS.run] })

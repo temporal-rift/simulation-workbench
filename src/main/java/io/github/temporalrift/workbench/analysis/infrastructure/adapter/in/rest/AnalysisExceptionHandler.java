@@ -6,8 +6,10 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import io.github.temporalrift.workbench.analysis.domain.AnalysisResourceNotFoundException;
 import io.github.temporalrift.workbench.analysis.domain.comparison.ComparisonIdempotencyConflictException;
@@ -21,6 +23,7 @@ import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.Re
 class AnalysisExceptionHandler {
 
     private static final String INVALID_COMPARISON = "INVALID_COMPARISON";
+    private static final String INVALID_REQUEST = "INVALID_REQUEST";
 
     @ExceptionHandler(AnalysisResourceNotFoundException.class)
     ProblemDetail handleNotFound(AnalysisResourceNotFoundException ex) {
@@ -45,6 +48,17 @@ class AnalysisExceptionHandler {
     @ExceptionHandler(ComparisonIdempotencyConflictException.class)
     ProblemDetail handleConflict(ComparisonIdempotencyConflictException ex) {
         return ProblemDetails.of(HttpStatus.CONFLICT, ex.getMessage(), "IDEMPOTENCY_CONFLICT");
+    }
+
+    @ExceptionHandler({MissingServletRequestParameterException.class, MethodArgumentTypeMismatchException.class})
+    ProblemDetail handleBadParameter(Exception ex) {
+        return ProblemDetails.of(
+                HttpStatus.BAD_REQUEST, "The request parameters are missing or malformed", INVALID_REQUEST);
+    }
+
+    @ExceptionHandler(InvalidEvaluationRequestException.class)
+    ProblemDetail handleInvalidEvaluation(InvalidEvaluationRequestException ex) {
+        return ProblemDetails.of(HttpStatus.BAD_REQUEST, ex.getMessage(), INVALID_REQUEST);
     }
 
     @ExceptionHandler(AccessDeniedException.class)

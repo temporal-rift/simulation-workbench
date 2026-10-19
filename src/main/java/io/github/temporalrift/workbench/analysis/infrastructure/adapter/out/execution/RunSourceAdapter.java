@@ -38,6 +38,7 @@ import io.github.temporalrift.workbench.analysis.domain.game.CaseOutcome;
 import io.github.temporalrift.workbench.analysis.domain.game.CaseStatus;
 import io.github.temporalrift.workbench.analysis.domain.game.EndReason;
 import io.github.temporalrift.workbench.analysis.domain.game.Faction;
+import io.github.temporalrift.workbench.analysis.domain.game.FailureCode;
 import io.github.temporalrift.workbench.analysis.domain.game.GameEvent;
 import io.github.temporalrift.workbench.analysis.domain.game.GameRecord;
 import io.github.temporalrift.workbench.analysis.domain.game.ParadoxType;
@@ -95,7 +96,8 @@ public class RunSourceAdapter implements RunSource {
                         .map(seat -> Faction.valueOf(seat.faction()))
                         .toList(),
                 CaseStatus.valueOf(runCase.state()),
-                runCase.result() == null ? null : outcome(runCase));
+                runCase.result() == null ? null : outcome(runCase),
+                runCase.failureCode() == null ? null : FailureCode.valueOf(runCase.failureCode()));
     }
 
     private static CaseOutcome outcome(RunCase runCase) {

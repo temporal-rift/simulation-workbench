@@ -201,6 +201,15 @@ by fewer than two independent blocks shows its value with **Insufficient sample*
 denominator of 0 shows **No data**; opportunities whose playability is unknown are counted beside it, not in it.
 **Export JSON** and **Export CSV** download the bytes the service returned, unchanged.
 
+#### Evaluate a variant
+
+The **Evaluation** panel on the run page judges one variant against a balance criterion version. Choose the variant, the
+criterion version, and the mode (screening ranks and discards candidates; confirmation may confirm). The panel shows the
+verdict, why a run is not valid evidence when it is not, the score, and in confirmation mode how much of the
+confirmation sample the run has. The table lists every evaluated line with its cohort, value, interval, band,
+deviation, and verdict, and can be filtered to failing or inconclusive lines. The panel always states that bot results
+say nothing about balance among human players.
+
 ### 5. Compare two variants
 
 **Comparisons → Compare two variants.** Enter the run and variant label of the baseline and of the candidate (a run
@@ -674,8 +683,10 @@ workbench:
 `GET /api/v1/runs/{runId}/report` (`simulation:read`) returns a run's report as JSON, or as CSV with
 `Accept: text/csv`. `POST /api/v1/comparisons` (`simulation:write`, `Idempotency-Key`) compares two variants, of one
 run or of two runs, and `GET /api/v1/comparisons/{comparisonId}` reads the comparison as JSON or CSV. Every number
-is computed by analysis version `1` with analysis seed `1`; both are on every report, comparison, and CSV row, and the
-same version, seed, and case results always produce byte-identical documents.
+is computed by analysis version `2` with analysis seed `1` (a comparison keeps the version it was created under); both
+are on every report, comparison, and CSV row, and the same version, seed, and case results always produce
+byte-identical documents. Analysis version `2` is version `1` plus the `failure_share` metric: every version `1` metric
+keeps its value and interval.
 
 ### Populations
 
@@ -736,6 +747,17 @@ and was jammed in the fourth contributes 2 of 3 to `card_playable_rate` and 1 to
 for every faction of the run's faction sets at that player count; card, special, declaration, and paradox values are
 listed only when they occur somewhere in the run.
 
+### Failure share (analysis version 2)
+
+`failure_share` (statistic `RATE`, unit `cases`) is the share of finished cases that failed: cases whose final state is
+`FAILED` over cases whose final state is `SUCCEEDED` or `FAILED`. It exists because a failed case leaves every game
+metric, so a configuration that stalls games would otherwise look healthy. A case counts under the code of its final
+failed attempt; a case that failed and then succeeded on a retry counts only in the denominator, and cancelled,
+pending, and running cases count in neither. It appears in the cohorts that pool seats (pooled and per faction set),
+once without `failureCode` (every code) and once for each failure code that occurs anywhere in the run. It is resampled
+over the seeds that have finished cases, so a seed whose cases all failed counts there; game metrics keep resampling the
+seeds that have games, so their values and intervals do not depend on the analysis version.
+
 ### Uncertainty
 
 Services derive every gameplay draw from the case seed, so cases sharing a seed share their deck order and deals
@@ -762,6 +784,43 @@ interval of the difference that resamples matched seeds identically on both side
 cancelled side (`FAILED_COUNTERPART`) or an unfinished side (`UNFINISHED`) is listed in `excludedPairs`, and a
 comparison stays incomplete while any pair has not succeeded. A comparison is stored as its definition and recomputed
 from current results on every read.
+
+### Balance criterion and run evaluation
+
+A balance criterion version is a read-only document served from configuration: its lines (a metric, a dimension, the
+bot policies and player counts it covers, a band, a role as `GATE` or `SCORED`, a weight), its aggregation, and its
+evidence rule. `GET /api/v1/balance-criteria` lists the served versions and `GET /api/v1/balance-criteria/{version}`
+reads one; its `digest` is the SHA-256 of its canonical serialisation (object keys sorted, no whitespace, numbers by value
+without trailing zeros), so any change of any value changes it. A version whose evidence rule the evaluator cannot apply
+(another confidence level, other invalidating causes, another aggregation) is refused at startup. A new version is added by adding `balance-criteria/v<N>.json` to the application's
+configuration, never through the API; version 1 equals `docs/balance-criteria/v1.md` line by line, which a test checks.
+A criterion names a policy as its id with the major version (`faction-greedy-v1` is policy `faction-greedy` at
+`1.0.0`).
+
+`GET /api/v1/runs/{runId}/evaluation?variantLabel=&criterionVersion=&mode=` (`simulation:read`) evaluates one variant of
+a run against one criterion version. Nothing is stored: it is derived from the run's current cases on every read, with
+the analysis seed, and the same run, variant, version, and mode always return byte-identical JSON. Lines are ordered by
+line id, policy, player count, faction set, and faction.
+
+- Each criterion line expands into one evaluated line per cohort and dimension value it covers. A faction ratio is the
+  faction's win rate over `R`, the winner seat-games over the seat-games of the same cohort; the sum of failure codes is
+  the sum of those `failure_share` codes. Both are recomputed in every resample of their cohort, so a line's interval
+  is the interval of the derived value and never a combination of separate intervals. A cohort without a winner has no
+  `R`, and its ratio lines are `NO_DATA`.
+- Deviation is 0 inside the band and otherwise the distance to the nearer bound over the band width (or, for a
+  one-sided limit, over its scale). A line is `MEETS` when its whole interval lies inside the band, `FAILS` when it lies
+  wholly outside, and `INCONCLUSIVE` otherwise, and always `INCONCLUSIVE` without an interval. The score is the sum of
+  `weight × deviation²` over the scored lines, from point values; it ranks candidates and never rejects or confirms.
+- Validity comes first. The evaluation is `INVALID`, with every applicable reason and no score, when a case of the
+  variant did not finish (`UNFINISHED_CASES`), any case failed with `CONTRACT_MISMATCH` or `CONFIGURATION_DRIFT`, the
+  `EXECUTION_FAILED` share of a policy and player count is above the criterion's limit (`EXECUTION_FAILED_SHARE`), or
+  a game ended with every player abandoned (`ALL_PLAYERS_ABANDONED`).
+- A valid evaluation is `REJECTED` when a gate fails. Only in `CONFIRMATION` mode is it `CONFIRMED`, and only with a
+  satisfied confirmation sample (at least the criterion's minimum seeds, and every faction set at 3, 4, and 5 players
+  under every cyclic rotation for every policy the criterion names), every pooled gate meeting its band, and no scored
+  line failing. Otherwise it is `UNCONFIRMED`; `SCREENING` mode never confirms.
+
+Bot results say nothing about balance among human players, and an evaluation must not be presented as if they did.
 
 ### Exports
 

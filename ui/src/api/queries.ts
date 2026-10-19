@@ -11,7 +11,9 @@ import {
   getComparison,
   getExperiment,
   getRun,
+  getRunEvaluation,
   getRunReport,
+  listBalanceCriteria,
   listCases,
   listComparisons,
   listExperimentTemplates,
@@ -25,6 +27,7 @@ import {
   startRun,
   type CaseState,
   type ComparisonRequest,
+  type EvaluationMode,
   type ExperimentManifest,
   type RunState,
 } from './generated'
@@ -231,3 +234,18 @@ async function problemOf(response: Response): Promise<Error> {
     return new ServiceUnavailableError('unexpected-response')
   }
 }
+
+/** The criterion versions the workbench serves; they are configuration and change only with a release. */
+export const balanceCriteriaQuery = (client: Client) =>
+  queryOptions({
+    queryKey: ['balance-criteria'],
+    queryFn: () => unwrap(() => listBalanceCriteria({ client })),
+    staleTime: 5 * 60_000,
+  })
+
+/** An evaluation is derived on every read from the run's cases, so it is read again when the selection changes. */
+export const evaluationQuery = (client: Client, runId: string, variantLabel: string, criterionVersion: number, mode: EvaluationMode) =>
+  queryOptions({
+    queryKey: ['evaluation', runId, variantLabel, criterionVersion, mode],
+    queryFn: () => unwrap(() => getRunEvaluation({ client, path: { runId }, query: { variantLabel, criterionVersion, mode } })),
+  })

@@ -219,6 +219,8 @@ public class AnalysisCsvConverter extends AbstractHttpMessageConverter<Object> {
         fields.add(dimensions.getParadoxType());
         fields.add(dimensions.getEndReason());
         fields.add(dimensions.getQuantile());
+        // The published CSV has no failureCode column, so per-code failure_share rows look alike:
+        // temporal-rift/apis#177
         return fields;
     }
 

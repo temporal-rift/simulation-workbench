@@ -9,12 +9,31 @@ import java.util.UUID;
  *
  * @param state one of {@code PENDING}, {@code RUNNING}, {@code SUCCEEDED}, {@code FAILED}, {@code CANCELLED}
  * @param result present only when the case succeeded
+ * @param failureCode the code of the failed case's final failed attempt; null unless the case failed
  */
 public record RunCase(
-        UUID caseId, String variantLabel, String seed, int playerCount, List<Seat> seats, String state, Result result) {
+        UUID caseId,
+        String variantLabel,
+        String seed,
+        int playerCount,
+        List<Seat> seats,
+        String state,
+        Result result,
+        String failureCode) {
 
     public RunCase {
         seats = List.copyOf(seats);
+    }
+
+    public RunCase(
+            UUID caseId,
+            String variantLabel,
+            String seed,
+            int playerCount,
+            List<Seat> seats,
+            String state,
+            Result result) {
+        this(caseId, variantLabel, seed, playerCount, seats, state, result, null);
     }
 
     /** A seat of the case: its faction and the policy that plays it. */

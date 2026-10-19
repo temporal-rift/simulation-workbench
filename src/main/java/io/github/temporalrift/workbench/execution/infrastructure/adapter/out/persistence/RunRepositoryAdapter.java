@@ -18,6 +18,7 @@ import io.github.temporalrift.workbench.execution.domain.port.out.RunRepository;
 import io.github.temporalrift.workbench.execution.domain.run.Attempt;
 import io.github.temporalrift.workbench.execution.domain.run.CaseCounts;
 import io.github.temporalrift.workbench.execution.domain.run.CaseState;
+import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.domain.run.LogicalCase;
 import io.github.temporalrift.workbench.execution.domain.run.Run;
 import io.github.temporalrift.workbench.execution.domain.run.RunCommand;
@@ -163,6 +164,15 @@ public class RunRepositoryAdapter implements RunRepository {
         return cases.findAllByRunIdOrderByOrdinal(runId).stream()
                 .map(mappings::logicalCase)
                 .toList();
+    }
+
+    @Override
+    public Map<UUID, FailureCode> finalFailureCodes(UUID runId) {
+        var codes = new HashMap<UUID, FailureCode>();
+        attempts.findFailedAttemptsOfFailedCases(runId).stream()
+                .filter(attempt -> attempt.failureCode() != null)
+                .forEach(attempt -> codes.put(attempt.caseId(), FailureCode.valueOf(attempt.failureCode())));
+        return codes;
     }
 
     @Override

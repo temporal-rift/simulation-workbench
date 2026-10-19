@@ -13,6 +13,7 @@ import io.github.temporalrift.workbench.execution.domain.port.out.RunRepository;
 import io.github.temporalrift.workbench.execution.domain.run.CaseResult;
 import io.github.temporalrift.workbench.execution.domain.run.CaseState;
 import io.github.temporalrift.workbench.execution.domain.run.CountingGame;
+import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.domain.run.LogicalCase;
 import io.github.temporalrift.workbench.execution.domain.run.Winner;
 
@@ -34,7 +35,10 @@ public class RunCatalogQueryHandler implements RunCatalog {
 
     @Override
     public List<RunCase> cases(UUID runId) {
-        return runs.cases(runId).stream().map(RunCatalogQueryHandler::runCase).toList();
+        var failureCodes = runs.finalFailureCodes(runId);
+        return runs.cases(runId).stream()
+                .map(logicalCase -> runCase(logicalCase, failureCodes.get(logicalCase.caseId())))
+                .toList();
     }
 
     @Override
@@ -60,7 +64,7 @@ public class RunCatalogQueryHandler implements RunCatalog {
                                 .toList()));
     }
 
-    private static RunCase runCase(LogicalCase logicalCase) {
+    private static RunCase runCase(LogicalCase logicalCase, FailureCode failureCode) {
         return new RunCase(
                 logicalCase.caseId(),
                 logicalCase.variantLabel(),
@@ -71,7 +75,8 @@ public class RunCatalogQueryHandler implements RunCatalog {
                                 seat.seatIndex(), seat.faction(), seat.policyId(), seat.policyVersion()))
                         .toList(),
                 logicalCase.state().name(),
-                logicalCase.result() == null ? null : result(logicalCase.result()));
+                logicalCase.result() == null ? null : result(logicalCase.result()),
+                failureCode == null ? null : failureCode.name());
     }
 
     private static RunCase.Result result(CaseResult result) {

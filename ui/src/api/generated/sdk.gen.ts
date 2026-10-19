@@ -2,8 +2,8 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { CancelRunData, CancelRunErrors, CancelRunResponses, CreateComparisonData, CreateComparisonErrors, CreateComparisonResponses, CreateExperimentData, CreateExperimentErrors, CreateExperimentResponses, GetCaseData, GetCaseErrors, GetCaseReplayData, GetCaseReplayErrors, GetCaseReplayResponses, GetCaseResponses, GetComparisonData, GetComparisonErrors, GetComparisonResponses, GetExperimentData, GetExperimentErrors, GetExperimentResponses, GetRunData, GetRunErrors, GetRunReportData, GetRunReportErrors, GetRunReportResponses, GetRunResponses, ListCasesData, ListCasesErrors, ListCasesResponses, ListComparisonsData, ListComparisonsErrors, ListComparisonsResponses, ListExperimentsData, ListExperimentsErrors, ListExperimentsResponses, ListExperimentTemplatesData, ListExperimentTemplatesErrors, ListExperimentTemplatesResponses, ListLaneBundlesData, ListLaneBundlesErrors, ListLaneBundlesResponses, ListPoliciesData, ListPoliciesErrors, ListPoliciesResponses, ListRunsData, ListRunsErrors, ListRunsResponses, PreviewExperimentData, PreviewExperimentErrors, PreviewExperimentResponses, ReproduceCaseData, ReproduceCaseErrors, ReproduceCaseResponses, ResumeRunData, ResumeRunErrors, ResumeRunResponses, StartRunData, StartRunErrors, StartRunResponses } from './types.gen';
-import { zCancelRunResponse, zCreateComparisonResponse, zCreateExperimentResponse, zGetCaseReplayResponse, zGetCaseResponse, zGetComparisonResponse, zGetExperimentResponse, zGetRunReportResponse, zGetRunResponse, zListCasesResponse, zListComparisonsResponse, zListExperimentsResponse, zListExperimentTemplatesResponse, zListLaneBundlesResponse, zListPoliciesResponse, zListRunsResponse, zPreviewExperimentResponse, zReproduceCaseResponse, zResumeRunResponse, zStartRunResponse } from './zod.gen';
+import type { CancelRunData, CancelRunErrors, CancelRunResponses, CreateComparisonData, CreateComparisonErrors, CreateComparisonResponses, CreateExperimentData, CreateExperimentErrors, CreateExperimentResponses, GetBalanceCriterionData, GetBalanceCriterionErrors, GetBalanceCriterionResponses, GetCaseData, GetCaseErrors, GetCaseReplayData, GetCaseReplayErrors, GetCaseReplayResponses, GetCaseResponses, GetComparisonData, GetComparisonErrors, GetComparisonResponses, GetExperimentData, GetExperimentErrors, GetExperimentResponses, GetRunData, GetRunErrors, GetRunEvaluationData, GetRunEvaluationErrors, GetRunEvaluationResponses, GetRunReportData, GetRunReportErrors, GetRunReportResponses, GetRunResponses, ListBalanceCriteriaData, ListBalanceCriteriaErrors, ListBalanceCriteriaResponses, ListCasesData, ListCasesErrors, ListCasesResponses, ListComparisonsData, ListComparisonsErrors, ListComparisonsResponses, ListExperimentsData, ListExperimentsErrors, ListExperimentsResponses, ListExperimentTemplatesData, ListExperimentTemplatesErrors, ListExperimentTemplatesResponses, ListLaneBundlesData, ListLaneBundlesErrors, ListLaneBundlesResponses, ListPoliciesData, ListPoliciesErrors, ListPoliciesResponses, ListRunsData, ListRunsErrors, ListRunsResponses, PreviewExperimentData, PreviewExperimentErrors, PreviewExperimentResponses, ReproduceCaseData, ReproduceCaseErrors, ReproduceCaseResponses, ResumeRunData, ResumeRunErrors, ResumeRunResponses, StartRunData, StartRunErrors, StartRunResponses } from './types.gen';
+import { zCancelRunResponse, zCreateComparisonResponse, zCreateExperimentResponse, zGetBalanceCriterionResponse, zGetCaseReplayResponse, zGetCaseResponse, zGetComparisonResponse, zGetExperimentResponse, zGetRunEvaluationResponse, zGetRunReportResponse, zGetRunResponse, zListBalanceCriteriaResponse, zListCasesResponse, zListComparisonsResponse, zListExperimentsResponse, zListExperimentTemplatesResponse, zListLaneBundlesResponse, zListPoliciesResponse, zListRunsResponse, zPreviewExperimentResponse, zReproduceCaseResponse, zResumeRunResponse, zStartRunResponse } from './zod.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -138,7 +138,7 @@ export const resumeRun = <ThrowOnError extends boolean = false>(options: Options
 /**
  * Get the stratified statistical report for a run
  *
- * Requires `simulation:read`. For every variant, policy and player count the report holds a pooled cohort, one cohort per seat, one per faction set, and one per faction set and seat. Only succeeded cases are games: pending, running, failed and cancelled cases appear in case counts and never in a metric denominator, and the report stays explicitly incomplete while any requested case has not succeeded. `Accept: text/csv` returns the same report as RFC 4180 CSV with a header row and one row per cohort metric.
+ * Requires `simulation:read`. For every variant, policy and player count the report holds a pooled cohort, one cohort per seat, one per faction set, and one per faction set and seat. Only succeeded cases are games: pending, running, failed and cancelled cases appear in case counts and never in a game metric's denominator, and the report stays explicitly incomplete while any requested case has not succeeded. `Accept: text/csv` returns the same report as RFC 4180 CSV with a header row and one row per cohort metric.
  */
 export const getRunReport = <ThrowOnError extends boolean = false>(options: Options<GetRunReportData, ThrowOnError>): RequestResult<GetRunReportResponses, GetRunReportErrors, ThrowOnError> => (options.client ?? client).get<GetRunReportResponses, GetRunReportErrors, ThrowOnError>({
     responseValidator: async (data) => await zGetRunReportResponse.parseAsync(data),
@@ -268,5 +268,41 @@ export const listExperimentTemplates = <ThrowOnError extends boolean = false>(op
     responseValidator: async (data) => await zListExperimentTemplatesResponse.parseAsync(data),
     security: [{ scheme: 'bearer', type: 'http' }],
     url: '/api/v1/experiment-templates',
+    ...options
+});
+
+/**
+ * List every served balance criterion version, ordered by version
+ *
+ * Requires `simulation:read`. Returns every criterion version the workbench serves, ordered ascending `version`. Criteria are read-only resources served from the workbench's configuration; a new version is added by configuration, never through the API.
+ */
+export const listBalanceCriteria = <ThrowOnError extends boolean = false>(options?: Options<ListBalanceCriteriaData, ThrowOnError>): RequestResult<ListBalanceCriteriaResponses, ListBalanceCriteriaErrors, ThrowOnError> => (options?.client ?? client).get<ListBalanceCriteriaResponses, ListBalanceCriteriaErrors, ThrowOnError>({
+    responseValidator: async (data) => await zListBalanceCriteriaResponse.parseAsync(data),
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/balance-criteria',
+    ...options
+});
+
+/**
+ * Get one balance criterion version
+ *
+ * Requires `simulation:read`. Returns one criterion version. An unknown version returns `404 RESOURCE_NOT_FOUND`.
+ */
+export const getBalanceCriterion = <ThrowOnError extends boolean = false>(options: Options<GetBalanceCriterionData, ThrowOnError>): RequestResult<GetBalanceCriterionResponses, GetBalanceCriterionErrors, ThrowOnError> => (options.client ?? client).get<GetBalanceCriterionResponses, GetBalanceCriterionErrors, ThrowOnError>({
+    responseValidator: async (data) => await zGetBalanceCriterionResponse.parseAsync(data),
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/balance-criteria/{criterionVersion}',
+    ...options
+});
+
+/**
+ * Get the derived evaluation of a run variant against a criterion
+ *
+ * Requires `simulation:read`. The evaluation is computed from the run's cases on every read, with the analysis seed; the same run, variant, criterion version and mode always return byte-identical documents, and nothing is persisted. Every criterion line is expanded into one evaluated line per cohort and dimension value it covers. The faction ratio and the sum of several `failure_share` codes are each recomputed in every bootstrap resample; their interval is the interval of the derived value, never a combination of separate intervals. `SCREENING` mode never returns `CONFIRMED`.
+ */
+export const getRunEvaluation = <ThrowOnError extends boolean = false>(options: Options<GetRunEvaluationData, ThrowOnError>): RequestResult<GetRunEvaluationResponses, GetRunEvaluationErrors, ThrowOnError> => (options.client ?? client).get<GetRunEvaluationResponses, GetRunEvaluationErrors, ThrowOnError>({
+    responseValidator: async (data) => await zGetRunEvaluationResponse.parseAsync(data),
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/api/v1/runs/{runId}/evaluation',
     ...options
 });
