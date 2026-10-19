@@ -69,6 +69,22 @@ public final class ManifestDigest {
         sortStringArray(root, "seeds", Comparator.comparingLong(ManifestDigest::parseUint64));
         sortIntArray(root, "playerCounts");
         sortFactionSets(root);
+        dropEmptyOverrides(root);
+    }
+
+    /** A variant without overrides is its baseline, whether the empty overrides are spelled out or left absent. */
+    private static void dropEmptyOverrides(ObjectNode root) {
+        if (!(root.get("variants") instanceof ArrayNode variants)) {
+            return;
+        }
+        variants.forEach(variant -> {
+            if (variant instanceof ObjectNode object
+                    && object.get("overrides") instanceof ObjectNode overrides
+                    && overrides.isEmpty()) {
+                object.remove("overrides");
+                object.remove("parameterSpaceVersion");
+            }
+        });
     }
 
     private static void sortStringArray(ObjectNode root, String field, Comparator<String> order) {

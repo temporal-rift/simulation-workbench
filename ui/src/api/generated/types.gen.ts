@@ -23,12 +23,25 @@ export type ArtifactReference = {
     name?: string | null;
 };
 
+/**
+ * A baseline rules document plus optional parameter overrides. `rulesArtifact` names the baseline; `effectiveRulesDigest` is the effective rules digest of that baseline with the overrides and their derived values applied. An empty `overrides` means the baseline itself.
+ */
 export type Variant = {
     label: string;
     rulesArtifact: ArtifactReference;
     contentArtifact: ArtifactReference;
     effectiveRulesDigest: Sha256Digest;
     effectiveContentDigest: Sha256Digest;
+    /**
+     * The parameter space the overrides are validated against. Required when `overrides` is non-empty, and absent or ignored when it is empty.
+     */
+    parameterSpaceVersion?: number;
+    /**
+     * Values replacing the baseline's, keyed by parameter key. An override equal to the baseline value is dropped when the manifest is frozen.
+     */
+    overrides?: {
+        [key: string]: number;
+    };
 };
 
 export type ServiceProvenance = {
@@ -435,6 +448,8 @@ export type SpecialAction = EnumsSpecialAction;
 
 export type ParadoxType = EnumsParadoxType;
 
+export type EffectiveRules = EffectiveRulesEffectiveRules;
+
 /**
  * Mirrors the terminal-result vocabulary pinned by the manifest's participant/event contract versions.
  */
@@ -549,7 +564,7 @@ export type PolicyCatalog = {
 };
 
 /**
- * One distinct bundle some configured lane serves: one pair of effective rules and content digests with the service provenance and contract versions of the lanes that serve it. Carries no lane identifier, URL, credential or bot identity. Lanes serving exactly this bundle are counted in `laneCount`, busy or free.
+ * One distinct bundle some configured lane serves: one pair of effective rules and content digests with the service provenance and contract versions of the lanes that serve it. `rulesArtifact` names the lane's baseline rules document and `effectiveRulesDigest` is that document's effective rules digest. Carries no lane identifier, URL, credential or bot identity. Lanes serving exactly this bundle are counted in `laneCount`, busy or free.
  */
 export type LaneBundle = {
     rulesArtifact: ArtifactReference;
@@ -773,6 +788,66 @@ export type RunEvaluation = {
     lines: Array<EvaluatedLine>;
 };
 
+export type ParameterSpaceCatalog = {
+    items: Array<ParameterSpace>;
+};
+
+export type ParameterSpace = {
+    version: number;
+    parameters: Array<ParameterDefinition>;
+    derived: Array<DerivedParameter>;
+    constraints: Array<ParameterConstraint>;
+    heldFixed: Array<HeldFixedParameter>;
+};
+
+export type ParameterDefinition = {
+    key: string;
+    services: Array<string>;
+    baseline: number;
+    min: number;
+    max: number;
+    step: number;
+};
+
+/**
+ * A derived value whose `key` always equals `factor` times `from`.
+ */
+export type DerivedParameter = {
+    key: string;
+    from: string;
+    factor: number;
+};
+
+export type ParameterConstraint = {
+    id: string;
+    expression: string;
+    description: string;
+};
+
+export type HeldFixedParameter = {
+    key: string;
+    reason: string;
+};
+
+export type VariantRulesPreviewRequest = {
+    rulesArtifact: ArtifactReference;
+    parameterSpaceVersion: number;
+    overrides: {
+        [key: string]: number;
+    };
+};
+
+export type VariantRulesPreview = {
+    rules: EffectiveRulesEffectiveRules;
+    effectiveRulesDigest: Sha256Digest;
+    /**
+     * The normalised overrides, with baseline-equal values removed, as freezing would store them.
+     */
+    overrides: {
+        [key: string]: number;
+    };
+};
+
 export type ProblemDetail = {
     type: string;
     title: string;
@@ -780,11 +855,35 @@ export type ProblemDetail = {
     detail?: string;
     instance?: string;
     /**
-     * Path of the offending manifest value, such as `seeds` or `policies[0].seatAssignment`. Present on `INVALID_EXPERIMENT` and `MANIFEST_MISMATCH` when the refusal is attributable to one value; absent otherwise.
+     * Path of the offending manifest or request value, such as `seeds`, `policies[0].seatAssignment`, or `variants[1].overrides.game.rules.win-score-threshold`. Present on `INVALID_EXPERIMENT`, `INVALID_REQUEST` and `MANIFEST_MISMATCH` when the refusal is attributable to one value; absent otherwise.
      */
     field?: string;
+    /**
+     * Why a variant's overrides or baseline were refused. Present on variant-rule refusals; absent otherwise.
+     */
+    reason?: 'UNKNOWN_PARAMETER_SPACE' | 'UNKNOWN_BASELINE' | 'UNKNOWN_PARAMETER' | 'OUT_OF_RANGE' | 'OFF_STEP' | 'CONSTRAINT_VIOLATED';
+    /**
+     * The violated parameter space constraint. Present only when `reason` is `CONSTRAINT_VIOLATED`.
+     */
+    constraintId?: string;
     code: 'INVALID_EXPERIMENT' | 'INVALID_REPLAY_PERSPECTIVE' | 'INVALID_COMPARISON' | 'IDEMPOTENCY_CONFLICT' | 'EXPERIMENT_IMMUTABLE' | 'INVALID_RUN_STATE' | 'MANIFEST_MISMATCH' | 'INCOMPARABLE_RUNS' | 'INVALID_REQUEST' | 'UNAUTHORIZED' | 'INSUFFICIENT_SCOPE' | 'RESOURCE_NOT_FOUND';
     [key: string]: unknown;
+};
+
+/**
+ * A complete, materialised rules document. `properties` holds every rules property keyed by its full path. Keys start with `game.rules.`; path segments are lowercase kebab-case, except map keys that are enum constants, which keep their constant name (for example `game.rules.card-category-weights.PROBABILITY_SHIFTER` or `game.rules.scoring.score-deltas.CHAIN_COMPLETED`), and nested maps are flattened with `.`. Values are JSON numbers, booleans, strings, or arrays of those, in served order. The effective rules digest is the lowercase hex SHA-256 of the UTF-8 bytes of the RFC 8785 (JSON Canonicalization Scheme) serialisation of `properties`, so key order and number spelling do not matter: `2.0` and `2` give the same digest. For example, the properties `{"game.rules.probability.amplify-multiplier.II": 2, "game.rules.win-score-threshold": 20}` canonicalise to `{"game.rules.probability.amplify-multiplier.II":2,"game.rules.win-score-threshold":20}` and have effective rules digest `2f4e77d6f2f5ad41eb3b05de091e524133995ef6f274a58f539adbf2d5b06fad`; the same keys supplied in the other order with `2.0` canonicalise to the same bytes and digest.
+ */
+export type EffectiveRulesEffectiveRules = {
+    /**
+     * Document format version.
+     */
+    schemaVersion: 1;
+    /**
+     * Every rules property keyed by its full `game.rules.` path, with nested maps flattened using `.`. Each value is a JSON number, boolean, string, or array of those, in served order.
+     */
+    properties: {
+        [key: string]: number | boolean | string | Array<number | boolean | string>;
+    };
 };
 
 export type EnumsCardGrade = 'I' | 'II' | 'III';
@@ -863,7 +962,7 @@ export type CreateExperimentData = {
 
 export type CreateExperimentErrors = {
     /**
-     * The manifest is invalid (code INVALID_EXPERIMENT)
+     * The manifest is invalid (code INVALID_EXPERIMENT). A refused variant's overrides also carry a `reason` and name the offending value in `field`.
      */
     400: ProblemDetail;
     /**
@@ -903,7 +1002,7 @@ export type PreviewExperimentData = {
 
 export type PreviewExperimentErrors = {
     /**
-     * The manifest is invalid (code INVALID_EXPERIMENT)
+     * The manifest is invalid (code INVALID_EXPERIMENT). A refused variant's overrides also carry a `reason` and name the offending value in `field`.
      */
     400: ProblemDetail;
     /**
@@ -979,7 +1078,7 @@ export type StartRunData = {
 
 export type StartRunErrors = {
     /**
-     * The manifest is invalid (code INVALID_EXPERIMENT)
+     * The manifest is invalid (code INVALID_EXPERIMENT). A refused variant's overrides also carry a `reason` and name the offending value in `field`.
      */
     400: ProblemDetail;
     /**
@@ -1539,7 +1638,7 @@ export type ListLaneBundlesData = {
 
 export type ListLaneBundlesErrors = {
     /**
-     * The request is invalid, such as paging outside 1 to 500 or a missing or invalid evaluation query parameter (code INVALID_REQUEST)
+     * The request is invalid, such as paging outside 1 to 500, a missing or invalid evaluation query parameter, or a refused variant-rules preview (code INVALID_REQUEST). A refused variant's overrides carry a `reason` and name the offending value in `field`.
      */
     400: ProblemDetail;
     /**
@@ -1575,7 +1674,7 @@ export type ListExperimentTemplatesData = {
 
 export type ListExperimentTemplatesErrors = {
     /**
-     * The request is invalid, such as paging outside 1 to 500 or a missing or invalid evaluation query parameter (code INVALID_REQUEST)
+     * The request is invalid, such as paging outside 1 to 500, a missing or invalid evaluation query parameter, or a refused variant-rules preview (code INVALID_REQUEST). A refused variant's overrides carry a `reason` and name the offending value in `field`.
      */
     400: ProblemDetail;
     /**
@@ -1678,7 +1777,7 @@ export type GetRunEvaluationData = {
 
 export type GetRunEvaluationErrors = {
     /**
-     * The request is invalid, such as paging outside 1 to 500 or a missing or invalid evaluation query parameter (code INVALID_REQUEST)
+     * The request is invalid, such as paging outside 1 to 500, a missing or invalid evaluation query parameter, or a refused variant-rules preview (code INVALID_REQUEST). A refused variant's overrides carry a `reason` and name the offending value in `field`.
      */
     400: ProblemDetail;
     /**
@@ -1705,3 +1804,136 @@ export type GetRunEvaluationResponses = {
 };
 
 export type GetRunEvaluationResponse = GetRunEvaluationResponses[keyof GetRunEvaluationResponses];
+
+export type ListParameterSpacesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/parameter-spaces';
+};
+
+export type ListParameterSpacesErrors = {
+    /**
+     * Missing, invalid, or expired bearer token
+     */
+    401: ProblemDetail;
+    /**
+     * The bearer token lacks a required simulation scope
+     */
+    403: ProblemDetail;
+};
+
+export type ListParameterSpacesError = ListParameterSpacesErrors[keyof ListParameterSpacesErrors];
+
+export type ListParameterSpacesResponses = {
+    /**
+     * Every served parameter space version in version order
+     */
+    200: ParameterSpaceCatalog;
+};
+
+export type ListParameterSpacesResponse = ListParameterSpacesResponses[keyof ListParameterSpacesResponses];
+
+export type GetParameterSpaceData = {
+    body?: never;
+    path: {
+        version: number;
+    };
+    query?: never;
+    url: '/api/v1/parameter-spaces/{version}';
+};
+
+export type GetParameterSpaceErrors = {
+    /**
+     * Missing, invalid, or expired bearer token
+     */
+    401: ProblemDetail;
+    /**
+     * The bearer token lacks a required simulation scope
+     */
+    403: ProblemDetail;
+    /**
+     * The requested resource does not exist or is not visible to the caller
+     */
+    404: ProblemDetail;
+};
+
+export type GetParameterSpaceError = GetParameterSpaceErrors[keyof GetParameterSpaceErrors];
+
+export type GetParameterSpaceResponses = {
+    /**
+     * The requested parameter space
+     */
+    200: ParameterSpace;
+};
+
+export type GetParameterSpaceResponse = GetParameterSpaceResponses[keyof GetParameterSpaceResponses];
+
+export type PreviewVariantRulesData = {
+    body: VariantRulesPreviewRequest;
+    path?: never;
+    query?: never;
+    url: '/api/v1/variant-rules-previews';
+};
+
+export type PreviewVariantRulesErrors = {
+    /**
+     * The request is invalid, such as paging outside 1 to 500, a missing or invalid evaluation query parameter, or a refused variant-rules preview (code INVALID_REQUEST). A refused variant's overrides carry a `reason` and name the offending value in `field`.
+     */
+    400: ProblemDetail;
+    /**
+     * Missing, invalid, or expired bearer token
+     */
+    401: ProblemDetail;
+    /**
+     * The bearer token lacks a required simulation scope
+     */
+    403: ProblemDetail;
+};
+
+export type PreviewVariantRulesError = PreviewVariantRulesErrors[keyof PreviewVariantRulesErrors];
+
+export type PreviewVariantRulesResponses = {
+    /**
+     * The effective rules the variant would freeze
+     */
+    200: VariantRulesPreview;
+};
+
+export type PreviewVariantRulesResponse = PreviewVariantRulesResponses[keyof PreviewVariantRulesResponses];
+
+export type GetVariantRulesData = {
+    body?: never;
+    path: {
+        experimentId: string;
+        label: string;
+    };
+    query?: never;
+    url: '/api/v1/experiments/{experimentId}/variants/{label}/rules';
+};
+
+export type GetVariantRulesErrors = {
+    /**
+     * Missing, invalid, or expired bearer token
+     */
+    401: ProblemDetail;
+    /**
+     * The bearer token lacks a required simulation scope
+     */
+    403: ProblemDetail;
+    /**
+     * The requested resource does not exist or is not visible to the caller
+     */
+    404: ProblemDetail;
+};
+
+export type GetVariantRulesError = GetVariantRulesErrors[keyof GetVariantRulesErrors];
+
+export type GetVariantRulesResponses = {
+    /**
+     * The variant's frozen effective rules
+     */
+    200: EffectiveRulesEffectiveRules;
+};
+
+export type GetVariantRulesResponse = GetVariantRulesResponses[keyof GetVariantRulesResponses];
