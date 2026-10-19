@@ -6,7 +6,7 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
@@ -47,22 +47,20 @@ public class ConfiguredBalanceCriteria implements BalanceCriteria {
     private final List<BalanceCriterion> criteria;
 
     public ConfiguredBalanceCriteria(ObjectMapper objectMapper) {
+        Resource[] resources;
         try {
-            var parsed = new ArrayList<BalanceCriterion>();
-            for (var resource : new PathMatchingResourcePatternResolver().getResources(LOCATION)) {
-                parsed.add(read(objectMapper, resource));
-            }
-            parsed.sort(Comparator.comparingInt(BalanceCriterion::version));
-            for (var index = 1; index < parsed.size(); index++) {
-                if (parsed.get(index).version() == parsed.get(index - 1).version()) {
-                    throw new IllegalStateException(
-                            "Balance criterion version " + parsed.get(index).version() + " is configured twice");
-                }
-            }
-            this.criteria = List.copyOf(parsed);
+            resources = new PathMatchingResourcePatternResolver().getResources(LOCATION);
         } catch (IOException e) {
-            throw new UncheckedIOException("Balance criteria could not be read", e);
+            throw new UncheckedIOException("Balance criteria could not be listed", e);
         }
+        var parsed = Arrays.stream(resources)
+                .map(resource -> read(objectMapper, resource))
+                .sorted(Comparator.comparingInt(BalanceCriterion::version))
+                .toList();
+        if (parsed.stream().map(BalanceCriterion::version).distinct().count() != parsed.size()) {
+            throw new IllegalStateException("A balance criterion version is configured twice");
+        }
+        this.criteria = parsed;
     }
 
     @Override
@@ -92,9 +90,11 @@ public class ConfiguredBalanceCriteria implements BalanceCriteria {
         return criterion(objectMapper.readTree(json));
     }
 
-    private static BalanceCriterion read(ObjectMapper objectMapper, Resource resource) throws IOException {
+    private static BalanceCriterion read(ObjectMapper objectMapper, Resource resource) {
         try (var in = resource.getInputStream()) {
             return criterion(objectMapper.readTree(in));
+        } catch (IOException e) {
+            throw new UncheckedIOException("Balance criterion " + resource.getFilename() + " could not be read", e);
         }
     }
 
