@@ -198,6 +198,13 @@ describe('variant overrides', () => {
     expect(alignToLanes(unserved, laneBundles())).toBe(unserved)
   })
 
+  it('keeps a copied variant unserved when its services or contracts no longer match the lane', () => {
+    const copied = manifestToDraft(draftToManifest(withOverrides(), [undefined, 'f'.repeat(64)]))
+    copied.variants[1]!.bundle!.contracts['session-api'] = '0.0.1'
+
+    expect(alignToLanes(copied, laneBundles())).toBe(copied)
+  })
+
   it('fills variants a draft kept before overrides existed', () => {
     window.sessionStorage.setItem(
       'workbench.experiment-draft.v2',

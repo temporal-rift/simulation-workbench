@@ -92,7 +92,7 @@ public final class VariantRules {
             Baseline baseline, JsonNode version, Map<String, BigDecimal> overrides, String path) {
         try {
             if (overrides.isEmpty()) {
-                return VariantMaterializer.materialize(baseline.rules(), null, overrides);
+                return new VariantMaterializer.Materialized(baseline.rules(), new TreeMap<>());
             }
             return VariantMaterializer.materialize(baseline.rules(), space(version.asInt()), overrides);
         } catch (VariantRulesRefusal refusal) {

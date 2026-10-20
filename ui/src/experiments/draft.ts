@@ -167,12 +167,8 @@ export function alignToLanes(draft: Draft, lanes: readonly LaneBundle[]): Draft 
     if (bundle === null || variant.overrides.length === 0 || isServed(bundle, lanes)) {
       return variant
     }
-    const baseline = lanes.find(
-      (lane) =>
-        lane.rulesArtifact.digest === bundle.rulesArtifact.digest &&
-        lane.contentArtifact.digest === bundle.contentArtifact.digest &&
-        lane.effectiveContentDigest === bundle.effectiveContentDigest,
-    )
+    // Only the effective rules digest is restored; services, contracts and every artifact must match exactly.
+    const baseline = lanes.find((lane) => sameBundle(bundleFromLane(lane), { ...bundle, effectiveRulesDigest: lane.effectiveRulesDigest }))
     if (baseline === undefined) {
       return variant
     }
