@@ -282,8 +282,9 @@ duplicate factions, bad counts/seeds, credentials or machine-local paths), `409 
 Retention: the frozen manifest is persisted with its full configuration/content/policy artifacts,
 seeds, faction sets, rotations, and execution bounds — never digests alone, and never credentials
 or machine-local paths. Every case pins its exact manifest as evidence (see "Evidence, replay, and
-reproduction"). Resolved external bytes (rules bundles, policy artifacts, service images) are not
-retained by the runner.
+reproduction"). The baseline rules document of each variant is retained with the experiment, so its
+effective rules can always be read back; other resolved external bytes (content bundles, policy artifacts,
+service images) are not retained by the runner.
 
 ## Variants as parameter overrides
 
