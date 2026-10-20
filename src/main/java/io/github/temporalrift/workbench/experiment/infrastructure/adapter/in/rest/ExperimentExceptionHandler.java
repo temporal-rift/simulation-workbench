@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import io.github.temporalrift.workbench.experiment.domain.ExperimentNotFoundException;
 import io.github.temporalrift.workbench.experiment.domain.ExperimentValidationException;
 import io.github.temporalrift.workbench.experiment.domain.IdempotencyConflictException;
+import io.github.temporalrift.workbench.experiment.domain.ParameterSpaceNotFoundException;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.ProblemDetails;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.RestAdviceOrder;
 
@@ -20,6 +21,7 @@ class ExperimentExceptionHandler {
     ProblemDetail handleValidation(ExperimentValidationException ex) {
         var problem = switch (ex.code()) {
             case INVALID_EXPERIMENT -> ProblemDetails.of(HttpStatus.BAD_REQUEST, ex.getMessage(), "INVALID_EXPERIMENT");
+            case INVALID_REQUEST -> ProblemDetails.of(HttpStatus.BAD_REQUEST, ex.getMessage(), "INVALID_REQUEST");
             case MANIFEST_MISMATCH -> ProblemDetails.of(HttpStatus.CONFLICT, ex.getMessage(), "MANIFEST_MISMATCH");
             case EXPERIMENT_IMMUTABLE ->
                 ProblemDetails.of(HttpStatus.CONFLICT, ex.getMessage(), "EXPERIMENT_IMMUTABLE");
@@ -27,6 +29,8 @@ class ExperimentExceptionHandler {
                 ProblemDetails.of(HttpStatus.CONFLICT, ex.getMessage(), "IDEMPOTENCY_CONFLICT");
         };
         ex.field().ifPresent(field -> problem.setProperty("field", field));
+        ex.reason().ifPresent(reason -> problem.setProperty("reason", reason.name()));
+        ex.constraintId().ifPresent(constraintId -> problem.setProperty("constraintId", constraintId));
         return problem;
     }
 
@@ -35,8 +39,8 @@ class ExperimentExceptionHandler {
         return ProblemDetails.of(HttpStatus.CONFLICT, ex.getMessage(), "IDEMPOTENCY_CONFLICT");
     }
 
-    @ExceptionHandler(ExperimentNotFoundException.class)
-    ProblemDetail handleNotFound(ExperimentNotFoundException ex) {
+    @ExceptionHandler({ExperimentNotFoundException.class, ParameterSpaceNotFoundException.class})
+    ProblemDetail handleNotFound(RuntimeException ex) {
         return ProblemDetails.of(HttpStatus.NOT_FOUND, ex.getMessage(), "RESOURCE_NOT_FOUND");
     }
 

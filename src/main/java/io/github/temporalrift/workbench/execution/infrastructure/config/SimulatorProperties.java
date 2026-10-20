@@ -66,10 +66,13 @@ public record SimulatorProperties(
      * What the hosted builds declare about the bundle they serve. A service's image digest is the digest of its jar,
      * so only the source revisions are declared.
      *
+     * @param rulesDocument the baseline {@code EffectiveRules} document of the rules file; its digest must equal
+     *     {@code rulesDigest}
      * @param contracts exact versions keyed by contract module name
      */
     public record Bundle(
             String rulesDigest,
+            Path rulesDocument,
             String contentDigest,
             String rulesArtifactDigest,
             String rulesArtifactName,
@@ -82,6 +85,7 @@ public record SimulatorProperties(
 
         public Bundle {
             BundleChecks.digest(BUNDLE_SCOPE, "rules-digest", rulesDigest);
+            BundleChecks.document(BUNDLE_SCOPE, "rules-document", rulesDocument);
             BundleChecks.digest(BUNDLE_SCOPE, "content-digest", contentDigest);
             BundleChecks.digest(BUNDLE_SCOPE, "rules-artifact-digest", rulesArtifactDigest);
             BundleChecks.digest(BUNDLE_SCOPE, "content-artifact-digest", contentArtifactDigest);

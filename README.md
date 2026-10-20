@@ -285,6 +285,35 @@ or machine-local paths. Every case pins its exact manifest as evidence (see "Evi
 reproduction"). Resolved external bytes (rules bundles, policy artifacts, service images) are not
 retained by the runner.
 
+## Variants as parameter overrides
+
+A variant is a baseline rules document plus overrides. `rulesArtifact` names the baseline, which some configured lane
+publishes as its `rules-document` (an `EffectiveRules` document); the workbench reads every such document at startup
+and refuses to start, naming the lane, when a document's effective rules digest differs from the lane's declared
+`rules-digest`. `overrides` maps parameter keys to numbers and `parameterSpaceVersion` names the space they are
+validated against.
+
+Parameter space version 1 is configuration (`parameter-spaces/v1.json`, equal to `docs/parameter-space/v1.md`) and is
+read with `listParameterSpaces` and `getParameterSpace`. Its constraints are expressions in a small notation (comparison
+chains over `+`, `-`, `*`, `max` and `and`; a subtraction needs spaces around `-` because keys contain it) that the
+workbench both serves and evaluates.
+
+Materialising a variant is a pure function of the baseline document, the space and the overrides: every key must be a
+parameter, every value in range and on its step; overrides equal to the baseline are dropped; the rest replace the
+baseline values and each derived key is set from its source; every constraint is then evaluated, and the effective rules
+digest is the SHA-256 of the RFC 8785 serialisation of the properties. The first refusal is reported by key in ascending
+order, then constraint id, as `400 INVALID_EXPERIMENT` (or `INVALID_REQUEST` on a preview) with `field`, `reason`
+(`UNKNOWN_PARAMETER_SPACE`, `UNKNOWN_BASELINE`, `UNKNOWN_PARAMETER`, `OUT_OF_RANGE`, `OFF_STEP`,
+`CONSTRAINT_VIOLATED`) and, for a constraint, `constraintId`.
+
+`POST /api/v1/variant-rules-previews` (`simulation:read`, persists nothing) answers the rules, their digest and the
+normalised overrides. Freezing (and previewing) an experiment normalises each variant the same way, sorts its overrides,
+and refuses an `effectiveRulesDigest` that differs from the computed one (`409 MANIFEST_MISMATCH`) whenever the
+baseline is published; a variant with overrides whose baseline no lane publishes is `UNKNOWN_BASELINE`. The baseline
+document of every such variant is retained with the experiment, and `GET /api/v1/experiments/{experimentId}/variants/{label}/rules`
+serves the frozen `EffectiveRules`. A case still runs only on a lane whose served digest equals its variant's, so a
+variant with overrides matches no lane until lanes adopt per-game rules.
+
 ## Cohort-matrix preview
 
 `MatrixPreviewService` deterministically enumerates every case coordinate (seed, faction set, seat
@@ -439,6 +468,7 @@ workbench:
         read-service-url: https://lane-1.read.internal
         operator-token: ${LANE_1_OPERATOR_TOKEN}
         rules-digest: 3f1c…        # effective rules digest of the bundle this lane serves
+        rules-document: /etc/workbench/lanes/lane-1/effective-rules.json   # the lane baseline EffectiveRules document
         content-digest: 9b07…      # effective content digest of the bundle this lane serves
         rules-artifact-digest: 5d2a…     # the rules artifact the effective rules digest was resolved from
         rules-artifact-name: threshold-22   # optional
@@ -528,6 +558,7 @@ workbench:
     bots: 6                       # bot identities per slot; at least the largest player count of a case
     bundle:                       # declared like a lane's; every slot serves this one bundle
       rules-digest: 3f1c…
+      rules-document: /builds/effective-rules.json   # the EffectiveRules document of rules-file
       content-digest: 9b07…
       rules-artifact-digest: 5d2a…
       content-artifact-digest: 0c8e…

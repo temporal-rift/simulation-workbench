@@ -1,15 +1,25 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ApiProblemError } from '../api/client'
 import type { ExperimentPreview, ExperimentTemplate } from '../api/generated'
 import { describeFailure } from '../api/problems'
-import { experimentTemplatesQuery, freezeManifest, laneBundlesQuery, policiesQuery, previewManifest, useApiClient } from '../api/queries'
+import {
+  experimentTemplatesQuery,
+  freezeManifest,
+  laneBundlesQuery,
+  parameterSpacesQuery,
+  policiesQuery,
+  previewManifest,
+  useApiClient,
+  variantRulesQuery,
+} from '../api/queries'
 import { READ_SCOPE, WRITE_SCOPE } from '../auth/scopes'
 import { useAnnounce } from '../components/announceContext'
 import { ErrorNotice } from '../components/ErrorNotice'
 import { ScopedButton } from '../components/ScopedButton'
 import {
+  alignToLanes,
   applyTemplate,
   clearDraft,
   draftToManifest,
@@ -17,6 +27,7 @@ import {
   fingerprint,
   loadDraft,
   localProblems,
+  overrideNumber,
   saveDraft,
   type Draft,
   type FieldErrors,
@@ -56,11 +67,45 @@ export function ExperimentFormPage() {
   const catalog = useQuery(policiesQuery(client))
   const lanes = useQuery(laneBundlesQuery(client))
   const templates = useQuery(experimentTemplatesQuery(client))
+  const spaces = useQuery(parameterSpacesQuery(client))
   const bundles = lanes.data?.items ?? null
   const noLane = bundles !== null && bundles.length === 0
-  const manifest = useMemo(() => draftToManifest(draft), [draft])
+
+  // The rules each variant with overrides makes are the service's to compute: its digest enters the manifest.
+  const rules = useQueries({
+    queries: draft.variants.map((variant) => {
+      const complete = variant.bundle !== null && variant.parameterSpaceVersion !== null && variant.overrides.every((override) => overrideNumber(override.value) !== undefined)
+      return variantRulesQuery(
+        client,
+        {
+          rulesArtifact: { digest: variant.bundle?.rulesArtifact.digest ?? '' },
+          parameterSpaceVersion: variant.parameterSpaceVersion ?? 1,
+          overrides: Object.fromEntries(variant.overrides.map((override) => [override.key, overrideNumber(override.value) ?? 0])),
+        },
+        complete && variant.overrides.length > 0,
+      )
+    }),
+  })
+  const rulesKey = rules.map((rule) => rule.data?.effectiveRulesDigest ?? '').join(',')
+  const rulesDigests = useMemo(() => rulesKey.split(',').map((digest) => digest || undefined), [rulesKey])
+  const manifest = useMemo(() => draftToManifest(draft, rulesDigests), [draft, rulesDigests])
   const current = useMemo(() => fingerprint(manifest), [manifest])
-  const local = useMemo(() => localProblems(draft, bundles), [draft, bundles])
+  const local = useMemo(() => localProblems(draft, bundles, rulesDigests), [draft, bundles, rulesDigests])
+  // A refused override is reported on the row that holds it, any other refusal of the rules on the variant's overrides.
+  const refusals = JSON.stringify(
+    rules.flatMap((rule, index) =>
+      rule.error instanceof ApiProblemError
+        ? [[rule.error.field?.startsWith('overrides.') ? `variants[${index}].${rule.error.field}` : `variants[${index}].overrides`, rule.error.message]]
+        : [],
+    ),
+  )
+  const ruleErrors = useMemo<FieldErrors>(() => Object.fromEntries(JSON.parse(refusals) as [string, string][]), [refusals])
+
+  // A draft copied from a frozen experiment names the effective rules of its overridden variants; its lanes serve the baseline.
+  const aligned = bundles === null ? draft : alignToLanes(draft, bundles)
+  if (aligned !== draft) {
+    setDraft(aligned)
+  }
 
   useEffect(() => {
     saveDraft({ draft, basedOn })
@@ -103,8 +148,8 @@ export function ExperimentFormPage() {
   const problem = submission && submission.fingerprint === current ? submission : null
   const errors = useMemo<FieldErrors>(() => {
     const fromService = problem?.error instanceof ApiProblemError && problem.error.field ? { [problem.error.field]: problem.error.message } : {}
-    return { ...fromService, ...local }
-  }, [problem, local])
+    return { ...fromService, ...ruleErrors, ...local }
+  }, [problem, ruleErrors, local])
 
   const upToDate = taken !== null && taken.fingerprint === current
   const hasLocalProblems = Object.keys(local).length > 0
@@ -167,6 +212,12 @@ export function ExperimentFormPage() {
         {blockedNow && <ErrorNotice message="Fix the highlighted fields before previewing the matrix." />}
       </div>
       {catalog.isError && <ErrorNotice message={describeFailure(catalog.error, { action: 'load the bot policy catalog' })} onRetry={() => void catalog.refetch()} />}
+      {spaces.isError && (
+        <ErrorNotice
+          message={describeFailure(spaces.error, { action: 'load the parameter spaces', requiredScope: READ_SCOPE })}
+          onRetry={() => void spaces.refetch()}
+        />
+      )}
       {lanes.isError && (
         <ErrorNotice
           message={describeFailure(lanes.error, { action: 'load the bundles the lanes serve', requiredScope: READ_SCOPE })}
@@ -197,7 +248,15 @@ export function ExperimentFormPage() {
         )}
         <p className="hint">A template replaces the variants, policies, matrix and bounds of the draft; the name is kept.</p>
       </section>
-      <ExperimentForm draft={draft} edit={edit} errors={errors} catalog={catalog.data?.items ?? []} bundles={bundles} />
+      <ExperimentForm
+        draft={draft}
+        edit={edit}
+        errors={errors}
+        catalog={catalog.data?.items ?? []}
+        bundles={bundles}
+        spaces={spaces.data?.items ?? null}
+        rulesDigests={rulesDigests}
+      />
       <div className="actions">
         <ScopedButton scope={WRITE_SCOPE} aria-busy={preview.isPending} onAction={() => requestPreview(0)}>
           Preview matrix

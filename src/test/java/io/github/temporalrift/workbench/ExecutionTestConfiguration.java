@@ -14,6 +14,8 @@ import io.github.temporalrift.workbench.execution.domain.port.out.CommandLedger;
 import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.support.ScriptedLanes;
+import io.github.temporalrift.workbench.experiment.BaselineRulesCatalog;
+import io.github.temporalrift.workbench.experiment.VariantRulesFixtures;
 
 /** Replaces the real lanes with scripted in-process games so runs execute without any deployed service. */
 @TestConfiguration(proxyBeanMethods = false)
@@ -29,6 +31,13 @@ public class ExecutionTestConfiguration {
     @Primary
     ScriptedLanes scriptedLanes(CommandLedger ledger, EvidenceLedger evidence, Clock clock) {
         return new ScriptedLanes(ledger, evidence, clock, List.of(DEFAULT_BUNDLE, DEFAULT_BUNDLE, CANDIDATE_BUNDLE));
+    }
+
+    /** The baseline document of the scripted lanes, named by {@link VariantRulesFixtures#ARTIFACT_DIGEST}. */
+    @Bean
+    @Primary
+    BaselineRulesCatalog scriptedBaselineRules() {
+        return VariantRulesFixtures.catalog();
     }
 
     /** A heartbeat of one millisecond makes every checkpoint renew the lease and look for cancellation. */

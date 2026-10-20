@@ -12,6 +12,7 @@ import io.github.temporalrift.workbench.experiment.domain.ManifestDigest;
 import io.github.temporalrift.workbench.experiment.domain.MatrixPreviewService;
 import io.github.temporalrift.workbench.experiment.domain.MatrixPreviewService.CaseCoordinate;
 import io.github.temporalrift.workbench.experiment.domain.port.out.PolicyReferenceVerifier;
+import io.github.temporalrift.workbench.experiment.domain.rules.VariantRules;
 
 /**
  * Pages the matrix the freeze and the run enumerate, so a preview can never disagree with them. The whole
@@ -20,19 +21,22 @@ import io.github.temporalrift.workbench.experiment.domain.port.out.PolicyReferen
 public class PreviewExperimentQueryHandler implements PreviewExperimentUseCase {
 
     private final PolicyReferenceVerifier policyVerifier;
+    private final VariantRules variantRules;
 
-    public PreviewExperimentQueryHandler(PolicyReferenceVerifier policyVerifier) {
+    public PreviewExperimentQueryHandler(PolicyReferenceVerifier policyVerifier, VariantRules variantRules) {
         this.policyVerifier = policyVerifier;
+        this.variantRules = variantRules;
     }
 
     @Override
     public Result handle(Query query) {
         ExperimentValidator.validate(query.manifest(), policyVerifier);
-        var digest = ManifestDigest.sha256Hex(query.manifest());
+        var manifest = variantRules.freeze(query.manifest()).manifest();
+        var digest = ManifestDigest.sha256Hex(manifest);
         var window = new ArrayList<CaseCoordinate>();
         Map<String, Map<Integer, Integer>> counts = new LinkedHashMap<>();
         var position = new int[] {0};
-        MatrixPreviewService.enumerate(query.manifest(), digest, coordinate -> {
+        MatrixPreviewService.enumerate(manifest, digest, coordinate -> {
             if (position[0] >= query.offset() && window.size() < query.limit()) {
                 window.add(coordinate);
             }

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 
 import io.github.temporalrift.workbench.experiment.ExperimentManifests;
+import io.github.temporalrift.workbench.experiment.VariantRulesFixtures;
 import io.github.temporalrift.workbench.experiment.application.port.in.PreviewExperimentUseCase;
 import io.github.temporalrift.workbench.experiment.domain.ManifestDigest;
 import io.github.temporalrift.workbench.experiment.infrastructure.adapter.out.policy.PolicyReferenceVerifierAdapter;
@@ -12,8 +13,8 @@ import io.github.temporalrift.workbench.policy.application.query.BaselinePolicyC
 
 class PreviewExperimentQueryHandlerTest {
 
-    private final PreviewExperimentQueryHandler handler =
-            new PreviewExperimentQueryHandler(new PolicyReferenceVerifierAdapter(new BaselinePolicyCatalog()));
+    private final PreviewExperimentQueryHandler handler = new PreviewExperimentQueryHandler(
+            new PolicyReferenceVerifierAdapter(new BaselinePolicyCatalog()), VariantRulesFixtures.withoutBaselines());
 
     @Test
     void theDigestIsTheOneFreezingWouldAssign() {

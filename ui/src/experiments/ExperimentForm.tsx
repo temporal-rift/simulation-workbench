@@ -1,4 +1,4 @@
-import type { EnumsFaction, LaneBundle, PolicyBundle } from '../api/generated'
+import type { EnumsFaction, LaneBundle, ParameterSpace, PolicyBundle } from '../api/generated'
 import { Field, TextField } from '../components/Field'
 import {
   BUNDLES_FIELD,
@@ -19,6 +19,8 @@ import {
   type DraftBundle,
   type FieldErrors,
 } from './draft'
+import { spaceOf } from './parameterSpace'
+import { VariantOverrides } from './VariantOverrides'
 
 export type EditDraft = (mutate: (draft: Draft) => void) => void
 
@@ -29,9 +31,13 @@ interface Props {
   readonly catalog: readonly PolicyBundle[]
   /** The bundles the configured lanes serve, or `null` while they are not known. */
   readonly bundles: readonly LaneBundle[] | null
+  /** The parameter space versions overrides are chosen from, or `null` while they are not known. */
+  readonly spaces: readonly ParameterSpace[] | null
+  /** The effective rules digest the service computed for each variant that has overrides, by variant. */
+  readonly rulesDigests: readonly (string | undefined)[]
 }
 
-export function ExperimentForm({ draft, edit, errors, catalog, bundles }: Props) {
+export function ExperimentForm({ draft, edit, errors, catalog, bundles, spaces, rulesDigests }: Props) {
   return (
     <div className="form-sections">
       <section aria-labelledby="general-heading">
@@ -44,7 +50,7 @@ export function ExperimentForm({ draft, edit, errors, catalog, bundles }: Props)
           onChange={(value) => edit((d) => void (d.name = value))}
         />
       </section>
-      <VariantsSection draft={draft} edit={edit} errors={errors} bundles={bundles} />
+      <VariantsSection draft={draft} edit={edit} errors={errors} bundles={bundles} spaces={spaces} rulesDigests={rulesDigests} />
       <ProvenanceSection draft={draft} errors={errors} />
       <PoliciesSection draft={draft} edit={edit} errors={errors} catalog={catalog} />
       <MatrixSection draft={draft} edit={edit} errors={errors} />
@@ -66,7 +72,7 @@ function variantBundleError(errors: FieldErrors, path: string): string | undefin
   )
 }
 
-function VariantsSection({ draft, edit, errors, bundles }: SectionProps & Pick<Props, 'bundles'>) {
+function VariantsSection({ draft, edit, errors, bundles, spaces, rulesDigests }: SectionProps & Pick<Props, 'bundles' | 'spaces' | 'rulesDigests'>) {
   const noLane = bundles !== null && bundles.length === 0
   return (
     <section aria-labelledby="variants-heading">
@@ -99,6 +105,16 @@ function VariantsSection({ draft, edit, errors, bundles }: SectionProps & Pick<P
               />
             )}
             {variant.bundle && <BundleFacts bundle={variant.bundle} />}
+            {variant.bundle && spaces !== null && spaceOf(spaces, variant.parameterSpaceVersion) !== null && (
+              <VariantOverrides
+                index={index}
+                variant={variant}
+                space={spaceOf(spaces, variant.parameterSpaceVersion)!}
+                edit={edit}
+                errors={errors}
+                rulesDigest={variant.overrides.length === 0 ? variant.bundle.effectiveRulesDigest : rulesDigests[index]}
+              />
+            )}
             {draft.variants.length > 1 && (
               <button type="button" onClick={() => edit((d) => void d.variants.splice(index, 1))}>
                 Remove variant {index + 1}

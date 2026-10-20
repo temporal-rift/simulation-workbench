@@ -35,6 +35,8 @@ public class SecurityConfig {
                                 "/api/v1/experiment-previews",
                                 "/api/v1/comparisons")
                         .hasAuthority(WRITE_SCOPE)
+                        .requestMatchers(HttpMethod.POST, "/api/v1/variant-rules-previews")
+                        .hasAuthority(READ_SCOPE)
                         .requestMatchers(HttpMethod.POST, "/api/v1/experiments/*/runs")
                         .hasAuthority(WRITE_SCOPE)
                         .requestMatchers(HttpMethod.POST, "/api/v1/runs/*/cancel", "/api/v1/runs/*/resume")

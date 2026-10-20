@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { READ_SCOPE, WRITE_SCOPE } from '../auth/scopes'
 import { FakeService, problem } from '../test/fakeService'
 import { experimentTemplates, laneBundles, manifest } from '../test/fixtures'
+import { gridValues } from './parameterSpace'
 import { renderApp } from '../test/renderApp'
 import { clearDraft, loadDraft, manifestToDraft, saveDraft } from './draft'
 
@@ -21,6 +22,96 @@ async function previewTheDraft(user: ReturnType<typeof userEvent.setup>) {
   await user.click(await screen.findByRole('button', { name: 'Preview matrix' }))
   await screen.findByRole('heading', { name: 'Matrix preview' })
 }
+
+describe('overriding parameters of a variant', () => {
+  const VARIANT_RULES = /^\/api\/v1\/variant-rules-previews$/
+  const threshold = 'game.rules.win-score-threshold'
+
+  async function addAnOverride(user: ReturnType<typeof userEvent.setup>) {
+    const buttons = await screen.findAllByRole('button', { name: 'Add override' })
+    await user.click(buttons[1]!)
+    return screen.findByRole('combobox', { name: 'Value of parameter 1' })
+  }
+
+  it('offers the parameters of the space with their baseline, range and step, and previews the rules on every change', async () => {
+    const user = userEvent.setup()
+    await renderApp('/experiments/new', service)
+
+    const value = await addAnOverride(user)
+
+    expect(screen.getByRole('combobox', { name: 'Parameter 1' })).toHaveValue(threshold)
+    expect(value).toHaveValue('20')
+    expect(value).toHaveAccessibleDescription('Baseline 20, from 16 to 26 in steps of 1.')
+    await user.clear(value)
+    await user.type(value, '22')
+    await waitFor(() => expect(screen.getByText('Rules digest of variant 2').nextElementSibling).not.toHaveTextContent('Checking'))
+    const previews = service.requests.filter((request) => VARIANT_RULES.test(request.path))
+    expect(previews.at(-1)?.body).toMatchObject({ parameterSpaceVersion: 1, overrides: { [threshold]: 22 } })
+  })
+
+  it('shows the digest of the rules a variant makes, and freezes the manifest carrying it', async () => {
+    const user = userEvent.setup()
+    await renderApp('/experiments/new', service)
+    const value = await addAnOverride(user)
+    await user.clear(value)
+    await user.type(value, '22')
+    const digest = await waitFor(() => {
+      const shown = screen.getByText('Rules digest of variant 2').nextElementSibling!.textContent!
+      expect(shown).toMatch(/^[a-f0-9]{64}$/)
+      return shown
+    })
+
+    await previewTheDraft(user)
+    await user.click(screen.getByRole('button', { name: 'Freeze this experiment…' }))
+    await user.click(screen.getByRole('button', { name: 'Confirm and freeze' }))
+
+    await screen.findByRole('heading', { name: 'threshold experiment' })
+    const sent = service.requests.filter((request) => request.method === 'POST' && EXPERIMENTS.test(request.path)).at(-1)!.body as {
+      variants: { effectiveRulesDigest: string; overrides?: Record<string, number>; parameterSpaceVersion?: number }[]
+    }
+    expect(sent.variants[1]).toMatchObject({ effectiveRulesDigest: digest, overrides: { [threshold]: 22 }, parameterSpaceVersion: 1 })
+    expect(digest).not.toBe(manifest().variants[1]!.effectiveRulesDigest)
+  })
+
+  it('shows the refusal on the row of an out-of-range value, and keeps the matrix from being previewed', async () => {
+    const user = userEvent.setup()
+    await renderApp('/experiments/new', service)
+    const value = await addAnOverride(user)
+
+    await user.clear(value)
+    await user.type(value, '27')
+
+    await waitFor(() => expect(value).toHaveAttribute('aria-invalid', 'true'))
+    expect(value).toHaveAccessibleDescription(/must be from 16 to 26: 27/)
+    await user.click(screen.getByRole('button', { name: 'Preview matrix' }))
+    expect(await screen.findByText('Fix the highlighted fields before previewing the matrix.')).toBeInTheDocument()
+    expect(service.count('POST', PREVIEWS)).toBe(0)
+  })
+
+  it('offers only values on the step grid and no parameter twice', async () => {
+    const user = userEvent.setup()
+    await renderApp('/experiments/new', service)
+    await addAnOverride(user)
+
+    const list = document.querySelector('datalist')!
+    expect([...list.querySelectorAll('option')].map((option) => option.getAttribute('value'))).toEqual(gridValues({ key: threshold, services: ['game-service'], baseline: 20, min: 16, max: 26, step: 1 }))
+    const parameter = screen.getByRole('combobox', { name: 'Parameter 1' })
+    await user.click(screen.getAllByRole('button', { name: 'Add override' })[1]!)
+    const options = within(await screen.findByRole('combobox', { name: 'Parameter 2' })).getAllByRole('option')
+    expect(options.map((option) => option.getAttribute('value'))).not.toContain((parameter as HTMLSelectElement).value)
+  })
+
+  it('removes an override and returns to the baseline digest', async () => {
+    const user = userEvent.setup()
+    await renderApp('/experiments/new', service)
+    await addAnOverride(user)
+
+    await user.click(screen.getByRole('button', { name: 'Remove override 1 of variant 2' }))
+
+    expect(screen.queryByRole('combobox', { name: 'Value of parameter 1' })).not.toBeInTheDocument()
+    expect(screen.getByText('Rules digest of variant 2').nextElementSibling).toHaveTextContent(manifest().variants[1]!.effectiveRulesDigest)
+  })
+})
 
 describe('configuring an experiment', () => {
   it('previews the matrix the service returns and freezes nothing', async () => {

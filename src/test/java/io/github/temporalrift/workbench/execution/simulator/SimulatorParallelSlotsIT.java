@@ -54,7 +54,7 @@ class SimulatorParallelSlotsIT {
 
     @Test
     void twoCasesPlayAtOnceInTheirOwnSlots() {
-        var run = play.start(ExperimentManifests.threePlayerSingleSet());
+        var run = play.start(SimulatorBuilds.served(ExperimentManifests.threePlayerSingleSet()));
 
         play.drain(run, 2);
 

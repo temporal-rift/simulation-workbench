@@ -29,10 +29,19 @@ export interface DraftBundle {
   contracts: Record<string, string>
 }
 
+/** One parameter the variant sets, with the value as typed so a half-edited number is kept. */
+export interface DraftOverride {
+  key: string
+  value: string
+}
+
 export interface DraftVariant {
   label: string
-  /** `null` until the designer selects the bundle this variant runs. */
+  /** `null` until the designer selects the bundle this variant runs; the bundle is the variant baseline. */
   bundle: DraftBundle | null
+  /** The parameter space the overrides are chosen from and validated against; `null` while there are none. */
+  parameterSpaceVersion: number | null
+  overrides: DraftOverride[]
 }
 
 export interface DraftPolicy {
@@ -64,7 +73,7 @@ export interface Draft {
 }
 
 export function emptyVariant(): DraftVariant {
-  return { label: '', bundle: null }
+  return { label: '', bundle: null, parameterSpaceVersion: null, overrides: [] }
 }
 
 export function emptyPolicy(): DraftPolicy {
@@ -146,6 +155,33 @@ export function isServed(bundle: DraftBundle, lanes: readonly LaneBundle[]): boo
   return lanes.some((lane) => sameBundle(bundleFromLane(lane), bundle))
 }
 
+/**
+ * The draft with each variant that carries overrides rebased onto the lane bundle it was copied from. A frozen variant
+ * with overrides states the digest of its effective rules, not that of its baseline, so it matches no lane until it is
+ * matched by the artifacts it names. Returns the same draft when nothing changes.
+ */
+export function alignToLanes(draft: Draft, lanes: readonly LaneBundle[]): Draft {
+  let changed = false
+  const variants = draft.variants.map((variant) => {
+    const bundle = variant.bundle
+    if (bundle === null || variant.overrides.length === 0 || isServed(bundle, lanes)) {
+      return variant
+    }
+    const baseline = lanes.find(
+      (lane) =>
+        lane.rulesArtifact.digest === bundle.rulesArtifact.digest &&
+        lane.contentArtifact.digest === bundle.contentArtifact.digest &&
+        lane.effectiveContentDigest === bundle.effectiveContentDigest,
+    )
+    if (baseline === undefined) {
+      return variant
+    }
+    changed = true
+    return { ...variant, bundle: bundleFromLane(baseline) }
+  })
+  return changed ? { ...draft, variants } : draft
+}
+
 function selectedBundles(draft: Draft): DraftBundle[] {
   return draft.variants.flatMap((variant) => (variant.bundle ? [variant.bundle] : []))
 }
@@ -207,17 +243,38 @@ function parsedParameters(text: string): Record<string, unknown> | null {
   }
 }
 
+/** The path a refusal of one override is reported at, so it leads to the row holding it. */
+export function overridePath(index: number, key: string): string {
+  return `variants[${index}].overrides.${key}`
+}
+
+/** A typed override value as a number, or `undefined` when it is not one. */
+export function overrideNumber(value: string): number | undefined {
+  const trimmed = value.trim()
+  const parsed = trimmed === '' ? Number.NaN : Number(trimmed)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
 /**
  * Problems found before sending: the parts of a draft that cannot be turned into a manifest at all, and, once the
- * lane bundles are known (`lanes` not `null`), a selected bundle no lane serves as selected.
+ * lane bundles are known (`lanes` not `null`), a selected bundle no lane serves as selected. `rulesDigests` holds, by
+ * variant, the effective rules digest the service computed for a variant that has overrides.
  */
-export function localProblems(draft: Draft, lanes: readonly LaneBundle[] | null): FieldErrors {
+export function localProblems(draft: Draft, lanes: readonly LaneBundle[] | null, rulesDigests: readonly (string | undefined)[] = []): FieldErrors {
   const problems: Record<string, string> = {}
   draft.variants.forEach((variant, index) => {
     if (variant.bundle === null) {
       problems[`variants[${index}]`] = 'Choose the bundle this variant runs.'
     } else if (lanes !== null && !isServed(variant.bundle, lanes)) {
       problems[`variants[${index}]`] = 'No configured lane serves this bundle as selected. Choose the bundle again.'
+    }
+    variant.overrides.forEach((override) => {
+      if (overrideNumber(override.value) === undefined) {
+        problems[overridePath(index, override.key)] = 'Enter a number.'
+      }
+    })
+    if (variant.overrides.length > 0 && variant.bundle !== null && rulesDigests[index] === undefined) {
+      problems[`variants[${index}].overrides`] = 'The rules of this variant are not known yet.'
     }
   })
   const incomparable = incomparableFields(draft)
@@ -244,18 +301,25 @@ function artifactOf(artifact: DraftArtifact) {
  * The manifest a draft stands for. Values that are not yet valid are carried as they are (a missing number is
  * left out, a non-number becomes `null`) so the service, which owns validation, reports them per field.
  */
-export function draftToManifest(draft: Draft): ExperimentManifest {
+export function draftToManifest(draft: Draft, rulesDigests: readonly (string | undefined)[] = []): ExperimentManifest {
   const pinned = pinnedProvenance(draft)
   const service = (name: ServiceName) => ({ ...(pinned?.services[name] ?? { imageDigest: '', sourceRevision: '' }) })
   const manifest = {
     schemaVersion: 1,
     name: draft.name.trim(),
-    variants: draft.variants.map((variant) => ({
+    variants: draft.variants.map((variant, index) => ({
       label: variant.label.trim(),
       rulesArtifact: artifactOf(variant.bundle?.rulesArtifact ?? { digest: '' }),
       contentArtifact: artifactOf(variant.bundle?.contentArtifact ?? { digest: '' }),
-      effectiveRulesDigest: variant.bundle?.effectiveRulesDigest ?? '',
+      // With overrides the digest is the one the service computed for the rules they make, never that of the baseline.
+      effectiveRulesDigest: (variant.overrides.length > 0 ? rulesDigests[index] : undefined) ?? variant.bundle?.effectiveRulesDigest ?? '',
       effectiveContentDigest: variant.bundle?.effectiveContentDigest ?? '',
+      ...(variant.overrides.length > 0
+        ? {
+            ...(variant.parameterSpaceVersion === null ? {} : { parameterSpaceVersion: variant.parameterSpaceVersion }),
+            overrides: Object.fromEntries(variant.overrides.map((override) => [override.key, overrideNumber(override.value) ?? null])),
+          }
+        : {}),
     })),
     services: { gameService: service('gameService'), timelineService: service('timelineService'), readService: service('readService') },
     contracts: { ...(pinned?.contracts ?? {}) },
@@ -285,6 +349,8 @@ export function manifestToDraft(manifest: ExperimentManifest): Draft {
     name: manifest.name,
     variants: manifest.variants.map((variant) => ({
       label: variant.label,
+      parameterSpaceVersion: variant.parameterSpaceVersion ?? null,
+      overrides: Object.entries(variant.overrides ?? {}).map(([key, value]) => ({ key, value: String(value) })),
       bundle: {
         rulesArtifact: { ...variant.rulesArtifact },
         contentArtifact: { ...variant.contentArtifact },
@@ -331,7 +397,7 @@ export function applyTemplate(draft: Draft, template: ExperimentTemplate, bundle
     name: draft.name,
     variants: Array.from({ length: template.variantCount }, (_, index) => {
       const bundle = bundles[index]
-      return { label: templateLabel(index, template.variantCount), bundle: bundle ? bundleFromLane(bundle) : null }
+      return { ...emptyVariant(), label: templateLabel(index, template.variantCount), bundle: bundle ? bundleFromLane(bundle) : null }
     }),
     policies: defaults.policies.map((policy) => ({
       id: policy.id,
@@ -395,7 +461,10 @@ export function loadDraft(): StoredDraft | null {
       return null
     }
     const stored = parsed as { draft: Partial<Draft>; basedOn?: StoredDraft['basedOn'] }
-    return { draft: { ...emptyDraft(), ...stored.draft }, basedOn: stored.basedOn ?? null }
+    const draft = { ...emptyDraft(), ...stored.draft }
+    // A draft kept before variants could carry overrides has none.
+    draft.variants = draft.variants.map((variant) => ({ ...emptyVariant(), ...variant }))
+    return { draft, basedOn: stored.basedOn ?? null }
   } catch {
     return null
   }

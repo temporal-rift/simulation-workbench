@@ -165,7 +165,7 @@ public class ScriptedLanes implements LaneProvider {
     @Override
     public List<ServedBundle> servedBundles() {
         return ServedBundle.counted(laneBundles.stream()
-                .map(bundle -> ServedBundle.ofLane(bundle, Provenances.sample()))
+                .map(bundle -> ServedBundle.ofLane(bundle, Provenances.of(bundle)))
                 .toList());
     }
 

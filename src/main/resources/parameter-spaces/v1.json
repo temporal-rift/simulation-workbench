@@ -1,0 +1,613 @@
+{
+  "version": 1,
+  "parameters": [
+    {
+      "key": "game.rules.win-score-threshold",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 20,
+      "min": 16,
+      "max": 26,
+      "step": 1
+    },
+    {
+      "key": "game.rules.victory.eraser-annihilations",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 4,
+      "min": 3,
+      "max": 5,
+      "step": 1
+    },
+    {
+      "key": "game.rules.victory.prophet-written-resolutions",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 4,
+      "min": 3,
+      "max": 5,
+      "step": 1
+    },
+    {
+      "key": "game.rules.victory.revisionist-successful-eras",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 3,
+      "min": 2,
+      "max": 4,
+      "step": 1
+    },
+    {
+      "key": "game.rules.victory.weaver-chain-length",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 3,
+      "min": 3,
+      "max": 4,
+      "step": 1
+    },
+    {
+      "key": "game.rules.victory.activist-consecutive-declarations",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 3,
+      "min": 2,
+      "max": 4,
+      "step": 1
+    },
+    {
+      "key": "game.rules.stabilization.prophet-written-resolutions",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 3,
+      "min": 2,
+      "max": 4,
+      "step": 1
+    },
+    {
+      "key": "game.rules.stabilization.weaver-active-chain-links",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 2,
+      "min": 1,
+      "max": 3,
+      "step": 1
+    },
+    {
+      "key": "game.rules.max-cascaded-paradoxes",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 3,
+      "min": 3,
+      "max": 4,
+      "step": 1
+    },
+    {
+      "key": "game.rules.cards-per-hand",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 5,
+      "min": 4,
+      "max": 6,
+      "step": 1
+    },
+    {
+      "key": "game.rules.cards-per-deal",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 7,
+      "min": 5,
+      "max": 9,
+      "step": 1
+    },
+    {
+      "key": "game.rules.seal-max-uses-per-game",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 2,
+      "min": 1,
+      "max": 3,
+      "step": 1
+    },
+    {
+      "key": "game.rules.card-category-weights.PROBABILITY_SHIFTER",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 35,
+      "min": 20,
+      "max": 50,
+      "step": 5
+    },
+    {
+      "key": "game.rules.card-category-weights.INFORMATION",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 25,
+      "min": 10,
+      "max": 40,
+      "step": 5
+    },
+    {
+      "key": "game.rules.card-category-weights.DISRUPTION",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 25,
+      "min": 10,
+      "max": 40,
+      "step": 5
+    },
+    {
+      "key": "game.rules.card-category-weights.PARADOX",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 15,
+      "min": 5,
+      "max": 30,
+      "step": 5
+    },
+    {
+      "key": "game.rules.card-grade-weights.I",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 60,
+      "min": 40,
+      "max": 80,
+      "step": 5
+    },
+    {
+      "key": "game.rules.card-grade-weights.II",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 30,
+      "min": 15,
+      "max": 45,
+      "step": 5
+    },
+    {
+      "key": "game.rules.card-grade-weights.III",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 10,
+      "min": 5,
+      "max": 20,
+      "step": 5
+    },
+    {
+      "key": "game.rules.probability.push-shift.I",
+      "services": [
+        "timeline-service"
+      ],
+      "baseline": 10,
+      "min": 5,
+      "max": 15,
+      "step": 5
+    },
+    {
+      "key": "game.rules.probability.push-shift.II",
+      "services": [
+        "timeline-service"
+      ],
+      "baseline": 20,
+      "min": 15,
+      "max": 25,
+      "step": 5
+    },
+    {
+      "key": "game.rules.probability.push-shift.III",
+      "services": [
+        "timeline-service"
+      ],
+      "baseline": 30,
+      "min": 25,
+      "max": 40,
+      "step": 5
+    },
+    {
+      "key": "game.rules.probability.swing-shift.I",
+      "services": [
+        "timeline-service"
+      ],
+      "baseline": 15,
+      "min": 10,
+      "max": 20,
+      "step": 5
+    },
+    {
+      "key": "game.rules.probability.swing-shift.II",
+      "services": [
+        "timeline-service"
+      ],
+      "baseline": 30,
+      "min": 25,
+      "max": 35,
+      "step": 5
+    },
+    {
+      "key": "game.rules.probability.swing-shift.III",
+      "services": [
+        "timeline-service"
+      ],
+      "baseline": 45,
+      "min": 40,
+      "max": 50,
+      "step": 5
+    },
+    {
+      "key": "game.rules.probability.amplify-multiplier.I",
+      "services": [
+        "timeline-service"
+      ],
+      "baseline": 1.5,
+      "min": 1.25,
+      "max": 1.75,
+      "step": 0.25
+    },
+    {
+      "key": "game.rules.probability.amplify-multiplier.II",
+      "services": [
+        "timeline-service"
+      ],
+      "baseline": 2,
+      "min": 1.75,
+      "max": 2.5,
+      "step": 0.25
+    },
+    {
+      "key": "game.rules.probability.amplify-multiplier.III",
+      "services": [
+        "timeline-service"
+      ],
+      "baseline": 3,
+      "min": 2.5,
+      "max": 3.5,
+      "step": 0.25
+    },
+    {
+      "key": "game.rules.probability.momentum-bonus",
+      "services": [
+        "timeline-service"
+      ],
+      "baseline": 10,
+      "min": 5,
+      "max": 15,
+      "step": 1
+    },
+    {
+      "key": "game.rules.probability.rally-multiplier",
+      "services": [
+        "timeline-service"
+      ],
+      "baseline": 1.5,
+      "min": 1.25,
+      "max": 2,
+      "step": 0.25
+    },
+    {
+      "key": "game.rules.probability.thread-shift",
+      "services": [
+        "timeline-service"
+      ],
+      "baseline": 10,
+      "min": 5,
+      "max": 15,
+      "step": 5
+    },
+    {
+      "key": "game.rules.scoring.score-deltas.ANNIHILATED_OUTCOME",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 3,
+      "min": 2,
+      "max": 4,
+      "step": 1
+    },
+    {
+      "key": "game.rules.scoring.score-deltas.CORRUPTED_OPPONENT_CARD",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 2,
+      "min": 1,
+      "max": 3,
+      "step": 1
+    },
+    {
+      "key": "game.rules.scoring.score-deltas.EVENT_RESOLVED_AS_WRITTEN",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 4,
+      "min": 3,
+      "max": 5,
+      "step": 1
+    },
+    {
+      "key": "game.rules.scoring.score-deltas.FULFILLMENT_SUCCEEDED",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 8,
+      "min": 6,
+      "max": 10,
+      "step": 1
+    },
+    {
+      "key": "game.rules.scoring.score-deltas.EVENT_RESOLVED_DIFFERENTLY_THAN_WRITTEN",
+      "services": [
+        "game-service"
+      ],
+      "baseline": -2,
+      "min": -4,
+      "max": -1,
+      "step": 1
+    },
+    {
+      "key": "game.rules.scoring.score-deltas.SECRET_OUTCOME_WON",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 4,
+      "min": 3,
+      "max": 5,
+      "step": 1
+    },
+    {
+      "key": "game.rules.scoring.score-deltas.MIMIC_NEVER_TRACED",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 6,
+      "min": 4,
+      "max": 8,
+      "step": 1
+    },
+    {
+      "key": "game.rules.scoring.score-deltas.MIMIC_CONTRIBUTED_TO_WIN",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 2,
+      "min": 1,
+      "max": 3,
+      "step": 1
+    },
+    {
+      "key": "game.rules.scoring.score-deltas.CHAIN_LINK_ADDED",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 2,
+      "min": 1,
+      "max": 3,
+      "step": 1
+    },
+    {
+      "key": "game.rules.scoring.score-deltas.CHAIN_COMPLETED",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 10,
+      "min": 8,
+      "max": 12,
+      "step": 1
+    },
+    {
+      "key": "game.rules.scoring.score-deltas.CHAIN_BROKEN",
+      "services": [
+        "game-service"
+      ],
+      "baseline": -3,
+      "min": -5,
+      "max": -1,
+      "step": 1
+    },
+    {
+      "key": "game.rules.scoring.score-deltas.DECLARED_OUTCOME_WON_WITH_RALLY",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 6,
+      "min": 5,
+      "max": 8,
+      "step": 1
+    },
+    {
+      "key": "game.rules.scoring.score-deltas.DECLARED_OUTCOME_WON",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 5,
+      "min": 4,
+      "max": 6,
+      "step": 1
+    },
+    {
+      "key": "game.rules.scoring.score-deltas.EXPOSE_SIGNATURE_REVEALED",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 2,
+      "min": 1,
+      "max": 3,
+      "step": 1
+    },
+    {
+      "key": "game.rules.scoring.score-deltas.PARADOX_CASCADE_PENALTY",
+      "services": [
+        "game-service"
+      ],
+      "baseline": -2,
+      "min": -4,
+      "max": -1,
+      "step": 1
+    }
+  ],
+  "derived": [
+    {
+      "key": "game.rules.probability.suppress-shift.I",
+      "from": "game.rules.probability.push-shift.I",
+      "factor": -1
+    },
+    {
+      "key": "game.rules.probability.suppress-shift.II",
+      "from": "game.rules.probability.push-shift.II",
+      "factor": -1
+    },
+    {
+      "key": "game.rules.probability.suppress-shift.III",
+      "from": "game.rules.probability.push-shift.III",
+      "factor": -1
+    },
+    {
+      "key": "game.rules.scoring.score-deltas.EXPOSE_CHANGED_PLAYER_BEHAVIOR",
+      "from": "game.rules.scoring.score-deltas.EXPOSE_SIGNATURE_REVEALED",
+      "factor": 1
+    }
+  ],
+  "constraints": [
+    {
+      "id": "C-01",
+      "expression": "game.rules.victory.eraser-annihilations * game.rules.scoring.score-deltas.ANNIHILATED_OUTCOME < game.rules.win-score-threshold",
+      "description": "V(eraser-annihilations) × S(ANNIHILATED_OUTCOME) < T"
+    },
+    {
+      "id": "C-02",
+      "expression": "game.rules.victory.prophet-written-resolutions * game.rules.scoring.score-deltas.EVENT_RESOLVED_AS_WRITTEN < game.rules.win-score-threshold",
+      "description": "V(prophet-written-resolutions) × S(EVENT_RESOLVED_AS_WRITTEN) < T"
+    },
+    {
+      "id": "C-03",
+      "expression": "game.rules.victory.revisionist-successful-eras * game.rules.scoring.score-deltas.SECRET_OUTCOME_WON < game.rules.win-score-threshold",
+      "description": "V(revisionist-successful-eras) × S(SECRET_OUTCOME_WON) < T"
+    },
+    {
+      "id": "C-04",
+      "expression": "game.rules.victory.weaver-chain-length * game.rules.scoring.score-deltas.CHAIN_LINK_ADDED + game.rules.scoring.score-deltas.CHAIN_COMPLETED < game.rules.win-score-threshold",
+      "description": "V(weaver-chain-length) × S(CHAIN_LINK_ADDED) + S(CHAIN_COMPLETED) < T"
+    },
+    {
+      "id": "C-05",
+      "expression": "game.rules.victory.activist-consecutive-declarations * max(game.rules.scoring.score-deltas.DECLARED_OUTCOME_WON_WITH_RALLY, game.rules.scoring.score-deltas.DECLARED_OUTCOME_WON) < game.rules.win-score-threshold",
+      "description": "V(activist-consecutive-declarations) × max(S(DECLARED_OUTCOME_WON_WITH_RALLY), S(DECLARED_OUTCOME_WON)) < T"
+    },
+    {
+      "id": "C-06",
+      "expression": "game.rules.stabilization.prophet-written-resolutions < game.rules.victory.prophet-written-resolutions",
+      "description": "game.rules.stabilization.prophet-written-resolutions < V(prophet-written-resolutions)"
+    },
+    {
+      "id": "C-07",
+      "expression": "game.rules.stabilization.weaver-active-chain-links < game.rules.victory.weaver-chain-length",
+      "description": "game.rules.stabilization.weaver-active-chain-links < V(weaver-chain-length)"
+    },
+    {
+      "id": "C-08",
+      "expression": "game.rules.cards-per-hand < game.rules.cards-per-deal <= game.rules.cards-per-hand + 3",
+      "description": "cards-per-hand < cards-per-deal ≤ cards-per-hand + 3"
+    },
+    {
+      "id": "C-09",
+      "expression": "game.rules.probability.suppress-shift.I == -1 * game.rules.probability.push-shift.I and game.rules.probability.suppress-shift.II == -1 * game.rules.probability.push-shift.II and game.rules.probability.suppress-shift.III == -1 * game.rules.probability.push-shift.III",
+      "description": "suppress-shift.g = -push-shift.g for each grade g"
+    },
+    {
+      "id": "C-10",
+      "expression": "game.rules.probability.push-shift.I < game.rules.probability.push-shift.II < game.rules.probability.push-shift.III and game.rules.probability.swing-shift.I < game.rules.probability.swing-shift.II < game.rules.probability.swing-shift.III and game.rules.probability.amplify-multiplier.I < game.rules.probability.amplify-multiplier.II < game.rules.probability.amplify-multiplier.III",
+      "description": "push-shift.I < push-shift.II < push-shift.III, and the same for swing-shift and amplify-multiplier"
+    },
+    {
+      "id": "C-11",
+      "expression": "game.rules.card-category-weights.PROBABILITY_SHIFTER + game.rules.card-category-weights.INFORMATION + game.rules.card-category-weights.DISRUPTION + game.rules.card-category-weights.PARADOX == 100",
+      "description": "The four card-category-weights sum to 100"
+    },
+    {
+      "id": "C-12",
+      "expression": "game.rules.card-grade-weights.I + game.rules.card-grade-weights.II + game.rules.card-grade-weights.III == 100 and game.rules.card-grade-weights.I > game.rules.card-grade-weights.II > game.rules.card-grade-weights.III",
+      "description": "The three card-grade-weights sum to 100, and I > II > III"
+    },
+    {
+      "id": "C-13",
+      "expression": "game.rules.scoring.score-deltas.DECLARED_OUTCOME_WON_WITH_RALLY > game.rules.scoring.score-deltas.DECLARED_OUTCOME_WON",
+      "description": "S(DECLARED_OUTCOME_WON_WITH_RALLY) > S(DECLARED_OUTCOME_WON)"
+    },
+    {
+      "id": "C-14",
+      "expression": "game.rules.probability.amplify-multiplier.I > 1 and game.rules.probability.amplify-multiplier.II > 1 and game.rules.probability.amplify-multiplier.III > 1 and game.rules.probability.rally-multiplier > 1 and game.rules.probability.push-shift.I > 0 and game.rules.probability.push-shift.II > 0 and game.rules.probability.push-shift.III > 0 and game.rules.probability.swing-shift.I > 0 and game.rules.probability.swing-shift.II > 0 and game.rules.probability.swing-shift.III > 0 and game.rules.probability.suppress-shift.I < 0 and game.rules.probability.suppress-shift.II < 0 and game.rules.probability.suppress-shift.III < 0 and game.rules.cards-per-hand <= game.rules.cards-per-deal and max(game.rules.probability.push-shift.III, game.rules.probability.swing-shift.III) * game.rules.probability.amplify-multiplier.III * game.rules.probability.rally-multiplier < 2147483647",
+      "description": "Every value satisfies the binding code's validation (amplify and Rally multipliers above 1.0, Push and Swing positive, Suppress negative, cards-per-deal ≥ cards-per-hand, no boosted-magnitude overflow)"
+    }
+  ],
+  "heldFixed": [
+    {
+      "key": "game.rules.max-eras",
+      "reason": "The five-era arc is the structure duration targets are written against (criterion D-05); era 5 has its own rules"
+    },
+    {
+      "key": "game.rules.events-per-era",
+      "reason": "Fixes how many events an era resolves; with max-eras it sizes the event deck (criterion G-03)"
+    },
+    {
+      "key": "game.rules.min-players",
+      "reason": "The case matrix covers exactly these player counts"
+    },
+    {
+      "key": "game.rules.max-players",
+      "reason": "The case matrix covers exactly these player counts"
+    },
+    {
+      "key": "game.rules.once-era-budgeted-specials",
+      "reason": "Which specials carry a budget is a rule choice per special, not a numeric dial; a set-valued search would mostly play rule variants design has not proposed"
+    },
+    {
+      "key": "game.rules.hand-deal-forced-types",
+      "reason": "Forces card types into deals for scripted tests; not a gameplay rule"
+    },
+    {
+      "key": "game.rules.probability.floor",
+      "reason": "Clamping bounds of every outcome; code couples them (floor + 2 × ceiling ≥ 100, 2 × floor + ceiling ≤ 100), and changing them reshapes every card's effect at once"
+    },
+    {
+      "key": "game.rules.probability.ceiling",
+      "reason": "Clamping bounds of every outcome; code couples them (floor + 2 × ceiling ≥ 100, 2 × floor + ceiling ≤ 100), and changing them reshapes every card's effect at once"
+    },
+    {
+      "key": "game.rules.probability.band-low-max",
+      "reason": "Define the public probability bands, an information rule rather than a balance dial"
+    },
+    {
+      "key": "game.rules.probability.band-medium-max",
+      "reason": "Define the public probability bands, an information rule rather than a balance dial"
+    },
+    {
+      "key": "Every timer (action-round-timer-seconds, hand-selection-timer-seconds, declaration-timer-seconds, paradox-resolution-timer-seconds, reconnect-grace-period-seconds)",
+      "reason": "Simulations run in logical time and bots act in every window, so durations do not change outcomes"
+    },
+    {
+      "key": "Win threshold per player count",
+      "reason": "win-score-threshold is one value for every player count. Version 1 searches it as one value. Making it per player count needs a code change in game-service, worth it only if the search shows the best threshold differs by player count"
+    },
+    {
+      "key": "Event content (the future-event catalog)",
+      "reason": "Content, not rules: it changes the content digest, and the search varies rules only"
+    }
+  ]
+}

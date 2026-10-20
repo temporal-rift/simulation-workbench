@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -79,7 +80,18 @@ class ExperimentCatalogQueryHandlerTest {
         return new ExperimentCatalogQueryHandler(
                 new ExperimentRepository() {
                     @Override
-                    public void save(UUID id, String digest, String json, String name, Instant createdAt) {
+                    public void save(
+                            UUID id,
+                            String digest,
+                            String json,
+                            String name,
+                            Instant createdAt,
+                            Map<String, String> baselineDocuments) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public Optional<String> findBaselineDocument(UUID experimentId, String rulesArtifactDigest) {
                         throw new UnsupportedOperationException();
                     }
 
