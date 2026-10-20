@@ -77,7 +77,9 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.Sleeper;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.metrics.MicrometerAttemptTimings;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.policy.DecisionRuntimeAdapter;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.rules.ConfiguredBaselineRules;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.simulator.SimulatorLanePool;
+import io.github.temporalrift.workbench.experiment.BaselineRulesCatalog;
 import io.github.temporalrift.workbench.experiment.ExperimentCatalog;
 import io.github.temporalrift.workbench.experiment.LaneBundleCatalog;
 import io.github.temporalrift.workbench.policy.PolicyRuntime;
@@ -104,6 +106,26 @@ public class ExecutionConfiguration {
             properties.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, consumer.getSecurityProtocol());
         }
         return properties;
+    }
+
+    /** The baseline documents the lanes and the simulator declare, checked against their declared digests. */
+    @Bean
+    BaselineRulesCatalog baselineRulesCatalog(
+            ExecutionProperties properties, SimulatorProperties simulator, ObjectMapper objectMapper) {
+        var declarations = new ArrayList<ConfiguredBaselineRules.Declaration>();
+        properties
+                .lanes()
+                .forEach(lane -> declarations.add(new ConfiguredBaselineRules.Declaration(
+                        lane.scope(), lane.rulesArtifactDigest(), lane.rulesDigest(), lane.rulesDocument())));
+        if (simulator.enabled()) {
+            var bundle = simulator.bundle();
+            declarations.add(new ConfiguredBaselineRules.Declaration(
+                    "workbench.simulator.bundle.",
+                    bundle.rulesArtifactDigest(),
+                    bundle.rulesDigest(),
+                    bundle.rulesDocument()));
+        }
+        return new ConfiguredBaselineRules(declarations, objectMapper);
     }
 
     @Bean

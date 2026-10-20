@@ -109,7 +109,8 @@ class SimulatorCapacityIT {
 
     /** {@code count} consecutive seeds from {@code first} of one three-player faction set, one policy, one variant. */
     private ObjectNode workload(int first, int count) {
-        var manifest = (ObjectNode) ExperimentManifests.threePlayerSingleSet().deepCopy();
+        var manifest = (ObjectNode) SimulatorBuilds.served(ExperimentManifests.threePlayerSingleSet())
+                .deepCopy();
         var values = manifest.arrayNode();
         IntStream.range(first, first + count).forEach(seed -> values.add(String.valueOf(seed)));
         manifest.set("seeds", values);

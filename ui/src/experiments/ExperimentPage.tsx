@@ -85,6 +85,7 @@ function FrozenExperiment({ experiment }: { readonly experiment: Experiment }) {
         <thead>
           <tr>
             <th scope="col">Label</th>
+            <th scope="col">Overrides</th>
             <th scope="col">Effective rules digest</th>
             <th scope="col">Effective content digest</th>
           </tr>
@@ -93,6 +94,19 @@ function FrozenExperiment({ experiment }: { readonly experiment: Experiment }) {
           {manifest.variants.map((variant) => (
             <tr key={variant.label}>
               <th scope="row">{variant.label}</th>
+              <td>
+                {Object.keys(variant.overrides ?? {}).length === 0 ? (
+                  'None'
+                ) : (
+                  <ul>
+                    {Object.entries(variant.overrides ?? {}).map(([key, value]) => (
+                      <li key={key}>
+                        <code>{key}</code> = {value}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </td>
               <td>
                 <code>{variant.effectiveRulesDigest}</code>
               </td>

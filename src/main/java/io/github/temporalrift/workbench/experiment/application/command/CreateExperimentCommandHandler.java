@@ -17,6 +17,7 @@ import io.github.temporalrift.workbench.experiment.domain.ManifestDigest;
 import io.github.temporalrift.workbench.experiment.domain.port.out.ExperimentRepository;
 import io.github.temporalrift.workbench.experiment.domain.port.out.IdempotencyStore;
 import io.github.temporalrift.workbench.experiment.domain.port.out.PolicyReferenceVerifier;
+import io.github.temporalrift.workbench.experiment.domain.rules.VariantRules;
 
 /**
  * Validates, digests, and freezes an experiment exactly once per idempotency key. A repeated key
@@ -28,16 +29,19 @@ public class CreateExperimentCommandHandler implements CreateExperimentUseCase {
     private final IdempotencyStore idempotency;
     private final Clock clock;
     private final PolicyReferenceVerifier policyVerifier;
+    private final VariantRules variantRules;
 
     public CreateExperimentCommandHandler(
             ExperimentRepository experiments,
             IdempotencyStore idempotency,
             Clock clock,
-            PolicyReferenceVerifier policyVerifier) {
+            PolicyReferenceVerifier policyVerifier,
+            VariantRules variantRules) {
         this.experiments = experiments;
         this.idempotency = idempotency;
         this.clock = clock;
         this.policyVerifier = policyVerifier;
+        this.variantRules = variantRules;
     }
 
     @Override
@@ -46,7 +50,8 @@ public class CreateExperimentCommandHandler implements CreateExperimentUseCase {
             throw new IllegalArgumentException("Idempotency-Key is required");
         }
         var view = ExperimentValidator.validate(command.manifest(), policyVerifier);
-        var digest = ManifestDigest.sha256Hex(command.manifest());
+        var frozen = variantRules.freeze(command.manifest());
+        var digest = ManifestDigest.sha256Hex(frozen.manifest());
         var requestHash = requestHash(command.idempotencyKey(), digest);
         var existing = idempotency.findByKey(command.idempotencyKey());
         if (existing.isPresent()) {
@@ -57,12 +62,12 @@ public class CreateExperimentCommandHandler implements CreateExperimentUseCase {
         }
         var experimentId = UUID.randomUUID();
         var createdAt = Instant.now(clock);
-        var manifestJson = command.manifest().toString();
+        var manifestJson = frozen.manifest().toString();
         // The claim references the experiment row, so the experiment is saved first and the key
         // is claimed with an insert-if-absent: a racing request loses the insert and recovers by
         // re-reading the winning claim. Each repository call runs in its own transaction (the
         // controller is not transactional).
-        experiments.save(experimentId, digest, manifestJson, view.name(), createdAt);
+        experiments.save(experimentId, digest, manifestJson, view.name(), createdAt, frozen.baselineDocuments());
         if (idempotency.saveIfAbsent(command.idempotencyKey(), requestHash, experimentId, createdAt)) {
             return stored(experimentId);
         }

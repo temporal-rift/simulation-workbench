@@ -2,6 +2,7 @@ package io.github.temporalrift.workbench.execution.infrastructure.config;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
@@ -84,6 +85,8 @@ public record ExecutionProperties(
      * One isolated lane, the identities that play in it, and the frozen bundle it serves: its effective rules and
      * content digests and the provenance the deployment that provisioned it declares.
      *
+     * @param rulesDocument the lane's baseline {@code EffectiveRules} document; its digest must equal {@code
+     *     rulesDigest}
      * @param rulesArtifactName the rules artifact's name, or {@code null} when the deployment names none
      * @param contentArtifactName the content artifact's name, or {@code null} when the deployment names none
      * @param contracts exact versions keyed by contract module name
@@ -97,6 +100,7 @@ public record ExecutionProperties(
             String readServiceUrl,
             String operatorToken,
             String rulesDigest,
+            Path rulesDocument,
             String contentDigest,
             String rulesArtifactDigest,
             String rulesArtifactName,
@@ -115,6 +119,7 @@ public record ExecutionProperties(
         public Lane {
             var scope = scope(id);
             BundleChecks.digest(scope, "rules-digest", rulesDigest);
+            BundleChecks.document(scope, "rules-document", rulesDocument);
             BundleChecks.digest(scope, "content-digest", contentDigest);
             BundleChecks.digest(scope, "rules-artifact-digest", rulesArtifactDigest);
             BundleChecks.digest(scope, "content-artifact-digest", contentArtifactDigest);
@@ -184,6 +189,11 @@ public record ExecutionProperties(
                         "must be sha256: followed by 64 lowercase hex characters");
                 BundleChecks.sourceRevision(scope, prefix + "source-revision", revision);
             });
+        }
+
+        /** The property prefix naming this lane in a startup failure. */
+        public String scope() {
+            return scope(id);
         }
 
         private static String scope(String laneId) {

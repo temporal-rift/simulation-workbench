@@ -33,6 +33,8 @@ public final class ExperimentValidator {
     private static final String SERVICES_PREFIX = "services.";
     private static final String SCHEMA_VERSION_FIELD = "schemaVersion";
     private static final String LABEL_FIELD = "label";
+    private static final String OVERRIDES_FIELD = "overrides";
+    private static final String PARAMETER_SPACE_VERSION_FIELD = "parameterSpaceVersion";
     private static final String SEAT_INDEX_FIELD = "seatIndex";
     private static final String POLICY_ID_FIELD = "policyId";
     private static final String POLICY_VERSION_FIELD = "policyVersion";
@@ -112,8 +114,33 @@ public final class ExperimentValidator {
             artifact(variant.get("contentArtifact"), path + "contentArtifact");
             digest(text(variant, "effectiveRulesDigest"), path + "effectiveRulesDigest");
             digest(text(variant, "effectiveContentDigest"), path + "effectiveContentDigest");
+            validateOverrides(variant, path);
         }
         return List.copyOf(labels);
+    }
+
+    private static void validateOverrides(JsonNode variant, String path) {
+        var overrides = variant.get(OVERRIDES_FIELD);
+        var version = variant.get(PARAMETER_SPACE_VERSION_FIELD);
+        if (version != null && (!version.isIntegralNumber() || version.asInt() < 1)) {
+            throw invalid(
+                    path + PARAMETER_SPACE_VERSION_FIELD, "parameterSpaceVersion must be an integer of at least 1");
+        }
+        if (overrides == null) {
+            return;
+        }
+        if (!overrides.isObject()) {
+            throw invalid(path + OVERRIDES_FIELD, "overrides must be an object of numbers keyed by parameter");
+        }
+        for (var entry : overrides.properties()) {
+            if (!entry.getValue().isNumber()) {
+                throw invalid(path + OVERRIDES_FIELD + "." + entry.getKey(), "an override must be a number");
+            }
+        }
+        if (!overrides.isEmpty() && version == null) {
+            throw invalid(
+                    path + PARAMETER_SPACE_VERSION_FIELD, "parameterSpaceVersion is required when overrides are set");
+        }
     }
 
     private static void artifact(JsonNode artifact, String field) {

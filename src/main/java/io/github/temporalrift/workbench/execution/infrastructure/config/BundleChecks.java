@@ -1,5 +1,6 @@
 package io.github.temporalrift.workbench.execution.infrastructure.config;
 
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Map;
 import java.util.SortedMap;
@@ -21,6 +22,12 @@ final class BundleChecks {
 
     static void sourceRevision(String scope, String key, String value) {
         require(scope, key, value, ManifestFormat.isSourceRevision(value), "must be 7 to 64 lowercase hex characters");
+    }
+
+    static void document(String scope, String key, Path value) {
+        if (value == null) {
+            throw new IllegalArgumentException(scope + key + " is required");
+        }
     }
 
     static void name(String scope, String key, String value) {

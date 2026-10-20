@@ -55,6 +55,7 @@ class SimulatorPropertiesTest {
     @ValueSource(
             strings = {
                 "rules-digest",
+                "rules-document",
                 "content-digest",
                 "rules-artifact-digest",
                 "content-artifact-digest",
@@ -101,6 +102,7 @@ class SimulatorPropertiesTest {
         values.put(PREFIX + "read-service-jar", "read.jar");
         values.put(PREFIX + "rules-file", "rules.yml");
         values.put(PREFIX + "bundle.rules-digest", "a".repeat(64));
+        values.put(PREFIX + "bundle.rules-document", "effective-rules.json");
         values.put(PREFIX + "bundle.content-digest", "b".repeat(64));
         values.put(PREFIX + "bundle.rules-artifact-digest", "c".repeat(64));
         values.put(PREFIX + "bundle.content-artifact-digest", "d".repeat(64));

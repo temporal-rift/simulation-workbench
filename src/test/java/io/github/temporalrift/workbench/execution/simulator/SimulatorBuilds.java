@@ -5,6 +5,10 @@ import java.util.Arrays;
 import java.util.regex.Pattern;
 
 import org.springframework.test.context.DynamicPropertyRegistry;
+import tools.jackson.databind.JsonNode;
+
+import io.github.temporalrift.workbench.experiment.ExperimentManifests;
+import io.github.temporalrift.workbench.experiment.VariantRulesFixtures;
 
 /**
  * The builds the real-service simulator tests host. {@value #DIRECTORY_PROPERTY} names a directory holding the
@@ -16,10 +20,11 @@ public final class SimulatorBuilds {
 
     public static final String DIRECTORY_PROPERTY = "simulator.builds";
     public static final String REVISIONS_PROPERTY = "simulator.revisions";
-    static final String RULES_DIGEST = "a".repeat(64);
+    static final String RULES_DIGEST = VariantRulesFixtures.baseline().digest();
     static final String CONTENT_DIGEST = "b".repeat(64);
 
     private static final Path RULES = Path.of("src/test/resources/simulator/baseline-rules.yml");
+    private static final Path RULES_DOCUMENT = Path.of("src/test/resources/rules/baseline-effective-rules.json");
     private static final String PLACEHOLDER_REVISIONS = "0000000,0000000,0000000";
     private static final Pattern REVISION = Pattern.compile("[0-9a-f]{7,64}");
 
@@ -37,6 +42,16 @@ public final class SimulatorBuilds {
     /** The game configuration every service of a slot plays under. */
     public static Path rules() {
         return RULES.toAbsolutePath();
+    }
+
+    /** The baseline {@code EffectiveRules} document of {@link #rules()}, whose digest is {@link #RULES_DIGEST}. */
+    public static Path rulesDocument() {
+        return RULES_DOCUMENT.toAbsolutePath();
+    }
+
+    /** The manifest with its variants naming the bundle the simulator serves. */
+    public static JsonNode served(JsonNode manifest) {
+        return ExperimentManifests.servedBy(manifest, RULES_DIGEST, CONTENT_DIGEST);
     }
 
     /** The source revisions of the game, timeline and read services. */
@@ -63,8 +78,9 @@ public final class SimulatorBuilds {
         registry.add("workbench.simulator.rules-file", SimulatorBuilds::rules);
         registry.add("workbench.simulator.bots", () -> bots);
         registry.add("workbench.simulator.bundle.rules-digest", () -> RULES_DIGEST);
+        registry.add("workbench.simulator.bundle.rules-document", SimulatorBuilds::rulesDocument);
         registry.add("workbench.simulator.bundle.content-digest", () -> CONTENT_DIGEST);
-        registry.add("workbench.simulator.bundle.rules-artifact-digest", () -> "c".repeat(64));
+        registry.add("workbench.simulator.bundle.rules-artifact-digest", () -> "7".repeat(64));
         registry.add("workbench.simulator.bundle.content-artifact-digest", () -> "d".repeat(64));
         registry.add("workbench.simulator.bundle.source-revisions.game-service", () -> revisions[0]);
         registry.add("workbench.simulator.bundle.source-revisions.timeline-service", () -> revisions[1]);

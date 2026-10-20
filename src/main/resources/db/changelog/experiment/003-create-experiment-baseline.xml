@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+  <changeSet id="003-create-experiment-baseline" author="simulation-workbench">
+    <createTable tableName="experiment_baseline">
+      <column name="experiment_id" type="UUID">
+        <constraints nullable="false" foreignKeyName="fk_experiment_baseline_experiment" references="experiment(experiment_id)" deleteCascade="true"/>
+      </column>
+      <column name="rules_artifact_digest" type="VARCHAR(64)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="document" type="TEXT">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <addPrimaryKey tableName="experiment_baseline" columnNames="experiment_id, rules_artifact_digest" constraintName="pk_experiment_baseline"/>
+  </changeSet>
+
+</databaseChangeLog>

@@ -54,7 +54,7 @@ class SimulatorLaneIT {
 
     @Test
     void aThreePlayerCaseWithSeedFortyTwoEndsAuthoritativelyAndPlaysTheSameTwice() {
-        var manifest = ExperimentManifests.threePlayerSingleSet();
+        var manifest = SimulatorBuilds.served(ExperimentManifests.threePlayerSingleSet());
 
         var first = play.start(manifest);
         play.drain(first, 1);

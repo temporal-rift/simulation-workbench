@@ -13,9 +13,10 @@
     <!-- Infrastructure (Spring Modulith) -->
     <include file="db/changelog/infrastructure/001-create-event-publication.xml"/>
 
-    <!-- Experiment module: frozen manifests and idempotency claims -->
+    <!-- Experiment module: frozen manifests, idempotency claims and retained baseline rules documents -->
     <include file="db/changelog/experiment/001-create-experiment.xml"/>
     <include file="db/changelog/experiment/002-create-idempotency-key.xml"/>
+    <include file="db/changelog/experiment/003-create-experiment-baseline.xml"/>
 
     <!-- Execution module: runs, logical cases, attempts with leases, command ledger, run idempotency, retained evidence and reproductions -->
     <include file="db/changelog/execution/001-create-run.xml"/>

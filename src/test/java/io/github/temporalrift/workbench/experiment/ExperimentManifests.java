@@ -94,6 +94,16 @@ public final class ExperimentManifests {
         return manifest;
     }
 
+    /** The manifest with every variant naming the given effective digests, as a lane serving them would. */
+    public static JsonNode servedBy(JsonNode manifest, String rulesDigest, String contentDigest) {
+        var served = (ObjectNode) manifest.deepCopy();
+        served.get("variants").forEach(variant -> {
+            ((ObjectNode) variant).put("effectiveRulesDigest", rulesDigest);
+            ((ObjectNode) variant).put("effectiveContentDigest", contentDigest);
+        });
+        return served;
+    }
+
     /** One seed of three players in a single faction set: three cases, one per rotation. */
     public static JsonNode threePlayerSingleSet() {
         var manifest = (ObjectNode) singleSeedSinglePolicySingleVariant().deepCopy();
@@ -151,7 +161,8 @@ public final class ExperimentManifests {
         return set;
     }
 
-    private static ObjectNode variant(String label, String rulesDigest, String contentDigest) {
+    /** A variant whose rules artifact is {@link VariantRulesFixtures#ARTIFACT_DIGEST}. */
+    public static ObjectNode variant(String label, String rulesDigest, String contentDigest) {
         var variant = MAPPER.createObjectNode();
         variant.put("label", label);
         variant.set("rulesArtifact", artifact("c".repeat(64)));

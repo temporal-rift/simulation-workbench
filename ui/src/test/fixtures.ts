@@ -1,4 +1,4 @@
-import type { BalanceCriterion, Case, Comparison, EvaluatedLine, Experiment, ExperimentManifest, ExperimentPreview, ExperimentTemplate, LaneBundle, Metric, PolicyBundle, ReplayStep, Report, Run, RunEvaluation } from '../api/generated'
+import type { BalanceCriterion, Case, Comparison, EvaluatedLine, Experiment, ExperimentManifest, ExperimentPreview, ExperimentTemplate, LaneBundle, Metric, ParameterSpace, PolicyBundle, ReplayStep, Report, Run, RunEvaluation } from '../api/generated'
 
 export const IDS = {
   experiment: '6f3f2a52-4f0a-4c69-9a39-2a8f0e2b9d11',
@@ -67,6 +67,21 @@ export const policyCatalog: PolicyBundle[] = [
 ]
 
 /** The bundles the lanes serve: the fixture manifest's baseline and candidate variants, in digest order. */
+/** A small parameter space: two whole-number parameters, one in quarter steps, and a value derived from one of them. */
+export function parameterSpace(): ParameterSpace {
+  return {
+    version: 1,
+    parameters: [
+      { key: 'game.rules.win-score-threshold', services: ['game-service'], baseline: 20, min: 16, max: 26, step: 1 },
+      { key: 'game.rules.probability.push-shift.II', services: ['timeline-service'], baseline: 20, min: 15, max: 25, step: 5 },
+      { key: 'game.rules.probability.amplify-multiplier.II', services: ['timeline-service'], baseline: 2, min: 1.75, max: 2.5, step: 0.25 },
+    ],
+    derived: [{ key: 'game.rules.probability.suppress-shift.II', from: 'game.rules.probability.push-shift.II', factor: -1 }],
+    constraints: [{ id: 'C-10', expression: 'a < b', description: 'Grade II brackets the other grades' }],
+    heldFixed: [{ key: 'game.rules.max-eras', reason: 'The five-era arc is the structure duration targets are written against' }],
+  }
+}
+
 export function laneBundles(): LaneBundle[] {
   const { variants, services, contracts } = manifest()
   return variants.map((variant, index) => ({

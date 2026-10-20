@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { experimentTemplates, laneBundles, manifest } from '../test/fixtures'
 import {
   BUNDLES_FIELD,
+  alignToLanes,
   applyTemplate,
   bundleFromLane,
   clearDraft,
@@ -129,6 +130,88 @@ describe('the draft and its manifest', () => {
     edited.name = 'renamed'
 
     expect(fingerprint(draftToManifest(edited))).not.toBe(before)
+  })
+})
+
+describe('variant overrides', () => {
+  const threshold = 'game.rules.win-score-threshold'
+  const withOverrides = () => {
+    const draft = manifestToDraft(manifest())
+    draft.variants[1]!.parameterSpaceVersion = 1
+    draft.variants[1]!.overrides = [{ key: threshold, value: '22' }]
+    return draft
+  }
+
+  it('sends the overrides and the digest the service computed for them, not the baseline digest', () => {
+    const sent = draftToManifest(withOverrides(), [undefined, 'f'.repeat(64)])
+
+    expect(sent.variants[1]).toMatchObject({ parameterSpaceVersion: 1, overrides: { [threshold]: 22 }, effectiveRulesDigest: 'f'.repeat(64) })
+    expect(sent.variants[0]).not.toHaveProperty('overrides')
+    expect(sent.variants[0]!.effectiveRulesDigest).toBe(manifest().variants[0]!.effectiveRulesDigest)
+  })
+
+  it('sends a value that is not a number as null, for the service to refuse on its row', () => {
+    const draft = withOverrides()
+    draft.variants[1]!.overrides[0]!.value = '2x'
+
+    expect(draftToManifest(draft).variants[1]!.overrides).toEqual({ [threshold]: null })
+  })
+
+  it('reports a value that is not a number, and rules the service has not answered, on the rows they belong to', () => {
+    const draft = withOverrides()
+    draft.variants[1]!.overrides.push({ key: 'game.rules.probability.push-shift.II', value: '' })
+
+    expect(localProblems(draft, laneBundles(), [undefined, undefined])).toEqual({
+      'variants[1].overrides.game.rules.probability.push-shift.II': 'Enter a number.',
+      'variants[1].overrides': 'The rules of this variant are not known yet.',
+    })
+    expect(localProblems(withOverrides(), laneBundles(), [undefined, 'f'.repeat(64)])).toEqual({})
+  })
+
+  it('round-trips the overrides of a frozen variant', () => {
+    const frozen = draftToManifest(withOverrides(), [undefined, 'f'.repeat(64)])
+
+    const back = manifestToDraft(frozen)
+
+    expect(back.variants[1]).toMatchObject({ parameterSpaceVersion: 1, overrides: [{ key: threshold, value: '22' }] })
+    expect(back.variants[0]).toMatchObject({ parameterSpaceVersion: null, overrides: [] })
+  })
+
+  it('rebases a copied variant with overrides onto the lane bundle it was copied from', () => {
+    const frozen = draftToManifest(withOverrides(), [undefined, 'f'.repeat(64)])
+    const copied = manifestToDraft(frozen)
+
+    const aligned = alignToLanes(copied, laneBundles())
+
+    expect(aligned.variants[1]!.bundle).toEqual(bundleFromLane(laneBundles()[1]!))
+    expect(localProblems(aligned, laneBundles(), [undefined, 'f'.repeat(64)])).toEqual({})
+    expect(alignToLanes(aligned, laneBundles())).toBe(aligned)
+  })
+
+  it('leaves a variant without overrides, and a bundle no lane serves, as they are', () => {
+    const plain = manifestToDraft(manifest())
+    const unserved = withOverrides()
+    unserved.variants[1]!.bundle!.contentArtifact.digest = '0'.repeat(64)
+    unserved.variants[1]!.bundle!.effectiveRulesDigest = '0'.repeat(64)
+
+    expect(alignToLanes(plain, laneBundles())).toBe(plain)
+    expect(alignToLanes(unserved, laneBundles())).toBe(unserved)
+  })
+
+  it('keeps a copied variant unserved when its services or contracts no longer match the lane', () => {
+    const copied = manifestToDraft(draftToManifest(withOverrides(), [undefined, 'f'.repeat(64)]))
+    copied.variants[1]!.bundle!.contracts['session-api'] = '0.0.1'
+
+    expect(alignToLanes(copied, laneBundles())).toBe(copied)
+  })
+
+  it('fills variants a draft kept before overrides existed', () => {
+    window.sessionStorage.setItem(
+      'workbench.experiment-draft.v2',
+      JSON.stringify({ draft: { name: 'old', variants: [{ label: 'baseline', bundle: null }] } }),
+    )
+
+    expect(loadDraft()?.draft.variants).toEqual([{ label: 'baseline', bundle: null, parameterSpaceVersion: null, overrides: [] }])
   })
 })
 

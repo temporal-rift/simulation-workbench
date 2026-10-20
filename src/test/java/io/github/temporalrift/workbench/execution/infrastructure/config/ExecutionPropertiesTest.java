@@ -27,6 +27,8 @@ class ExecutionPropertiesTest {
         var properties = bind(lane());
 
         assertThat(properties.lanes().getFirst().rulesDigest()).isEqualTo("a".repeat(64));
+        assertThat(properties.lanes().getFirst().rulesDocument())
+                .isEqualTo(java.nio.file.Path.of("lanes/lane-1/effective-rules.json"));
         assertThat(properties.lanes().getFirst().contentDigest()).isEqualTo("b".repeat(64));
     }
 
@@ -34,6 +36,7 @@ class ExecutionPropertiesTest {
     @ValueSource(
             strings = {
                 "rules-digest",
+                "rules-document",
                 "content-digest",
                 "rules-artifact-digest",
                 "content-artifact-digest",
@@ -212,6 +215,7 @@ class ExecutionPropertiesTest {
         values.put(LANE + "read-service-url", "http://read");
         values.put(LANE + "operator-token", "operator");
         values.put(LANE + "rules-digest", "a".repeat(64));
+        values.put(LANE + "rules-document", "lanes/lane-1/effective-rules.json");
         values.put(LANE + "content-digest", "b".repeat(64));
         values.put(LANE + "rules-artifact-digest", "c".repeat(64));
         values.put(LANE + "content-artifact-digest", "d".repeat(64));

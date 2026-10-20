@@ -19,9 +19,11 @@ import {
   listExperimentTemplates,
   listExperiments,
   listLaneBundles,
+  listParameterSpaces,
   listPolicies,
   listRuns,
   previewExperiment,
+  previewVariantRules,
   reproduceCase,
   resumeRun,
   startRun,
@@ -30,6 +32,7 @@ import {
   type EvaluationMode,
   type ExperimentManifest,
   type RunState,
+  type VariantRulesPreviewRequest,
 } from './generated'
 import type { Client } from './generated/client'
 
@@ -98,6 +101,26 @@ export const experimentTemplatesQuery = (client: Client) =>
     queryKey: ['experiment-templates'],
     queryFn: () => wholeList((offset) => unwrap(() => listExperimentTemplates({ client, query: { limit: MAX_PAGE, offset } }))),
     staleTime: 60_000,
+  })
+
+/** The parameter space versions the workbench serves; they are configuration and change only with a release. */
+export const parameterSpacesQuery = (client: Client) =>
+  queryOptions({
+    queryKey: ['parameter-spaces'],
+    queryFn: () => unwrap(() => listParameterSpaces({ client })),
+    staleTime: 5 * 60_000,
+  })
+
+/**
+ * The rules a variant makes of its baseline and overrides. The answer is a function of the request alone, so it is
+ * never read again; `enabled` is false until the request is complete.
+ */
+export const variantRulesQuery = (client: Client, request: VariantRulesPreviewRequest, enabled: boolean) =>
+  queryOptions({
+    queryKey: ['variant-rules', request],
+    queryFn: () => unwrap(() => previewVariantRules({ client, body: request })),
+    enabled,
+    staleTime: Infinity,
   })
 
 export interface RunFilters {

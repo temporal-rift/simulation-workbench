@@ -1,5 +1,5 @@
 import type { Case, Comparison, Experiment, ExperimentManifest, LaneBundle, Report, Reproduction, ReproductionState, Run, RunEvaluation } from '../api/generated'
-import { IDS, REPORT_CSV, SEAT_STEPS, caseDetail, comparison, criterion, eventStep, evaluation, experiment, experimentTemplates, laneBundles, policyCatalog, preview, report, run } from './fixtures'
+import { IDS, REPORT_CSV, SEAT_STEPS, caseDetail, comparison, criterion, eventStep, evaluation, experiment, experimentTemplates, laneBundles, parameterSpace, policyCatalog, preview, report, run } from './fixtures'
 
 export interface RecordedRequest {
   readonly method: string
@@ -21,8 +21,17 @@ export function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': status >= 400 ? 'application/problem+json' : 'application/json' } })
 }
 
-export function problem(status: number, code: string, detail: string, field?: string): Response {
-  return json({ type: 'about:blank', title: 'Problem', status, detail, code, ...(field ? { field } : {}) }, status)
+export function problem(status: number, code: string, detail: string, field?: string, extra: Record<string, string> = {}): Response {
+  return json({ type: 'about:blank', title: 'Problem', status, detail, code, ...(field ? { field } : {}), ...extra }, status)
+}
+
+/** A digest that depends on the text alone, standing in for the service's digest of a set of rules. */
+function digestOf(text: string): string {
+  let hash = 0
+  for (const character of text) {
+    hash = (hash * 31 + character.charCodeAt(0)) >>> 0
+  }
+  return hash.toString(16).padStart(8, '0').repeat(8)
 }
 
 /** A stand-in for the workbench service that holds state and honours idempotency keys, so flows can run end to end. */
@@ -121,6 +130,27 @@ export class FakeService {
         return json({ items: this.laneBundles.slice(offset, offset + limit), total: this.laneBundles.length })
       }),
       get(/^\/api\/v1\/experiment-templates$/, () => json({ items: experimentTemplates(), total: 2 })),
+      get(/^\/api\/v1\/parameter-spaces$/, () => json({ items: [parameterSpace()] })),
+      post(/^\/api\/v1\/variant-rules-previews$/, (request) => {
+        const body = request.body as { rulesArtifact: { digest: string }; parameterSpaceVersion: number; overrides: Record<string, number> }
+        const space = parameterSpace()
+        const baseline = this.laneBundles.find((bundle) => bundle.rulesArtifact.digest === body.rulesArtifact.digest)
+        const changed: Record<string, number> = {}
+        for (const [key, value] of Object.entries(body.overrides).sort(([a], [b]) => a.localeCompare(b))) {
+          const parameter = space.parameters.find((candidate) => candidate.key === key)
+          if (!parameter) {
+            return problem(400, 'INVALID_REQUEST', `${key} is not a parameter`, `overrides.${key}`, { reason: 'UNKNOWN_PARAMETER' })
+          }
+          if (value < parameter.min || value > parameter.max) {
+            return problem(400, 'INVALID_REQUEST', `${key} must be from ${parameter.min} to ${parameter.max}: ${value}`, `overrides.${key}`, { reason: 'OUT_OF_RANGE' })
+          }
+          if (value !== parameter.baseline) {
+            changed[key] = value
+          }
+        }
+        const effectiveRulesDigest = Object.keys(changed).length === 0 ? (baseline?.effectiveRulesDigest ?? 'a'.repeat(64)) : digestOf(JSON.stringify(changed))
+        return json({ rules: { schemaVersion: 1, properties: changed }, effectiveRulesDigest, overrides: changed })
+      }),
       post(/^\/api\/v1\/experiment-previews$/, () => json(preview())),
       post(/^\/api\/v1\/experiments$/, (request) =>
         this.once(request, () => {

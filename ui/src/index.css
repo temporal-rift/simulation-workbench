@@ -326,3 +326,15 @@ dl.facts dd {
 ol.steps {
   padding-left: 1.5rem;
 }
+
+fieldset.overrides {
+  margin: 0.75rem 0;
+}
+
+.override-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: flex-start;
+  margin-bottom: 0.5rem;
+}

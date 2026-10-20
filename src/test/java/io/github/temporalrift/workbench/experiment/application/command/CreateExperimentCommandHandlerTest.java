@@ -17,6 +17,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import io.github.temporalrift.workbench.experiment.ExperimentManifests;
+import io.github.temporalrift.workbench.experiment.VariantRulesFixtures;
 import io.github.temporalrift.workbench.experiment.application.port.in.CreateExperimentUseCase;
 import io.github.temporalrift.workbench.experiment.domain.IdempotencyConflictException;
 import io.github.temporalrift.workbench.experiment.domain.port.out.ExperimentRepository;
@@ -38,7 +39,8 @@ class CreateExperimentCommandHandlerTest {
                 experiments,
                 idempotency,
                 Clock.fixed(Instant.parse("2026-10-07T00:00:00Z"), ZoneOffset.UTC),
-                new PolicyReferenceVerifierAdapter(new BaselinePolicyCatalog()));
+                new PolicyReferenceVerifierAdapter(new BaselinePolicyCatalog()),
+                VariantRulesFixtures.withoutBaselines());
     }
 
     @Test
@@ -70,13 +72,15 @@ class CreateExperimentCommandHandlerTest {
         var key = UUID.randomUUID();
         var winnerId = UUID.randomUUID();
         var manifest = ExperimentManifests.singleSeedSinglePolicySingleVariant();
-        experiments.save(winnerId, "d".repeat(64), manifest.toString(), "threshold experiment", Instant.now());
+        experiments.save(
+                winnerId, "d".repeat(64), manifest.toString(), "threshold experiment", Instant.now(), Map.of());
         var racing = new RacingIdempotency(winnerId);
         var racingHandler = new CreateExperimentCommandHandler(
                 experiments,
                 racing,
                 Clock.fixed(Instant.parse("2026-10-07T00:00:00Z"), ZoneOffset.UTC),
-                new PolicyReferenceVerifierAdapter(new BaselinePolicyCatalog()));
+                new PolicyReferenceVerifierAdapter(new BaselinePolicyCatalog()),
+                VariantRulesFixtures.withoutBaselines());
 
         var result = racingHandler.handle(new CreateExperimentUseCase.Command(key, manifest));
 
@@ -98,8 +102,18 @@ class CreateExperimentCommandHandlerTest {
 
         @Override
         public void save(
-                UUID experimentId, String manifestDigest, String manifestJson, String name, Instant createdAt) {
+                UUID experimentId,
+                String manifestDigest,
+                String manifestJson,
+                String name,
+                Instant createdAt,
+                Map<String, String> baselineDocuments) {
             rows.put(experimentId, new StoredExperiment(experimentId, manifestDigest, manifestJson, name, createdAt));
+        }
+
+        @Override
+        public Optional<String> findBaselineDocument(UUID experimentId, String rulesArtifactDigest) {
+            return Optional.empty();
         }
 
         @Override
