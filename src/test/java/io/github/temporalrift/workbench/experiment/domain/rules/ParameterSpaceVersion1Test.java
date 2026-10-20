@@ -110,7 +110,7 @@ class ParameterSpaceVersion1Test {
 
         var expected = new ArrayList<HeldFixed>();
         for (var row : rows) {
-            var keys = Arrays.asList(row.get(0).split("\\s*,\\s*"));
+            var keys = Arrays.stream(row.get(0).split(",")).map(String::trim).toList();
             if (keys.stream().allMatch(key -> key.startsWith("game.rules."))) {
                 keys.forEach(key -> expected.add(new HeldFixed(key, row.get(2))));
             } else {
