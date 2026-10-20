@@ -193,7 +193,7 @@ public final class ConstraintExpression {
                 chains.add(chain());
             }
             if (position < tokens.size()) {
-                throw error("unexpected '" + tokens.get(position) + "'");
+                throw unexpected(tokens.get(position));
             }
             return new ConstraintExpression(source, List.copyOf(chains), keys);
         }
@@ -261,7 +261,7 @@ public final class ConstraintExpression {
             if (Character.isDigit(token.charAt(0))) {
                 return new Literal(new BigDecimal(token));
             }
-            throw error("unexpected '" + token + "'");
+            throw unexpected(token);
         }
 
         private boolean peekIs(String token) {
@@ -298,17 +298,21 @@ public final class ConstraintExpression {
                     tokens.add(String.valueOf(c));
                     i++;
                 } else if (c == '<' || c == '>' || c == '=') {
-                    var twice = i + 1 < source.length() && source.charAt(i + 1) == '=';
-                    var symbol = twice ? source.substring(i, i + 2) : String.valueOf(c);
-                    if (Comparison.of(symbol) == null) {
-                        throw error("unexpected '" + symbol + "'");
-                    }
-                    tokens.add(symbol);
-                    i += symbol.length();
+                    i = comparison(i);
                 } else {
-                    throw error("unexpected '" + c + "'");
+                    throw unexpected(String.valueOf(c));
                 }
             }
+        }
+
+        private int comparison(int start) {
+            var twice = start + 1 < source.length() && source.charAt(start + 1) == '=';
+            var symbol = twice ? source.substring(start, start + 2) : String.valueOf(source.charAt(start));
+            if (Comparison.of(symbol) == null) {
+                throw unexpected(symbol);
+            }
+            tokens.add(symbol);
+            return start + symbol.length();
         }
 
         private int take(int start, IntPredicate part) {
@@ -322,6 +326,10 @@ public final class ConstraintExpression {
 
         private static boolean isKeyCharacter(int c) {
             return Character.isLetterOrDigit(c) || c == '.' || c == '_' || c == '-';
+        }
+
+        private IllegalArgumentException unexpected(String token) {
+            return error("unexpected '" + token + "'");
         }
 
         private IllegalArgumentException error(String message) {

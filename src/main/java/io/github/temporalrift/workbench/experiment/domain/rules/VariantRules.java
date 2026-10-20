@@ -25,6 +25,9 @@ import io.github.temporalrift.workbench.experiment.domain.port.out.ParameterSpac
  */
 public final class VariantRules {
 
+    private static final String PARAMETER_SPACE_VERSION = "parameterSpaceVersion";
+    private static final String OVERRIDES = "overrides";
+
     private final ParameterSpaces spaces;
     private final BaselineRulesCatalog baselines;
 
@@ -76,7 +79,7 @@ public final class VariantRules {
             return;
         }
         retained.putIfAbsent(artifactDigest, baseline.get().document());
-        var materialized = materialize(baseline.get(), variant.path("parameterSpaceVersion"), overrides, path);
+        var materialized = materialize(baseline.get(), variant.path(PARAMETER_SPACE_VERSION), overrides, path);
         var supplied = variant.path("effectiveRulesDigest").asString();
         if (!materialized.digest().equals(supplied)) {
             throw new ExperimentValidationException(
@@ -124,7 +127,7 @@ public final class VariantRules {
         if (overrides.isEmpty()) {
             return baseline;
         }
-        var space = spaces.find(variant.path("parameterSpaceVersion").asInt())
+        var space = spaces.find(variant.path(PARAMETER_SPACE_VERSION).asInt())
                 .orElseThrow(() -> new IllegalStateException("A frozen variant names a parameter space that is gone"));
         return VariantMaterializer.materialize(baseline, space, overrides).rules();
     }
@@ -141,7 +144,7 @@ public final class VariantRules {
     /** The overrides a variant node carries, by key; empty when it has none. */
     public static SortedMap<String, BigDecimal> overridesOf(JsonNode variant) {
         var overrides = new TreeMap<String, BigDecimal>();
-        var node = variant.get("overrides");
+        var node = variant.get(OVERRIDES);
         if (node != null && node.isObject()) {
             node.properties()
                     .forEach(entry ->
@@ -151,12 +154,12 @@ public final class VariantRules {
     }
 
     private static void writeOverrides(ObjectNode variant, Map<String, BigDecimal> overrides) {
-        variant.remove("overrides");
+        variant.remove(OVERRIDES);
         if (overrides.isEmpty()) {
-            variant.remove("parameterSpaceVersion");
+            variant.remove(PARAMETER_SPACE_VERSION);
             return;
         }
-        var node = variant.putObject("overrides");
+        var node = variant.putObject(OVERRIDES);
         new TreeMap<>(overrides).forEach((key, value) -> node.set(key, VariantMaterializer.number(value)));
     }
 }

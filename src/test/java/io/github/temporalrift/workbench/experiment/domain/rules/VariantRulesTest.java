@@ -66,7 +66,7 @@ class VariantRulesTest {
 
         var overrides = variantAt(frozen, 1).get("overrides");
         assertThat(overrides.propertyNames()).containsExactly(PUSH_II, THRESHOLD);
-        assertThat(overrides.toString()).isEqualTo("{\"" + PUSH_II + "\":25,\"" + THRESHOLD + "\":22}");
+        assertThat(overrides).hasToString("{\"" + PUSH_II + "\":25,\"" + THRESHOLD + "\":22}");
         assertThat(variantAt(frozen, 1).get("parameterSpaceVersion").asInt()).isEqualTo(1);
     }
 
