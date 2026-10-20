@@ -70,7 +70,8 @@ class ConfiguredBaselineRulesTest {
         var document = write("rules.json", SMALL);
         var declaration = new Declaration(LANE_1, ARTIFACT, "f".repeat(64), document);
 
-        assertThatThrownBy(() -> new ConfiguredBaselineRules(declarations(declaration), mapper))
+        var declared = declarations(declaration);
+        assertThatThrownBy(() -> new ConfiguredBaselineRules(declared, mapper))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining(LANE_1 + "rules-document")
                 .hasMessageContaining(digestOf(SMALL))
@@ -81,7 +82,8 @@ class ConfiguredBaselineRulesTest {
     void aMissingDocumentFailsNamingTheLane() {
         var declaration = new Declaration(LANE_1, ARTIFACT, "f".repeat(64), directory.resolve("absent.json"));
 
-        assertThatThrownBy(() -> new ConfiguredBaselineRules(declarations(declaration), mapper))
+        var declared = declarations(declaration);
+        assertThatThrownBy(() -> new ConfiguredBaselineRules(declared, mapper))
                 .isInstanceOf(UncheckedIOException.class)
                 .hasMessageContaining(LANE_1 + "rules-document");
     }
@@ -90,7 +92,8 @@ class ConfiguredBaselineRulesTest {
     void aDocumentThatIsNotAnEffectiveRulesDocumentFailsNamingTheLane() {
         var declaration = new Declaration(LANE_1, ARTIFACT, "f".repeat(64), write("rules.json", "{\"a\": 1}"));
 
-        assertThatThrownBy(() -> new ConfiguredBaselineRules(declarations(declaration), mapper))
+        var declared = declarations(declaration);
+        assertThatThrownBy(() -> new ConfiguredBaselineRules(declared, mapper))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining(LANE_1 + "rules-document is not an EffectiveRules document");
     }
@@ -99,7 +102,8 @@ class ConfiguredBaselineRulesTest {
     void aSyntacticallyBrokenDocumentFailsNamingTheLane() {
         var declaration = new Declaration(LANE_1, ARTIFACT, "f".repeat(64), write("rules.json", "{"));
 
-        assertThatThrownBy(() -> new ConfiguredBaselineRules(declarations(declaration), mapper))
+        var declared = declarations(declaration);
+        assertThatThrownBy(() -> new ConfiguredBaselineRules(declared, mapper))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining(LANE_1 + "rules-document");
     }
@@ -121,7 +125,8 @@ class ConfiguredBaselineRulesTest {
         var first = new Declaration(LANE_1, ARTIFACT, digestOf(SMALL), write("one.json", SMALL));
         var second = new Declaration(LANE_2, ARTIFACT, digestOf(other), write("two.json", other));
 
-        assertThatThrownBy(() -> new ConfiguredBaselineRules(declarations(first, second), mapper))
+        var declared = declarations(first, second);
+        assertThatThrownBy(() -> new ConfiguredBaselineRules(declared, mapper))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining(LANE_2 + "rules-document")
                 .hasMessageContaining(ARTIFACT);
