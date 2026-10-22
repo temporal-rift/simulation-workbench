@@ -96,7 +96,7 @@ public class RunBatchService implements RunBatchUseCase {
         var lane = playing.lanes()
                 .acquire(logicalCase.caseId(), logicalCase.bundle(), previous == null ? null : previous.laneId());
         if (lane.isEmpty()) {
-            cases.release(attempt.attemptId(), owner, now);
+            cases.release(attempt.attemptId(), owner);
             return false;
         }
         execute(claim.get(), previous, plan.get(), lane.get(), owner);
@@ -177,7 +177,7 @@ public class RunBatchService implements RunBatchUseCase {
 
     /** The frozen experiment is gone, so no case of the run can ever execute: the run itself fails. */
     private void failRun(Run run, Attempt attempt, String owner, Instant now) {
-        cases.release(attempt.attemptId(), owner, now);
+        cases.release(attempt.attemptId(), owner);
         var reason = new Failure(FailureCode.CONTRACT_MISMATCH, "The frozen experiment is unavailable");
         if (runs.update(RunState.RUNNING, run.fail(now, reason))) {
             runs.cancelPendingCases(run.runId());

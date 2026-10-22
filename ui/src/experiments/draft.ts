@@ -1,3 +1,4 @@
+import { shortDigest } from '../components/format'
 import type { EnumsFaction, ExperimentManifest, ExperimentTemplate, LaneBundle } from '../api/generated'
 
 export const FACTIONS: readonly EnumsFaction[] = ['ERASERS', 'PROPHETS', 'REVISIONISTS', 'WEAVERS', 'ACTIVISTS']
@@ -97,10 +98,6 @@ export function emptyDraft(): Draft {
 /** Identifies a bundle by the effective digests a lane serves it under. */
 export function bundleKey(bundle: Pick<DraftBundle, 'effectiveRulesDigest' | 'effectiveContentDigest'>): string {
   return `${bundle.effectiveRulesDigest}/${bundle.effectiveContentDigest}`
-}
-
-function shortDigest(digest: string): string {
-  return `${digest.slice(0, 12)}…`
 }
 
 /** A bundle as a designer recognises it: its artifacts' names, or the start of their effective digests. */
