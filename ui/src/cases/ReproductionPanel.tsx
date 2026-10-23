@@ -1,18 +1,21 @@
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { ApiProblemError } from '../api/client'
 import type { Divergence, Reproduction } from '../api/generated'
 import { describeFailure } from '../api/problems'
 import { RUN_POLL_MS, reproduceCommand, useApiClient } from '../api/queries'
+import { useIntentKeys } from '../api/useIntentKeys'
 import { WRITE_SCOPE } from '../auth/scopes'
-import { useAnnounce } from '../components/announceContext'
 import { ErrorNotice } from '../components/ErrorNotice'
 import { ScopedButton } from '../components/ScopedButton'
+import { useAnnounceChange } from '../components/useAnnounceChange'
 import { DIVERGENCE_KINDS } from './divergenceKinds'
 import { FactList } from './FactList'
 
 const isFinal = (reproduction: Reproduction | undefined) =>
   reproduction !== undefined && reproduction.state !== 'QUEUED' && reproduction.state !== 'RUNNING'
+
+const REPRODUCE = 'reproduce'
 
 interface Props {
   readonly runId: string
@@ -25,7 +28,7 @@ interface Props {
  */
 export function ReproductionPanel({ runId, caseId }: Props) {
   const client = useApiClient()
-  const announce = useAnnounce()
+  const keys = useIntentKeys()
   // A new key is one new intent: asking again after a failed reproduction; refreshing keeps the key.
   const [key, setKey] = useState<string | null>(null)
   const query = useQuery({
@@ -37,14 +40,12 @@ export function ReproductionPanel({ runId, caseId }: Props) {
     staleTime: Infinity,
   })
 
-  const state = query.data?.state
-  const previous = useRef(state)
-  useEffect(() => {
-    if (state && previous.current !== state) {
-      announce(`Reproduction is now ${state.toLowerCase()}.`)
-    }
-    previous.current = state
-  }, [state, announce])
+  useAnnounceChange(query.data?.state, (state) => `Reproduction is now ${state.toLowerCase()}.`)
+
+  function requestAgain() {
+    keys.clear(REPRODUCE)
+    setKey(keys.keyFor(REPRODUCE))
+  }
 
   return (
     <section aria-labelledby="reproduction-heading">
@@ -57,11 +58,11 @@ export function ReproductionPanel({ runId, caseId }: Props) {
         scope={WRITE_SCOPE}
         aria-busy={query.isFetching}
         disabled={key !== null && !isFinal(query.data) && !query.isError}
-        onAction={() => setKey(crypto.randomUUID())}
+        onAction={requestAgain}
       >
         {isFinal(query.data) || query.isError ? 'Reproduce again' : 'Reproduce this case'}
       </ScopedButton>
-      {key !== null && <Outcome query={query} onRetry={() => setKey(crypto.randomUUID())} />}
+      {key !== null && <Outcome query={query} onRetry={requestAgain} />}
     </section>
   )
 }

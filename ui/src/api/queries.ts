@@ -1,7 +1,7 @@
 import { queryOptions } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { useSession } from '../auth/sessionContext'
-import { ApiProblemError, ServiceUnavailableError, apiClientFor, unwrap } from './client'
+import { apiClientFor, problemOf, unwrap } from './client'
 import {
   cancelRun,
   createComparison,
@@ -36,6 +36,7 @@ import {
   type VariantRulesPreviewRequest,
 } from './generated'
 import type { Client } from './generated/client'
+import { isTerminalRunState } from '../runs/runView'
 
 export const PAGE_SIZE = 20
 
@@ -45,10 +46,6 @@ export const RUN_POLL_MS = 3000
 export function useApiClient(): Client {
   const { fetch } = useSession()
   return useMemo(() => apiClientFor(fetch), [fetch])
-}
-
-export function isTerminalRunState(state: RunState | undefined): boolean {
-  return state === 'COMPLETED' || state === 'FAILED' || state === 'CANCELLED'
 }
 
 export const experimentsQuery = (client: Client, offset: number) =>
@@ -251,18 +248,6 @@ export async function fetchExport(fetchFn: (input: RequestInfo | URL, init?: Req
     throw await problemOf(response)
   }
   return response.blob()
-}
-
-/** A refused export keeps its problem details, so a missing scope or a missing resource is explained as such. */
-async function problemOf(response: Response): Promise<Error> {
-  try {
-    const problem: unknown = await response.json()
-    const fields = typeof problem === 'object' && problem !== null ? (problem as Record<string, unknown>) : {}
-    const text = (value: unknown) => (typeof value === 'string' && value.length > 0 ? value : null)
-    return new ApiProblemError(response.status, text(fields['code']), text(fields['detail']) ?? '', text(fields['field']))
-  } catch {
-    return new ServiceUnavailableError('unexpected-response')
-  }
 }
 
 /** The criterion versions the workbench serves; they are configuration and change only with a release. */

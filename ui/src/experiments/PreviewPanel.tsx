@@ -1,5 +1,6 @@
 import type { ExperimentPreview } from '../api/generated'
 import { PAGE_SIZE } from '../api/queries'
+import { Pager } from '../components/Pager'
 
 interface Props {
   readonly preview: ExperimentPreview
@@ -71,14 +72,18 @@ export function PreviewPanel({ preview, outdated, busy, onPage }: Props) {
           ))}
         </tbody>
       </table>
-      <nav aria-label="Preview pages">
-        <button type="button" disabled={busy || preview.offset === 0} onClick={() => onPage(Math.max(0, preview.offset - PAGE_SIZE))}>
-          Previous cases
-        </button>
-        <button type="button" disabled={busy || last >= preview.caseCount} onClick={() => onPage(preview.offset + PAGE_SIZE)}>
-          Next cases
-        </button>
-      </nav>
+      <Pager
+        label="Preview pages"
+        offset={preview.offset}
+        count={preview.cases.length}
+        total={preview.caseCount}
+        pageSize={PAGE_SIZE}
+        busy={busy}
+        showRange={false}
+        previousLabel="Previous cases"
+        nextLabel="Next cases"
+        onOffset={onPage}
+      />
     </section>
   )
 }

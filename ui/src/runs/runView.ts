@@ -21,6 +21,10 @@ export const CASE_STATE_LABELS: Readonly<Record<CaseState, string>> = {
 export const RUN_STATES = Object.keys(RUN_STATE_LABELS) as RunState[]
 export const CASE_STATES = Object.keys(CASE_STATE_LABELS) as CaseState[]
 
+export function isTerminalRunState(state: RunState | undefined): boolean {
+  return state === 'COMPLETED' || state === 'FAILED' || state === 'CANCELLED'
+}
+
 /** A run can be stopped until it settles; a run already stopping needs nothing more. */
 export function isCancellable(state: RunState): boolean {
   return state === 'QUEUED' || state === 'RUNNING' || state === 'INTERRUPTED'

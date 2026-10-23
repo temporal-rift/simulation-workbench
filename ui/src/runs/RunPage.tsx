@@ -1,20 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { ApiProblemError } from '../api/client'
 import type { Run } from '../api/generated'
 import { describeFailure } from '../api/problems'
-import { cancelRunCommand, isTerminalRunState, resumeRunCommand, runQuery, useApiClient } from '../api/queries'
+import { cancelRunCommand, resumeRunCommand, runQuery, useApiClient } from '../api/queries'
+import { useIntentKeys } from '../api/useIntentKeys'
 import { WRITE_SCOPE } from '../auth/scopes'
 import { useAnnounce } from '../components/announceContext'
 import { ErrorNotice } from '../components/ErrorNotice'
 import { formatInstant } from '../components/format'
 import { QueryView } from '../components/QueryView'
 import { ScopedButton } from '../components/ScopedButton'
+import { useAnnounceChange } from '../components/useAnnounceChange'
 import { EvaluationPanel } from '../evaluation/EvaluationPanel'
 import { CasesSection } from './CasesSection'
 import { FailuresSection } from './FailuresSection'
-import { RUN_STATE_LABELS, isCancellable, isResumable, partialNote } from './runView'
+import { RUN_STATE_LABELS, isCancellable, isResumable, isTerminalRunState, partialNote } from './runView'
 
 type Command = 'cancel' | 'resume'
 
@@ -33,26 +35,19 @@ function RunDetail({ run, stale }: { readonly run: Run; readonly stale: boolean 
   const client = useApiClient()
   const queryClient = useQueryClient()
   const announce = useAnnounce()
-  const keys = useRef<Partial<Record<Command, string>>>({})
+  const keys = useIntentKeys()
   const [refusal, setRefusal] = useState<Command | null>(null)
-  const previous = useRef(run.state)
 
-  useEffect(() => {
-    if (previous.current !== run.state) {
-      announce(`Run is now ${RUN_STATE_LABELS[run.state].toLowerCase()}.`)
-      previous.current = run.state
-    }
-  }, [run.state, announce])
+  useAnnounceChange(run.state, (state) => `Run is now ${RUN_STATE_LABELS[state].toLowerCase()}.`)
 
   const command = useMutation({
     mutationFn: (name: Command) => {
-      keys.current[name] ??= crypto.randomUUID()
-      const key = keys.current[name]
+      const key = keys.keyFor(name)
       return name === 'cancel' ? cancelRunCommand(client, run.runId, key) : resumeRunCommand(client, run.runId, key)
     },
     onMutate: () => setRefusal(null),
     onSuccess: (updated, name) => {
-      delete keys.current[name]
+      keys.clear(name)
       queryClient.setQueryData(['run', run.runId], updated)
       void queryClient.invalidateQueries({ queryKey: ['runs'] })
       announce(name === 'cancel' ? 'Cancellation requested.' : 'Run resumed.')
@@ -60,7 +55,7 @@ function RunDetail({ run, stale }: { readonly run: Run; readonly stale: boolean 
     onError: async (error, name) => {
       if (error instanceof ApiProblemError && error.isCode('INVALID_RUN_STATE')) {
         // The page was showing an outdated state: read the current one so the refusal can name it.
-        delete keys.current[name]
+        keys.clear(name)
         await queryClient.refetchQueries({ queryKey: ['run', run.runId] })
         setRefusal(name)
       }

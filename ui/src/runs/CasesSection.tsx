@@ -2,10 +2,10 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import type { CaseState, Run } from '../api/generated'
-import { PAGE_SIZE, isTerminalRunState, runCasesQuery, useApiClient } from '../api/queries'
+import { PAGE_SIZE, runCasesQuery, useApiClient } from '../api/queries'
 import { Pager } from '../components/Pager'
 import { QueryView } from '../components/QueryView'
-import { CASE_STATES, CASE_STATE_LABELS } from './runView'
+import { CASE_STATES, CASE_STATE_LABELS, isTerminalRunState } from './runView'
 
 /** The run's cases in matrix order. A result is shown only for a succeeded case; every other state says it has none. */
 export function CasesSection({ run }: { readonly run: Run }) {

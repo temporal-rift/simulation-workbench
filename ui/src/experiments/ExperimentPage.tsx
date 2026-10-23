@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import type { Experiment } from '../api/generated'
 import { describeFailure } from '../api/problems'
 import { experimentQuery, launchRun, runsQuery, useApiClient } from '../api/queries'
+import { useIntentKeys } from '../api/useIntentKeys'
 import { WRITE_SCOPE } from '../auth/scopes'
 import { useAnnounce } from '../components/announceContext'
 import { ErrorNotice } from '../components/ErrorNotice'
@@ -24,6 +25,8 @@ export function ExperimentPage() {
   )
 }
 
+const LAUNCH = 'launch'
+
 function FrozenExperiment({ experiment }: { readonly experiment: Experiment }) {
   const client = useApiClient()
   const navigate = useNavigate()
@@ -31,17 +34,16 @@ function FrozenExperiment({ experiment }: { readonly experiment: Experiment }) {
   const announce = useAnnounce()
   const { manifest } = experiment
   // One key per launch intent, kept until the launch succeeds so that retrying a lost response cannot start a second run.
-  const launchKey = useRef<string | null>(null)
+  const keys = useIntentKeys()
   const [replacing, setReplacing] = useState(false)
   const runs = useQuery(runsQuery(client, { experimentId: experiment.experimentId }, 0))
 
   const launch = useMutation({
     mutationFn: () => {
-      launchKey.current ??= crypto.randomUUID()
-      return launchRun(client, experiment.experimentId, launchKey.current)
+      return launchRun(client, experiment.experimentId, keys.keyFor(LAUNCH))
     },
     onSuccess: async (run) => {
-      launchKey.current = null
+      keys.clear(LAUNCH)
       queryClient.setQueryData(['run', run.runId], run)
       await queryClient.invalidateQueries({ queryKey: ['runs'] })
       announce('Run started.')

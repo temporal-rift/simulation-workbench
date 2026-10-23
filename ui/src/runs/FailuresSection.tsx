@@ -3,9 +3,10 @@ import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import type { CaseSummary, Run } from '../api/generated'
 import { describeFailure } from '../api/problems'
-import { PAGE_SIZE, caseQuery, isTerminalRunState, runCasesQuery, useApiClient } from '../api/queries'
+import { PAGE_SIZE, caseQuery, runCasesQuery, useApiClient } from '../api/queries'
 import { Pager } from '../components/Pager'
 import { QueryView } from '../components/QueryView'
+import { isTerminalRunState } from './runView'
 
 /** The cases that failed, each with the code and message of its last failed attempt and a link to the case. */
 export function FailuresSection({ run }: { readonly run: Run }) {
