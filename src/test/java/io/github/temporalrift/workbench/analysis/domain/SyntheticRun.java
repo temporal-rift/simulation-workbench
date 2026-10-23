@@ -12,12 +12,12 @@ import io.github.temporalrift.workbench.analysis.domain.fact.FactExtractor;
 import io.github.temporalrift.workbench.analysis.domain.fact.GameFacts;
 import io.github.temporalrift.workbench.analysis.domain.game.AnalyzedCase;
 import io.github.temporalrift.workbench.analysis.domain.game.CaseOutcome;
-import io.github.temporalrift.workbench.analysis.domain.game.CaseStatus;
-import io.github.temporalrift.workbench.analysis.domain.game.EndReason;
-import io.github.temporalrift.workbench.analysis.domain.game.Faction;
-import io.github.temporalrift.workbench.analysis.domain.game.FailureCode;
 import io.github.temporalrift.workbench.analysis.domain.game.GameRecord;
 import io.github.temporalrift.workbench.analysis.domain.game.ParadoxType;
+import io.github.temporalrift.workbench.shared.execution.CaseState;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
+import io.github.temporalrift.workbench.shared.game.EndReason;
+import io.github.temporalrift.workbench.shared.game.Faction;
 
 /** Synthetic cases of one variant and one policy, with the facts of the succeeded ones. */
 public final class SyntheticRun {
@@ -60,7 +60,7 @@ public final class SyntheticRun {
         var scores = new ArrayList<Integer>();
         seats.forEach(seat -> scores.add(10));
         var outcome = new CaseOutcome(reason, winners, scores, eras, eras * 3, eras * 9);
-        var analyzed = analyzed(seed, seats, CaseStatus.SUCCEEDED, outcome, null);
+        var analyzed = analyzed(seed, seats, CaseState.SUCCEEDED, outcome, null);
         cases.add(analyzed);
         var extracted = FactExtractor.extract(
                 analyzed.caseId(), seats, outcome, new GameRecord(List.of(), List.of(), List.of()));
@@ -74,12 +74,12 @@ public final class SyntheticRun {
     }
 
     public SyntheticRun failed(String seed, List<Faction> seats, FailureCode code) {
-        cases.add(analyzed(seed, seats, CaseStatus.FAILED, null, code));
+        cases.add(analyzed(seed, seats, CaseState.FAILED, null, code));
         return this;
     }
 
     /** A case that has not finished, or was cancelled. */
-    public SyntheticRun unfinished(String seed, List<Faction> seats, CaseStatus status) {
+    public SyntheticRun unfinished(String seed, List<Faction> seats, CaseState status) {
         cases.add(analyzed(seed, seats, status, null, null));
         return this;
     }
@@ -107,7 +107,7 @@ public final class SyntheticRun {
     }
 
     private AnalyzedCase analyzed(
-            String seed, List<Faction> seats, CaseStatus status, CaseOutcome outcome, FailureCode code) {
+            String seed, List<Faction> seats, CaseState status, CaseOutcome outcome, FailureCode code) {
         return new AnalyzedCase(
                 new UUID(7, cases.size()),
                 variant,

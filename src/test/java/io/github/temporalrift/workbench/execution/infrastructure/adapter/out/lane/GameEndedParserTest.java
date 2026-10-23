@@ -11,7 +11,8 @@ import tools.jackson.databind.json.JsonMapper;
 
 import io.github.temporalrift.workbench.execution.domain.evidence.ObservedEvent;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
-import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
+import io.github.temporalrift.workbench.shared.game.EndReason;
 
 class GameEndedParserTest {
 
@@ -26,7 +27,7 @@ class GameEndedParserTest {
                 event("{\"gameId\":\"" + GAME + "\",\"endReason\":\"TIMELINE_STABILIZED\","
                         + "\"finalScores\":[{\"playerId\":\"" + PLAYER + "\",\"faction\":\"WEAVERS\",\"score\":4}]}"));
 
-        assertThat(ended.endReason()).isEqualTo("TIMELINE_STABILIZED");
+        assertThat(ended.endReason()).isEqualTo(EndReason.TIMELINE_STABILIZED);
         assertThat(ended.finalScores()).isEqualTo(Map.of(PLAYER, 4));
     }
 

@@ -20,8 +20,9 @@ import tools.jackson.databind.json.JsonMapper;
 import io.github.temporalrift.workbench.execution.domain.evidence.ObservedEvent;
 import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
-import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.support.InMemoryEvidenceLedger;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
+import io.github.temporalrift.workbench.shared.game.EndReason;
 
 class SimulatorEventObserverTest {
 
@@ -109,8 +110,8 @@ class SimulatorEventObserverTest {
                 SlotEventRouter.GAME_EVENTS,
                 GAME,
                 "GameEnded",
-                "{\"gameId\":\"" + GAME + "\",\"endReason\":\"PARADOX_COLLAPSE\"," + "\"finalScores\":[{\"playerId\":\""
-                        + winner + "\",\"faction\":\"WEAVERS\",\"score\":7}]}");
+                "{\"gameId\":\"" + GAME + "\",\"endReason\":\"TIMELINE_COLLAPSED\","
+                        + "\"finalScores\":[{\"playerId\":\"" + winner + "\",\"faction\":\"WEAVERS\",\"score\":7}]}");
         awaitIdle();
         var observer = observer(GAME);
         assertThat(observer.gameEnded()).isEmpty();
@@ -118,7 +119,7 @@ class SimulatorEventObserverTest {
         observer.drain();
 
         assertThat(observer.gameEnded()).hasValueSatisfying(ended -> {
-            assertThat(ended.endReason()).isEqualTo("PARADOX_COLLAPSE");
+            assertThat(ended.endReason()).isEqualTo(EndReason.TIMELINE_COLLAPSED);
             assertThat(ended.finalScores()).isEqualTo(Map.of(winner, 7));
         });
     }

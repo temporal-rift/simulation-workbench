@@ -30,10 +30,10 @@ import io.github.temporalrift.workbench.execution.domain.evidence.ObservedEvent;
 import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
-import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.GameEventObservers;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneEndpoints;
 import io.github.temporalrift.workbench.execution.support.Provenances;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
 
 @WorkbenchIntegrationTest
 class KafkaGameEventObserverIT {
@@ -108,7 +108,8 @@ class KafkaGameEventObserverIT {
                             (event.source().startsWith("game.") ? "game" : "timeline") + ":" + event.eventType())
                     .containsExactlyInAnyOrder("game:GameStarted", "game:GameEnded", "timeline:EraResolutionCompleted");
             assertThat(observer.gameEnded()).hasValueSatisfying(fact -> {
-                assertThat(fact.endReason()).isEqualTo("WIN_CONDITION_MET");
+                assertThat(fact.endReason())
+                        .isEqualTo(io.github.temporalrift.workbench.shared.game.EndReason.WIN_CONDITION_MET);
                 assertThat(fact.finalScores()).containsEntry(PLAYER, 30);
             });
         }
@@ -187,7 +188,8 @@ class KafkaGameEventObserverIT {
 
             assertThat(observer.drain()).isTrue();
             assertThat(observer.gameEnded())
-                    .hasValueSatisfying(fact -> assertThat(fact.endReason()).isEqualTo("ALL_PLAYERS_ABANDONED"));
+                    .hasValueSatisfying(fact -> assertThat(fact.endReason())
+                            .isEqualTo(io.github.temporalrift.workbench.shared.game.EndReason.ALL_PLAYERS_ABANDONED));
         }
         assertThat(evidence.events(SCOPE, GAME)).hasSize(2);
     }

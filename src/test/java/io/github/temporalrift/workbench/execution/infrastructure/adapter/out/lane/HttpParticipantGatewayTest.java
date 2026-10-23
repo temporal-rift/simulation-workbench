@@ -55,7 +55,7 @@ import io.github.temporalrift.workbench.policy.domain.decision.Target;
 import io.github.temporalrift.workbench.policy.domain.observation.CardCategory;
 import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow;
 import io.github.temporalrift.workbench.policy.domain.observation.DeclarationMode;
-import io.github.temporalrift.workbench.policy.domain.observation.SpecialAction;
+import io.github.temporalrift.workbench.shared.game.SpecialAction;
 
 class HttpParticipantGatewayTest {
 

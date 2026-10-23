@@ -10,11 +10,11 @@ import java.util.function.ToIntFunction;
 import io.github.temporalrift.workbench.analysis.domain.fact.GameFacts;
 import io.github.temporalrift.workbench.analysis.domain.fact.SeatFacts;
 import io.github.temporalrift.workbench.analysis.domain.game.CardKey;
-import io.github.temporalrift.workbench.analysis.domain.game.EndReason;
-import io.github.temporalrift.workbench.analysis.domain.game.Faction;
-import io.github.temporalrift.workbench.analysis.domain.game.SpecialAction;
 import io.github.temporalrift.workbench.analysis.domain.report.MetricDefinition.Measure;
 import io.github.temporalrift.workbench.analysis.domain.report.MetricDefinition.Tally;
+import io.github.temporalrift.workbench.shared.game.EndReason;
+import io.github.temporalrift.workbench.shared.game.Faction;
+import io.github.temporalrift.workbench.shared.game.SpecialAction;
 
 /**
  * The metrics of analysis version 1, in report order. Game metrics count each eligible game once and appear only in

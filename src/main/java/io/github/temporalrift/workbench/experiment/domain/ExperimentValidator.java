@@ -2,15 +2,18 @@ package io.github.temporalrift.workbench.experiment.domain;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import tools.jackson.databind.JsonNode;
 
 import io.github.temporalrift.workbench.experiment.ManifestFormat;
 import io.github.temporalrift.workbench.experiment.domain.port.out.PolicyReferenceVerifier;
+import io.github.temporalrift.workbench.shared.game.Faction;
 
 /**
  * Validates a frozen experiment manifest against the published boundary rules. Structural problems
@@ -19,7 +22,8 @@ import io.github.temporalrift.workbench.experiment.domain.port.out.PolicyReferen
  */
 public final class ExperimentValidator {
 
-    private static final Set<String> FACTIONS = Set.of("ERASERS", "PROPHETS", "REVISIONISTS", "WEAVERS", "ACTIVISTS");
+    private static final Set<String> FACTIONS =
+            Arrays.stream(Faction.values()).map(Faction::name).collect(Collectors.toUnmodifiableSet());
     private static final Set<Integer> PLAYER_COUNTS = Set.of(3, 4, 5);
     private static final Pattern UINT64 = Pattern.compile("^(0|[1-9]\\d{0,19})$");
     private static final BigInteger MAX_UINT64 = new BigInteger("18446744073709551615");

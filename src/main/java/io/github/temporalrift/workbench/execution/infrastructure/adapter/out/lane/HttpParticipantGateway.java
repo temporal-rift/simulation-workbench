@@ -13,7 +13,6 @@ import java.util.function.BooleanSupplier;
 import org.springframework.web.client.RestClientException;
 
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
-import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.domain.run.WindowClosedException;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.action.ActionApi;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.action.model.ActionType;
@@ -35,6 +34,7 @@ import io.github.temporalrift.workbench.policy.domain.decision.SubmissionOutcome
 import io.github.temporalrift.workbench.policy.domain.decision.Target;
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
 import io.github.temporalrift.workbench.policy.domain.port.out.ParticipantGateway;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
 
 /**
  * The participant operations of one game over the generated clients. Every call is made as the seat's own

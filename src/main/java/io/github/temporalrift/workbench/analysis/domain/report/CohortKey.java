@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Objects;
 
 import io.github.temporalrift.workbench.analysis.domain.game.AnalyzedCase;
-import io.github.temporalrift.workbench.analysis.domain.game.Faction;
+import io.github.temporalrift.workbench.shared.game.Faction;
 
 /**
  * A cohort of a variant, policy and player count; a null faction set pools every faction set of the player count

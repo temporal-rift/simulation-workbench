@@ -10,7 +10,8 @@ import io.github.temporalrift.asyncapi.sessionevents.GeneratedChannelContract.Ga
 import io.github.temporalrift.workbench.execution.domain.evidence.ObservedEvent;
 import io.github.temporalrift.workbench.execution.domain.port.out.GameEventObserver.GameEnded;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
-import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
+import io.github.temporalrift.workbench.shared.game.EndReason;
 
 /** Reads the terminal fact out of an observed {@code GameEnded} event, whatever the source that delivered it. */
 public final class GameEndedParser {
@@ -24,8 +25,8 @@ public final class GameEndedParser {
             var payload = objectMapper.readValue(event.payload(), GameEndedPayload.class);
             var scores = new HashMap<UUID, Integer>();
             payload.finalScores().forEach(score -> scores.put(score.playerId(), score.score()));
-            return new GameEnded(payload.endReason(), scores);
-        } catch (JacksonException e) {
+            return new GameEnded(EndReason.valueOf(payload.endReason()), scores);
+        } catch (JacksonException | IllegalArgumentException e) {
             throw new AttemptFailedException(
                     FailureCode.CONTRACT_MISMATCH, "GameEnded " + event.eventId() + " is not a valid payload", e);
         }

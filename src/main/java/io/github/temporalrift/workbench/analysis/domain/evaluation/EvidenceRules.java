@@ -16,11 +16,11 @@ import io.github.temporalrift.workbench.analysis.domain.criterion.BalanceCriteri
 import io.github.temporalrift.workbench.analysis.domain.criterion.PolicyReference;
 import io.github.temporalrift.workbench.analysis.domain.evaluation.Validity.Reason;
 import io.github.temporalrift.workbench.analysis.domain.game.AnalyzedCase;
-import io.github.temporalrift.workbench.analysis.domain.game.CaseStatus;
-import io.github.temporalrift.workbench.analysis.domain.game.EndReason;
-import io.github.temporalrift.workbench.analysis.domain.game.Faction;
-import io.github.temporalrift.workbench.analysis.domain.game.FailureCode;
 import io.github.temporalrift.workbench.analysis.domain.report.CohortKey;
+import io.github.temporalrift.workbench.shared.execution.CaseState;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
+import io.github.temporalrift.workbench.shared.game.EndReason;
+import io.github.temporalrift.workbench.shared.game.Faction;
 
 /** The evidence rule of a criterion: when a run is valid, and what a confirmation sample must contain. */
 final class EvidenceRules {
@@ -67,7 +67,7 @@ final class EvidenceRules {
     }
 
     private static Optional<Reason> unfinished(List<AnalyzedCase> cases) {
-        var counts = new TreeMap<CaseStatus, Integer>();
+        var counts = new TreeMap<CaseState, Integer>();
         cases.stream()
                 .filter(analyzedCase -> !analyzedCase.finished())
                 .forEach(analyzedCase -> counts.merge(analyzedCase.status(), 1, Integer::sum));

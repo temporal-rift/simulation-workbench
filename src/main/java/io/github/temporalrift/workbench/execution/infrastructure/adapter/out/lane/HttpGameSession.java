@@ -21,8 +21,6 @@ import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.port.out.GameEventObserver;
 import io.github.temporalrift.workbench.execution.domain.port.out.GameSession;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
-import io.github.temporalrift.workbench.execution.domain.run.EndReason;
-import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.domain.run.FinalScore;
 import io.github.temporalrift.workbench.execution.domain.run.GameProgress;
 import io.github.temporalrift.workbench.execution.domain.run.WinType;
@@ -34,6 +32,9 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.PlayerGameStateResponse;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.scoring.ScoringApi;
 import io.github.temporalrift.workbench.policy.domain.port.out.ParticipantGateway;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
+import io.github.temporalrift.workbench.shared.game.EndReason;
+import io.github.temporalrift.workbench.shared.game.Faction;
 
 /**
  * A real game observed and driven through participant operations and the services' execution barriers.
@@ -204,7 +205,8 @@ public class HttpGameSession implements GameSession {
      */
     private boolean published(GameResult result) {
         return events.gameEnded()
-                .filter(fact -> fact.endReason().equals(result.getEndReason().name()))
+                .filter(fact ->
+                        fact.endReason().name().equals(result.getEndReason().name()))
                 .filter(fact -> fact.finalScores().equals(scoresByPlayer(result)))
                 .isPresent();
     }
@@ -291,11 +293,11 @@ public class HttpGameSession implements GameSession {
                     var seat = seatOf(winner.getPlayerId());
                     var planned = factionOf(winner.getPlayerId());
                     if (winner.getFaction() != null
-                            && !winner.getFaction().name().equals(planned)) {
+                            && !winner.getFaction().name().equals(planned.name())) {
                         throw new AttemptFailedException(
                                 FailureCode.CONFIGURATION_DRIFT,
                                 "Seat " + seat + " was revealed as "
-                                        + winner.getFaction().name() + " but planned as " + planned);
+                                        + winner.getFaction().name() + " but planned as " + planned.name());
                     }
                     return new Winner(
                             seat,
@@ -330,7 +332,7 @@ public class HttpGameSession implements GameSession {
                 .seatIndex();
     }
 
-    private String factionOf(UUID playerId) {
+    private Faction factionOf(UUID playerId) {
         return context.seats().get(seatOf(playerId)).faction();
     }
 

@@ -10,6 +10,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
+
 class RunTest {
 
     private static final Instant T0 = Instant.parse("2026-01-01T00:00:00Z");

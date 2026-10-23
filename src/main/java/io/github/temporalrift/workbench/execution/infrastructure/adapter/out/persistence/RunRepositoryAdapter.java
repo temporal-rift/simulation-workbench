@@ -17,13 +17,13 @@ import org.springframework.transaction.annotation.Transactional;
 import io.github.temporalrift.workbench.execution.domain.port.out.RunRepository;
 import io.github.temporalrift.workbench.execution.domain.run.Attempt;
 import io.github.temporalrift.workbench.execution.domain.run.CaseCounts;
-import io.github.temporalrift.workbench.execution.domain.run.CaseState;
-import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.domain.run.LogicalCase;
 import io.github.temporalrift.workbench.execution.domain.run.Run;
 import io.github.temporalrift.workbench.execution.domain.run.RunCommand;
 import io.github.temporalrift.workbench.execution.domain.run.RunCreation;
 import io.github.temporalrift.workbench.execution.domain.run.RunState;
+import io.github.temporalrift.workbench.shared.execution.CaseState;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.InsertOnce;
 
 /** Storage of runs and their logical cases; state changes are compare-and-set under the run's row lock. */

@@ -18,13 +18,13 @@ import io.github.temporalrift.workbench.analysis.domain.fact.CaseFacts;
 import io.github.temporalrift.workbench.analysis.domain.fact.FactExtractor;
 import io.github.temporalrift.workbench.analysis.domain.game.AnalyzedCase;
 import io.github.temporalrift.workbench.analysis.domain.game.CaseOutcome;
-import io.github.temporalrift.workbench.analysis.domain.game.CaseStatus;
-import io.github.temporalrift.workbench.analysis.domain.game.EndReason;
-import io.github.temporalrift.workbench.analysis.domain.game.Faction;
 import io.github.temporalrift.workbench.analysis.domain.game.GameRecord;
 import io.github.temporalrift.workbench.analysis.domain.report.Interval;
 import io.github.temporalrift.workbench.analysis.domain.report.MetricStatus;
 import io.github.temporalrift.workbench.analysis.domain.report.ReportCalculator;
+import io.github.temporalrift.workbench.shared.execution.CaseState;
+import io.github.temporalrift.workbench.shared.game.EndReason;
+import io.github.temporalrift.workbench.shared.game.Faction;
 
 class ComparisonCalculatorTest {
 
@@ -88,7 +88,7 @@ class ComparisonCalculatorTest {
         }
         var failed = new UUID(7, 7);
         candidateCases.set(
-                1, new AnalyzedCase(failed, "threshold-22", "1", 3, "random", "1.0.0", PWE, CaseStatus.FAILED, null));
+                1, new AnalyzedCase(failed, "threshold-22", "1", 3, "random", "1.0.0", PWE, CaseState.FAILED, null));
 
         var result = compare();
         var pooled = result.cohorts().getFirst();
@@ -98,7 +98,7 @@ class ComparisonCalculatorTest {
         assertThat(result.excludedPairs()).singleElement().satisfies(pair -> {
             assertThat(pair.reason()).isEqualTo(ExclusionReason.FAILED_COUNTERPART);
             assertThat(pair.candidateCaseId()).isEqualTo(failed);
-            assertThat(pair.baselineState()).isEqualTo(CaseStatus.SUCCEEDED);
+            assertThat(pair.baselineState()).isEqualTo(CaseState.SUCCEEDED);
         });
         assertThat(pooled.matchedBlocks()).isEqualTo(2);
         assertThat(pooled.excludedBlocks()).isEqualTo(1);
@@ -111,7 +111,7 @@ class ComparisonCalculatorTest {
         candidateCases.set(
                 0,
                 new AnalyzedCase(
-                        new UUID(8, 8), "threshold-22", "1", 3, "random", "1.0.0", EPW, CaseStatus.RUNNING, null));
+                        new UUID(8, 8), "threshold-22", "1", 3, "random", "1.0.0", EPW, CaseState.RUNNING, null));
 
         var result = compare();
 
@@ -258,7 +258,7 @@ class ComparisonCalculatorTest {
     private AnalyzedCase succeeded(String variant, String seed, List<Faction> seats, Set<Integer> winners) {
         var outcome = new CaseOutcome(EndReason.WIN_CONDITION_MET, winners, List.of(20, 15, 10), 3, 9, 30);
         var analyzed = new AnalyzedCase(
-                new UUID(2, facts.size()), variant, seed, 3, "random", "1.0.0", seats, CaseStatus.SUCCEEDED, outcome);
+                new UUID(2, facts.size()), variant, seed, 3, "random", "1.0.0", seats, CaseState.SUCCEEDED, outcome);
         facts.put(
                 analyzed.caseId(),
                 FactExtractor.extract(

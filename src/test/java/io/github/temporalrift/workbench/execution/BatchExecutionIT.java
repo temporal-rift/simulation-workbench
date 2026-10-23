@@ -42,9 +42,6 @@ import io.github.temporalrift.workbench.execution.domain.run.Attempt;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptState;
 import io.github.temporalrift.workbench.execution.domain.run.CaseResult;
-import io.github.temporalrift.workbench.execution.domain.run.CaseState;
-import io.github.temporalrift.workbench.execution.domain.run.EndReason;
-import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.domain.run.FinalScore;
 import io.github.temporalrift.workbench.execution.domain.run.InvalidRunStateException;
 import io.github.temporalrift.workbench.execution.domain.run.RunState;
@@ -54,6 +51,10 @@ import io.github.temporalrift.workbench.execution.support.RecordingResets;
 import io.github.temporalrift.workbench.execution.support.ScriptedLanes;
 import io.github.temporalrift.workbench.experiment.ExperimentManifests;
 import io.github.temporalrift.workbench.experiment.application.port.in.CreateExperimentUseCase;
+import io.github.temporalrift.workbench.shared.execution.CaseState;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
+import io.github.temporalrift.workbench.shared.game.EndReason;
+import io.github.temporalrift.workbench.shared.game.Faction;
 
 @WorkbenchIntegrationTest
 class BatchExecutionIT {
@@ -450,7 +451,7 @@ class BatchExecutionIT {
         var lateResult = new CaseResult(
                 EndReason.WIN_CONDITION_MET,
                 List.of(),
-                List.of(new FinalScore(0, "ERASERS", 1)),
+                List.of(new FinalScore(0, Faction.ERASERS, 1)),
                 1,
                 1,
                 1,

@@ -24,13 +24,13 @@ import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.BundleProvenance;
-import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneEndpoints;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneWaits;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.Sleeper;
 import io.github.temporalrift.workbench.execution.support.InMemoryCommandLedger;
 import io.github.temporalrift.workbench.execution.support.InMemoryEvidenceLedger;
 import io.github.temporalrift.workbench.execution.support.ManualResetScheduler;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
 
 class SimulatorLanePoolTest {
 

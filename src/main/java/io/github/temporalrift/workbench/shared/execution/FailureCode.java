@@ -1,4 +1,4 @@
-package io.github.temporalrift.workbench.execution.domain.run;
+package io.github.temporalrift.workbench.shared.execution;
 
 /**
  * Why an attempt failed. An abnormal game ending is never a failure: it is an authoritative game
@@ -6,10 +6,10 @@ package io.github.temporalrift.workbench.execution.domain.run;
  */
 public enum FailureCode {
     RUNNER_TIMEOUT(true),
+    EXECUTION_FAILED(true),
     CONTRACT_MISMATCH(false),
     CONFIGURATION_DRIFT(false),
-    POLICY_EXHAUSTED(false),
-    EXECUTION_FAILED(true);
+    POLICY_EXHAUSTED(false);
 
     private final boolean retryable;
 

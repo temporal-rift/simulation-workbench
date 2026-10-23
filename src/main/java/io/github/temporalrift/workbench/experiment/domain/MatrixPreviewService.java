@@ -9,6 +9,8 @@ import java.util.function.Consumer;
 
 import tools.jackson.databind.JsonNode;
 
+import io.github.temporalrift.workbench.shared.game.Faction;
+
 /**
  * Deterministically enumerates every case coordinate of a frozen experiment. Ordering is stable:
  * seeds numerically, faction sets lexicographically, variants and policies in manifest order, and
@@ -71,7 +73,10 @@ public final class MatrixPreviewService {
         var seats = new ArrayList<SeatAssignment>();
         for (int seat = 0; seat < players; seat++) {
             seats.add(new SeatAssignment(
-                    seat, sortedFactions.get((seat + rotation) % players), policy.id(), policy.version()));
+                    seat,
+                    Faction.valueOf(sortedFactions.get((seat + rotation) % players)),
+                    policy.id(),
+                    policy.version()));
         }
         var key = String.join(
                 "|",
@@ -112,5 +117,5 @@ public final class MatrixPreviewService {
             List<SeatAssignment> seats) {}
 
     /** One seat of a case coordinate. */
-    public record SeatAssignment(int seatIndex, String faction, String policyId, String policyVersion) {}
+    public record SeatAssignment(int seatIndex, Faction faction, String policyId, String policyVersion) {}
 }

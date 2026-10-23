@@ -13,8 +13,8 @@ import io.github.temporalrift.workbench.execution.domain.evidence.ObservedEvent;
 import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
 import io.github.temporalrift.workbench.execution.domain.port.out.GameEventObserver;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
-import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.GameEndedParser;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
 
 /**
  * Retains the records the slot routed for one game as evidence, exactly as delivered to the services. It resumes from

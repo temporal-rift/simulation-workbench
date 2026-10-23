@@ -22,10 +22,10 @@ import io.github.temporalrift.workbench.execution.domain.reproduction.Reproducti
 import io.github.temporalrift.workbench.execution.domain.reproduction.ReproductionState;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.Failure;
-import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.domain.run.Run;
 import io.github.temporalrift.workbench.experiment.ExperimentManifests;
 import io.github.temporalrift.workbench.experiment.application.port.in.CreateExperimentUseCase;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
 
 @WorkbenchIntegrationTest
 class ReproductionRepositoryIT {

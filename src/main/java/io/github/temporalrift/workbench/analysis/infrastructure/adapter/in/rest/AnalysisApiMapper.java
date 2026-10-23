@@ -10,13 +10,13 @@ import io.github.temporalrift.workbench.analysis.domain.comparison.ComparisonCoh
 import io.github.temporalrift.workbench.analysis.domain.comparison.ComparisonResult;
 import io.github.temporalrift.workbench.analysis.domain.comparison.ExcludedPair;
 import io.github.temporalrift.workbench.analysis.domain.comparison.MetricDifference;
-import io.github.temporalrift.workbench.analysis.domain.game.Faction;
 import io.github.temporalrift.workbench.analysis.domain.report.CaseCounts;
 import io.github.temporalrift.workbench.analysis.domain.report.Cohort;
 import io.github.temporalrift.workbench.analysis.domain.report.Dimensions;
 import io.github.temporalrift.workbench.analysis.domain.report.Interval;
 import io.github.temporalrift.workbench.analysis.domain.report.Metric;
 import io.github.temporalrift.workbench.analysis.domain.report.RunReport;
+import io.github.temporalrift.workbench.shared.game.Faction;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.AttemptFailureCode;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CardGrade;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CardType;

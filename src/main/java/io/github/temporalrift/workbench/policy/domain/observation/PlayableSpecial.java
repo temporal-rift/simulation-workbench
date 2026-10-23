@@ -2,6 +2,8 @@ package io.github.temporalrift.workbench.policy.domain.observation;
 
 import java.util.Objects;
 
+import io.github.temporalrift.workbench.shared.game.SpecialAction;
+
 /** A faction special action the participant may submit in the open action round. */
 public record PlayableSpecial(SpecialAction action, TargetShape shape) {
 

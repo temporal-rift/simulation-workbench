@@ -1,4 +1,4 @@
-package io.github.temporalrift.workbench.analysis.domain.game;
+package io.github.temporalrift.workbench.shared.game;
 
 /** How an eligible game ended; the endings without winners are valid outcomes, not failures. */
 public enum EndReason {

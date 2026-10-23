@@ -12,10 +12,10 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 import io.github.temporalrift.workbench.policy.domain.decision.Candidate;
 import io.github.temporalrift.workbench.policy.domain.decision.Target;
 import io.github.temporalrift.workbench.policy.domain.observation.CardCategory;
-import io.github.temporalrift.workbench.policy.domain.observation.CardType;
 import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow;
 import io.github.temporalrift.workbench.policy.domain.observation.DeclarationMode;
-import io.github.temporalrift.workbench.policy.domain.observation.SpecialAction;
+import io.github.temporalrift.workbench.shared.game.CardType;
+import io.github.temporalrift.workbench.shared.game.SpecialAction;
 
 /**
  * Reads what the service has accepted from a seat in the window it owes, using only that participant's

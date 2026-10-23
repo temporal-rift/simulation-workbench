@@ -1,4 +1,4 @@
-package io.github.temporalrift.workbench.analysis.domain.game;
+package io.github.temporalrift.workbench.shared.game;
 
 /** The shared faction vocabulary. */
 public enum Faction {

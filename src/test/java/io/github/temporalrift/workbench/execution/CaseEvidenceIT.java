@@ -41,9 +41,6 @@ import io.github.temporalrift.workbench.execution.domain.reproduction.Reproducti
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptState;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
-import io.github.temporalrift.workbench.execution.domain.run.CaseState;
-import io.github.temporalrift.workbench.execution.domain.run.EndReason;
-import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.domain.run.FinalScore;
 import io.github.temporalrift.workbench.execution.support.ManualResetScheduler;
 import io.github.temporalrift.workbench.execution.support.RecordingResets;
@@ -53,6 +50,9 @@ import io.github.temporalrift.workbench.experiment.application.port.in.CreateExp
 import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow;
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
 import io.github.temporalrift.workbench.policy.domain.observation.OutcomeView;
+import io.github.temporalrift.workbench.shared.execution.CaseState;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
+import io.github.temporalrift.workbench.shared.game.EndReason;
 
 @WorkbenchIntegrationTest
 class CaseEvidenceIT {
@@ -143,7 +143,8 @@ class CaseEvidenceIT {
         var cases = runCatalog.cases(saved.runId());
         assertThat(cases).extracting(RunCase::caseId).containsExactlyElementsOf(caseIds(saved.runId()));
         assertThat(cases).allSatisfy(runCase -> {
-            assertThat(runCase.state()).isEqualTo("SUCCEEDED");
+            assertThat(runCase.state())
+                    .isEqualTo(io.github.temporalrift.workbench.shared.execution.CaseState.SUCCEEDED);
             assertThat(runCase.seats()).hasSize(3);
             assertThat(runCase.result().finalScores()).hasSize(3);
         });

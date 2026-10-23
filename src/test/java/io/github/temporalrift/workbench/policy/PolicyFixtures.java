@@ -5,20 +5,20 @@ import java.util.Map;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.policy.domain.observation.CardCategory;
-import io.github.temporalrift.workbench.policy.domain.observation.CardGrade;
-import io.github.temporalrift.workbench.policy.domain.observation.CardType;
 import io.github.temporalrift.workbench.policy.domain.observation.DealtCard;
 import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow;
 import io.github.temporalrift.workbench.policy.domain.observation.DeclarationMode;
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
 import io.github.temporalrift.workbench.policy.domain.observation.EventView;
-import io.github.temporalrift.workbench.policy.domain.observation.Faction;
 import io.github.temporalrift.workbench.policy.domain.observation.HandCard;
 import io.github.temporalrift.workbench.policy.domain.observation.OutcomeView;
 import io.github.temporalrift.workbench.policy.domain.observation.PlayableCard;
 import io.github.temporalrift.workbench.policy.domain.observation.PlayableSpecial;
-import io.github.temporalrift.workbench.policy.domain.observation.SpecialAction;
 import io.github.temporalrift.workbench.policy.domain.observation.TargetShape;
+import io.github.temporalrift.workbench.shared.game.CardGrade;
+import io.github.temporalrift.workbench.shared.game.CardType;
+import io.github.temporalrift.workbench.shared.game.Faction;
+import io.github.temporalrift.workbench.shared.game.SpecialAction;
 
 /** Scripted observations covering every faction, window and target shape. */
 public final class PolicyFixtures {

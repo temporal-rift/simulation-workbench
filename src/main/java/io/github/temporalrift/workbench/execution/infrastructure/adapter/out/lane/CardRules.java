@@ -3,10 +3,10 @@ package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.la
 import java.util.Set;
 
 import io.github.temporalrift.workbench.policy.domain.observation.CardCategory;
-import io.github.temporalrift.workbench.policy.domain.observation.CardGrade;
-import io.github.temporalrift.workbench.policy.domain.observation.CardType;
-import io.github.temporalrift.workbench.policy.domain.observation.SpecialAction;
 import io.github.temporalrift.workbench.policy.domain.observation.TargetShape;
+import io.github.temporalrift.workbench.shared.game.CardGrade;
+import io.github.temporalrift.workbench.shared.game.CardType;
+import io.github.temporalrift.workbench.shared.game.SpecialAction;
 
 /**
  * The structural facts of the published submission contract that the participant projection does not

@@ -20,13 +20,13 @@ import io.github.temporalrift.workbench.execution.domain.reproduction.Transcript
 import io.github.temporalrift.workbench.execution.domain.run.Attempt;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
 import io.github.temporalrift.workbench.execution.domain.run.CaseResult;
-import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.domain.run.GameProgress;
 import io.github.temporalrift.workbench.execution.domain.run.LogicalCase;
 import io.github.temporalrift.workbench.policy.application.port.in.PlayDecisionWindowUseCase;
 import io.github.temporalrift.workbench.policy.application.port.in.PlayDecisionWindowUseCase.DecisionResult;
 import io.github.temporalrift.workbench.policy.application.port.in.PlayDecisionWindowUseCase.SeatPolicy;
 import io.github.temporalrift.workbench.policy.domain.decision.CandidateCodec;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
 
 /**
  * Plays one real game to its reconciled authoritative ending. Every decision window is played through

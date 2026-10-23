@@ -37,7 +37,7 @@ final class ExperimentPreviewMapper {
                 coordinate.seats().stream()
                         .map(seat -> new SeatAssignment(
                                 seat.seatIndex(),
-                                Faction.fromValue(seat.faction()),
+                                Faction.fromValue(seat.faction().name()),
                                 seat.policyId(),
                                 seat.policyVersion()))
                         .toList());

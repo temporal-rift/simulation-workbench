@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
+import io.github.temporalrift.workbench.shared.game.Faction;
+
 /**
  * The single frozen input a policy decides from. It can only hold facts the seat is entitled to:
  * its own faction, the visible events, the other participants' public identifiers, and the open

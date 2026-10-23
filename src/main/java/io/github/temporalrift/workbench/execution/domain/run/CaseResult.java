@@ -3,6 +3,8 @@ package io.github.temporalrift.workbench.execution.domain.run;
 import java.util.List;
 import java.util.Objects;
 
+import io.github.temporalrift.workbench.shared.game.EndReason;
+
 /**
  * The reconciled authoritative outcome of a case. An ending without winners ({@code
  * RESOLUTION_FAILED}, {@code ALL_PLAYERS_ABANDONED}, {@code DECK_EXHAUSTED}) is a valid game result

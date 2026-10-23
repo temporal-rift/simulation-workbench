@@ -3,6 +3,8 @@ package io.github.temporalrift.workbench.analysis.domain.game;
 import java.util.List;
 import java.util.UUID;
 
+import io.github.temporalrift.workbench.shared.game.SpecialAction;
+
 /**
  * What analysis reads of one succeeded game: the authoritative events attributed to seats, what each seat
  * observed of its hand in the action rounds it played, and the special actions it submitted.

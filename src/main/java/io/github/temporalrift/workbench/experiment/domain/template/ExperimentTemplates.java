@@ -1,15 +1,18 @@
 package io.github.temporalrift.workbench.experiment.domain.template;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import io.github.temporalrift.workbench.experiment.domain.ExperimentValidator;
 import io.github.temporalrift.workbench.experiment.domain.port.out.PolicyArtifacts;
+import io.github.temporalrift.workbench.shared.game.Faction;
 
 /** The templates the workbench offers, in template id order. */
 public final class ExperimentTemplates {
 
-    private static final List<String> FACTIONS = List.of("ERASERS", "PROPHETS", "REVISIONISTS", "WEAVERS", "ACTIVISTS");
+    private static final List<String> FACTIONS =
+            Arrays.stream(Faction.values()).map(Faction::name).toList();
     private static final List<Integer> PLAYER_COUNTS = List.of(3, 4, 5);
     private static final List<Integer> EVERY_SEAT = List.of(0, 1, 2, 3, 4);
     private static final String BASELINE_VERSION = "1.0.0";

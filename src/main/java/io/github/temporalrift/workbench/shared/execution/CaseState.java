@@ -1,4 +1,4 @@
-package io.github.temporalrift.workbench.execution.domain.run;
+package io.github.temporalrift.workbench.shared.execution;
 
 /** State of a logical case; SUCCEEDED, FAILED and CANCELLED are final. */
 public enum CaseState {

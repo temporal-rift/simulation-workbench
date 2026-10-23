@@ -14,7 +14,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import io.github.temporalrift.workbench.policy.domain.observation.CardCategory;
 import io.github.temporalrift.workbench.policy.domain.observation.DeclarationMode;
-import io.github.temporalrift.workbench.policy.domain.observation.SpecialAction;
+import io.github.temporalrift.workbench.shared.game.SpecialAction;
 
 class CandidateCodecTest {
 

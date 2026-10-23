@@ -14,9 +14,9 @@ import io.github.temporalrift.workbench.execution.domain.reproduction.Reproducti
 import io.github.temporalrift.workbench.execution.domain.reproduction.TranscriptDivergedException;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
 import io.github.temporalrift.workbench.execution.domain.run.Failure;
-import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.domain.run.LeaseLostException;
 import io.github.temporalrift.workbench.execution.domain.run.RunNotFoundException;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
 
 /**
  * Executes queued reproductions on the clean lane that played the case, while it still serves the case's bundle.

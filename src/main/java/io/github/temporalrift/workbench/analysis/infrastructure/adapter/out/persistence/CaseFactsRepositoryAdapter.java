@@ -16,12 +16,12 @@ import tools.jackson.databind.ObjectMapper;
 import io.github.temporalrift.workbench.analysis.domain.fact.CaseFacts;
 import io.github.temporalrift.workbench.analysis.domain.fact.GameFacts;
 import io.github.temporalrift.workbench.analysis.domain.fact.SeatFacts;
-import io.github.temporalrift.workbench.analysis.domain.game.CardGrade;
 import io.github.temporalrift.workbench.analysis.domain.game.CardKey;
-import io.github.temporalrift.workbench.analysis.domain.game.CardType;
-import io.github.temporalrift.workbench.analysis.domain.game.Faction;
-import io.github.temporalrift.workbench.analysis.domain.game.SpecialAction;
 import io.github.temporalrift.workbench.analysis.domain.port.out.CaseFactsRepository;
+import io.github.temporalrift.workbench.shared.game.CardGrade;
+import io.github.temporalrift.workbench.shared.game.CardType;
+import io.github.temporalrift.workbench.shared.game.Faction;
+import io.github.temporalrift.workbench.shared.game.SpecialAction;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.InsertOnce;
 
 /** Case facts, one JSON document per case and analysis version. */

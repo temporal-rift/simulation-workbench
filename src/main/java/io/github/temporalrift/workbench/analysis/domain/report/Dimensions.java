@@ -1,11 +1,11 @@
 package io.github.temporalrift.workbench.analysis.domain.report;
 
 import io.github.temporalrift.workbench.analysis.domain.game.CardKey;
-import io.github.temporalrift.workbench.analysis.domain.game.EndReason;
-import io.github.temporalrift.workbench.analysis.domain.game.Faction;
-import io.github.temporalrift.workbench.analysis.domain.game.FailureCode;
 import io.github.temporalrift.workbench.analysis.domain.game.ParadoxType;
-import io.github.temporalrift.workbench.analysis.domain.game.SpecialAction;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
+import io.github.temporalrift.workbench.shared.game.EndReason;
+import io.github.temporalrift.workbench.shared.game.Faction;
+import io.github.temporalrift.workbench.shared.game.SpecialAction;
 
 /** What a metric is restricted to; a null dimension means the metric is not split by it. */
 public record Dimensions(

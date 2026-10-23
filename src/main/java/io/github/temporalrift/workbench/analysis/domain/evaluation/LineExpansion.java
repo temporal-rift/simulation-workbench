@@ -17,7 +17,6 @@ import io.github.temporalrift.workbench.analysis.domain.criterion.PolicyReferenc
 import io.github.temporalrift.workbench.analysis.domain.criterion.Pooling;
 import io.github.temporalrift.workbench.analysis.domain.fact.CaseFacts;
 import io.github.temporalrift.workbench.analysis.domain.game.AnalyzedCase;
-import io.github.temporalrift.workbench.analysis.domain.game.Faction;
 import io.github.temporalrift.workbench.analysis.domain.report.CohortComputation;
 import io.github.temporalrift.workbench.analysis.domain.report.CohortComputation.Estimate;
 import io.github.temporalrift.workbench.analysis.domain.report.CohortKey;
@@ -26,6 +25,7 @@ import io.github.temporalrift.workbench.analysis.domain.report.MetricStatus;
 import io.github.temporalrift.workbench.analysis.domain.report.ReportCalculator;
 import io.github.temporalrift.workbench.analysis.domain.report.Vocabulary;
 import io.github.temporalrift.workbench.analysis.domain.statistics.BlockSeries;
+import io.github.temporalrift.workbench.shared.game.Faction;
 
 /**
  * Expands each criterion line into one evaluated line per cohort and dimension value it covers. A faction ratio and

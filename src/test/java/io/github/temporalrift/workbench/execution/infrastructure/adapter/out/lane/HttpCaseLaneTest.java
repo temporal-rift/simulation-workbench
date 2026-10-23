@@ -38,7 +38,6 @@ import io.github.temporalrift.workbench.execution.domain.command.SlotStatus;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
-import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.domain.run.SeatPlan;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.SimulationExecutionApi;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.model.ExecutionCheckpoint;
@@ -58,6 +57,8 @@ import io.github.temporalrift.workbench.execution.support.InMemoryCommandLedger;
 import io.github.temporalrift.workbench.execution.support.InMemoryEvidenceLedger;
 import io.github.temporalrift.workbench.execution.support.Provenances;
 import io.github.temporalrift.workbench.execution.support.StubEventObserver;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
+import io.github.temporalrift.workbench.shared.game.Faction;
 
 class HttpCaseLaneTest {
 
@@ -341,9 +342,9 @@ class HttpCaseLaneTest {
                 "42",
                 DIGEST,
                 List.of(
-                        new SeatPlan(0, "ERASERS", "random", "1.0.0"),
-                        new SeatPlan(1, "PROPHETS", "random", "1.0.0"),
-                        new SeatPlan(2, "WEAVERS", "random", "1.0.0")),
+                        new SeatPlan(0, Faction.ERASERS, "random", "1.0.0"),
+                        new SeatPlan(1, Faction.PROPHETS, "random", "1.0.0"),
+                        new SeatPlan(2, Faction.WEAVERS, "random", "1.0.0")),
                 EPOCH);
     }
 

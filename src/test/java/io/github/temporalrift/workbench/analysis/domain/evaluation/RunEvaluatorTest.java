@@ -15,12 +15,12 @@ import io.github.temporalrift.workbench.analysis.domain.SyntheticRun;
 import io.github.temporalrift.workbench.analysis.domain.TestCriteria;
 import io.github.temporalrift.workbench.analysis.domain.criterion.BalanceCriterion;
 import io.github.temporalrift.workbench.analysis.domain.criterion.CriterionRole;
-import io.github.temporalrift.workbench.analysis.domain.game.CaseStatus;
-import io.github.temporalrift.workbench.analysis.domain.game.EndReason;
-import io.github.temporalrift.workbench.analysis.domain.game.Faction;
-import io.github.temporalrift.workbench.analysis.domain.game.FailureCode;
 import io.github.temporalrift.workbench.analysis.domain.report.Interval;
 import io.github.temporalrift.workbench.analysis.domain.report.MetricStatus;
+import io.github.temporalrift.workbench.shared.execution.CaseState;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
+import io.github.temporalrift.workbench.shared.game.EndReason;
+import io.github.temporalrift.workbench.shared.game.Faction;
 
 class RunEvaluatorTest {
 
@@ -153,7 +153,7 @@ class RunEvaluatorTest {
                 .extracting(Validity.Reason::code)
                 .containsExactly(ValidityCode.CONFIGURATION_DRIFT);
 
-        run.unfinished("6", EPW, CaseStatus.PENDING);
+        run.unfinished("6", EPW, CaseState.PENDING);
 
         var both = evaluate(EvaluationMode.SCREENING);
 

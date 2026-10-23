@@ -32,8 +32,6 @@ import io.github.temporalrift.workbench.execution.application.port.in.StartRunUs
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.port.out.GameSession;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
-import io.github.temporalrift.workbench.execution.domain.run.EndReason;
-import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.domain.run.FinalScore;
 import io.github.temporalrift.workbench.execution.domain.run.WinType;
 import io.github.temporalrift.workbench.execution.domain.run.Winner;
@@ -41,6 +39,8 @@ import io.github.temporalrift.workbench.execution.support.FakeGame;
 import io.github.temporalrift.workbench.execution.support.ScriptedLanes;
 import io.github.temporalrift.workbench.experiment.ExperimentManifests;
 import io.github.temporalrift.workbench.experiment.application.port.in.CreateExperimentUseCase;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
+import io.github.temporalrift.workbench.shared.game.EndReason;
 
 @WorkbenchIntegrationTest
 class AnalysisIT {
@@ -291,7 +291,8 @@ class AnalysisIT {
             public void onPoll(CaseLane.CaseContext context, FakeGame game) {
                 if (CANDIDATE.equals(variantOf(context))
                         && "2".equals(context.seed())
-                        && "ERASERS".equals(context.seats().getFirst().faction())) {
+                        && context.seats().getFirst().faction()
+                                == io.github.temporalrift.workbench.shared.game.Faction.ERASERS) {
                     throw new AttemptFailedException(FailureCode.CONFIGURATION_DRIFT, "the lane drifted");
                 }
             }
@@ -479,7 +480,8 @@ class AnalysisIT {
             public void onPoll(CaseLane.CaseContext context, FakeGame game) {
                 if (CANDIDATE.equals(variantOf(context))
                         && "2".equals(context.seed())
-                        && "ERASERS".equals(context.seats().getFirst().faction())) {
+                        && context.seats().getFirst().faction()
+                                == io.github.temporalrift.workbench.shared.game.Faction.ERASERS) {
                     throw new AttemptFailedException(FailureCode.CONFIGURATION_DRIFT, "the lane drifted");
                 }
             }
@@ -505,7 +507,7 @@ class AnalysisIT {
                 .toList();
         var winner = CANDIDATE.equals(variantOf(context))
                 ? context.seats().stream()
-                        .filter(seat -> "ERASERS".equals(seat.faction()))
+                        .filter(seat -> seat.faction() == io.github.temporalrift.workbench.shared.game.Faction.ERASERS)
                         .findFirst()
                         .orElseThrow()
                 : context.seats().getFirst();

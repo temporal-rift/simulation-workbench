@@ -4,6 +4,10 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
+import io.github.temporalrift.workbench.shared.execution.CaseState;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
+import io.github.temporalrift.workbench.shared.game.Faction;
+
 /**
  * A logical case as analysis sees it: its matrix coordinate, its status, and its outcome once it succeeded.
  * The matrix assigns one policy to every seat of a case.
@@ -20,7 +24,7 @@ public record AnalyzedCase(
         String policyId,
         String policyVersion,
         List<Faction> seatFactions,
-        CaseStatus status,
+        CaseState status,
         CaseOutcome outcome,
         FailureCode failureCode) {
 
@@ -38,17 +42,17 @@ public record AnalyzedCase(
             String policyId,
             String policyVersion,
             List<Faction> seatFactions,
-            CaseStatus status,
+            CaseState status,
             CaseOutcome outcome) {
         this(caseId, variantLabel, seed, playerCount, policyId, policyVersion, seatFactions, status, outcome, null);
     }
 
     /** Whether the case reached a final state that counts in a failure share. */
     public boolean finished() {
-        return status == CaseStatus.SUCCEEDED || status == CaseStatus.FAILED;
+        return status == CaseState.SUCCEEDED || status == CaseState.FAILED;
     }
 
     public boolean succeeded() {
-        return status == CaseStatus.SUCCEEDED;
+        return status == CaseState.SUCCEEDED;
     }
 }

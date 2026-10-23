@@ -12,8 +12,6 @@ import java.util.UUID;
 
 import io.github.temporalrift.workbench.analysis.domain.fact.CaseFacts;
 import io.github.temporalrift.workbench.analysis.domain.game.AnalyzedCase;
-import io.github.temporalrift.workbench.analysis.domain.game.CaseStatus;
-import io.github.temporalrift.workbench.analysis.domain.game.Faction;
 import io.github.temporalrift.workbench.analysis.domain.report.BlockTallies;
 import io.github.temporalrift.workbench.analysis.domain.report.CohortKey;
 import io.github.temporalrift.workbench.analysis.domain.report.Interval;
@@ -26,6 +24,8 @@ import io.github.temporalrift.workbench.analysis.domain.report.Vocabulary;
 import io.github.temporalrift.workbench.analysis.domain.statistics.BlockBootstrap;
 import io.github.temporalrift.workbench.analysis.domain.statistics.BlockSeries;
 import io.github.temporalrift.workbench.analysis.domain.statistics.SplitMix64;
+import io.github.temporalrift.workbench.shared.execution.CaseState;
+import io.github.temporalrift.workbench.shared.game.Faction;
 
 /**
  * Pairs the two sides' cases and estimates differences from complete matched blocks only. A pair shares seed,
@@ -212,8 +212,8 @@ public final class ComparisonCalculator {
                 reason);
     }
 
-    private static boolean isFailure(CaseStatus status) {
-        return Set.of(CaseStatus.FAILED, CaseStatus.CANCELLED).contains(status);
+    private static boolean isFailure(CaseState status) {
+        return Set.of(CaseState.FAILED, CaseState.CANCELLED).contains(status);
     }
 
     private record Pair(AnalyzedCase baseline, AnalyzedCase candidate) {

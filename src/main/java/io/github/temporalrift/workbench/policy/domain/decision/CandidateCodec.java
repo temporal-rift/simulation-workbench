@@ -6,7 +6,7 @@ import java.util.UUID;
 
 import io.github.temporalrift.workbench.policy.domain.observation.CardCategory;
 import io.github.temporalrift.workbench.policy.domain.observation.DeclarationMode;
-import io.github.temporalrift.workbench.policy.domain.observation.SpecialAction;
+import io.github.temporalrift.workbench.shared.game.SpecialAction;
 
 /**
  * The canonical text of a candidate. It is what the decision transcript retains, so a saved case can be

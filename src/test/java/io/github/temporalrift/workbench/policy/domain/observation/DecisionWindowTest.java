@@ -8,6 +8,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import io.github.temporalrift.workbench.policy.PolicyFixtures;
+import io.github.temporalrift.workbench.shared.game.CardType;
 
 class DecisionWindowTest {
 

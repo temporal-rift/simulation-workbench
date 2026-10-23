@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 
 import io.github.temporalrift.workbench.policy.PolicyFixtures;
-import io.github.temporalrift.workbench.policy.domain.observation.Faction;
+import io.github.temporalrift.workbench.shared.game.Faction;
 
 class CandidateGeneratorTest {
 

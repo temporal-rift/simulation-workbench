@@ -8,9 +8,9 @@ import java.util.Map;
 import java.util.Set;
 
 import io.github.temporalrift.workbench.analysis.domain.game.AnalyzedCase;
-import io.github.temporalrift.workbench.analysis.domain.game.CaseStatus;
-import io.github.temporalrift.workbench.analysis.domain.game.FailureCode;
 import io.github.temporalrift.workbench.analysis.domain.statistics.BlockSeries;
+import io.github.temporalrift.workbench.shared.execution.CaseState;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
 
 /**
  * The per-block tallies of {@code failure_share}: cases that finished {@code FAILED} (with a code, or with any) over
@@ -45,7 +45,7 @@ public final class FailureShare {
         for (var analyzedCase : finished) {
             var block = blocks.get(analyzedCase.seed());
             var failed = analyzedCase.failureCode();
-            all.addRatio(block, analyzedCase.status() == CaseStatus.FAILED ? 1 : 0, 1, 0);
+            all.addRatio(block, analyzedCase.status() == CaseState.FAILED ? 1 : 0, 1, 0);
             byCode.forEach((code, series) -> series.addRatio(block, code == failed ? 1 : 0, 1, 0));
         }
         return new FailureShare(all, byCode);

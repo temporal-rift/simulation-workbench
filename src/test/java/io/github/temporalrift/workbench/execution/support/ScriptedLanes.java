@@ -19,7 +19,6 @@ import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger
 import io.github.temporalrift.workbench.execution.domain.port.out.GameSession;
 import io.github.temporalrift.workbench.execution.domain.port.out.LaneProvider;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
-import io.github.temporalrift.workbench.execution.domain.run.EndReason;
 import io.github.temporalrift.workbench.execution.domain.run.FinalScore;
 import io.github.temporalrift.workbench.execution.domain.run.ServedBundle;
 import io.github.temporalrift.workbench.execution.domain.run.WinType;
@@ -31,6 +30,7 @@ import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
 import io.github.temporalrift.workbench.policy.domain.observation.EventView;
 import io.github.temporalrift.workbench.policy.domain.observation.OutcomeView;
+import io.github.temporalrift.workbench.shared.game.EndReason;
 
 /**
  * In-process lanes that host scripted games. A game keeps its state per game id across attempts, exactly

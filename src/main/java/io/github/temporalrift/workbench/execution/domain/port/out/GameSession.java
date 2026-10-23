@@ -4,11 +4,11 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import io.github.temporalrift.workbench.execution.domain.run.EndReason;
 import io.github.temporalrift.workbench.execution.domain.run.FinalScore;
 import io.github.temporalrift.workbench.execution.domain.run.GameProgress;
 import io.github.temporalrift.workbench.execution.domain.run.Winner;
 import io.github.temporalrift.workbench.policy.domain.port.out.ParticipantGateway;
+import io.github.temporalrift.workbench.shared.game.EndReason;
 
 /** One real game on a lane, observed and driven only through participant operations and barriers. */
 public interface GameSession {

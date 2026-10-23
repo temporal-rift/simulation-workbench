@@ -18,7 +18,6 @@ import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger
 import io.github.temporalrift.workbench.execution.domain.port.out.GameEventObserver;
 import io.github.temporalrift.workbench.execution.domain.port.out.GameSession;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
-import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.action.ActionApi;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.SimulationExecutionApi;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.model.ExecutionCheckpoint;
@@ -30,6 +29,7 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.session.SessionApi;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.session.model.CreateLobbyRequest;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.session.model.JoinLobbyRequest;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
 
 /**
  * One isolated lane hosting one case at a time. Opening configures the case's execution context on both
@@ -206,7 +206,7 @@ public class HttpCaseLane implements CaseLane {
                 .map(seat -> new SimulationSeat(
                         seat.seatIndex(),
                         lane.bots().get(seat.seatIndex()).playerId(),
-                        Faction.valueOf(seat.faction())))
+                        Faction.valueOf(seat.faction().name())))
                 .toList();
         var request = new ExecutionContext()
                 .schemaVersion(ExecutionContext.SchemaVersionEnum.NUMBER_1)

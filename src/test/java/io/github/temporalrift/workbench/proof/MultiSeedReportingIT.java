@@ -14,12 +14,12 @@ import tools.jackson.databind.JsonNode;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.port.out.GameSession;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
-import io.github.temporalrift.workbench.execution.domain.run.EndReason;
-import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.domain.run.FinalScore;
 import io.github.temporalrift.workbench.execution.domain.run.WinType;
 import io.github.temporalrift.workbench.execution.domain.run.Winner;
 import io.github.temporalrift.workbench.execution.support.ScriptedLanes;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
+import io.github.temporalrift.workbench.shared.game.EndReason;
 
 /** Reports of multi-seed runs: sample sizes, uncertainty and pairing stated as they are, in JSON and in CSV. */
 class MultiSeedReportingIT extends ProofSupport {
@@ -112,7 +112,7 @@ class MultiSeedReportingIT extends ProofSupport {
             public void onOpen(CaseLane.CaseContext context) {
                 if (CANDIDATE.equals(variantOf(context))
                         && "3".equals(context.seed())
-                        && ERASERS.equals(context.seats().getFirst().faction())) {
+                        && ERASERS.equals(context.seats().getFirst().faction().name())) {
                     throw new AttemptFailedException(FailureCode.CONFIGURATION_DRIFT, "the lane drifted");
                 }
             }
@@ -170,11 +170,11 @@ class MultiSeedReportingIT extends ProofSupport {
                 .map(seat -> new FinalScore(seat.seatIndex(), seat.faction(), 30 - seat.seatIndex() * 4))
                 .toList();
         var erasers = context.seats().stream()
-                .filter(seat -> ERASERS.equals(seat.faction()))
+                .filter(seat -> ERASERS.equals(seat.faction().name()))
                 .findFirst()
                 .orElseThrow();
         var other = context.seats().stream()
-                .filter(seat -> !ERASERS.equals(seat.faction()))
+                .filter(seat -> !ERASERS.equals(seat.faction().name()))
                 .findFirst()
                 .orElseThrow();
         var winners = new ArrayList<Winner>();

@@ -13,10 +13,10 @@ import java.util.function.ToDoubleFunction;
 import io.github.temporalrift.workbench.analysis.domain.AnalysisVersion;
 import io.github.temporalrift.workbench.analysis.domain.fact.CaseFacts;
 import io.github.temporalrift.workbench.analysis.domain.game.AnalyzedCase;
-import io.github.temporalrift.workbench.analysis.domain.game.FailureCode;
 import io.github.temporalrift.workbench.analysis.domain.statistics.BlockBootstrap;
 import io.github.temporalrift.workbench.analysis.domain.statistics.BlockSeries;
 import io.github.temporalrift.workbench.analysis.domain.statistics.SplitMix64;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
 
 /**
  * One cohort's tallies and resampling plans. The report reads its metrics from it, and an evaluation derives further
