@@ -143,7 +143,8 @@ class CaseEvidenceIT {
         var cases = runCatalog.cases(saved.runId());
         assertThat(cases).extracting(RunCase::caseId).containsExactlyElementsOf(caseIds(saved.runId()));
         assertThat(cases).allSatisfy(runCase -> {
-            assertThat(runCase.state()).isEqualTo("SUCCEEDED");
+            assertThat(runCase.state())
+                    .isEqualTo(io.github.temporalrift.workbench.shared.execution.CaseState.SUCCEEDED);
             assertThat(runCase.seats()).hasSize(3);
             assertThat(runCase.result().finalScores()).hasSize(3);
         });

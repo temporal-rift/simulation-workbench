@@ -112,7 +112,7 @@ class MultiSeedReportingIT extends ProofSupport {
             public void onOpen(CaseLane.CaseContext context) {
                 if (CANDIDATE.equals(variantOf(context))
                         && "3".equals(context.seed())
-                        && ERASERS.equals(context.seats().getFirst().faction())) {
+                        && ERASERS.equals(context.seats().getFirst().faction().name())) {
                     throw new AttemptFailedException(FailureCode.CONFIGURATION_DRIFT, "the lane drifted");
                 }
             }
@@ -170,11 +170,11 @@ class MultiSeedReportingIT extends ProofSupport {
                 .map(seat -> new FinalScore(seat.seatIndex(), seat.faction(), 30 - seat.seatIndex() * 4))
                 .toList();
         var erasers = context.seats().stream()
-                .filter(seat -> ERASERS.equals(seat.faction()))
+                .filter(seat -> ERASERS.equals(seat.faction().name()))
                 .findFirst()
                 .orElseThrow();
         var other = context.seats().stream()
-                .filter(seat -> !ERASERS.equals(seat.faction()))
+                .filter(seat -> !ERASERS.equals(seat.faction().name()))
                 .findFirst()
                 .orElseThrow();
         var winners = new ArrayList<Winner>();

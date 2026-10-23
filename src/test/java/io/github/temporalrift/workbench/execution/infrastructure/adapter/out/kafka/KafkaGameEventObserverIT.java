@@ -108,7 +108,8 @@ class KafkaGameEventObserverIT {
                             (event.source().startsWith("game.") ? "game" : "timeline") + ":" + event.eventType())
                     .containsExactlyInAnyOrder("game:GameStarted", "game:GameEnded", "timeline:EraResolutionCompleted");
             assertThat(observer.gameEnded()).hasValueSatisfying(fact -> {
-                assertThat(fact.endReason()).isEqualTo("WIN_CONDITION_MET");
+                assertThat(fact.endReason())
+                        .isEqualTo(io.github.temporalrift.workbench.shared.game.EndReason.WIN_CONDITION_MET);
                 assertThat(fact.finalScores()).containsEntry(PLAYER, 30);
             });
         }
@@ -187,7 +188,8 @@ class KafkaGameEventObserverIT {
 
             assertThat(observer.drain()).isTrue();
             assertThat(observer.gameEnded())
-                    .hasValueSatisfying(fact -> assertThat(fact.endReason()).isEqualTo("ALL_PLAYERS_ABANDONED"));
+                    .hasValueSatisfying(fact -> assertThat(fact.endReason())
+                            .isEqualTo(io.github.temporalrift.workbench.shared.game.EndReason.ALL_PLAYERS_ABANDONED));
         }
         assertThat(evidence.events(SCOPE, GAME)).hasSize(2);
     }

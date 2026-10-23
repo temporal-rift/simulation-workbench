@@ -81,7 +81,7 @@ class EvaluationBrowserIT extends DesignerBrowserTest {
                 .map(seat -> new FinalScore(seat.seatIndex(), seat.faction(), 30 - seat.seatIndex() * 4))
                 .toList();
         var winner = context.seats().stream()
-                .filter(seat -> "ERASERS".equals(seat.faction()))
+                .filter(seat -> seat.faction() == io.github.temporalrift.workbench.shared.game.Faction.ERASERS)
                 .findFirst()
                 .orElseThrow();
         return new GameSession.AuthoritativeEnding(
