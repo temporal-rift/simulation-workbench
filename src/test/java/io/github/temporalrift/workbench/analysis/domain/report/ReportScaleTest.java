@@ -62,7 +62,7 @@ class ReportScaleTest {
                         cases.add(analyzed);
                         facts.put(
                                 analyzed.caseId(),
-                                FactExtractor.extract(analyzed.caseId(), seats, outcome, record(size)));
+                                FactExtractor.extract(analyzed.caseId(), seats, outcome, gameRecord(size)));
                     }
                 }
             }
@@ -80,7 +80,7 @@ class ReportScaleTest {
     }
 
     /** Every seat is dealt every card and submits every special, so each cohort lists the full vocabulary. */
-    private static GameRecord record(int seats) {
+    private static GameRecord gameRecord(int seats) {
         var cards = new ArrayList<CardKey>();
         for (var type : CardType.values()) {
             for (var grade : CardGrade.values()) {

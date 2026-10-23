@@ -71,7 +71,11 @@ public class CaseFactsRepositoryAdapter implements CaseFactsRepository {
                         caseFacts.caseId(), analysisVersion, write(caseFacts), clock.instant()))
                 .toList();
         if (!rows.isEmpty() && !insertOnce.insert(() -> stored.saveAllAndFlush(rows))) {
-            rows.forEach(row -> insertOnce.insert(() -> stored.saveAndFlush(row)));
+            var missing =
+                    rows.stream().filter(row -> !stored.existsById(row.getId())).toList();
+            if (!missing.isEmpty()) {
+                insertOnce.insert(() -> stored.saveAllAndFlush(missing));
+            }
         }
     }
 

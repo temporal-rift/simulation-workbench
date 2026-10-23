@@ -1,4 +1,4 @@
-import { keepPreviousData, queryOptions } from '@tanstack/react-query'
+import { queryOptions } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { useSession } from '../auth/sessionContext'
 import { ApiProblemError, ServiceUnavailableError, apiClientFor, unwrap } from './client'
@@ -188,7 +188,9 @@ export const reportQuery = (client: Client, runId: string, counts: CaseCounts | 
     queryKey: ['report', runId, counts],
     queryFn: () => unwrap(() => getRunReport({ client, path: { runId } })),
     enabled: counts !== undefined,
-    placeholderData: keepPreviousData,
+    staleTime: Infinity,
+    // Only the same run's earlier report may stand in, never another run's.
+    placeholderData: (previous, previousQuery) => (previousQuery?.queryKey[1] === runId ? previous : undefined),
   })
 
 export const comparisonsQuery = (client: Client, offset: number) =>
