@@ -1,5 +1,6 @@
 package io.github.temporalrift.workbench.analysis.application.query;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -14,6 +15,9 @@ import io.github.temporalrift.workbench.analysis.domain.port.out.RunSource;
 
 /** The facts of a run's succeeded cases, extracting and storing each case once per analysis version. */
 public class CaseFactsProvider {
+
+    /** How many case ids one stored-facts lookup carries. */
+    static final int LOOKUP_CHUNK = 1000;
 
     private final RunSource runs;
     private final CaseFactsRepository facts;
@@ -33,17 +37,24 @@ public class CaseFactsProvider {
             throw new IllegalStateException("Analysis version " + analysis.version() + " is not implemented");
         }
         var succeeded = cases.stream().filter(AnalyzedCase::succeeded).toList();
-        var stored = new HashMap<>(
-                facts.find(succeeded.stream().map(AnalyzedCase::caseId).toList(), analysis.factsVersion()));
+        var stored = new HashMap<UUID, CaseFacts>();
+        for (var from = 0; from < succeeded.size(); from += LOOKUP_CHUNK) {
+            var chunk = succeeded.subList(from, Math.min(from + LOOKUP_CHUNK, succeeded.size()));
+            stored.putAll(facts.find(chunk.stream().map(AnalyzedCase::caseId).toList(), analysis.factsVersion()));
+        }
+        var extracted = new ArrayList<CaseFacts>();
         for (var analyzedCase : succeeded) {
             if (!stored.containsKey(analyzedCase.caseId())) {
                 runs.countingGame(runId, analyzedCase).ifPresent(gameRecord -> {
-                    var extracted = FactExtractor.extract(
+                    var caseFacts = FactExtractor.extract(
                             analyzedCase.caseId(), analyzedCase.seatFactions(), analyzedCase.outcome(), gameRecord);
-                    facts.save(extracted, analysis.factsVersion());
-                    stored.put(analyzedCase.caseId(), extracted);
+                    extracted.add(caseFacts);
+                    stored.put(analyzedCase.caseId(), caseFacts);
                 });
             }
+        }
+        if (!extracted.isEmpty()) {
+            facts.saveAll(extracted, analysis.factsVersion());
         }
         return stored;
     }

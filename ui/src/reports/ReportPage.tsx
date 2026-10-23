@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import type { Cohort, Report } from '../api/generated'
-import { isTerminalRunState, reportQuery, runQuery, useApiClient } from '../api/queries'
+import { reportQuery, runQuery, useApiClient } from '../api/queries'
 import { ExportButtons } from '../components/ExportButtons'
 import { shortDigest } from '../components/format'
 import { QueryView } from '../components/QueryView'
@@ -11,7 +11,7 @@ export function ReportPage() {
   const { runId } = useParams({ from: '/runs/$runId/report' })
   const client = useApiClient()
   const run = useQuery(runQuery(client, runId))
-  const query = useQuery(reportQuery(client, runId, !isTerminalRunState(run.data?.state)))
+  const query = useQuery(reportQuery(client, runId, run.data?.counts))
   return (
     <>
       <h1>

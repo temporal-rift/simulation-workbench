@@ -11,6 +11,6 @@ public interface CaseFactsRepository {
 
     Map<UUID, CaseFacts> find(Collection<UUID> caseIds, String analysisVersion);
 
-    /** Stores the facts unless the case already has facts for the version. */
-    void save(CaseFacts facts, String analysisVersion);
+    /** Stores the facts of the cases that do not yet have facts for the version, in one transaction. */
+    void saveAll(Collection<CaseFacts> facts, String analysisVersion);
 }

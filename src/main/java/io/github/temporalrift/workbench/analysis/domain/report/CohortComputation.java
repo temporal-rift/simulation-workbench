@@ -68,7 +68,17 @@ public final class CohortComputation {
             Vocabulary vocabulary,
             Set<FailureCode> failureCodes,
             AnalysisVersion analysis) {
-        var members = cases.stream().filter(key::contains).toList();
+        return ofMembers(key, cases.stream().filter(key::contains).toList(), facts, vocabulary, failureCodes, analysis);
+    }
+
+    /** The same for a cohort whose member cases the caller already selected, in case order. */
+    public static CohortComputation ofMembers(
+            CohortKey key,
+            List<AnalyzedCase> members,
+            Map<UUID, CaseFacts> facts,
+            Vocabulary vocabulary,
+            Set<FailureCode> failureCodes,
+            AnalysisVersion analysis) {
         var games = new LinkedHashMap<String, List<CaseFacts>>();
         members.stream()
                 .filter(AnalyzedCase::succeeded)
