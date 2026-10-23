@@ -31,7 +31,7 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
  * retained, or, for a game that just began, from the first record at or after the time the game began, so it never
  * reads the history of the lane. It is a separate consumer with its own credentials and never feeds a policy.
  * Records are deduplicated by topic and event identifier; the offset of each topic partition is retained once
- * per drain, after its records, and no order across topics is inferred.
+ * per drain, after its records and only when the drain did not fail, and no order across topics is inferred.
  */
 public final class KafkaGameEventObserver implements GameEventObserver {
 
@@ -122,6 +122,9 @@ public final class KafkaGameEventObserver implements GameEventObserver {
                 retain(messages, next);
             }
             return true;
+        } catch (RuntimeException e) {
+            next.clear();
+            throw e;
         } finally {
             if (!next.isEmpty()) {
                 var offsets = new HashMap<EvidenceLedger.SourcePartition, Long>();

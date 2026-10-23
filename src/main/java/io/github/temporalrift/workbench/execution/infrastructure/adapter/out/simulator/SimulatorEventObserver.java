@@ -61,15 +61,20 @@ final class SimulatorEventObserver implements GameEventObserver {
         }
         // Idle is read before the records: everything published before it was true is delivered and retained here.
         var delivered = router.idle();
+        var advanced = new HashMap<String, Long>();
         for (var topic : TOPICS) {
             var from = positions.get(topic);
             var records = router.routed(topic, from);
             retain(records.stream().filter(this::isThisGame).map(this::event).toList());
             if (!records.isEmpty()) {
-                var next = from + records.size();
-                positions.put(topic, next);
-                evidence.advance(target.scopeId(), target.gameId(), topic, PARTITION, next);
+                advanced.put(topic, from + records.size());
             }
+        }
+        if (!advanced.isEmpty()) {
+            var offsets = new HashMap<EvidenceLedger.SourcePartition, Long>();
+            advanced.forEach((topic, next) -> offsets.put(new EvidenceLedger.SourcePartition(topic, PARTITION), next));
+            evidence.advanceAll(target.scopeId(), target.gameId(), offsets);
+            positions.putAll(advanced);
         }
         return delivered;
     }
