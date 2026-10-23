@@ -32,8 +32,8 @@ class KafkaGameEventObserverDrainTest {
         consumer.updatePartitions(TOPIC, List.of(new PartitionInfo(TOPIC, 0, null, null, null)));
         consumer.updateBeginningOffsets(java.util.Map.of(partition, 0L));
         consumer.updateEndOffsets(java.util.Map.of(partition, 2L));
-        consumer.schedulePollTask(() -> consumer.addRecord(record(0, true)));
-        consumer.schedulePollTask(() -> consumer.addRecord(record(1, false)));
+        consumer.schedulePollTask(() -> consumer.addRecord(message(0, true)));
+        consumer.schedulePollTask(() -> consumer.addRecord(message(1, false)));
         var evidence = new InMemoryEvidenceLedger();
         var observer = new KafkaGameEventObserver(
                 consumer,
@@ -50,13 +50,13 @@ class KafkaGameEventObserverDrainTest {
         assertThat(evidence.offsets(SCOPE, GAME)).isEmpty();
     }
 
-    private static ConsumerRecord<String, byte[]> record(long offset, boolean identified) {
-        var record = new ConsumerRecord<>(TOPIC, 0, offset, GAME.toString(), "{}".getBytes(StandardCharsets.UTF_8));
-        record.headers().add("gameId", GAME.toString().getBytes(StandardCharsets.UTF_8));
-        record.headers().add("eventType", "ScoresUpdated".getBytes(StandardCharsets.UTF_8));
+    private static ConsumerRecord<String, byte[]> message(long offset, boolean identified) {
+        var message = new ConsumerRecord<>(TOPIC, 0, offset, GAME.toString(), "{}".getBytes(StandardCharsets.UTF_8));
+        message.headers().add("gameId", GAME.toString().getBytes(StandardCharsets.UTF_8));
+        message.headers().add("eventType", "ScoresUpdated".getBytes(StandardCharsets.UTF_8));
         if (identified) {
-            record.headers().add("eventId", UUID.randomUUID().toString().getBytes(StandardCharsets.UTF_8));
+            message.headers().add("eventId", UUID.randomUUID().toString().getBytes(StandardCharsets.UTF_8));
         }
-        return record;
+        return message;
     }
 }
