@@ -14,6 +14,7 @@ import {
   useApiClient,
   variantRulesQuery,
 } from '../api/queries'
+import { useIntentKeys } from '../api/useIntentKeys'
 import { READ_SCOPE, WRITE_SCOPE } from '../auth/scopes'
 import { useAnnounce } from '../components/announceContext'
 import { ErrorNotice } from '../components/ErrorNotice'
@@ -47,6 +48,9 @@ interface Taken {
   readonly preview: ExperimentPreview
 }
 
+/** One freeze intent per draft content: an unchanged draft repeats the key, a changed one is a new freeze. */
+const freezeScope = (draftFingerprint: string) => `freeze:${draftFingerprint}`
+
 export function ExperimentFormPage() {
   const client = useApiClient()
   const navigate = useNavigate()
@@ -57,12 +61,12 @@ export function ExperimentFormPage() {
   const [basedOn] = useState(restored?.basedOn ?? null)
   const [taken, setTaken] = useState<Taken | null>(null)
   const [submission, setSubmission] = useState<Submission | null>(null)
-  const [confirming, setConfirming] = useState<{ readonly idempotencyKey: string } | null>(null)
+  const [confirming, setConfirming] = useState<string | null>(null)
   const [blocked, setBlocked] = useState<string | null>(null)
   const summary = useRef<HTMLDivElement>(null)
   const confirmation = useRef<HTMLDivElement>(null)
   // Kept until the freeze succeeds or the draft changes, so retrying a freeze whose answer was lost cannot freeze twice.
-  const freezeIntent = useRef<{ readonly fingerprint: string; readonly key: string } | null>(null)
+  const keys = useIntentKeys()
 
   const catalog = useQuery(policiesQuery(client))
   const lanes = useQuery(laneBundlesQuery(client))
@@ -131,9 +135,9 @@ export function ExperimentFormPage() {
   })
 
   const freeze = useMutation({
-    mutationFn: ({ idempotencyKey }: { readonly idempotencyKey: string }) => freezeManifest(client, manifest, idempotencyKey),
+    mutationFn: (key: string) => freezeManifest(client, manifest, key),
     onSuccess: async (experiment) => {
-      freezeIntent.current = null
+      keys.clear(freezeScope(current))
       clearDraft()
       await queryClient.invalidateQueries({ queryKey: ['experiments'] })
       announce('Experiment frozen.')
@@ -185,17 +189,14 @@ export function ExperimentFormPage() {
   }
 
   function openConfirmation() {
-    if (freezeIntent.current?.fingerprint !== current) {
-      freezeIntent.current = { fingerprint: current, key: crypto.randomUUID() }
-    }
-    setConfirming({ idempotencyKey: freezeIntent.current.key })
+    setConfirming(keys.keyFor(freezeScope(current)))
   }
 
   function confirmFreeze() {
     if (freeze.isPending || confirming === null) {
       return
     }
-    freeze.mutate({ idempotencyKey: confirming.idempotencyKey })
+    freeze.mutate(confirming)
   }
 
   return (

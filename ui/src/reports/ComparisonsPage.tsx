@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
-import { useRef, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { ApiProblemError } from '../api/client'
 import type { ComparisonRequest } from '../api/generated'
 import { describeFailure } from '../api/problems'
 import { PAGE_SIZE, comparisonsQuery, createComparisonCommand, useApiClient } from '../api/queries'
+import { useIntentKeys } from '../api/useIntentKeys'
 import { WRITE_SCOPE } from '../auth/scopes'
 import { useCan } from '../auth/sessionContext'
 import { ErrorNotice } from '../components/ErrorNotice'
@@ -78,6 +79,8 @@ interface Side {
   variantLabel: string
 }
 
+const normalized = (side: Side): Side => ({ runId: side.runId.trim(), variantLabel: side.variantLabel.trim() })
+
 const EMPTY: Side = { runId: '', variantLabel: '' }
 
 function NewComparison() {
@@ -88,17 +91,11 @@ function NewComparison() {
   const [baseline, setBaseline] = useState<Side>(EMPTY)
   const [candidate, setCandidate] = useState<Side>(EMPTY)
   // One key per request content: repeating the same request is the same intent, a changed one is a new intent.
-  const keys = useRef(new Map<string, string>())
+  const keys = useIntentKeys()
 
   const create = useMutation({
     mutationFn: (request: ComparisonRequest) => {
-      const content = JSON.stringify(request)
-      let key = keys.current.get(content)
-      if (!key) {
-        key = crypto.randomUUID()
-        keys.current.set(content, key)
-      }
-      return createComparisonCommand(client, request, key)
+      return createComparisonCommand(client, request, keys.keyFor(JSON.stringify(request)))
     },
     onSuccess: (created) => {
       void queryClient.invalidateQueries({ queryKey: ['comparisons'] })
@@ -106,15 +103,13 @@ function NewComparison() {
     },
   })
 
-  const valid = [baseline, candidate].every((side) => UUID_PATTERN.test(side.runId.trim()) && side.variantLabel.trim() !== '')
+  const request = { baseline: normalized(baseline), candidate: normalized(candidate) }
+  const valid = [request.baseline, request.candidate].every((side) => UUID_PATTERN.test(side.runId) && side.variantLabel !== '')
 
   function submit(event: FormEvent) {
     event.preventDefault()
     if (allowed && valid) {
-      create.mutate({
-        baseline: { runId: baseline.runId.trim(), variantLabel: baseline.variantLabel.trim() },
-        candidate: { runId: candidate.runId.trim(), variantLabel: candidate.variantLabel.trim() },
-      })
+      create.mutate(request)
     }
   }
 

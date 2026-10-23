@@ -49,13 +49,26 @@ function text(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null
 }
 
+function problemFrom(status: number, body: unknown): ApiProblemError {
+  const problem = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {}
+  return new ApiProblemError(status, text(problem['code']), text(problem['detail']) ?? '', text(problem['field']))
+}
+
+/** A refused response as the error the pages explain; a body that is not a problem is an unexpected response. */
+export async function problemOf(response: Response): Promise<Error> {
+  try {
+    return problemFrom(response.status, await response.json())
+  } catch {
+    return new ServiceUnavailableError('unexpected-response')
+  }
+}
+
 function classify(error: unknown, response: Response | undefined): unknown {
   if (isAbortError(error) || error instanceof SessionExpiredError) {
     return error
   }
   if (response && !response.ok) {
-    const problem = typeof error === 'object' && error !== null ? (error as Record<string, unknown>) : {}
-    return new ApiProblemError(response.status, text(problem['code']), text(problem['detail']) ?? '', text(problem['field']))
+    return problemFrom(response.status, error)
   }
   if (response || error instanceof ZodError) {
     return new ServiceUnavailableError('unexpected-response')
