@@ -3,6 +3,7 @@ package io.github.temporalrift.workbench.analysis.application.query;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -32,6 +33,8 @@ class CaseFactsProviderTest {
 
     private final Map<String, Map<UUID, CaseFacts>> stored = new HashMap<>();
     private final AtomicInteger records = new AtomicInteger();
+    private final AtomicInteger saves = new AtomicInteger();
+    private final List<Integer> lookupSizes = new ArrayList<>();
     private final CaseFactsProvider provider = new CaseFactsProvider(
             new RunSource() {
                 @Override
@@ -53,15 +56,17 @@ class CaseFactsProviderTest {
             new CaseFactsRepository() {
                 @Override
                 public Map<UUID, CaseFacts> find(Collection<UUID> caseIds, String analysisVersion) {
+                    lookupSizes.add(caseIds.size());
                     var found = new HashMap<>(stored.getOrDefault(analysisVersion, Map.of()));
                     found.keySet().retainAll(caseIds);
                     return found;
                 }
 
                 @Override
-                public void save(CaseFacts facts, String analysisVersion) {
-                    stored.computeIfAbsent(analysisVersion, version -> new HashMap<>())
-                            .putIfAbsent(facts.caseId(), facts);
+                public void saveAll(Collection<CaseFacts> facts, String analysisVersion) {
+                    saves.incrementAndGet();
+                    facts.forEach(caseFacts -> stored.computeIfAbsent(analysisVersion, version -> new HashMap<>())
+                            .putIfAbsent(caseFacts.caseId(), caseFacts));
                 }
             });
 
@@ -75,6 +80,20 @@ class CaseFactsProviderTest {
         assertThat(stored).containsOnlyKeys(AnalysisVersion.CURRENT.factsVersion());
         assertThat(again).isEqualTo(first);
         assertThat(records).hasValue(1);
+    }
+
+    @Test
+    void aLargeBackfillLooksFactsUpInChunksAndStoresThemInOneBatch() {
+        var cases = new ArrayList<AnalyzedCase>();
+        for (var index = 0; index < 2500; index++) {
+            cases.add(succeeded(new UUID(2, index)));
+        }
+
+        var facts = provider.factsOf(RUN, cases, AnalysisVersion.CURRENT);
+
+        assertThat(facts).hasSize(2500);
+        assertThat(lookupSizes).containsExactly(1000, 1000, 500);
+        assertThat(saves).hasValue(1);
     }
 
     @Test

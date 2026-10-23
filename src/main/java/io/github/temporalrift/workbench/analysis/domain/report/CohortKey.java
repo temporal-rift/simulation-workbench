@@ -41,6 +41,15 @@ public record CohortKey(
                 .toList();
     }
 
+    /** The cohort that pools this cohort's seats. */
+    public CohortKey withoutSeat() {
+        return new CohortKey(variantLabel, policyId, policyVersion, playerCount, factionSet, null);
+    }
+
+    public CohortKey withFactionSet(List<Faction> set) {
+        return new CohortKey(variantLabel, policyId, policyVersion, playerCount, set, seatIndex);
+    }
+
     /** The same cohort of another variant. */
     public CohortKey withVariant(String label) {
         return new CohortKey(label, policyId, policyVersion, playerCount, factionSet, seatIndex);

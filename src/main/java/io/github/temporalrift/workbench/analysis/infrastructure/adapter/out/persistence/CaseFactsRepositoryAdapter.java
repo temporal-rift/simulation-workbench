@@ -57,11 +57,21 @@ public class CaseFactsRepositoryAdapter implements CaseFactsRepository {
     }
 
     @Override
-    public void save(CaseFacts facts, String analysisVersion) {
-        var key = new AnalysisCaseFactJpaEntity.Key(facts.caseId(), analysisVersion);
-        if (!stored.existsById(key)) {
-            insertOnce.insert(() -> stored.saveAndFlush(
-                    new AnalysisCaseFactJpaEntity(facts.caseId(), analysisVersion, write(facts), clock.instant())));
+    public void saveAll(Collection<CaseFacts> facts, String analysisVersion) {
+        var existing = stored
+                .findAllById(facts.stream()
+                        .map(caseFacts -> new AnalysisCaseFactJpaEntity.Key(caseFacts.caseId(), analysisVersion))
+                        .toList())
+                .stream()
+                .map(row -> row.getId().caseId())
+                .collect(Collectors.toSet());
+        var rows = facts.stream()
+                .filter(caseFacts -> !existing.contains(caseFacts.caseId()))
+                .map(caseFacts -> new AnalysisCaseFactJpaEntity(
+                        caseFacts.caseId(), analysisVersion, write(caseFacts), clock.instant()))
+                .toList();
+        if (!rows.isEmpty() && !insertOnce.insert(() -> stored.saveAllAndFlush(rows))) {
+            rows.forEach(row -> insertOnce.insert(() -> stored.saveAndFlush(row)));
         }
     }
 

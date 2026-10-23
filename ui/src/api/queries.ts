@@ -1,4 +1,4 @@
-import { queryOptions } from '@tanstack/react-query'
+import { keepPreviousData, queryOptions } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { useSession } from '../auth/sessionContext'
 import { ApiProblemError, ServiceUnavailableError, apiClientFor, unwrap } from './client'
@@ -27,6 +27,7 @@ import {
   reproduceCase,
   resumeRun,
   startRun,
+  type CaseCounts,
   type CaseState,
   type ComparisonRequest,
   type EvaluationMode,
@@ -178,12 +179,16 @@ export const cancelRunCommand = (client: Client, runId: string, idempotencyKey: 
 export const resumeRunCommand = (client: Client, runId: string, idempotencyKey: string) =>
   unwrap(() => resumeRun({ client, path: { runId }, headers: { 'Idempotency-Key': idempotencyKey } }))
 
-/** A report changes only while its run does, so it is read again on the run's cadence. */
-export const reportQuery = (client: Client, runId: string, active: boolean) =>
+/**
+ * A report changes only when its run's case counts do, so the counts are part of the key: the run's own poll drives
+ * a new read, and the report is not polled. The previous report stays on screen while the next one loads.
+ */
+export const reportQuery = (client: Client, runId: string, counts: CaseCounts | undefined) =>
   queryOptions({
-    queryKey: ['report', runId],
+    queryKey: ['report', runId, counts],
     queryFn: () => unwrap(() => getRunReport({ client, path: { runId } })),
-    refetchInterval: active ? RUN_POLL_MS : false,
+    enabled: counts !== undefined,
+    placeholderData: keepPreviousData,
   })
 
 export const comparisonsQuery = (client: Client, offset: number) =>

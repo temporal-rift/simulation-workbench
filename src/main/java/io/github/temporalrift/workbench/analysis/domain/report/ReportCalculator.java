@@ -2,6 +2,7 @@ package io.github.temporalrift.workbench.analysis.domain.report;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -32,11 +33,32 @@ public final class ReportCalculator {
             Map<UUID, CaseFacts> facts) {
         var vocabulary = Vocabulary.of(cases, facts.values());
         var failureCodes = failureCodes(cases);
-        var cohorts = cohortKeys(cases).stream()
-                .map(key -> CohortComputation.of(key, cases, facts, vocabulary, failureCodes, analysis)
+        var members = membersByCohort(cases);
+        var cohorts = cohortKeys(cases).parallelStream()
+                .map(key -> CohortComputation.ofMembers(
+                                key, members.get(key.withoutSeat()), facts, vocabulary, failureCodes, analysis)
                         .cohort())
                 .toList();
         return new RunReport(runId, manifestDigest, analysis, CaseCounts.of(cases), cohorts);
+    }
+
+    /** Each cohort's member cases in case order, grouped in one pass; a seat cohort has its seat-pooling cohort's. */
+    private static Map<CohortKey, List<AnalyzedCase>> membersByCohort(List<AnalyzedCase> cases) {
+        var members = new HashMap<CohortKey, List<AnalyzedCase>>();
+        for (var analyzedCase : cases) {
+            var pooled = new CohortKey(
+                    analyzedCase.variantLabel(),
+                    analyzedCase.policyId(),
+                    analyzedCase.policyVersion(),
+                    analyzedCase.playerCount(),
+                    null,
+                    null);
+            members.computeIfAbsent(pooled, ignored -> new ArrayList<>()).add(analyzedCase);
+            members.computeIfAbsent(
+                            pooled.withFactionSet(CohortKey.factionSetOf(analyzedCase)), ignored -> new ArrayList<>())
+                    .add(analyzedCase);
+        }
+        return members;
     }
 
     /** The failure codes that occur anywhere in the run. */
