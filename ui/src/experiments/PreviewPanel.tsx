@@ -72,7 +72,18 @@ export function PreviewPanel({ preview, outdated, busy, onPage }: Props) {
           ))}
         </tbody>
       </table>
-      <Pager label="Preview pages" offset={preview.offset} count={preview.cases.length} total={preview.caseCount} pageSize={PAGE_SIZE} busy={busy} onOffset={onPage} />
+      <Pager
+        label="Preview pages"
+        offset={preview.offset}
+        count={preview.cases.length}
+        total={preview.caseCount}
+        pageSize={PAGE_SIZE}
+        busy={busy}
+        showRange={false}
+        previousLabel="Previous cases"
+        nextLabel="Next cases"
+        onOffset={onPage}
+      />
     </section>
   )
 }

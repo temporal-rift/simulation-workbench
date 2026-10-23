@@ -61,7 +61,7 @@ export function ExperimentFormPage() {
   const [basedOn] = useState(restored?.basedOn ?? null)
   const [taken, setTaken] = useState<Taken | null>(null)
   const [submission, setSubmission] = useState<Submission | null>(null)
-  const [confirming, setConfirming] = useState<string | null>(null)
+  const [confirming, setConfirming] = useState<{ readonly key: string; readonly scope: string } | null>(null)
   const [blocked, setBlocked] = useState<string | null>(null)
   const summary = useRef<HTMLDivElement>(null)
   const confirmation = useRef<HTMLDivElement>(null)
@@ -135,9 +135,9 @@ export function ExperimentFormPage() {
   })
 
   const freeze = useMutation({
-    mutationFn: (key: string) => freezeManifest(client, manifest, key),
-    onSuccess: async (experiment) => {
-      keys.clear(freezeScope(current))
+    mutationFn: ({ key }: { readonly key: string }) => freezeManifest(client, manifest, key),
+    onSuccess: async (experiment, { scope }) => {
+      keys.clear(scope)
       clearDraft()
       await queryClient.invalidateQueries({ queryKey: ['experiments'] })
       announce('Experiment frozen.')
@@ -189,7 +189,8 @@ export function ExperimentFormPage() {
   }
 
   function openConfirmation() {
-    setConfirming(keys.keyFor(freezeScope(current)))
+    const scope = freezeScope(current)
+    setConfirming({ key: keys.keyFor(scope), scope })
   }
 
   function confirmFreeze() {
