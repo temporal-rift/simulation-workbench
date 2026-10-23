@@ -204,7 +204,7 @@ export const createComparisonCommand = (client: Client, request: ComparisonReque
 /** What a replay request names. A seat is present exactly for a player view, mirroring the contract. */
 export type ReplayView = { readonly perspective: 'PLAYER'; readonly seatIndex: number } | { readonly perspective: 'OBSERVER' }
 
-export const REPLAY_PAGE_SIZE = 50
+const REPLAY_PAGE_SIZE = 50
 
 /** Every replay of a case lives under this key, so all of it can be dropped at once. */
 export const replayRootKey = (runId: string, caseId: string) => ['replay', runId, caseId] as const

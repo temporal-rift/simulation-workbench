@@ -5,6 +5,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BooleanSupplier;
@@ -47,7 +48,7 @@ public class HttpParticipantGateway implements ParticipantGateway, SlotReconcile
     private final BooleanSupplier settled;
     private final LaneWaits waits;
     private final Map<Integer, ObservationMapper.Owed> open = new ConcurrentHashMap<>();
-    private final Map<Integer, Boolean> ready = new ConcurrentHashMap<>();
+    private final Set<Integer> ready = ConcurrentHashMap.newKeySet();
 
     /** One seat's bot identity and its clients. */
     public record Participant(int seatIndex, UUID playerId, ProjectionApi projection, ActionApi action) {}
@@ -90,7 +91,7 @@ public class HttpParticipantGateway implements ParticipantGateway, SlotReconcile
     @Override
     public SubmissionOutcome submit(int seatIndex, Candidate candidate) {
         if (candidate instanceof Candidate.ConfirmReady) {
-            ready.put(seatIndex, true);
+            ready.add(seatIndex);
             return new SubmissionOutcome.Accepted();
         }
         var owed = open.get(seatIndex);
@@ -111,7 +112,7 @@ public class HttpParticipantGateway implements ParticipantGateway, SlotReconcile
 
     @Override
     public Reconciliation reconcile(int seatIndex) {
-        if (ready.containsKey(seatIndex)) {
+        if (ready.contains(seatIndex)) {
             return new Reconciliation.Accepted(new Candidate.ConfirmReady());
         }
         var owed = open.get(seatIndex);

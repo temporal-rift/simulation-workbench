@@ -49,7 +49,7 @@ public interface CaseLedger {
     boolean cancel(UUID attemptId, String owner, Instant now);
 
     /** Gives a claim back without a result when no lane could be acquired; the case returns to pending. */
-    void release(UUID attemptId, String owner, Instant now);
+    void release(UUID attemptId, String owner);
 
     /** Interrupts attempts whose lease expired, returning their cases to pending and their runs to interrupted. */
     int interruptExpired(Instant now);

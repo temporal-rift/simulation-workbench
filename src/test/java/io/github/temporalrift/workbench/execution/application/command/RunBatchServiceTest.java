@@ -83,7 +83,7 @@ class RunBatchServiceTest {
         verify(runs).update(eq(RunState.RUNNING), failed.capture());
         assertThat(failed.getValue().state()).isEqualTo(RunState.FAILED);
         assertThat(failed.getValue().failure().code()).isEqualTo(FailureCode.CONTRACT_MISMATCH);
-        verify(cases).release(eq(attempt.attemptId()), eq("worker"), any());
+        verify(cases).release(attempt.attemptId(), "worker");
         verify(runs).cancelPendingCases(RUN);
         verify(lanes, never()).acquire(any(), any(), any());
     }
@@ -135,7 +135,7 @@ class RunBatchServiceTest {
         assertThat(service.runNextCase("worker")).isFalse();
 
         verify(lanes).acquire(logicalCase.caseId(), CANDIDATE, "lane-c");
-        verify(cases).release(eq(attempt.attemptId()), eq("worker"), any());
+        verify(cases).release(attempt.attemptId(), "worker");
     }
 
     @Test

@@ -140,7 +140,7 @@ public class CaseLedgerAdapter implements CaseLedger {
 
     @Override
     @Transactional
-    public void release(UUID attemptId, String owner, Instant now) {
+    public void release(UUID attemptId, String owner) {
         attempts.findWithLockByAttemptIdAndLeaseOwnerAndState(attemptId, owner, RUNNING)
                 .ifPresent(attempt -> {
                     attempts.delete(attempt);
