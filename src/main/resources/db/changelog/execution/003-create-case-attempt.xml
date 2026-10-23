@@ -39,6 +39,10 @@
       <column name="state"/>
       <column name="lease_expires_at"/>
     </createIndex>
+    <createIndex tableName="case_attempt" indexName="case_attempt_by_lane_started_idx">
+      <column name="lane_id"/>
+      <column name="started_at" descending="true"/>
+    </createIndex>
   </changeSet>
 
 </databaseChangeLog>

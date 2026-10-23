@@ -42,6 +42,21 @@
         <constraints nullable="false"/>
       </column>
     </createTable>
+    <!-- The listing filters by either run and orders newest first, so each index ends in the listing order. -->
+    <createIndex tableName="analysis_comparison" indexName="analysis_comparison_by_baseline_idx">
+      <column name="baseline_run_id"/>
+      <column name="created_at" descending="true"/>
+      <column name="comparison_id" descending="true"/>
+    </createIndex>
+    <createIndex tableName="analysis_comparison" indexName="analysis_comparison_by_candidate_idx">
+      <column name="candidate_run_id"/>
+      <column name="created_at" descending="true"/>
+      <column name="comparison_id" descending="true"/>
+    </createIndex>
+    <createIndex tableName="analysis_comparison" indexName="analysis_comparison_by_created_idx">
+      <column name="created_at" descending="true"/>
+      <column name="comparison_id" descending="true"/>
+    </createIndex>
   </changeSet>
 
 </databaseChangeLog>
