@@ -5,6 +5,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
+import org.jooq.ExecuteListenerProvider;
+import org.jooq.impl.DefaultExecuteListenerProvider;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
@@ -38,6 +40,16 @@ public class ExecutionTestConfiguration {
     @Primary
     BaselineRulesCatalog scriptedBaselineRules() {
         return VariantRulesFixtures.catalog();
+    }
+
+    @Bean
+    StatementCounter statementCounter() {
+        return new StatementCounter();
+    }
+
+    @Bean
+    ExecuteListenerProvider statementCounterProvider(StatementCounter counter) {
+        return new DefaultExecuteListenerProvider(counter);
     }
 
     /** A heartbeat of one millisecond makes every checkpoint renew the lease and look for cancellation. */

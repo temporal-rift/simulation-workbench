@@ -12,6 +12,8 @@ interface EvidenceEventJpaRepository extends JpaRepository<EvidenceEventJpaEntit
 
     List<EvidenceEventJpaEntity> findAllByScopeIdAndGameId(UUID scopeId, UUID gameId);
 
+    List<EvidenceEventJpaEntity> findAllByScopeIdAndGameIdAndEventType(UUID scopeId, UUID gameId, String eventType);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from EvidenceEventJpaEntity e where e.scopeId = :scopeId")
     int deleteAllByScopeId(@Param("scopeId") UUID scopeId);

@@ -3,6 +3,7 @@ package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.si
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -48,9 +49,7 @@ final class SimulatorEventObserver implements GameEventObserver {
         for (var topic : TOPICS) {
             positions.put(topic, retained.getOrDefault(new EvidenceLedger.SourcePartition(topic, PARTITION), 0L));
         }
-        evidence.events(target.scopeId(), target.gameId()).stream()
-                .filter(event -> GameEndedParser.EVENT_TYPE.equals(event.eventType()))
-                .findFirst()
+        evidence.firstEventOfType(target.scopeId(), target.gameId(), GameEndedParser.EVENT_TYPE)
                 .ifPresent(event -> gameEnded = GameEndedParser.parse(objectMapper, event));
     }
 
@@ -65,7 +64,7 @@ final class SimulatorEventObserver implements GameEventObserver {
         for (var topic : TOPICS) {
             var from = positions.get(topic);
             var records = router.routed(topic, from);
-            records.stream().filter(this::isThisGame).forEach(this::observe);
+            retain(records.stream().filter(this::isThisGame).map(this::event).toList());
             if (!records.isEmpty()) {
                 var next = from + records.size();
                 positions.put(topic, next);
@@ -90,12 +89,12 @@ final class SimulatorEventObserver implements GameEventObserver {
         return target.gameId().toString().equals(header != null ? header : item.key());
     }
 
-    private void observe(SlotEventRouter.Routed item) {
-        var event = event(item);
-        evidence.retain(target.scopeId(), target.attemptId(), event);
-        if (GameEndedParser.EVENT_TYPE.equals(event.eventType())) {
-            gameEnded = GameEndedParser.parse(objectMapper, event);
-        }
+    private void retain(List<ObservedEvent> events) {
+        evidence.retainAll(target.scopeId(), target.attemptId(), events);
+        events.stream()
+                .filter(event -> GameEndedParser.EVENT_TYPE.equals(event.eventType()))
+                .reduce((_, last) -> last)
+                .ifPresent(event -> gameEnded = GameEndedParser.parse(objectMapper, event));
     }
 
     private ObservedEvent event(SlotEventRouter.Routed item) {

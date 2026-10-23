@@ -54,11 +54,27 @@ public interface EvidenceLedger {
      */
     boolean retain(UUID scopeId, UUID attemptId, ObservedEvent event);
 
+    /**
+     * Retains the raw events in one step, each unless its source and event identifier were already retained, so a
+     * batch repeated in whole or in part changes nothing.
+     */
+    void retainAll(UUID scopeId, UUID attemptId, List<ObservedEvent> events);
+
     /** Moves the source partition's next offset forward; it never moves back. */
     void advance(UUID scopeId, UUID gameId, String source, int partition, long nextOffset);
 
+    /** Moves the next offset of every given source partition forward in one step; none ever moves back. */
+    void advanceAll(UUID scopeId, UUID gameId, Map<SourcePartition, Long> nextOffsets);
+
     /** The game's retained events ordered by source, partition and offset. */
     List<ObservedEvent> events(UUID scopeId, UUID gameId);
+
+    /**
+     * The first retained event of the type in {@link #events} order, with only its payload verified.
+     *
+     * @return empty when no event of the type was retained
+     */
+    Optional<ObservedEvent> firstEventOfType(UUID scopeId, UUID gameId, String eventType);
 
     /** The next offset to read for each source partition of the game. */
     Map<SourcePartition, Long> offsets(UUID scopeId, UUID gameId);
