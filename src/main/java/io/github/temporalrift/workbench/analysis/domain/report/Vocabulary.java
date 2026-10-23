@@ -11,9 +11,9 @@ import java.util.TreeSet;
 import io.github.temporalrift.workbench.analysis.domain.fact.CaseFacts;
 import io.github.temporalrift.workbench.analysis.domain.game.AnalyzedCase;
 import io.github.temporalrift.workbench.analysis.domain.game.CardKey;
-import io.github.temporalrift.workbench.analysis.domain.game.Faction;
 import io.github.temporalrift.workbench.analysis.domain.game.ParadoxType;
-import io.github.temporalrift.workbench.analysis.domain.game.SpecialAction;
+import io.github.temporalrift.workbench.shared.game.Faction;
+import io.github.temporalrift.workbench.shared.game.SpecialAction;
 
 /**
  * The dimension values a report lists: every faction of the run's faction sets per player count, and the card,

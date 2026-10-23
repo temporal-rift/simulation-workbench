@@ -5,7 +5,7 @@ import java.time.Clock;
 import org.springframework.core.NestedExceptionUtils;
 
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
-import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
 
 /**
  * One set of the three services hosted in this JVM. A slot plays one case at a time and holds the running services

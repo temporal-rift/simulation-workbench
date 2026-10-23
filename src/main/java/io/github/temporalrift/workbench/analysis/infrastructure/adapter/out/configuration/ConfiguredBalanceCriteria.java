@@ -30,9 +30,9 @@ import io.github.temporalrift.workbench.analysis.domain.criterion.CriterionLine;
 import io.github.temporalrift.workbench.analysis.domain.criterion.CriterionRole;
 import io.github.temporalrift.workbench.analysis.domain.criterion.Derivation;
 import io.github.temporalrift.workbench.analysis.domain.criterion.Pooling;
-import io.github.temporalrift.workbench.analysis.domain.game.EndReason;
-import io.github.temporalrift.workbench.analysis.domain.game.FailureCode;
 import io.github.temporalrift.workbench.analysis.domain.port.out.BalanceCriteria;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
+import io.github.temporalrift.workbench.shared.game.EndReason;
 
 /**
  * The criterion versions found as {@code balance-criteria/v*.json} on the classpath. A version is added by adding a

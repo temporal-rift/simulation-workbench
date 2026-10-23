@@ -15,16 +15,17 @@ import io.github.temporalrift.workbench.execution.domain.run.AttemptState;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.CaseCounts;
 import io.github.temporalrift.workbench.execution.domain.run.CaseResult;
-import io.github.temporalrift.workbench.execution.domain.run.CaseState;
-import io.github.temporalrift.workbench.execution.domain.run.EndReason;
 import io.github.temporalrift.workbench.execution.domain.run.Failure;
-import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.domain.run.FinalScore;
 import io.github.temporalrift.workbench.execution.domain.run.LogicalCase;
 import io.github.temporalrift.workbench.execution.domain.run.Run;
 import io.github.temporalrift.workbench.execution.domain.run.SeatPlan;
 import io.github.temporalrift.workbench.execution.domain.run.WinType;
 import io.github.temporalrift.workbench.execution.domain.run.Winner;
+import io.github.temporalrift.workbench.shared.execution.CaseState;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
+import io.github.temporalrift.workbench.shared.game.EndReason;
+import io.github.temporalrift.workbench.shared.game.Faction;
 
 class RunApiMapperTest {
 
@@ -63,9 +64,9 @@ class RunApiMapperTest {
                 EndReason.ALL_PLAYERS_ABANDONED,
                 List.of(),
                 List.of(
-                        new FinalScore(0, "ERASERS", 4),
-                        new FinalScore(1, "WEAVERS", 9),
-                        new FinalScore(2, "PROPHETS", 1)),
+                        new FinalScore(0, Faction.ERASERS, 4),
+                        new FinalScore(1, Faction.WEAVERS, 9),
+                        new FinalScore(2, Faction.PROPHETS, 1)),
                 2,
                 4,
                 9,
@@ -87,11 +88,11 @@ class RunApiMapperTest {
     void winnersOfSpecialEndingsMapWithoutAWinType() {
         var result = new CaseResult(
                 EndReason.TIMELINE_COLLAPSED,
-                List.of(new Winner(1, "WEAVERS", null), new Winner(2, "PROPHETS", null)),
+                List.of(new Winner(1, Faction.WEAVERS, null), new Winner(2, Faction.PROPHETS, null)),
                 List.of(
-                        new FinalScore(0, "ERASERS", 4),
-                        new FinalScore(1, "WEAVERS", 9),
-                        new FinalScore(2, "PROPHETS", 9)),
+                        new FinalScore(0, Faction.ERASERS, 4),
+                        new FinalScore(1, Faction.WEAVERS, 9),
+                        new FinalScore(2, Faction.PROPHETS, 9)),
                 5,
                 12,
                 30,
@@ -108,11 +109,11 @@ class RunApiMapperTest {
     void aNormalVictoryKeepsItsWinType() {
         var result = new CaseResult(
                 EndReason.WIN_CONDITION_MET,
-                List.of(new Winner(0, "ERASERS", WinType.FACTION_OBJECTIVE)),
+                List.of(new Winner(0, Faction.ERASERS, WinType.FACTION_OBJECTIVE)),
                 List.of(
-                        new FinalScore(0, "ERASERS", 21),
-                        new FinalScore(1, "WEAVERS", 9),
-                        new FinalScore(2, "PROPHETS", 8)),
+                        new FinalScore(0, Faction.ERASERS, 21),
+                        new FinalScore(1, Faction.WEAVERS, 9),
+                        new FinalScore(2, Faction.PROPHETS, 8)),
                 4,
                 10,
                 25,
@@ -158,9 +159,9 @@ class RunApiMapperTest {
                 "42",
                 3,
                 List.of(
-                        new SeatPlan(0, "ERASERS", "random", "1.0.0"),
-                        new SeatPlan(1, "WEAVERS", "random", "1.0.0"),
-                        new SeatPlan(2, "PROPHETS", "random", "1.0.0")),
+                        new SeatPlan(0, Faction.ERASERS, "random", "1.0.0"),
+                        new SeatPlan(1, Faction.WEAVERS, "random", "1.0.0"),
+                        new SeatPlan(2, Faction.PROPHETS, "random", "1.0.0")),
                 state,
                 result);
         return new CaseView(logicalCase, List.of(attempt));

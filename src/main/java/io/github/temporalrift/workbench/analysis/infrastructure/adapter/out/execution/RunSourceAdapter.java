@@ -31,23 +31,20 @@ import io.github.temporalrift.asyncapi.timelineevents.GeneratedChannelContract.P
 import io.github.temporalrift.asyncapi.timelineevents.GeneratedChannelContract.ParadoxResolvedPayload;
 import io.github.temporalrift.asyncapi.timelineevents.GeneratedChannelContract.SpecialRejectedPayload;
 import io.github.temporalrift.workbench.analysis.domain.game.AnalyzedCase;
-import io.github.temporalrift.workbench.analysis.domain.game.CardGrade;
 import io.github.temporalrift.workbench.analysis.domain.game.CardKey;
-import io.github.temporalrift.workbench.analysis.domain.game.CardType;
 import io.github.temporalrift.workbench.analysis.domain.game.CaseOutcome;
-import io.github.temporalrift.workbench.analysis.domain.game.CaseStatus;
-import io.github.temporalrift.workbench.analysis.domain.game.EndReason;
-import io.github.temporalrift.workbench.analysis.domain.game.Faction;
-import io.github.temporalrift.workbench.analysis.domain.game.FailureCode;
 import io.github.temporalrift.workbench.analysis.domain.game.GameEvent;
 import io.github.temporalrift.workbench.analysis.domain.game.GameRecord;
 import io.github.temporalrift.workbench.analysis.domain.game.ParadoxType;
-import io.github.temporalrift.workbench.analysis.domain.game.SpecialAction;
 import io.github.temporalrift.workbench.analysis.domain.port.out.RunSource;
 import io.github.temporalrift.workbench.execution.CaseEvidence;
 import io.github.temporalrift.workbench.execution.RunCase;
 import io.github.temporalrift.workbench.execution.RunCatalog;
 import io.github.temporalrift.workbench.execution.RunSummary;
+import io.github.temporalrift.workbench.shared.game.CardGrade;
+import io.github.temporalrift.workbench.shared.game.CardType;
+import io.github.temporalrift.workbench.shared.game.Faction;
+import io.github.temporalrift.workbench.shared.game.SpecialAction;
 
 /**
  * Reads runs through the execution module's public API and turns a counting game's retained evidence into the
@@ -92,12 +89,10 @@ public class RunSourceAdapter implements RunSource {
                 runCase.playerCount(),
                 policy.policyId(),
                 policy.policyVersion(),
-                runCase.seats().stream()
-                        .map(seat -> Faction.valueOf(seat.faction()))
-                        .toList(),
-                CaseStatus.valueOf(runCase.state()),
+                runCase.seats().stream().map(RunCase.Seat::faction).toList(),
+                runCase.state(),
                 runCase.result() == null ? null : outcome(runCase),
-                runCase.failureCode() == null ? null : FailureCode.valueOf(runCase.failureCode()));
+                runCase.failureCode());
     }
 
     private static CaseOutcome outcome(RunCase runCase) {
@@ -106,7 +101,7 @@ public class RunSourceAdapter implements RunSource {
         runCase.seats().forEach(seat -> scores.add(0));
         result.finalScores().forEach(score -> scores.set(score.seatIndex(), score.score()));
         return new CaseOutcome(
-                EndReason.valueOf(result.endReason()),
+                result.endReason(),
                 Set.copyOf(result.winnerSeats()),
                 scores,
                 result.eras(),

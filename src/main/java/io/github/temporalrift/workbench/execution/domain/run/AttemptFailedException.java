@@ -1,5 +1,7 @@
 package io.github.temporalrift.workbench.execution.domain.run;
 
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
+
 /** The attempt cannot continue for a recorded reason; the case may be retried on a fresh attempt. */
 public class AttemptFailedException extends RuntimeException {
 

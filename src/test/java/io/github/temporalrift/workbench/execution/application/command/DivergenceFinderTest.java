@@ -11,10 +11,11 @@ import org.junit.jupiter.api.Test;
 import io.github.temporalrift.workbench.execution.domain.evidence.StepOutcome;
 import io.github.temporalrift.workbench.execution.domain.evidence.StepRecord;
 import io.github.temporalrift.workbench.execution.domain.run.CaseResult;
-import io.github.temporalrift.workbench.execution.domain.run.EndReason;
 import io.github.temporalrift.workbench.execution.domain.run.FinalScore;
 import io.github.temporalrift.workbench.execution.domain.run.WinType;
 import io.github.temporalrift.workbench.execution.domain.run.Winner;
+import io.github.temporalrift.workbench.shared.game.EndReason;
+import io.github.temporalrift.workbench.shared.game.Faction;
 
 class DivergenceFinderTest {
 
@@ -141,7 +142,7 @@ class DivergenceFinderTest {
     }
 
     private static Winner winner(int seat) {
-        return new Winner(seat, "ERASERS", WinType.SCORE_THRESHOLD);
+        return new Winner(seat, Faction.ERASERS, WinType.SCORE_THRESHOLD);
     }
 
     private static CaseResult result() {
@@ -149,6 +150,7 @@ class DivergenceFinderTest {
     }
 
     private static CaseResult result(EndReason reason, Winner winner, int score, String digest) {
-        return new CaseResult(reason, List.of(winner), List.of(new FinalScore(0, "ERASERS", score)), 3, 2, 2, digest);
+        return new CaseResult(
+                reason, List.of(winner), List.of(new FinalScore(0, Faction.ERASERS, score)), 3, 2, 2, digest);
     }
 }

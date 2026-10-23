@@ -14,11 +14,11 @@ import java.util.UUID;
 
 import io.github.temporalrift.workbench.analysis.domain.game.CardKey;
 import io.github.temporalrift.workbench.analysis.domain.game.CaseOutcome;
-import io.github.temporalrift.workbench.analysis.domain.game.Faction;
 import io.github.temporalrift.workbench.analysis.domain.game.GameEvent;
 import io.github.temporalrift.workbench.analysis.domain.game.GameRecord;
 import io.github.temporalrift.workbench.analysis.domain.game.ParadoxType;
-import io.github.temporalrift.workbench.analysis.domain.game.SpecialAction;
+import io.github.temporalrift.workbench.shared.game.Faction;
+import io.github.temporalrift.workbench.shared.game.SpecialAction;
 
 /** Reduces a succeeded game to the facts of analysis version 1. */
 public final class FactExtractor {

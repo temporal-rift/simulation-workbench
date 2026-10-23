@@ -23,7 +23,7 @@ import io.github.temporalrift.workbench.policy.domain.decision.PolicyEntropy;
 import io.github.temporalrift.workbench.policy.domain.observation.DealtCard;
 import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow;
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
-import io.github.temporalrift.workbench.policy.domain.observation.Faction;
+import io.github.temporalrift.workbench.shared.game.Faction;
 
 class BaselinePoliciesTest {
 

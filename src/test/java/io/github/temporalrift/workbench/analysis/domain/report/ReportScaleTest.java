@@ -15,16 +15,16 @@ import io.github.temporalrift.workbench.analysis.domain.AnalysisVersion;
 import io.github.temporalrift.workbench.analysis.domain.fact.CaseFacts;
 import io.github.temporalrift.workbench.analysis.domain.fact.FactExtractor;
 import io.github.temporalrift.workbench.analysis.domain.game.AnalyzedCase;
-import io.github.temporalrift.workbench.analysis.domain.game.CardGrade;
 import io.github.temporalrift.workbench.analysis.domain.game.CardKey;
-import io.github.temporalrift.workbench.analysis.domain.game.CardType;
 import io.github.temporalrift.workbench.analysis.domain.game.CaseOutcome;
-import io.github.temporalrift.workbench.analysis.domain.game.CaseStatus;
-import io.github.temporalrift.workbench.analysis.domain.game.EndReason;
-import io.github.temporalrift.workbench.analysis.domain.game.Faction;
 import io.github.temporalrift.workbench.analysis.domain.game.GameEvent;
 import io.github.temporalrift.workbench.analysis.domain.game.GameRecord;
-import io.github.temporalrift.workbench.analysis.domain.game.SpecialAction;
+import io.github.temporalrift.workbench.shared.execution.CaseState;
+import io.github.temporalrift.workbench.shared.game.CardGrade;
+import io.github.temporalrift.workbench.shared.game.CardType;
+import io.github.temporalrift.workbench.shared.game.EndReason;
+import io.github.temporalrift.workbench.shared.game.Faction;
+import io.github.temporalrift.workbench.shared.game.SpecialAction;
 
 class ReportScaleTest {
 
@@ -57,7 +57,7 @@ class ReportScaleTest {
                                 "random",
                                 "1.0.0",
                                 seats,
-                                CaseStatus.SUCCEEDED,
+                                CaseState.SUCCEEDED,
                                 outcome);
                         cases.add(analyzed);
                         facts.put(

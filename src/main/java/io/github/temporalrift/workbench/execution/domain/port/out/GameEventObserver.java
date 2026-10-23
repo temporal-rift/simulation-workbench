@@ -4,6 +4,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+import io.github.temporalrift.workbench.shared.game.EndReason;
+
 /**
  * Observes the raw events one game publishes on its lane and retains them as evidence. Observation is
  * separate from the bots: nothing it reads ever reaches a policy.
@@ -24,7 +26,7 @@ public interface GameEventObserver extends AutoCloseable {
     void close();
 
     /** The authoritative ending with the final score of every participant. */
-    record GameEnded(String endReason, Map<UUID, Integer> finalScores) {
+    record GameEnded(EndReason endReason, Map<UUID, Integer> finalScores) {
         public GameEnded {
             finalScores = Map.copyOf(finalScores);
         }

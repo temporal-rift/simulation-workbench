@@ -14,10 +14,11 @@ import io.github.temporalrift.workbench.execution.RunCase;
 import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
 import io.github.temporalrift.workbench.execution.domain.port.out.RunRepository;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
-import io.github.temporalrift.workbench.execution.domain.run.CaseState;
-import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.domain.run.LogicalCase;
 import io.github.temporalrift.workbench.execution.domain.run.SeatPlan;
+import io.github.temporalrift.workbench.shared.execution.CaseState;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
+import io.github.temporalrift.workbench.shared.game.Faction;
 
 class RunCatalogQueryHandlerTest {
 
@@ -38,7 +39,7 @@ class RunCatalogQueryHandlerTest {
 
         var cases = catalog.cases(RUN);
 
-        assertThat(cases).extracting(RunCase::failureCode).containsExactly("POLICY_EXHAUSTED", null, null);
+        assertThat(cases).extracting(RunCase::failureCode).containsExactly(FailureCode.POLICY_EXHAUSTED, null, null);
     }
 
     private static LogicalCase logicalCase(UUID caseId, CaseState state) {
@@ -53,9 +54,9 @@ class RunCatalogQueryHandlerTest {
                 "1",
                 3,
                 List.of(
-                        new SeatPlan(0, "ERASERS", "random-v1", "1"),
-                        new SeatPlan(1, "PROPHETS", "random-v1", "1"),
-                        new SeatPlan(2, "WEAVERS", "random-v1", "1")),
+                        new SeatPlan(0, Faction.ERASERS, "random-v1", "1"),
+                        new SeatPlan(1, Faction.PROPHETS, "random-v1", "1"),
+                        new SeatPlan(2, Faction.WEAVERS, "random-v1", "1")),
                 state,
                 null);
     }

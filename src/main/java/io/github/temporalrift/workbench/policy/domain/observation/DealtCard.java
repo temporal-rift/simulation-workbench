@@ -3,6 +3,9 @@ package io.github.temporalrift.workbench.policy.domain.observation;
 import java.util.Objects;
 import java.util.UUID;
 
+import io.github.temporalrift.workbench.shared.game.CardGrade;
+import io.github.temporalrift.workbench.shared.game.CardType;
+
 /** A card in the participant's own hand, deal or offer. */
 public record DealtCard(UUID cardInstanceId, CardType type, CardGrade grade, CardCategory category) {
 

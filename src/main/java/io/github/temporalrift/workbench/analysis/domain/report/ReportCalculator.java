@@ -15,10 +15,10 @@ import java.util.UUID;
 import io.github.temporalrift.workbench.analysis.domain.AnalysisVersion;
 import io.github.temporalrift.workbench.analysis.domain.fact.CaseFacts;
 import io.github.temporalrift.workbench.analysis.domain.game.AnalyzedCase;
-import io.github.temporalrift.workbench.analysis.domain.game.Faction;
-import io.github.temporalrift.workbench.analysis.domain.game.FailureCode;
 import io.github.temporalrift.workbench.analysis.domain.statistics.BlockBootstrap;
 import io.github.temporalrift.workbench.analysis.domain.statistics.BlockSeries;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
+import io.github.temporalrift.workbench.shared.game.Faction;
 
 /** Builds a run's stratified report from its cases and the facts of its succeeded cases. */
 public final class ReportCalculator {

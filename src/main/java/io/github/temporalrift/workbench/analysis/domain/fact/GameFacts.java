@@ -5,8 +5,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 
-import io.github.temporalrift.workbench.analysis.domain.game.EndReason;
 import io.github.temporalrift.workbench.analysis.domain.game.ParadoxType;
+import io.github.temporalrift.workbench.shared.game.EndReason;
 
 /**
  * What a succeeded game was as a whole. Findings and cascaded events are different units: one cascade can carry

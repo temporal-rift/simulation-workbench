@@ -17,11 +17,11 @@ import io.github.temporalrift.workbench.execution.domain.run.Attempt;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptState;
 import io.github.temporalrift.workbench.execution.domain.run.Failure;
-import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.domain.run.LeaseLostException;
 import io.github.temporalrift.workbench.execution.domain.run.Run;
 import io.github.temporalrift.workbench.execution.domain.run.RunCancelledException;
 import io.github.temporalrift.workbench.execution.domain.run.RunState;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
 
 /**
  * Executes the pending cases of running runs, each only on a lane serving its variant's bundle. A claim opens a new

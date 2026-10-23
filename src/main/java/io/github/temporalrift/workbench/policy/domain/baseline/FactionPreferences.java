@@ -3,9 +3,9 @@ package io.github.temporalrift.workbench.policy.domain.baseline;
 import java.util.EnumMap;
 import java.util.Map;
 
-import io.github.temporalrift.workbench.policy.domain.observation.CardType;
-import io.github.temporalrift.workbench.policy.domain.observation.Faction;
-import io.github.temporalrift.workbench.policy.domain.observation.SpecialAction;
+import io.github.temporalrift.workbench.shared.game.CardType;
+import io.github.temporalrift.workbench.shared.game.Faction;
+import io.github.temporalrift.workbench.shared.game.SpecialAction;
 
 /**
  * The versioned preference table of {@code faction-greedy-v1}: how strongly a faction favors each

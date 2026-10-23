@@ -9,16 +9,19 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;
 
-import io.github.temporalrift.workbench.analysis.domain.game.CardGrade;
 import io.github.temporalrift.workbench.analysis.domain.game.CardKey;
-import io.github.temporalrift.workbench.analysis.domain.game.CardType;
 import io.github.temporalrift.workbench.analysis.domain.game.GameEvent;
 import io.github.temporalrift.workbench.analysis.domain.game.GameRecord;
-import io.github.temporalrift.workbench.analysis.domain.game.SpecialAction;
 import io.github.temporalrift.workbench.execution.CaseEvidence;
 import io.github.temporalrift.workbench.execution.RunCase;
 import io.github.temporalrift.workbench.execution.RunCatalog;
 import io.github.temporalrift.workbench.execution.RunSummary;
+import io.github.temporalrift.workbench.shared.execution.CaseState;
+import io.github.temporalrift.workbench.shared.game.CardGrade;
+import io.github.temporalrift.workbench.shared.game.CardType;
+import io.github.temporalrift.workbench.shared.game.EndReason;
+import io.github.temporalrift.workbench.shared.game.Faction;
+import io.github.temporalrift.workbench.shared.game.SpecialAction;
 
 class RunSourceAdapterTest {
 
@@ -37,12 +40,12 @@ class RunSourceAdapterTest {
             "42",
             3,
             List.of(
-                    new RunCase.Seat(0, "ERASERS", "random", "1.0.0"),
-                    new RunCase.Seat(1, "WEAVERS", "random", "1.0.0"),
-                    new RunCase.Seat(2, "PROPHETS", "random", "1.0.0")),
-            "SUCCEEDED",
+                    new RunCase.Seat(0, Faction.ERASERS, "random", "1.0.0"),
+                    new RunCase.Seat(1, Faction.WEAVERS, "random", "1.0.0"),
+                    new RunCase.Seat(2, Faction.PROPHETS, "random", "1.0.0")),
+            CaseState.SUCCEEDED,
             new RunCase.Result(
-                    "WIN_CONDITION_MET",
+                    EndReason.WIN_CONDITION_MET,
                     List.of(1),
                     List.of(new RunCase.Score(0, 10), new RunCase.Score(1, 21), new RunCase.Score(2, 7)),
                     3,

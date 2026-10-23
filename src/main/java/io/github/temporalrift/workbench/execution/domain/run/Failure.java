@@ -2,6 +2,8 @@ package io.github.temporalrift.workbench.execution.domain.run;
 
 import java.util.Objects;
 
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
+
 /** A recorded attempt or run failure. */
 public record Failure(FailureCode code, String message) {
 

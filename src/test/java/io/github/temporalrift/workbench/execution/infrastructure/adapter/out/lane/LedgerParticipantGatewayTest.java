@@ -26,13 +26,13 @@ import io.github.temporalrift.workbench.policy.domain.decision.CandidateCodec;
 import io.github.temporalrift.workbench.policy.domain.decision.Reconciliation;
 import io.github.temporalrift.workbench.policy.domain.decision.SubmissionOutcome;
 import io.github.temporalrift.workbench.policy.domain.observation.CardCategory;
-import io.github.temporalrift.workbench.policy.domain.observation.CardGrade;
-import io.github.temporalrift.workbench.policy.domain.observation.CardType;
 import io.github.temporalrift.workbench.policy.domain.observation.DealtCard;
 import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow;
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
-import io.github.temporalrift.workbench.policy.domain.observation.Faction;
 import io.github.temporalrift.workbench.policy.domain.port.out.ParticipantGateway;
+import io.github.temporalrift.workbench.shared.game.CardGrade;
+import io.github.temporalrift.workbench.shared.game.CardType;
+import io.github.temporalrift.workbench.shared.game.Faction;
 
 class LedgerParticipantGatewayTest {
 

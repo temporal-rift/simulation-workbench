@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
+import io.github.temporalrift.workbench.shared.game.SpecialAction;
+
 /** An authoritative fact a game published, already attributed to the seat it concerns. */
 public sealed interface GameEvent {
 

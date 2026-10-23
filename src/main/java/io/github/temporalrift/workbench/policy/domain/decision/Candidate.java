@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.policy.domain.observation.DeclarationMode;
-import io.github.temporalrift.workbench.policy.domain.observation.SpecialAction;
+import io.github.temporalrift.workbench.shared.game.SpecialAction;
 
 /**
  * One syntactically valid choice for a decision window. The service stays authoritative for

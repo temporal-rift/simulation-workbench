@@ -21,15 +21,14 @@ import io.github.temporalrift.workbench.policy.domain.decision.Candidate;
 import io.github.temporalrift.workbench.policy.domain.decision.Reconciliation;
 import io.github.temporalrift.workbench.policy.domain.decision.SubmissionOutcome;
 import io.github.temporalrift.workbench.policy.domain.observation.CardCategory;
-import io.github.temporalrift.workbench.policy.domain.observation.CardGrade;
-import io.github.temporalrift.workbench.policy.domain.observation.CardType;
 import io.github.temporalrift.workbench.policy.domain.observation.DealtCard;
 import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow;
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
 import io.github.temporalrift.workbench.policy.domain.observation.EventView;
-import io.github.temporalrift.workbench.policy.domain.observation.Faction;
 import io.github.temporalrift.workbench.policy.domain.observation.OutcomeView;
 import io.github.temporalrift.workbench.policy.domain.port.out.ParticipantGateway;
+import io.github.temporalrift.workbench.shared.game.CardGrade;
+import io.github.temporalrift.workbench.shared.game.CardType;
 
 /**
  * A tiny real-service stand-in: every seat owes one hand selection, then the game ends. Decisions go
@@ -123,7 +122,7 @@ public class FakeGame implements GameSession {
 
         @Override
         public EntitledObservation observe(int seatIndex) {
-            var faction = Faction.valueOf(context.seats().get(seatIndex).faction());
+            var faction = context.seats().get(seatIndex).faction();
             var window = state.accepted.containsKey(seatIndex)
                     ? new DecisionWindow.TerminalReadiness(1)
                     : new DecisionWindow.HandSelection(1, deal(seatIndex), 5);

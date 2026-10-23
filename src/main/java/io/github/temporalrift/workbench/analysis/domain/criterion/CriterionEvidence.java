@@ -2,8 +2,8 @@ package io.github.temporalrift.workbench.analysis.domain.criterion;
 
 import java.util.Set;
 
-import io.github.temporalrift.workbench.analysis.domain.game.EndReason;
-import io.github.temporalrift.workbench.analysis.domain.game.FailureCode;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
+import io.github.temporalrift.workbench.shared.game.EndReason;
 
 /** What a criterion needs of a run before it can reject or confirm a configuration. */
 public record CriterionEvidence(

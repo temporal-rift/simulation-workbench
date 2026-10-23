@@ -10,7 +10,6 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
-import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.ActiveEvent;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.ActivistDeclarationMode;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.CardGrade;
@@ -26,8 +25,9 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.SubmissionProgress;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.SubmissionWindow;
 import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow;
-import io.github.temporalrift.workbench.policy.domain.observation.Faction;
 import io.github.temporalrift.workbench.policy.domain.observation.OutcomeView;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
+import io.github.temporalrift.workbench.shared.game.Faction;
 
 class ObservationMapperTest {
 

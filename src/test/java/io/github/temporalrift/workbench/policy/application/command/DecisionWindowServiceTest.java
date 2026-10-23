@@ -22,9 +22,9 @@ import io.github.temporalrift.workbench.policy.domain.decision.Reconciliation;
 import io.github.temporalrift.workbench.policy.domain.decision.SubmissionOutcome;
 import io.github.temporalrift.workbench.policy.domain.decision.Target;
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
-import io.github.temporalrift.workbench.policy.domain.observation.Faction;
 import io.github.temporalrift.workbench.policy.domain.port.out.DecisionTimings;
 import io.github.temporalrift.workbench.policy.domain.port.out.ParticipantGateway;
+import io.github.temporalrift.workbench.shared.game.Faction;
 
 class DecisionWindowServiceTest {
 

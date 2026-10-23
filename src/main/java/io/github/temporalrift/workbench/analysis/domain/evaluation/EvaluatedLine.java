@@ -4,9 +4,9 @@ import java.util.List;
 
 import io.github.temporalrift.workbench.analysis.domain.criterion.Band;
 import io.github.temporalrift.workbench.analysis.domain.criterion.CriterionRole;
-import io.github.temporalrift.workbench.analysis.domain.game.Faction;
 import io.github.temporalrift.workbench.analysis.domain.report.Interval;
 import io.github.temporalrift.workbench.analysis.domain.report.MetricStatus;
+import io.github.temporalrift.workbench.shared.game.Faction;
 
 /**
  * One criterion line expanded for one cohort and dimension value.

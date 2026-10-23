@@ -21,8 +21,8 @@ import io.github.temporalrift.workbench.analysis.domain.criterion.CriterionLine;
 import io.github.temporalrift.workbench.analysis.domain.criterion.CriterionRole;
 import io.github.temporalrift.workbench.analysis.domain.criterion.Derivation;
 import io.github.temporalrift.workbench.analysis.domain.criterion.Pooling;
-import io.github.temporalrift.workbench.analysis.domain.game.EndReason;
-import io.github.temporalrift.workbench.analysis.domain.game.FailureCode;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
+import io.github.temporalrift.workbench.shared.game.EndReason;
 
 class ConfiguredBalanceCriteriaTest {
 

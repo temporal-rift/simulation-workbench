@@ -6,8 +6,8 @@ import java.util.Objects;
 import java.util.TreeMap;
 
 import io.github.temporalrift.workbench.analysis.domain.game.CardKey;
-import io.github.temporalrift.workbench.analysis.domain.game.Faction;
-import io.github.temporalrift.workbench.analysis.domain.game.SpecialAction;
+import io.github.temporalrift.workbench.shared.game.Faction;
+import io.github.temporalrift.workbench.shared.game.SpecialAction;
 
 /**
  * What one seat of a succeeded game did and achieved. A card-round is a card the seat held at the start of an

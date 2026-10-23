@@ -16,10 +16,10 @@ import io.github.temporalrift.workbench.analysis.domain.fact.CaseFacts;
 import io.github.temporalrift.workbench.analysis.domain.fact.FactExtractor;
 import io.github.temporalrift.workbench.analysis.domain.game.AnalyzedCase;
 import io.github.temporalrift.workbench.analysis.domain.game.CaseOutcome;
-import io.github.temporalrift.workbench.analysis.domain.game.CaseStatus;
-import io.github.temporalrift.workbench.analysis.domain.game.EndReason;
-import io.github.temporalrift.workbench.analysis.domain.game.Faction;
 import io.github.temporalrift.workbench.analysis.domain.game.GameRecord;
+import io.github.temporalrift.workbench.shared.execution.CaseState;
+import io.github.temporalrift.workbench.shared.game.EndReason;
+import io.github.temporalrift.workbench.shared.game.Faction;
 
 class ReportCalculatorTest {
 
@@ -163,7 +163,7 @@ class ReportCalculatorTest {
 
     private void succeeded(String seed, List<Faction> seats, Set<Integer> winners) {
         var outcome = new CaseOutcome(EndReason.WIN_CONDITION_MET, winners, List.of(20, 15, 10), 3, 9, 30);
-        var analyzed = analyzed(seed, seats, CaseStatus.SUCCEEDED, outcome);
+        var analyzed = analyzed(seed, seats, CaseState.SUCCEEDED, outcome);
         cases.add(analyzed);
         facts.put(
                 analyzed.caseId(),
@@ -172,10 +172,10 @@ class ReportCalculatorTest {
     }
 
     private void failed(String seed, List<Faction> seats) {
-        cases.add(analyzed(seed, seats, CaseStatus.FAILED, null));
+        cases.add(analyzed(seed, seats, CaseState.FAILED, null));
     }
 
-    private AnalyzedCase analyzed(String seed, List<Faction> seats, CaseStatus status, CaseOutcome outcome) {
+    private AnalyzedCase analyzed(String seed, List<Faction> seats, CaseState status, CaseOutcome outcome) {
         return new AnalyzedCase(
                 new UUID(1, cases.size()), "base", seed, seats.size(), "random", "1.0.0", seats, status, outcome);
     }

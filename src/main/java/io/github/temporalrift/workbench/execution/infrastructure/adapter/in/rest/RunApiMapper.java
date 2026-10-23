@@ -62,7 +62,7 @@ final class RunApiMapper {
                 logicalCase.seats().stream()
                         .map(seat -> new SeatAssignment(
                                 seat.seatIndex(),
-                                Faction.fromValue(seat.faction()),
+                                Faction.fromValue(seat.faction().name()),
                                 seat.policyId(),
                                 seat.policyVersion()))
                         .toList(),
@@ -77,10 +77,8 @@ final class RunApiMapper {
                 : io.github.temporalrift.workbench.execution.domain.run.RunState.valueOf(state.name());
     }
 
-    static io.github.temporalrift.workbench.execution.domain.run.CaseState toDomain(CaseState state) {
-        return state == null
-                ? null
-                : io.github.temporalrift.workbench.execution.domain.run.CaseState.valueOf(state.name());
+    static io.github.temporalrift.workbench.shared.execution.CaseState toDomain(CaseState state) {
+        return state == null ? null : io.github.temporalrift.workbench.shared.execution.CaseState.valueOf(state.name());
     }
 
     static CaseSummary toSummary(LogicalCase logicalCase) {
@@ -112,13 +110,14 @@ final class RunApiMapper {
         List<Winner> winners = result.winners().stream()
                 .map(winner -> new Winner(
                         winner.seatIndex(),
-                        Faction.fromValue(winner.faction()),
+                        Faction.fromValue(winner.faction().name()),
                         winner.winType() == null
                                 ? null
                                 : Winner.WinTypeEnum.fromValue(winner.winType().name())))
                 .toList();
         List<FinalScore> scores = result.finalScores().stream()
-                .map(score -> new FinalScore(score.seatIndex(), Faction.fromValue(score.faction()), score.score()))
+                .map(score -> new FinalScore(
+                        score.seatIndex(), Faction.fromValue(score.faction().name()), score.score()))
                 .toList();
         return new CaseResult(
                 TerminalEndReason.fromValue(result.endReason().name()),

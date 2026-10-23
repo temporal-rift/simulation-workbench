@@ -1,4 +1,4 @@
-package io.github.temporalrift.workbench.analysis.domain.game;
+package io.github.temporalrift.workbench.shared.game;
 
 /** The shared card grade vocabulary. */
 public enum CardGrade {

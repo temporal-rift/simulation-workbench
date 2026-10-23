@@ -7,10 +7,10 @@ import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 
 import io.github.temporalrift.workbench.policy.domain.observation.CardCategory;
-import io.github.temporalrift.workbench.policy.domain.observation.CardGrade;
-import io.github.temporalrift.workbench.policy.domain.observation.CardType;
-import io.github.temporalrift.workbench.policy.domain.observation.SpecialAction;
 import io.github.temporalrift.workbench.policy.domain.observation.TargetShape;
+import io.github.temporalrift.workbench.shared.game.CardGrade;
+import io.github.temporalrift.workbench.shared.game.CardType;
+import io.github.temporalrift.workbench.shared.game.SpecialAction;
 
 class CardRulesTest {
 

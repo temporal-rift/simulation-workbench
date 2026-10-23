@@ -8,12 +8,12 @@ import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;
 
 import io.github.temporalrift.workbench.policy.PolicyFixtures;
-import io.github.temporalrift.workbench.policy.domain.observation.CardType;
 import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow;
-import io.github.temporalrift.workbench.policy.domain.observation.Faction;
 import io.github.temporalrift.workbench.policy.domain.observation.HandCard;
 import io.github.temporalrift.workbench.policy.domain.observation.PlayableCard;
 import io.github.temporalrift.workbench.policy.domain.observation.TargetShape;
+import io.github.temporalrift.workbench.shared.game.CardType;
+import io.github.temporalrift.workbench.shared.game.Faction;
 
 class ObservationJsonTest {
 

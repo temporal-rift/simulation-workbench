@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 
 import io.github.temporalrift.workbench.experiment.ExperimentManifests;
+import io.github.temporalrift.workbench.shared.game.Faction;
 
 class MatrixPreviewServiceTest {
 
@@ -73,8 +74,9 @@ class MatrixPreviewServiceTest {
         assertThat(factionsBySeat).hasSize(3);
         factionsBySeat
                 .values()
-                .forEach(factions ->
-                        assertThat(factions).containsExactlyInAnyOrderElementsOf(ExperimentManifests.FACTIONS));
+                .forEach(factions -> assertThat(factions)
+                        .extracting(Faction::name)
+                        .containsExactlyInAnyOrderElementsOf(ExperimentManifests.FACTIONS));
     }
 
     @Test

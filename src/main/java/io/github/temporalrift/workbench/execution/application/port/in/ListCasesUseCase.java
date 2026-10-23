@@ -2,9 +2,9 @@ package io.github.temporalrift.workbench.execution.application.port.in;
 
 import java.util.UUID;
 
-import io.github.temporalrift.workbench.execution.domain.run.CaseState;
 import io.github.temporalrift.workbench.execution.domain.run.LogicalCase;
 import io.github.temporalrift.workbench.shared.Page;
+import io.github.temporalrift.workbench.shared.execution.CaseState;
 
 /** Lists the cases of one run in matrix order, optionally of one state and one variant. */
 public interface ListCasesUseCase {

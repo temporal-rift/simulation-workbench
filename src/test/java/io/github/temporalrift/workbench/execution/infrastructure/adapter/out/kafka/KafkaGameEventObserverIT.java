@@ -30,10 +30,10 @@ import io.github.temporalrift.workbench.execution.domain.evidence.ObservedEvent;
 import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
-import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.GameEventObservers;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneEndpoints;
 import io.github.temporalrift.workbench.execution.support.Provenances;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
 
 @WorkbenchIntegrationTest
 class KafkaGameEventObserverIT {

@@ -3,7 +3,7 @@ package io.github.temporalrift.workbench.execution.domain.port.out;
 import java.time.Duration;
 
 import io.github.temporalrift.workbench.execution.domain.run.AttemptState;
-import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
 
 /** Observes the wall time of each attempt from its start to its final state. */
 @FunctionalInterface

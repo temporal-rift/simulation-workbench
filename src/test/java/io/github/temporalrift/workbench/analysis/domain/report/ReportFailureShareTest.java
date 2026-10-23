@@ -9,9 +9,9 @@ import org.junit.jupiter.api.Test;
 
 import io.github.temporalrift.workbench.analysis.domain.AnalysisVersion;
 import io.github.temporalrift.workbench.analysis.domain.SyntheticRun;
-import io.github.temporalrift.workbench.analysis.domain.game.CaseStatus;
-import io.github.temporalrift.workbench.analysis.domain.game.Faction;
-import io.github.temporalrift.workbench.analysis.domain.game.FailureCode;
+import io.github.temporalrift.workbench.shared.execution.CaseState;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
+import io.github.temporalrift.workbench.shared.game.Faction;
 
 class ReportFailureShareTest {
 
@@ -72,9 +72,9 @@ class ReportFailureShareTest {
         run.win("1", EPW, 0)
                 .win("2", EPW, 0)
                 .failed("3", EPW, FailureCode.EXECUTION_FAILED)
-                .unfinished("4", EPW, CaseStatus.CANCELLED)
-                .unfinished("5", EPW, CaseStatus.PENDING)
-                .unfinished("6", EPW, CaseStatus.RUNNING);
+                .unfinished("4", EPW, CaseState.CANCELLED)
+                .unfinished("5", EPW, CaseState.PENDING)
+                .unfinished("6", EPW, CaseState.RUNNING);
 
         var shares = pooled(report(AnalysisVersion.CURRENT));
 

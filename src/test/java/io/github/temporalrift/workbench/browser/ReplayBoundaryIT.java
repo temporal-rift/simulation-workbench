@@ -19,10 +19,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import io.github.temporalrift.workbench.execution.application.port.in.StartRunUseCase;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
-import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.support.ScriptedLanes;
 import io.github.temporalrift.workbench.experiment.ExperimentManifests;
 import io.github.temporalrift.workbench.experiment.application.port.in.CreateExperimentUseCase;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
 
 /**
  * What a browser may show of a replay, asserted on the page and on every response behind it. Runs are made

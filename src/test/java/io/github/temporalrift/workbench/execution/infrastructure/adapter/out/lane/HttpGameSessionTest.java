@@ -35,8 +35,6 @@ import org.springframework.web.client.RestClientException;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.port.out.GameEventObserver;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
-import io.github.temporalrift.workbench.execution.domain.run.EndReason;
-import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.domain.run.GameProgress;
 import io.github.temporalrift.workbench.execution.domain.run.SeatPlan;
 import io.github.temporalrift.workbench.execution.domain.run.WinType;
@@ -57,6 +55,8 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.scoring.model.PlayerScore;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.scoring.model.ScoresResponse;
 import io.github.temporalrift.workbench.execution.support.StubEventObserver;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
+import io.github.temporalrift.workbench.shared.game.EndReason;
 
 class HttpGameSessionTest {
 
@@ -64,7 +64,10 @@ class HttpGameSessionTest {
     private static final String DIGEST = "a".repeat(64);
     private static final OffsetDateTime EPOCH = OffsetDateTime.parse("2026-01-01T00:00:00Z");
     private static final UUID GAME = ProjectionStates.GAME;
-    private static final List<String> FACTIONS = List.of("ERASERS", "PROPHETS", "WEAVERS");
+    private static final List<io.github.temporalrift.workbench.shared.game.Faction> FACTIONS = List.of(
+            io.github.temporalrift.workbench.shared.game.Faction.ERASERS,
+            io.github.temporalrift.workbench.shared.game.Faction.PROPHETS,
+            io.github.temporalrift.workbench.shared.game.Faction.WEAVERS);
 
     private final Map<Integer, ProjectionApi> projections = new HashMap<>();
     private final Map<Integer, PlayerGameStateResponse> states = new HashMap<>();
@@ -301,7 +304,7 @@ class HttpGameSessionTest {
         assertThat(ending.eras()).isEqualTo(3);
         assertThat(ending.winners()).singleElement().satisfies(winner -> {
             assertThat(winner.seatIndex()).isZero();
-            assertThat(winner.faction()).isEqualTo("ERASERS");
+            assertThat(winner.faction()).isEqualTo(io.github.temporalrift.workbench.shared.game.Faction.ERASERS);
             assertThat(winner.winType()).isEqualTo(WinType.SCORE_THRESHOLD);
         });
         assertThat(ending.finalScores())
@@ -444,13 +447,14 @@ class HttpGameSessionTest {
 
     /** The GameEnded fact the observer retained from the broker. */
     private void published(String reason, int first, int second, int third) {
-        events.gameEnded(
-                new GameEventObserver.GameEnded(reason, Map.of(player(0), first, player(1), second, player(2), third)));
+        events.gameEnded(new GameEventObserver.GameEnded(
+                io.github.temporalrift.workbench.shared.game.EndReason.valueOf(reason),
+                Map.of(player(0), first, player(1), second, player(2), third)));
     }
 
     private static GameWinner winner(int seat) {
         var winner = new GameWinner(player(seat));
-        winner.setFaction(Faction.valueOf(FACTIONS.get(seat)));
+        winner.setFaction(Faction.valueOf(FACTIONS.get(seat).name()));
         winner.setWinType(GameWinner.WinTypeEnum.SCORE_THRESHOLD);
         return winner;
     }

@@ -10,14 +10,14 @@ import java.util.UUID;
 import io.github.temporalrift.workbench.execution.domain.run.Attempt;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.CaseCounts;
-import io.github.temporalrift.workbench.execution.domain.run.CaseState;
-import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.domain.run.LogicalCase;
 import io.github.temporalrift.workbench.execution.domain.run.Run;
 import io.github.temporalrift.workbench.execution.domain.run.RunCommand;
 import io.github.temporalrift.workbench.execution.domain.run.RunCreation;
 import io.github.temporalrift.workbench.execution.domain.run.RunState;
 import io.github.temporalrift.workbench.execution.domain.run.SeatPlan;
+import io.github.temporalrift.workbench.shared.execution.CaseState;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
 
 /** Durable run state: runs, their logical cases and the idempotency claims of run commands. */
 public interface RunRepository {

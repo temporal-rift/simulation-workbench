@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+import io.github.temporalrift.workbench.shared.game.EndReason;
+
 /**
  * The reconciled authoritative ending of a succeeded case.
  *

@@ -16,12 +16,12 @@ import tools.jackson.databind.node.ObjectNode;
 import io.github.temporalrift.workbench.execution.application.port.in.StartRunUseCase;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.port.out.GameSession;
-import io.github.temporalrift.workbench.execution.domain.run.EndReason;
 import io.github.temporalrift.workbench.execution.domain.run.FinalScore;
 import io.github.temporalrift.workbench.execution.domain.run.WinType;
 import io.github.temporalrift.workbench.execution.domain.run.Winner;
 import io.github.temporalrift.workbench.experiment.ExperimentManifests;
 import io.github.temporalrift.workbench.experiment.application.port.in.CreateExperimentUseCase;
+import io.github.temporalrift.workbench.shared.game.EndReason;
 
 /** A designer judges a finished run against the balance criterion without calling any endpoint. */
 @BrowserIntegrationTest

@@ -15,9 +15,9 @@ import tools.jackson.databind.JsonNode;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.port.out.GameSession;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
-import io.github.temporalrift.workbench.execution.domain.run.EndReason;
-import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.support.ScriptedLanes;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
+import io.github.temporalrift.workbench.shared.game.EndReason;
 
 /** The seed-42 coverage matrix: 220 requested cases, each ending up visibly and truthfully accounted for. */
 class CoverageMatrixIT extends ProofSupport {
@@ -38,7 +38,9 @@ class CoverageMatrixIT extends ProofSupport {
 
             @Override
             public void onOpen(CaseLane.CaseContext context) {
-                if (drifts(context.seats().size(), context.seats().getFirst().faction())) {
+                if (drifts(
+                        context.seats().size(),
+                        context.seats().getFirst().faction().name())) {
                     throw new AttemptFailedException(FailureCode.CONFIGURATION_DRIFT, "the lane drifted");
                 }
             }
@@ -105,7 +107,9 @@ class CoverageMatrixIT extends ProofSupport {
 
             @Override
             public void onOpen(CaseLane.CaseContext context) {
-                if (drifts(context.seats().size(), context.seats().getFirst().faction())) {
+                if (drifts(
+                        context.seats().size(),
+                        context.seats().getFirst().faction().name())) {
                     throw new AttemptFailedException(FailureCode.CONFIGURATION_DRIFT, "the lane drifted");
                 }
             }

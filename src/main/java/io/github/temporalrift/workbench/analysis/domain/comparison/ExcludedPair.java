@@ -3,8 +3,8 @@ package io.github.temporalrift.workbench.analysis.domain.comparison;
 import java.util.List;
 import java.util.UUID;
 
-import io.github.temporalrift.workbench.analysis.domain.game.CaseStatus;
-import io.github.temporalrift.workbench.analysis.domain.game.Faction;
+import io.github.temporalrift.workbench.shared.execution.CaseState;
+import io.github.temporalrift.workbench.shared.game.Faction;
 
 /** A pair kept out of the paired estimates, visible with both cases and why. */
 public record ExcludedPair(
@@ -15,8 +15,8 @@ public record ExcludedPair(
         List<Faction> seats,
         UUID baselineCaseId,
         UUID candidateCaseId,
-        CaseStatus baselineState,
-        CaseStatus candidateState,
+        CaseState baselineState,
+        CaseState candidateState,
         ExclusionReason reason) {
 
     public ExcludedPair {

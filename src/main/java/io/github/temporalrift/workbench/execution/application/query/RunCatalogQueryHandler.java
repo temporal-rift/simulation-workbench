@@ -11,11 +11,11 @@ import io.github.temporalrift.workbench.execution.RunSummary;
 import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
 import io.github.temporalrift.workbench.execution.domain.port.out.RunRepository;
 import io.github.temporalrift.workbench.execution.domain.run.CaseResult;
-import io.github.temporalrift.workbench.execution.domain.run.CaseState;
 import io.github.temporalrift.workbench.execution.domain.run.CountingGame;
-import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.domain.run.LogicalCase;
 import io.github.temporalrift.workbench.execution.domain.run.Winner;
+import io.github.temporalrift.workbench.shared.execution.CaseState;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
 
 /** Reads runs, their cases and the evidence of succeeded cases for other modules. */
 public class RunCatalogQueryHandler implements RunCatalog {
@@ -74,14 +74,14 @@ public class RunCatalogQueryHandler implements RunCatalog {
                         .map(seat -> new RunCase.Seat(
                                 seat.seatIndex(), seat.faction(), seat.policyId(), seat.policyVersion()))
                         .toList(),
-                logicalCase.state().name(),
+                logicalCase.state(),
                 logicalCase.result() == null ? null : result(logicalCase.result()),
-                failureCode == null ? null : failureCode.name());
+                failureCode);
     }
 
     private static RunCase.Result result(CaseResult result) {
         return new RunCase.Result(
-                result.endReason().name(),
+                result.endReason(),
                 result.winners().stream().map(Winner::seatIndex).toList(),
                 result.finalScores().stream()
                         .map(score -> new RunCase.Score(score.seatIndex(), score.score()))

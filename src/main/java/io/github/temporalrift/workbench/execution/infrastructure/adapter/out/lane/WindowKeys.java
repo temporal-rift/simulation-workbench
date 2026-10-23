@@ -3,7 +3,7 @@ package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.la
 import java.util.regex.Pattern;
 
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
-import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
 
 /**
  * Reads back the window keys the policy package assigns ({@code era1/hand-selection},

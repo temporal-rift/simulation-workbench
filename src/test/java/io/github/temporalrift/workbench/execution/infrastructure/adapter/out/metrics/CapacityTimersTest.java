@@ -14,11 +14,11 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 
 import io.github.temporalrift.workbench.execution.domain.run.AttemptState;
-import io.github.temporalrift.workbench.execution.domain.run.FailureCode;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneWaits;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.MeteredLaneResets;
 import io.github.temporalrift.workbench.policy.domain.decision.PolicyDecision;
 import io.github.temporalrift.workbench.policy.infrastructure.adapter.out.metrics.MicrometerDecisionTimings;
+import io.github.temporalrift.workbench.shared.execution.FailureCode;
 
 class CapacityTimersTest {
 
