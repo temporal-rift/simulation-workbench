@@ -135,7 +135,7 @@ export function ExperimentFormPage() {
   })
 
   const freeze = useMutation({
-    mutationFn: ({ key }: { readonly key: string }) => freezeManifest(client, manifest, key),
+    mutationFn: ({ key }: { readonly key: string; readonly scope: string }) => freezeManifest(client, manifest, key),
     onSuccess: async (experiment, { scope }) => {
       keys.clear(scope)
       clearDraft()
