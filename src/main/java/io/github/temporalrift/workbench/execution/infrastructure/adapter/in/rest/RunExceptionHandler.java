@@ -3,7 +3,6 @@ package io.github.temporalrift.workbench.execution.infrastructure.adapter.in.res
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -48,10 +47,5 @@ class RunExceptionHandler {
     @ExceptionHandler(InvalidReplayPerspectiveException.class)
     ProblemDetail handleInvalidPerspective(InvalidReplayPerspectiveException ex) {
         return ProblemDetails.of(HttpStatus.BAD_REQUEST, ex.getMessage(), "INVALID_REPLAY_PERSPECTIVE");
-    }
-
-    @ExceptionHandler(AccessDeniedException.class)
-    ProblemDetail handleInsufficientScope(AccessDeniedException ex) {
-        return ProblemDetails.of(HttpStatus.FORBIDDEN, "Access denied", "INSUFFICIENT_SCOPE");
     }
 }
