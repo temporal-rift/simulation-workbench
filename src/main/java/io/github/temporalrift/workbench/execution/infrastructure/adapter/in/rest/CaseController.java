@@ -3,8 +3,7 @@ package io.github.temporalrift.workbench.execution.infrastructure.adapter.in.res
 import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.github.temporalrift.workbench.execution.application.port.in.GetCaseReplayUseCase;
@@ -23,7 +22,6 @@ import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1
 class CaseController implements CasesApi {
 
     private static final int DEFAULT_LIMIT = 100;
-    private static final String OBSERVE_AUTHORITY = "SCOPE_simulation:observe";
 
     private final GetCaseUseCase getCase;
     private final GetCaseReplayUseCase getCaseReplay;
@@ -55,7 +53,9 @@ class CaseController implements CasesApi {
         return ResponseEntity.ok(RunApiMapper.toApi(getCase.handle(runId, caseId)));
     }
 
+    /** Observer evidence is a separate entitlement from reading cases. */
     @Override
+    @PreAuthorize("#perspective?.name() != 'OBSERVER' or hasAuthority('SCOPE_simulation:observe')")
     public ResponseEntity<Replay> getCaseReplay(
             UUID runId,
             UUID caseId,
@@ -63,9 +63,6 @@ class CaseController implements CasesApi {
             Integer seatIndex,
             Integer afterStep,
             Integer limit) {
-        if (perspective == ReplayPerspective.OBSERVER) {
-            requireObserveScope();
-        }
         var page = getCaseReplay.handle(new GetCaseReplayUseCase.Query(
                 runId,
                 caseId,
@@ -80,16 +77,5 @@ class CaseController implements CasesApi {
     public ResponseEntity<Reproduction> reproduceCase(UUID runId, UUID caseId, UUID idempotencyKey) {
         var reproduction = reproduceCase.handle(new ReproduceCaseUseCase.Command(runId, caseId, idempotencyKey));
         return ResponseEntity.accepted().body(ReplayApiMapper.toApi(reproduction));
-    }
-
-    /** Observer evidence is a separate entitlement from reading cases. */
-    private static void requireObserveScope() {
-        var authentication = SecurityContextHolder.getContext().getAuthentication();
-        var entitled = authentication != null
-                && authentication.getAuthorities().stream()
-                        .anyMatch(authority -> OBSERVE_AUTHORITY.equals(authority.getAuthority()));
-        if (!entitled) {
-            throw new AccessDeniedException("An OBSERVER replay requires the simulation:observe scope");
-        }
     }
 }

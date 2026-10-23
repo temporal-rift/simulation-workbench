@@ -1,8 +1,12 @@
 package io.github.temporalrift.workbench.experiment.infrastructure.adapter.in.rest;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.UUID;
@@ -13,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -80,5 +85,17 @@ class ExperimentSecurityIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Given the use case denies access, when getExperiment is called, then returns 403 INSUFFICIENT_SCOPE")
+    void givenAccessDeniedFromTheUseCase_whenGetExperimentCalled_thenReturns403InsufficientScope() throws Exception {
+        when(getExperimentUseCase.handle(any())).thenThrow(new AccessDeniedException("denied"));
+
+        mockMvc.perform(get("/api/v1/experiments/{id}", UUID.randomUUID())
+                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:read"))))
+                .andExpect(status().isForbidden())
+                .andExpect(content().contentType("application/problem+json"))
+                .andExpect(jsonPath("$.code").value("INSUFFICIENT_SCOPE"));
     }
 }

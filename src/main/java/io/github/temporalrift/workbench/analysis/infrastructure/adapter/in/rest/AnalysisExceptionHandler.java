@@ -4,7 +4,6 @@ import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -59,10 +58,5 @@ class AnalysisExceptionHandler {
     @ExceptionHandler(InvalidEvaluationRequestException.class)
     ProblemDetail handleInvalidEvaluation(InvalidEvaluationRequestException ex) {
         return ProblemDetails.of(HttpStatus.BAD_REQUEST, ex.getMessage(), INVALID_REQUEST);
-    }
-
-    @ExceptionHandler(AccessDeniedException.class)
-    ProblemDetail handleInsufficientScope(AccessDeniedException ex) {
-        return ProblemDetails.of(HttpStatus.FORBIDDEN, "Access denied", "INSUFFICIENT_SCOPE");
     }
 }

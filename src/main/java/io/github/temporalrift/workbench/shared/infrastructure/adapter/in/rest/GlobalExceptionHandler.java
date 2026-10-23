@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
@@ -31,6 +32,12 @@ class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static String parameterName(String propertyPath) {
         return propertyPath.substring(propertyPath.lastIndexOf('.') + 1);
+    }
+
+    /** Mirrors the filter-chain denial so a scope rule enforced after the chain answers the same problem. */
+    @ExceptionHandler(AccessDeniedException.class)
+    ProblemDetail handleInsufficientScope(AccessDeniedException ex) {
+        return ProblemDetails.of(HttpStatus.FORBIDDEN, "Access denied", "INSUFFICIENT_SCOPE");
     }
 
     @ExceptionHandler(Exception.class)
