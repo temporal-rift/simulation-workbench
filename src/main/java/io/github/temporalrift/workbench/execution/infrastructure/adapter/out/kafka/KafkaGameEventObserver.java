@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.OffsetAndTimestamp;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.header.Header;
@@ -30,7 +31,7 @@ import io.github.temporalrift.workbench.shared.execution.FailureCode;
  * retained, or, for a game that just began, from the first record at or after the time the game began, so it never
  * reads the history of the lane. It is a separate consumer with its own credentials and never feeds a policy.
  * Records are deduplicated by topic and event identifier; the offset of each topic partition is retained once
- * per drain, after its records, and no order across topics is inferred.
+ * per drain, after its records and only when the drain did not fail, and no order across topics is inferred.
  */
 public final class KafkaGameEventObserver implements GameEventObserver {
 
@@ -72,9 +73,7 @@ public final class KafkaGameEventObserver implements GameEventObserver {
         this.partitions = List.copyOf(assigned);
         consumer.assign(partitions);
         seek(since);
-        evidence.events(target.scopeId(), target.gameId()).stream()
-                .filter(event -> GameEndedParser.EVENT_TYPE.equals(event.eventType()))
-                .findFirst()
+        evidence.firstEventOfType(target.scopeId(), target.gameId(), GameEndedParser.EVENT_TYPE)
                 .ifPresent(event -> gameEnded = GameEndedParser.parse(objectMapper, event));
     }
 
@@ -120,16 +119,18 @@ public final class KafkaGameEventObserver implements GameEventObserver {
                     continue;
                 }
                 idle = 0;
-                messages.forEach(message -> {
-                    observe(message);
-                    next.merge(
-                            new TopicPartition(message.topic(), message.partition()), message.offset() + 1, Math::max);
-                });
+                retain(messages, next);
             }
             return true;
+        } catch (RuntimeException e) {
+            next.clear();
+            throw e;
         } finally {
-            next.forEach((partition, offset) -> evidence.advance(
-                    target.scopeId(), target.gameId(), partition.topic(), partition.partition(), offset));
+            if (!next.isEmpty()) {
+                var offsets = new HashMap<EvidenceLedger.SourcePartition, Long>();
+                next.forEach((partition, offset) -> offsets.put(source(partition), offset));
+                evidence.advanceAll(target.scopeId(), target.gameId(), offsets);
+            }
         }
     }
 
@@ -147,14 +148,22 @@ public final class KafkaGameEventObserver implements GameEventObserver {
         return partitions.stream().allMatch(partition -> consumer.position(partition) >= ends.get(partition));
     }
 
-    private void observe(ConsumerRecord<String, byte[]> message) {
-        if (isThisGame(message)) {
-            var event = event(message);
-            evidence.retain(target.scopeId(), target.attemptId(), event);
-            if (GameEndedParser.EVENT_TYPE.equals(event.eventType())) {
-                gameEnded = GameEndedParser.parse(objectMapper, event);
+    /** Retains the poll's records of this game together; their offsets are noted only once they are retained. */
+    private void retain(ConsumerRecords<String, byte[]> messages, Map<TopicPartition, Long> next) {
+        var events = new ArrayList<ObservedEvent>();
+        var polled = new HashMap<TopicPartition, Long>();
+        for (var message : messages) {
+            if (isThisGame(message)) {
+                events.add(event(message));
             }
+            polled.merge(new TopicPartition(message.topic(), message.partition()), message.offset() + 1, Math::max);
         }
+        evidence.retainAll(target.scopeId(), target.attemptId(), events);
+        events.stream()
+                .filter(event -> GameEndedParser.EVENT_TYPE.equals(event.eventType()))
+                .reduce((_, last) -> last)
+                .ifPresent(event -> gameEnded = GameEndedParser.parse(objectMapper, event));
+        polled.forEach((partition, offset) -> next.merge(partition, offset, Math::max));
     }
 
     private boolean isThisGame(ConsumerRecord<String, byte[]> message) {

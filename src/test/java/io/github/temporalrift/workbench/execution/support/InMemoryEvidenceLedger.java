@@ -98,6 +98,23 @@ public class InMemoryEvidenceLedger implements EvidenceLedger {
     }
 
     @Override
+    public synchronized void retainAll(UUID scopeId, UUID attemptId, List<ObservedEvent> batch) {
+        batch.forEach(event -> retain(scopeId, attemptId, event));
+    }
+
+    @Override
+    public synchronized void advanceAll(UUID scopeId, UUID gameId, Map<SourcePartition, Long> nextOffsets) {
+        nextOffsets.forEach((source, next) -> advance(scopeId, gameId, source.source(), source.partition(), next));
+    }
+
+    @Override
+    public synchronized Optional<ObservedEvent> firstEventOfType(UUID scopeId, UUID gameId, String eventType) {
+        return events(scopeId, gameId).stream()
+                .filter(event -> event.eventType().equals(eventType))
+                .findFirst();
+    }
+
+    @Override
     public synchronized void advance(UUID scopeId, UUID gameId, String source, int partition, long nextOffset) {
         offsets.computeIfAbsent(new Game(scopeId, gameId), key -> new ConcurrentHashMap<>())
                 .merge(new SourcePartition(source, partition), nextOffset, Math::max);

@@ -23,20 +23,9 @@ class EvidenceSourceOffsetJpaEntity extends SourceScopedJpaEntity<EvidenceSource
 
     protected EvidenceSourceOffsetJpaEntity() {}
 
-    EvidenceSourceOffsetJpaEntity(UUID scopeId, UUID gameId, String source, int partitionNo, long nextOffset) {
-        super(scopeId, gameId, source);
-        this.partitionNo = partitionNo;
-        this.nextOffset = nextOffset;
-    }
-
     @Override
     public Key getId() {
         return new Key(scopeId(), gameId(), source(), partitionNo);
-    }
-
-    /** The offset never moves back. */
-    void advanceTo(long offset) {
-        this.nextOffset = Math.max(nextOffset, offset);
     }
 
     int partitionNo() {

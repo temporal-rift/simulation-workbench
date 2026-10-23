@@ -1,12 +1,9 @@
 package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.persistence;
 
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Comparator;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +47,7 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
     private final EvidenceSourceOffsetJpaRepository offsets;
     private final InsertOnce insertOnce;
     private final EvidenceUpdates updates;
+    private final EvidenceBatchWrites batches;
     private final Clock clock;
 
     EvidenceLedgerAdapter(
@@ -60,6 +58,7 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
             EvidenceSourceOffsetJpaRepository offsets,
             InsertOnce insertOnce,
             EvidenceUpdates updates,
+            EvidenceBatchWrites batches,
             Clock clock) {
         this.artifacts = artifacts;
         this.evidence = evidence;
@@ -68,6 +67,7 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
         this.offsets = offsets;
         this.insertOnce = insertOnce;
         this.updates = updates;
+        this.batches = batches;
         this.clock = clock;
     }
 
@@ -122,24 +122,33 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
 
     @Override
     public boolean retain(UUID scopeId, UUID attemptId, ObservedEvent event) {
-        var key = new EvidenceEventJpaEntity.Key(scopeId, event.gameId(), event.source(), event.eventId());
-        if (events.existsById(key)) {
-            return false;
+        return batches.retain(scopeId, attemptId, List.of(event), clock.instant()) == 1;
+    }
+
+    @Override
+    public void retainAll(UUID scopeId, UUID attemptId, List<ObservedEvent> events) {
+        if (!events.isEmpty()) {
+            batches.retain(scopeId, attemptId, events, clock.instant());
         }
-        var now = clock.instant();
-        var payload = putArtifact(event.payload().getBytes(StandardCharsets.UTF_8), JSON, now);
-        return insertOnce.insert(
-                () -> events.saveAndFlush(new EvidenceEventJpaEntity(scopeId, attemptId, event, payload, now)));
     }
 
     @Override
     public void advance(UUID scopeId, UUID gameId, String source, int partition, long nextOffset) {
-        var key = new EvidenceSourceOffsetJpaEntity.Key(scopeId, gameId, source, partition);
-        if (!offsets.existsById(key)) {
-            insertOnce.insert(() -> offsets.saveAndFlush(
-                    new EvidenceSourceOffsetJpaEntity(scopeId, gameId, source, partition, nextOffset)));
+        advanceAll(scopeId, gameId, Map.of(new SourcePartition(source, partition), nextOffset));
+    }
+
+    @Override
+    public void advanceAll(UUID scopeId, UUID gameId, Map<SourcePartition, Long> nextOffsets) {
+        if (!nextOffsets.isEmpty()) {
+            batches.advance(scopeId, gameId, nextOffsets);
         }
-        updates.raiseOffset(scopeId, gameId, source, partition, nextOffset);
+    }
+
+    @Override
+    public Optional<ObservedEvent> firstEventOfType(UUID scopeId, UUID gameId, String eventType) {
+        return events.findAllByScopeIdAndGameIdAndEventType(scopeId, gameId, eventType).stream()
+                .min(EVENT_ORDER)
+                .map(event -> observed(event, artifactText(event.payloadArtifact())));
     }
 
     @Override
@@ -250,10 +259,6 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
     }
 
     private static String sha256(byte[] content) {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(content));
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 unavailable", e);
-        }
+        return EvidenceBatchWrites.sha256(content);
     }
 }
