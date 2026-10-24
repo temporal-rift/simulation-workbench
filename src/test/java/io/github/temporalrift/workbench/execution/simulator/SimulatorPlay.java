@@ -121,7 +121,7 @@ final class SimulatorPlay {
         var a = steps(first, caseKey);
         var b = steps(second, caseKey);
         for (var index = 0; index < Math.min(a.size(), b.size()); index++) {
-            for (var column : List.of("window_key", "decision", "observation")) {
+            for (var column : List.of("window_kind", "era", "round", "decision", "observation")) {
                 var left = String.valueOf(a.get(index).get(column));
                 var right = String.valueOf(b.get(index).get(column));
                 if (!left.equals(right)) {
@@ -134,7 +134,7 @@ final class SimulatorPlay {
                                     index,
                                     a.get(index).get("era"),
                                     a.get(index).get("round"),
-                                    a.get(index).get("phase"),
+                                    a.get(index).get("window_kind"),
                                     column,
                                     at,
                                     excerpt(left, at),
@@ -192,7 +192,7 @@ final class SimulatorPlay {
 
     private List<Map<String, Object>> steps(UUID runId, UUID caseKey) {
         return jdbc.queryForList(
-                "SELECT s.window_key, s.decision, s.observation, s.era, s.round, s.phase FROM evidence_step s"
+                "SELECT s.window_kind, s.decision, s.observation, s.era, s.round FROM evidence_step s"
                         + " JOIN case_attempt a ON a.attempt_id = s.attempt_id JOIN run_case c ON c.case_id = a.case_id"
                         + " WHERE c.run_id = ? AND c.case_key = ? AND a.state = 'SUCCEEDED'"
                         + " ORDER BY s.step, s.seat_index",

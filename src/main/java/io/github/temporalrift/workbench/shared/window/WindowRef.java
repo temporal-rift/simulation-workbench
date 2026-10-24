@@ -15,6 +15,9 @@ public record WindowRef(WindowKind kind, int era, Integer round) implements Comp
 
     public WindowRef {
         Objects.requireNonNull(kind, "kind");
+        if (round != null && round < 1) {
+            throw new IllegalArgumentException("Rounds count from 1, but the round is " + round);
+        }
         if ((kind == WindowKind.ACTION_ROUND) != (round != null)) {
             throw new IllegalArgumentException(
                     kind == WindowKind.ACTION_ROUND

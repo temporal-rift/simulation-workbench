@@ -19,6 +19,11 @@ class WindowRefTest {
     }
 
     @Test
+    void roundsCountFromOne() {
+        assertThatThrownBy(() -> WindowRef.actionRound(1, 0)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void everyOtherKindRefusesARound() {
         assertThatThrownBy(() -> new WindowRef(WindowKind.HAND_SELECTION, 1, 2))
                 .isInstanceOf(IllegalArgumentException.class)
