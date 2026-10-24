@@ -13,8 +13,14 @@ public interface ExperimentSource {
     /** The execution inputs of a frozen experiment, or empty when it does not exist. */
     Optional<Plan> plan(UUID experimentId);
 
-    /** Every case of the experiment's matrix in stable order, or empty when it does not exist. */
-    Optional<List<PlannedCase>> cases(UUID experimentId);
+    /** The plan and every case in stable order, read once, or empty when the experiment does not exist. */
+    Optional<Snapshot> snapshot(UUID experimentId);
+
+    record Snapshot(Plan plan, List<PlannedCase> cases) {
+        public Snapshot {
+            cases = List.copyOf(cases);
+        }
+    }
 
     record Plan(
             String manifestDigest,

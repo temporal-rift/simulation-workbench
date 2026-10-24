@@ -2,8 +2,12 @@ package io.github.temporalrift.workbench.experiment.application.query;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.node.ObjectNode;
 
 import io.github.temporalrift.workbench.experiment.ExperimentManifests;
 import io.github.temporalrift.workbench.experiment.domain.ExperimentErrorCode;
@@ -21,6 +25,15 @@ class PreviewMatrixQueryHandlerTest {
         var cases = handler.handle(ExperimentManifests.singleSeedSinglePolicySingleVariant());
 
         assertThat(cases).hasSize(55);
+    }
+
+    @Test
+    void aPreviewValidatesTheManifestOnce() {
+        var manifest = spy((ObjectNode) ExperimentManifests.valid());
+
+        handler.handle(manifest);
+
+        verify(manifest, times(1)).has("schemaVersion");
     }
 
     @Test

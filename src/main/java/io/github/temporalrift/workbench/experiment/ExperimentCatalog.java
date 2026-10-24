@@ -1,6 +1,5 @@
 package io.github.temporalrift.workbench.experiment;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -10,6 +9,9 @@ public interface ExperimentCatalog {
     /** The execution inputs the frozen manifest fixes for every case, or empty for an unknown experiment. */
     Optional<ExperimentBounds> bounds(UUID experimentId);
 
-    /** Every case of the frozen experiment's matrix in stable order, or empty for an unknown experiment. */
-    Optional<List<ExperimentCase>> cases(UUID experimentId);
+    /**
+     * The bounds and every case of the frozen experiment's matrix in stable order, from one stored read and one
+     * parse, or empty for an unknown experiment.
+     */
+    Optional<ExperimentSnapshot> snapshot(UUID experimentId);
 }

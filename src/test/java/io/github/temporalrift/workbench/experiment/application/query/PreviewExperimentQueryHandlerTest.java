@@ -1,8 +1,12 @@
 package io.github.temporalrift.workbench.experiment.application.query;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.node.ObjectNode;
 
 import io.github.temporalrift.workbench.experiment.ExperimentManifests;
 import io.github.temporalrift.workbench.experiment.VariantRulesFixtures;
@@ -24,6 +28,15 @@ class PreviewExperimentQueryHandlerTest {
 
         assertThat(preview.manifestDigest()).isEqualTo(ManifestDigest.sha256Hex(manifest));
         assertThat(preview.caseCount()).isEqualTo(220);
+    }
+
+    @Test
+    void aPreviewValidatesTheManifestOnce() {
+        var manifest = spy((ObjectNode) ExperimentManifests.valid());
+
+        handler.handle(new PreviewExperimentUseCase.Query(manifest, 10, 0));
+
+        verify(manifest, times(1)).has("schemaVersion");
     }
 
     @Test

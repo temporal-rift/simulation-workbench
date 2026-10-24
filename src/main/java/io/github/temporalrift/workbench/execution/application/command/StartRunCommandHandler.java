@@ -51,13 +51,12 @@ public class StartRunCommandHandler implements StartRunUseCase {
         if (replay.isPresent()) {
             return replayed(replay.get(), requestHash);
         }
-        var plan = experiments
-                .plan(command.experimentId())
+        var snapshot = experiments
+                .snapshot(command.experimentId())
                 .orElseThrow(() -> new RunNotFoundException("Experiment", command.experimentId()));
+        var plan = snapshot.plan();
         var bundles = servedBundles(plan);
-        var planned = experiments
-                .cases(command.experimentId())
-                .orElseThrow(() -> new RunNotFoundException("Experiment", command.experimentId()));
+        var planned = snapshot.cases();
         var cases = IntStream.range(0, planned.size())
                 .mapToObj(ordinal -> {
                     var coordinate = planned.get(ordinal);

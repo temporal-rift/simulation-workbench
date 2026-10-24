@@ -9,6 +9,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
@@ -68,6 +69,20 @@ class StartRunCommandHandlerTest {
     }
 
     @Test
+    void startingReadsTheExperimentOnceAsOneSnapshot() {
+        givenExperiment(List.of(variant("baseline", BASELINE), variant("candidate", CANDIDATE)));
+        when(lanes.servedBundles()).thenReturn(served(BASELINE, CANDIDATE));
+        when(runs.create(any(), anyString(), any(), anyInt(), any())).thenReturn(new RunCreation.Created());
+        when(runs.find(any())).thenAnswer(call -> Optional.of(Run.queued(call.getArgument(0), EXPERIMENT, NOW)));
+        when(runs.counts(any())).thenReturn(new CaseCounts(2, 2, 0, 0, 0, 0));
+
+        handler.handle(new StartRunUseCase.Command(EXPERIMENT, UUID.randomUUID()));
+
+        verify(experiments).snapshot(EXPERIMENT);
+        verifyNoMoreInteractions(experiments);
+    }
+
+    @Test
     void anExperimentWithUnservedVariantsCreatesNothingAndNamesThem() {
         givenExperiment(
                 List.of(variant("baseline", BASELINE), variant("candidate", CANDIDATE), variant("third", OTHER)));
@@ -83,12 +98,12 @@ class StartRunCommandHandlerTest {
 
     private void givenExperiment(List<ExperimentSource.Variant> variants) {
         when(runs.findCommand(any())).thenReturn(Optional.empty());
-        when(experiments.plan(EXPERIMENT))
-                .thenReturn(Optional.of(new ExperimentSource.Plan("digest", "{}", 1, 60, 1, variants)));
-        when(experiments.cases(EXPERIMENT))
-                .thenReturn(Optional.of(List.of(
-                        new ExperimentSource.PlannedCase(new UUID(2, 2), "42", "baseline", 3, List.of()),
-                        new ExperimentSource.PlannedCase(new UUID(3, 3), "42", "candidate", 3, List.of()))));
+        when(experiments.snapshot(EXPERIMENT))
+                .thenReturn(Optional.of(new ExperimentSource.Snapshot(
+                        new ExperimentSource.Plan("digest", "{}", 1, 60, 1, variants),
+                        List.of(
+                                new ExperimentSource.PlannedCase(new UUID(2, 2), "42", "baseline", 3, List.of()),
+                                new ExperimentSource.PlannedCase(new UUID(3, 3), "42", "candidate", 3, List.of())))));
     }
 
     private static ExperimentSource.Variant variant(String label, BundleDigests bundle) {

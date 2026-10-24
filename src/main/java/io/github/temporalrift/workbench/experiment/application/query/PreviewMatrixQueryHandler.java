@@ -21,7 +21,7 @@ public class PreviewMatrixQueryHandler implements PreviewMatrixUseCase {
 
     @Override
     public List<MatrixPreviewService.CaseCoordinate> handle(JsonNode manifest) {
-        ExperimentValidator.validate(manifest, policyVerifier);
-        return MatrixPreviewService.preview(manifest, ManifestDigest.sha256Hex(manifest));
+        var view = ExperimentValidator.validate(manifest, policyVerifier);
+        return MatrixPreviewService.page(view, ManifestDigest.sha256Hex(manifest), 0, Integer.MAX_VALUE);
     }
 }

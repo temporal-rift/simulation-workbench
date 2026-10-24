@@ -34,7 +34,12 @@ public final class StoredManifests {
 
     /** The execution bounds and the typed definition of the stored manifest. */
     public static ExperimentBounds bounds(StoredExperiment stored) {
-        var document = JsonText.read(stored.manifestJson(), Document.class, "Stored manifest " + stored.experimentId());
+        return bounds(stored, tree(stored));
+    }
+
+    /** The bounds read from the already parsed {@link #tree} of the stored manifest. */
+    public static ExperimentBounds bounds(StoredExperiment stored, JsonNode tree) {
+        var document = JsonText.convert(tree, Document.class, "Stored manifest " + stored.experimentId());
         var variants = document.variants().stream()
                 .map(variant -> new ExperimentVariant(
                         variant.label(), variant.effectiveRulesDigest(), variant.effectiveContentDigest()))
