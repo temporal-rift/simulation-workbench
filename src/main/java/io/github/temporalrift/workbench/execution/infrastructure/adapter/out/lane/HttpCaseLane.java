@@ -12,6 +12,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
+import io.github.temporalrift.workbench.execution.LaneService;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.port.out.CommandLedger;
 import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
@@ -190,8 +191,8 @@ public class HttpCaseLane implements CaseLane {
 
     private UUID startGame(
             CaseContext context, SimulationExecutionApi gameControl, SimulationExecutionApi timelineControl) {
-        configure(gameControl, "game-service", context);
-        configure(timelineControl, "timeline-service", context);
+        configure(gameControl, LaneService.GAME.serviceName(), context);
+        configure(timelineControl, LaneService.TIMELINE.serviceName(), context);
         var host = lane.bots().getFirst();
         var hostSession = clients.create(SessionApi.class, lane.gameServiceUrl(), host.token());
         var lobbyId = createLobby(hostSession, host);

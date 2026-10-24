@@ -28,8 +28,7 @@ public interface ReproductionRepository {
      * Atomically moves the oldest queued reproduction whose lane is among {@code freeLanes} and still serves its
      * case's bundle to running under a lease.
      */
-    Optional<Reproduction> claimNext(
-            String owner, Instant now, Instant leaseUntil, Map<String, BundleDigests> freeLanes);
+    Optional<Reproduction> claimNext(String owner, Instant leaseUntil, Map<String, BundleDigests> freeLanes);
 
     /** Extends the lease; false means the reproduction is no longer this owner's to run. */
     boolean extendLease(UUID reproductionId, String owner, Instant leaseUntil);

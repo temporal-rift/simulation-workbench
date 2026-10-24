@@ -68,7 +68,7 @@ public class ReproductionRunner implements RunReproductionUseCase {
             return false;
         }
         var now = clock.instant();
-        var claimed = reproductions.claimNext(owner, now, now.plus(settings.lease()), freeLanes);
+        var claimed = reproductions.claimNext(owner, now.plus(settings.lease()), freeLanes);
         if (claimed.isEmpty()) {
             return false;
         }

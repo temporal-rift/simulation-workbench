@@ -6,6 +6,7 @@ import java.io.Writer;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -17,6 +18,7 @@ import org.springframework.http.converter.AbstractHttpMessageConverter;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Comparison;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ConfidenceInterval;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.MetricDimensions;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Report;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ReportCaseCounts;
@@ -155,14 +157,7 @@ public class AnalysisCsvConverter extends AbstractHttpMessageConverter<Object> {
                 fields.add(metric.getNumerator());
                 fields.add(metric.getDenominator());
                 fields.add(metric.getStatus());
-                fields.add(
-                        metric.getInterval() == null
-                                ? null
-                                : metric.getInterval().getLower());
-                fields.add(
-                        metric.getInterval() == null
-                                ? null
-                                : metric.getInterval().getUpper());
+                fields.addAll(bounds(metric.getInterval()));
                 fields.add(metric.getUnknownCount());
                 row(writer, fields);
             }
@@ -198,14 +193,7 @@ public class AnalysisCsvConverter extends AbstractHttpMessageConverter<Object> {
                 fields.add(difference.getCandidateValue());
                 fields.add(difference.getDifference());
                 fields.add(difference.getStatus());
-                fields.add(
-                        difference.getInterval() == null
-                                ? null
-                                : difference.getInterval().getLower());
-                fields.add(
-                        difference.getInterval() == null
-                                ? null
-                                : difference.getInterval().getUpper());
+                fields.addAll(bounds(difference.getInterval()));
                 row(writer, fields);
             }
         }
@@ -219,6 +207,10 @@ public class AnalysisCsvConverter extends AbstractHttpMessageConverter<Object> {
                 counts.getSucceeded(),
                 counts.getFailed(),
                 counts.getCancelled());
+    }
+
+    private static List<Object> bounds(ConfidenceInterval interval) {
+        return interval == null ? Arrays.asList(null, null) : List.of(interval.getLower(), interval.getUpper());
     }
 
     private static List<Object> dimensions(MetricDimensions dimensions) {

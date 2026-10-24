@@ -97,12 +97,11 @@ class ReproductionRepositoryIT {
     void aClaimIsExclusiveAndOnlyItsOwnerMaySettleIt() {
         var queued = queue();
 
-        var claimed = reproductions
-                .claimNext("worker-a", NOW, NOW.plusSeconds(30), LANES)
-                .orElseThrow();
+        var claimed =
+                reproductions.claimNext("worker-a", NOW.plusSeconds(30), LANES).orElseThrow();
         assertThat(claimed.reproductionId()).isEqualTo(queued.reproductionId());
         assertThat(claimed.state()).isEqualTo(ReproductionState.RUNNING);
-        assertThat(reproductions.claimNext("worker-b", NOW, NOW.plusSeconds(30), LANES))
+        assertThat(reproductions.claimNext("worker-b", NOW.plusSeconds(30), LANES))
                 .isEmpty();
 
         assertThat(reproductions.settle(queued.reproductionId(), "worker-b", queued.matched(NOW)))
@@ -121,14 +120,14 @@ class ReproductionRepositoryIT {
     void onlyItsOwnLaneStillServingTheCasesBundleClaimsAReproduction() {
         var queued = queue();
 
-        assertThat(reproductions.claimNext("worker", NOW, NOW.plusSeconds(30), Map.of("lane-1", OTHER_BUNDLE)))
+        assertThat(reproductions.claimNext("worker", NOW.plusSeconds(30), Map.of("lane-1", OTHER_BUNDLE)))
                 .isEmpty();
-        assertThat(reproductions.claimNext("worker", NOW, NOW.plusSeconds(30), Map.of("lane-2", BUNDLE)))
+        assertThat(reproductions.claimNext("worker", NOW.plusSeconds(30), Map.of("lane-2", BUNDLE)))
                 .isEmpty();
         assertThat(reproductions.find(queued.reproductionId()).orElseThrow().state())
                 .isEqualTo(ReproductionState.QUEUED);
         assertThat(reproductions.claimNext(
-                        "worker", NOW, NOW.plusSeconds(30), Map.of("lane-1", BUNDLE, "lane-2", OTHER_BUNDLE)))
+                        "worker", NOW.plusSeconds(30), Map.of("lane-1", BUNDLE, "lane-2", OTHER_BUNDLE)))
                 .map(Reproduction::reproductionId)
                 .contains(queued.reproductionId());
     }
@@ -136,12 +135,12 @@ class ReproductionRepositoryIT {
     @Test
     void aDivergenceAndAFailureSurviveStorage() {
         var diverged = queue();
-        reproductions.claimNext("worker", NOW, NOW.plusSeconds(30), LANES);
+        reproductions.claimNext("worker", NOW.plusSeconds(30), LANES);
         var divergence = new Divergence.Eras(3, 2, 3);
         reproductions.settle(diverged.reproductionId(), "worker", diverged.diverged(divergence, NOW));
 
         var failed = queue();
-        reproductions.claimNext("worker", NOW, NOW.plusSeconds(30), LANES);
+        reproductions.claimNext("worker", NOW.plusSeconds(30), LANES);
         reproductions.settle(
                 failed.reproductionId(),
                 "worker",
@@ -158,14 +157,14 @@ class ReproductionRepositoryIT {
     @Test
     void anExpiredLeaseQueuesTheReproductionAgainForAnotherWorker() {
         var queued = queue();
-        reproductions.claimNext("worker-a", NOW, NOW.plusSeconds(30), LANES);
+        reproductions.claimNext("worker-a", NOW.plusSeconds(30), LANES);
 
         assertThat(reproductions.requeueExpired(NOW.plusSeconds(10))).isZero();
         assertThat(reproductions.requeueExpired(NOW.plusSeconds(31))).isEqualTo(1);
 
         assertThat(reproductions.settle(queued.reproductionId(), "worker-a", queued.matched(NOW)))
                 .isFalse();
-        assertThat(reproductions.claimNext("worker-b", NOW, NOW.plusSeconds(30), LANES))
+        assertThat(reproductions.claimNext("worker-b", NOW.plusSeconds(30), LANES))
                 .isPresent();
     }
 
@@ -173,8 +172,8 @@ class ReproductionRepositoryIT {
     void aGracefulStopAndARestartQueueTheHeldReproductionsAgain() {
         queue();
         queue();
-        reproductions.claimNext("worker-a", NOW, NOW.plusSeconds(30), LANES);
-        reproductions.claimNext("worker-b", NOW, NOW.plusSeconds(30), LANES);
+        reproductions.claimNext("worker-a", NOW.plusSeconds(30), LANES);
+        reproductions.claimNext("worker-b", NOW.plusSeconds(30), LANES);
 
         assertThat(reproductions.requeueOwnedBy("worker-a")).isEqualTo(1);
         assertThat(reproductions.requeueAllRunning()).isEqualTo(1);
@@ -186,7 +185,7 @@ class ReproductionRepositoryIT {
     @Test
     void aGivenBackClaimIsQueuedAgain() {
         var queued = queue();
-        reproductions.claimNext("worker-a", NOW, NOW.plusSeconds(30), LANES);
+        reproductions.claimNext("worker-a", NOW.plusSeconds(30), LANES);
 
         reproductions.release(queued.reproductionId(), "worker-a");
 

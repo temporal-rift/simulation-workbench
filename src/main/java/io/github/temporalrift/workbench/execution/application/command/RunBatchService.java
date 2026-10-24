@@ -79,9 +79,6 @@ public class RunBatchService implements RunBatchUseCase {
     public boolean runNextCase(String owner) {
         var freeBundles = Set.copyOf(playing.lanes().freeLanes().values());
         var heldCases = playing.lanes().heldCases();
-        if (freeBundles.isEmpty() && heldCases.isEmpty()) {
-            return false;
-        }
         var now = clock.instant();
         var claim = cases.claimNext(owner, now, now.plus(settings.lease()), freeBundles, heldCases);
         if (claim.isEmpty()) {
