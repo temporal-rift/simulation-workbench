@@ -38,6 +38,17 @@ class BatchWorkerTest {
     }
 
     @Test
+    void maintenancePausesForThePollIntervalBetweenSteps() {
+        var worker = new BatchWorker(batch, reproductions, 0, Duration.ofSeconds(30));
+
+        worker.start();
+        verify(batch, timeout(2000)).maintain();
+        worker.stop();
+
+        verify(batch, after(100).times(1)).maintain();
+    }
+
+    @Test
     void aWorkerWithNothingClaimedPollsBothQueuesAfterEachPause() {
         var worker = new BatchWorker(batch, reproductions, 1, POLL);
 

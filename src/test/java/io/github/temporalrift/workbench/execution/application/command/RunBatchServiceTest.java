@@ -96,6 +96,8 @@ class RunBatchServiceTest {
         when(cases.claimNext(any(), any(), any(), any(), any())).thenReturn(Optional.empty());
 
         assertThat(service.runNextCase("worker")).isFalse();
+
+        verify(cases).claimNext(eq("worker"), any(), any(), eq(Set.of()), eq(Set.of()));
     }
 
     @Test
