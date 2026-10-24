@@ -2,30 +2,31 @@ package io.github.temporalrift.workbench.analysis.infrastructure.adapter.in.rest
 
 import java.math.BigDecimal;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 
 import io.github.temporalrift.workbench.analysis.application.port.in.ListComparisonsUseCase;
-import io.github.temporalrift.workbench.analysis.domain.comparison.ComparisonCohort;
 import io.github.temporalrift.workbench.analysis.domain.comparison.ComparisonResult;
-import io.github.temporalrift.workbench.analysis.domain.comparison.ExcludedPair;
 import io.github.temporalrift.workbench.analysis.domain.comparison.MetricDifference;
 import io.github.temporalrift.workbench.analysis.domain.report.CaseCounts;
-import io.github.temporalrift.workbench.analysis.domain.report.Cohort;
 import io.github.temporalrift.workbench.analysis.domain.report.Dimensions;
 import io.github.temporalrift.workbench.analysis.domain.report.Interval;
-import io.github.temporalrift.workbench.analysis.domain.report.Metric;
 import io.github.temporalrift.workbench.analysis.domain.report.RunReport;
-import io.github.temporalrift.workbench.shared.game.Faction;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.AttemptFailureCode;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CardGrade;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CardType;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CaseState;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Cohort;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Comparison;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ComparisonCohort;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ComparisonSide;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ComparisonSummary;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ConfidenceInterval;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.DeclaredDifference;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ExcludedPair;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Faction;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Metric;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.MetricDimensions;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.MetricStatistic;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.MetricStatus;
@@ -96,15 +97,13 @@ final class AnalysisApiMapper {
                         .toList());
     }
 
-    private static io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Cohort cohort(
-            Cohort cohort) {
+    private static Cohort cohort(io.github.temporalrift.workbench.analysis.domain.report.Cohort cohort) {
         var key = cohort.key();
-        return new io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Cohort()
+        return new Cohort()
                 .variantLabel(key.variantLabel())
                 .policyId(key.policyId())
                 .policyVersion(key.policyVersion())
-                .playerCount(io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Cohort
-                        .PlayerCountEnum.fromValue(key.playerCount()))
+                .playerCount(Cohort.PlayerCountEnum.fromValue(key.playerCount()))
                 .factionSet(key.factionSet() == null ? null : factions(key.factionSet()))
                 .seatIndex(key.seatIndex())
                 .caseCounts(counts(cohort.caseCounts()))
@@ -114,9 +113,8 @@ final class AnalysisApiMapper {
                         cohort.metrics().stream().map(AnalysisApiMapper::metric).toList());
     }
 
-    private static io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Metric metric(
-            Metric metric) {
-        return new io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Metric()
+    private static Metric metric(io.github.temporalrift.workbench.analysis.domain.report.Metric metric) {
+        return new Metric()
                 .name(metric.name())
                 .statistic(MetricStatistic.fromValue(metric.statistic().name()))
                 .dimensions(dimensions(metric.dimensions()))
@@ -129,14 +127,13 @@ final class AnalysisApiMapper {
                 .unknownCount(Math.toIntExact(metric.unknownCount()));
     }
 
-    private static io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ComparisonCohort
-            comparisonCohort(ComparisonCohort cohort) {
+    private static ComparisonCohort comparisonCohort(
+            io.github.temporalrift.workbench.analysis.domain.comparison.ComparisonCohort cohort) {
         var key = cohort.key();
-        return new io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ComparisonCohort()
+        return new ComparisonCohort()
                 .policyId(key.policyId())
                 .policyVersion(key.policyVersion())
-                .playerCount(io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model
-                        .ComparisonCohort.PlayerCountEnum.fromValue(key.playerCount()))
+                .playerCount(ComparisonCohort.PlayerCountEnum.fromValue(key.playerCount()))
                 .factionSet(key.factionSet() == null ? null : factions(key.factionSet()))
                 .seatIndex(key.seatIndex())
                 .matchedBlocks(cohort.matchedBlocks())
@@ -159,17 +156,16 @@ final class AnalysisApiMapper {
                 .interval(interval(difference.interval()));
     }
 
-    private static io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ExcludedPair
-            excluded(ExcludedPair pair) {
-        var seats = new java.util.ArrayList<PairSeat>();
+    private static ExcludedPair excluded(
+            io.github.temporalrift.workbench.analysis.domain.comparison.ExcludedPair pair) {
+        var seats = new ArrayList<PairSeat>();
         for (var seat = 0; seat < pair.seats().size(); seat++) {
             seats.add(
                     new PairSeat().seatIndex(seat).faction(faction(pair.seats().get(seat))));
         }
-        return new io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ExcludedPair()
+        return new ExcludedPair()
                 .seed(pair.seed())
-                .playerCount(io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model
-                        .ExcludedPair.PlayerCountEnum.fromValue(pair.playerCount()))
+                .playerCount(ExcludedPair.PlayerCountEnum.fromValue(pair.playerCount()))
                 .policyId(pair.policyId())
                 .policyVersion(pair.policyVersion())
                 .seats(seats)
@@ -177,8 +173,7 @@ final class AnalysisApiMapper {
                 .candidateCaseId(pair.candidateCaseId())
                 .baselineState(CaseState.fromValue(pair.baselineState().name()))
                 .candidateState(CaseState.fromValue(pair.candidateState().name()))
-                .reason(io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ExcludedPair
-                        .ReasonEnum.fromValue(pair.reason().name()));
+                .reason(ExcludedPair.ReasonEnum.fromValue(pair.reason().name()));
     }
 
     private static ComparisonSide side(
@@ -234,18 +229,14 @@ final class AnalysisApiMapper {
                         .method(ConfidenceInterval.MethodEnum.BLOCK_BOOTSTRAP);
     }
 
-    static LinkedHashSet<io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Faction>
-            factions(List<Faction> factions) {
-        var set = new LinkedHashSet<
-                io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Faction>();
+    static LinkedHashSet<Faction> factions(List<io.github.temporalrift.workbench.shared.game.Faction> factions) {
+        var set = new LinkedHashSet<Faction>();
         factions.forEach(faction -> set.add(faction(faction)));
         return set;
     }
 
-    private static io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Faction faction(
-            Faction faction) {
-        return io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Faction.fromValue(
-                faction.name());
+    private static Faction faction(io.github.temporalrift.workbench.shared.game.Faction faction) {
+        return Faction.fromValue(faction.name());
     }
 
     static BigDecimal decimal(Double value) {

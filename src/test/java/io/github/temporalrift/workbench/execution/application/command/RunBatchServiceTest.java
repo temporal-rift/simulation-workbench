@@ -91,12 +91,11 @@ class RunBatchServiceTest {
     }
 
     @Test
-    void nothingIsClaimedWhileNoLaneIsFreeOrHeld() {
+    void nothingIsRunWhenTheLedgerHasNothingToClaim() {
         when(lanes.freeLanes()).thenReturn(Map.of());
+        when(cases.claimNext(any(), any(), any(), any(), any())).thenReturn(Optional.empty());
 
         assertThat(service.runNextCase("worker")).isFalse();
-
-        verify(cases, never()).claimNext(any(), any(), any(), any(), any());
     }
 
     @Test

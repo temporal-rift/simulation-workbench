@@ -48,16 +48,9 @@ public class BatchWorker implements SmartLifecycle {
         }
         batch.recoverAfterRestart();
         reproductions.recoverAfterRestart();
-        threads.add(loop("maintenance", () -> {
-            batch.maintain();
-            reproductions.maintain();
-        }));
+        threads.add(maintenanceLoop());
         for (var worker = 0; worker < workers; worker++) {
-            threads.add(loop("case-worker-" + worker, () -> {
-                if (!batch.runNextCase(owner) && !reproductions.runNext(owner)) {
-                    pause();
-                }
-            }));
+            threads.add(caseWorkerLoop("case-worker-" + worker));
         }
     }
 
@@ -86,15 +79,28 @@ public class BatchWorker implements SmartLifecycle {
         return running.get();
     }
 
+    private Thread maintenanceLoop() {
+        return loop("maintenance", () -> {
+            batch.maintain();
+            reproductions.maintain();
+            pause();
+        });
+    }
+
+    private Thread caseWorkerLoop(String name) {
+        return loop(name, () -> {
+            if (!batch.runNextCase(owner) && !reproductions.runNext(owner)) {
+                pause();
+            }
+        });
+    }
+
     private Thread loop(String name, Runnable step) {
         var thread = new Thread(
                 () -> {
                     while (running.get() && !Thread.currentThread().isInterrupted()) {
                         try {
                             step.run();
-                            if (name.equals("maintenance")) {
-                                pause();
-                            }
                         } catch (RuntimeException e) {
                             LOG.error("{} step failed; retrying after the poll interval", name, e);
                             pause();

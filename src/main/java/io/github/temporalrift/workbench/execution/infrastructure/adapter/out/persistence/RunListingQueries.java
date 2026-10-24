@@ -11,6 +11,8 @@ import org.jooq.impl.DSL;
 import org.jooq.impl.SQLDataType;
 import org.springframework.stereotype.Component;
 
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.JooqIdPages;
+
 /**
  * The optional-filter lists, which Spring Data cannot express: they only select the identifiers of one page and
  * count the matches, and the rows themselves are then read through the repositories.
@@ -43,32 +45,28 @@ class RunListingQueries {
 
     /** The identifiers of one page of runs, newest first. */
     List<UUID> runIds(UUID experimentId, String state, int limit, int offset) {
-        return dsl.select(RUN_ID)
-                .from(RUN)
-                .where(runFilter(experimentId, state))
-                .orderBy(RUN_CREATED.desc(), RUN_ID.desc())
-                .limit(limit)
-                .offset(offset)
-                .fetch(RUN_ID);
+        return JooqIdPages.ids(
+                dsl,
+                RUN,
+                RUN_ID,
+                runFilter(experimentId, state),
+                List.of(RUN_CREATED.desc(), RUN_ID.desc()),
+                limit,
+                offset);
     }
 
     long runCount(UUID experimentId, String state) {
-        return dsl.fetchCount(RUN, runFilter(experimentId, state));
+        return JooqIdPages.count(dsl, RUN, runFilter(experimentId, state));
     }
 
     /** The identifiers of one page of a run's cases, in matrix order. */
     List<UUID> caseIds(UUID runId, String state, String variantLabel, int limit, int offset) {
-        return dsl.select(CASE_ID)
-                .from(CASE)
-                .where(caseFilter(runId, state, variantLabel))
-                .orderBy(CASE_ORDINAL)
-                .limit(limit)
-                .offset(offset)
-                .fetch(CASE_ID);
+        return JooqIdPages.ids(
+                dsl, CASE, CASE_ID, caseFilter(runId, state, variantLabel), List.of(CASE_ORDINAL), limit, offset);
     }
 
     long caseCount(UUID runId, String state, String variantLabel) {
-        return dsl.fetchCount(CASE, caseFilter(runId, state, variantLabel));
+        return JooqIdPages.count(dsl, CASE, caseFilter(runId, state, variantLabel));
     }
 
     private static Condition runFilter(UUID experimentId, String state) {

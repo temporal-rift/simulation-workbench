@@ -11,6 +11,8 @@ import org.jooq.impl.DSL;
 import org.jooq.impl.SQLDataType;
 import org.springframework.stereotype.Component;
 
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.JooqIdPages;
+
 /**
  * The optional-filter list, which Spring Data cannot express: it only selects the identifiers of one page and
  * counts the matches, and the rows themselves are then read through the repository.
@@ -34,17 +36,11 @@ class ComparisonListingQueries {
 
     /** The identifiers of one page of comparisons, newest first, optionally those with a side in the run. */
     List<UUID> ids(UUID runId, int limit, int offset) {
-        return dsl.select(ID)
-                .from(COMPARISON)
-                .where(sideIn(runId))
-                .orderBy(CREATED.desc(), ID.desc())
-                .limit(limit)
-                .offset(offset)
-                .fetch(ID);
+        return JooqIdPages.ids(dsl, COMPARISON, ID, sideIn(runId), List.of(CREATED.desc(), ID.desc()), limit, offset);
     }
 
     long count(UUID runId) {
-        return dsl.fetchCount(COMPARISON, sideIn(runId));
+        return JooqIdPages.count(dsl, COMPARISON, sideIn(runId));
     }
 
     private static Condition sideIn(UUID runId) {

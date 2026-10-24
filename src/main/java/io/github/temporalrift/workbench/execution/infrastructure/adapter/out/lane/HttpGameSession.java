@@ -17,6 +17,7 @@ import java.util.stream.Collectors;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
+import io.github.temporalrift.workbench.execution.LaneService;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.port.out.GameEventObserver;
 import io.github.temporalrift.workbench.execution.domain.port.out.GameSession;
@@ -46,8 +47,8 @@ public class HttpGameSession implements GameSession {
 
     private static final int CLOCK_RETRIES = 2;
 
-    private static final String GAME_SERVICE = "game-service";
-    private static final String TIMELINE_SERVICE = "timeline-service";
+    private static final String GAME_SERVICE = LaneService.GAME.serviceName();
+    private static final String TIMELINE_SERVICE = LaneService.TIMELINE.serviceName();
 
     private final CaseLane.CaseContext context;
     private final SimulationExecutionApi gameControl;
