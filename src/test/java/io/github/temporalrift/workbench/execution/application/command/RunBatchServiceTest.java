@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -34,6 +35,7 @@ import io.github.temporalrift.workbench.execution.domain.run.Attempt;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptState;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
+import io.github.temporalrift.workbench.execution.domain.run.CaseCounts;
 import io.github.temporalrift.workbench.execution.domain.run.LeaseLostException;
 import io.github.temporalrift.workbench.execution.domain.run.LogicalCase;
 import io.github.temporalrift.workbench.execution.domain.run.Run;
@@ -161,6 +163,64 @@ class RunBatchServiceTest {
 
         verify(lanes).releaseHeld(finished);
         verify(lanes, never()).releaseHeld(waiting);
+    }
+
+    @Test
+    void maintenanceSettlesEveryRunningRunFromOneCountsRead() {
+        var finished = new UUID(3, 3);
+        var busy = new UUID(4, 4);
+        var drained = new UUID(5, 5);
+        var experiment = new UUID(2, 2);
+        when(runs.findByState(RunState.RUNNING))
+                .thenReturn(List.of(
+                        Run.queued(finished, experiment, NOW).begin(NOW),
+                        Run.queued(busy, experiment, NOW).begin(NOW),
+                        Run.queued(drained, experiment, NOW).begin(NOW)));
+        when(runs.countsOf(List.of(finished, busy, drained)))
+                .thenReturn(Map.of(
+                        finished, new CaseCounts(2, 0, 0, 2, 0, 0),
+                        busy, new CaseCounts(2, 1, 1, 0, 0, 0),
+                        drained, new CaseCounts(2, 0, 0, 1, 1, 0)));
+        when(runs.update(eq(RunState.RUNNING), any())).thenReturn(true);
+
+        service.maintain();
+
+        verify(runs).countsOf(any());
+        verify(runs, never()).counts(any());
+        var completed = ArgumentCaptor.forClass(Run.class);
+        verify(runs, times(2)).update(eq(RunState.RUNNING), completed.capture());
+        assertThat(completed.getAllValues()).extracting(Run::runId).containsExactly(finished, drained);
+    }
+
+    @Test
+    void maintenanceCancelsPendingCasesThenFinishesCancellationsFromOneCountsRead() {
+        var stopped = new UUID(3, 3);
+        var stopping = new UUID(4, 4);
+        var experiment = new UUID(2, 2);
+        when(runs.findByState(RunState.CANCELLING))
+                .thenReturn(List.of(
+                        Run.queued(stopped, experiment, NOW).begin(NOW).requestCancel(),
+                        Run.queued(stopping, experiment, NOW).begin(NOW).requestCancel()));
+        when(runs.countsOf(List.of(stopped, stopping)))
+                .thenReturn(
+                        Map.of(stopped, new CaseCounts(2, 0, 0, 1, 0, 1), stopping, new CaseCounts(2, 0, 1, 0, 0, 1)));
+        when(runs.update(eq(RunState.CANCELLING), any())).thenReturn(true);
+
+        service.maintain();
+
+        verify(runs).cancelPendingCases(stopped);
+        verify(runs).cancelPendingCases(stopping);
+        verify(runs).countsOf(any());
+        var finished = ArgumentCaptor.forClass(Run.class);
+        verify(runs).update(eq(RunState.CANCELLING), finished.capture());
+        assertThat(finished.getValue().runId()).isEqualTo(stopped);
+    }
+
+    @Test
+    void maintenanceReadsNoCountsWhenNoRunIsRunningOrCancelling() {
+        service.maintain();
+
+        verify(runs, never()).countsOf(any());
     }
 
     @Test

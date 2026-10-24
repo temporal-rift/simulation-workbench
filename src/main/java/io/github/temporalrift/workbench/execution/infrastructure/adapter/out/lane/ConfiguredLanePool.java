@@ -16,7 +16,7 @@ import io.github.temporalrift.workbench.execution.domain.run.ServedBundle;
 public class ConfiguredLanePool extends RosterBackedLaneProvider {
 
     private final Map<String, LaneEndpoints> lanes;
-    private final ApiClients clients;
+    private final Map<String, ApiClients> clients;
     private final LaneServices services;
     private final Clock clock;
     private final HttpGameSession.Pacing pacing;
@@ -35,7 +35,8 @@ public class ConfiguredLanePool extends RosterBackedLaneProvider {
                         .map(lane -> ServedBundle.ofLane(lane.bundle(), lane.provenance()))
                         .toList()));
         this.lanes = lanes.stream().collect(Collectors.toUnmodifiableMap(LaneEndpoints::id, Function.identity()));
-        this.clients = clients;
+        this.clients = lanes.stream()
+                .collect(Collectors.toUnmodifiableMap(LaneEndpoints::id, _ -> new CachingApiClients(clients)));
         this.services = services;
         this.clock = clock;
         this.pacing = pacing;
@@ -43,6 +44,7 @@ public class ConfiguredLanePool extends RosterBackedLaneProvider {
 
     @Override
     protected CaseLane lane(LaneRoster.Tenancy tenancy) {
-        return new HttpCaseLane(lanes.get(tenancy.laneId()), clients, services, clock, pacing, tenancy);
+        return new HttpCaseLane(
+                lanes.get(tenancy.laneId()), clients.get(tenancy.laneId()), services, clock, pacing, tenancy);
     }
 }

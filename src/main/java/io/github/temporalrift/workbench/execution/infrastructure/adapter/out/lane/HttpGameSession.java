@@ -11,7 +11,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import org.springframework.web.client.RestClientException;
@@ -63,6 +63,10 @@ public class HttpGameSession implements GameSession {
 
     private Map<Integer, Integer> lastRevisions = Map.of();
     private int stableReads;
+    /** What the last settle wait read; the decisions of the same iteration reuse it instead of reading again. */
+    private Settled settled;
+    /** The game service's logical time as last read; it moves only when this session advances the clock. */
+    private Instant knownLogicalTime;
 
     /** The execution controls of the two services that host a game. */
     public record ServiceControls(SimulationExecutionApi game, SimulationExecutionApi timeline) {}
@@ -107,40 +111,56 @@ public class HttpGameSession implements GameSession {
 
     /** Whether the services and projection have settled; the gateway uses it to judge accepted state current. */
     public boolean isSettled() {
-        var drained = causallyDrained();
-        var projected = projectionSettled();
-        return drained && projected;
+        settled = null;
+        var drained = readCheckpoints().drained();
+        return projectionSettled().settled() && drained;
     }
 
-    /** Whether both services report their work for the case drained. */
-    private boolean causallyDrained() {
-        var game = checkpoint(gameControl, GAME_SERVICE);
-        var timeline = checkpoint(timelineControl, TIMELINE_SERVICE);
-        return Boolean.TRUE.equals(game.getDrained()) && Boolean.TRUE.equals(timeline.getDrained());
+    /** Both services' checkpoints for the case. */
+    private record Checkpoints(ExecutionCheckpoint game, ExecutionCheckpoint timeline) {
+
+        /** Whether both services report their work for the case drained. */
+        boolean drained() {
+            return Boolean.TRUE.equals(game.getDrained()) && Boolean.TRUE.equals(timeline.getDrained());
+        }
+    }
+
+    /** A settled game: the checkpoints and every seat's state (in seat order) read by the settling check. */
+    private record Settled(Checkpoints checkpoints, List<PlayerGameStateResponse> states) {}
+
+    /** One projection check: whether it is settled, and the states it read. */
+    private record Projection(boolean settled, List<PlayerGameStateResponse> states) {}
+
+    private Checkpoints readCheckpoints() {
+        return new Checkpoints(checkpoint(gameControl, GAME_SERVICE), checkpoint(timelineControl, TIMELINE_SERVICE));
     }
 
     /** Whether every seat's projection has stopped changing and the observer has seen all events. */
-    private boolean projectionSettled() {
+    private Projection projectionSettled() {
         var revisions = new HashMap<Integer, Integer>();
+        var states = new ArrayList<PlayerGameStateResponse>();
         var complete = true;
         for (var seat : seats) {
-            var revision = gateway.stateOf(seat.seatIndex()).getRevision();
-            complete &= revision != null;
-            revisions.put(seat.seatIndex(), revision);
+            var state = gateway.stateOf(seat.seatIndex());
+            states.add(state);
+            complete &= state.getRevision() != null;
+            revisions.put(seat.seatIndex(), state.getRevision());
         }
         stableReads = complete && revisions.equals(lastRevisions) ? stableReads + 1 : 0;
         lastRevisions = revisions;
-        return stableReads >= barrier.stablePolls() && events.drain();
+        return new Projection(stableReads >= barrier.stablePolls() && events.drain(), states);
     }
 
     @Override
     public GameProgress poll() {
-        if (!awaitSettled()) {
+        var snapshot = settle();
+        if (snapshot.isEmpty()) {
             return new GameProgress.Waiting();
         }
         var pending = new ArrayList<Integer>();
-        for (var seat : seats) {
-            var state = gateway.stateOf(seat.seatIndex());
+        for (var index = 0; index < seats.size(); index++) {
+            var seat = seats.get(index);
+            var state = snapshot.get().states().get(index);
             if (GAME_ENDED.equals(state.getPhase().name())) {
                 return new GameProgress.Ended();
             }
@@ -153,25 +173,26 @@ public class HttpGameSession implements GameSession {
 
     @Override
     public void advanceClock() {
-        var game = checkpoint(gameControl, GAME_SERVICE);
-        var timeline = checkpoint(timelineControl, TIMELINE_SERVICE);
-        var target = earliest(game.getNextDeadline(), timeline.getNextDeadline());
+        var read = settled == null ? readCheckpoints() : settled.checkpoints();
+        settled = null;
+        var target = earliest(read.game().getNextDeadline(), read.timeline().getNextDeadline());
         if (target == null) {
             sleeper.sleep(barrier.pollInterval());
             return;
         }
-        advance(gameControl, GAME_SERVICE, target);
-        advance(timelineControl, TIMELINE_SERVICE, target);
+        advance(gameControl, GAME_SERVICE, target, read.game());
+        advance(timelineControl, TIMELINE_SERVICE, target, read.timeline());
+        knownLogicalTime = null;
     }
 
     @Override
     public Optional<AuthoritativeEnding> ending() {
-        if (!awaitSettled()) {
+        var snapshot = settle();
+        if (snapshot.isEmpty()) {
             return Optional.empty();
         }
         var states = new ArrayList<PlayerGameStateResponse>();
-        for (var seat : seats) {
-            var state = gateway.stateOf(seat.seatIndex());
+        for (var state : snapshot.get().states()) {
             if (!GAME_ENDED.equals(state.getPhase().name()) || state.getResult() == null) {
                 return Optional.empty();
             }
@@ -196,7 +217,10 @@ public class HttpGameSession implements GameSession {
 
     /** The game's logical time as its game service reports it; it stamps the steps retained as evidence. */
     public Instant logicalTime() {
-        return checkpoint(gameControl, GAME_SERVICE).getLogicalTime().toInstant();
+        if (knownLogicalTime == null) {
+            checkpoint(gameControl, GAME_SERVICE);
+        }
+        return knownLogicalTime;
     }
 
     /**
@@ -213,13 +237,21 @@ public class HttpGameSession implements GameSession {
 
     /** Waits a bounded number of checks for the services and projection to settle. */
     public boolean awaitSettled() {
+        return settle().isPresent();
+    }
+
+    /** Waits for the game to settle and keeps what the settling check read for the decisions that follow it. */
+    private Optional<Settled> settle() {
+        settled = null;
         var spent = new Spent();
         try {
             for (var poll = 0; poll < barrier.maxPolls(); poll++) {
-                var drained = timed(LaneWaits.Kind.CAUSAL_BARRIER, this::causallyDrained, spent);
-                var projected = timed(LaneWaits.Kind.PROJECTION_BARRIER, this::projectionSettled, spent);
-                if (drained && projected) {
-                    return true;
+                var checkpoints = timed(LaneWaits.Kind.CAUSAL_BARRIER, this::readCheckpoints, spent);
+                var projection = timed(LaneWaits.Kind.PROJECTION_BARRIER, this::projectionSettled, spent);
+                var drained = checkpoints.drained();
+                if (drained && projection.settled()) {
+                    settled = new Settled(checkpoints, projection.states());
+                    return Optional.of(settled);
                 }
                 // The pause is spent on whichever barrier was still unmet.
                 var pausing = waits.now();
@@ -228,7 +260,7 @@ public class HttpGameSession implements GameSession {
                         drained ? LaneWaits.Kind.PROJECTION_BARRIER : LaneWaits.Kind.CAUSAL_BARRIER,
                         waits.now() - pausing);
             }
-            return false;
+            return Optional.empty();
         } finally {
             waits.waited(LaneWaits.Kind.CAUSAL_BARRIER, spent.causal);
             waits.waited(LaneWaits.Kind.PROJECTION_BARRIER, spent.projection);
@@ -236,10 +268,10 @@ public class HttpGameSession implements GameSession {
     }
 
     /** Runs one barrier check, charging its duration to the barrier even when the check throws. */
-    private boolean timed(LaneWaits.Kind kind, BooleanSupplier check, Spent spent) {
+    private <T> T timed(LaneWaits.Kind kind, Supplier<T> check, Spent spent) {
         var started = waits.now();
         try {
-            return check.getAsBoolean();
+            return check.get();
         } finally {
             spent.add(kind, waits.now() - started);
         }
@@ -349,6 +381,9 @@ public class HttpGameSession implements GameSession {
                         FailureCode.CONFIGURATION_DRIFT,
                         service + " executes a different case or manifest than the attempt configured");
             }
+            if (control == gameControl) {
+                knownLogicalTime = checkpoint.getLogicalTime().toInstant();
+            }
             return checkpoint;
         } catch (RestClientException e) {
             throw new AttemptFailedException(
@@ -358,9 +393,11 @@ public class HttpGameSession implements GameSession {
         }
     }
 
-    private void advance(SimulationExecutionApi control, String service, OffsetDateTime target) {
+    /** @param known the checkpoint just read, which the first attempt uses; only a stale revision re-reads */
+    private void advance(
+            SimulationExecutionApi control, String service, OffsetDateTime target, ExecutionCheckpoint known) {
         for (var retry = 0; retry <= CLOCK_RETRIES; retry++) {
-            var current = checkpoint(control, service);
+            var current = retry == 0 ? known : checkpoint(control, service);
             if (!current.getLogicalTime().isBefore(target)) {
                 return;
             }

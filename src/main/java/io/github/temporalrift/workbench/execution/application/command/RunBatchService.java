@@ -3,6 +3,8 @@ package io.github.temporalrift.workbench.execution.application.command;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -16,6 +18,7 @@ import io.github.temporalrift.workbench.execution.domain.port.out.RunRepository;
 import io.github.temporalrift.workbench.execution.domain.run.Attempt;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptState;
+import io.github.temporalrift.workbench.execution.domain.run.CaseCounts;
 import io.github.temporalrift.workbench.execution.domain.run.Failure;
 import io.github.temporalrift.workbench.execution.domain.run.LeaseLostException;
 import io.github.temporalrift.workbench.execution.domain.run.Run;
@@ -67,8 +70,8 @@ public class RunBatchService implements RunBatchUseCase {
     public void maintain() {
         cases.interruptExpired(clock.instant());
         runs.findByState(RunState.QUEUED).forEach(this::begin);
-        runs.findByState(RunState.RUNNING).forEach(this::settleRunning);
-        runs.findByState(RunState.CANCELLING).forEach(this::settleCancelling);
+        settleRunning(runs.findByState(RunState.RUNNING));
+        settleCancelling(runs.findByState(RunState.CANCELLING));
         cases.finished(playing.lanes().heldCases()).forEach(playing.lanes()::releaseHeld);
     }
 
@@ -216,17 +219,26 @@ public class RunBatchService implements RunBatchUseCase {
         runs.update(RunState.QUEUED, run.begin(clock.instant()));
     }
 
-    private void settleRunning(Run run) {
-        if (runs.counts(run.runId()).unfinished() == 0) {
-            runs.update(RunState.RUNNING, run.complete(clock.instant()));
-        }
+    private void settleRunning(List<Run> running) {
+        var counts = countsOf(running);
+        running.stream()
+                .filter(run -> counts.get(run.runId()).unfinished() == 0)
+                .forEach(run -> runs.update(RunState.RUNNING, run.complete(clock.instant())));
     }
 
-    private void settleCancelling(Run run) {
-        runs.cancelPendingCases(run.runId());
-        if (runs.counts(run.runId()).running() == 0) {
-            runs.update(RunState.CANCELLING, run.finishCancel(clock.instant()));
-        }
+    private void settleCancelling(List<Run> cancelling) {
+        cancelling.forEach(run -> runs.cancelPendingCases(run.runId()));
+        var counts = countsOf(cancelling);
+        cancelling.stream()
+                .filter(run -> counts.get(run.runId()).running() == 0)
+                .forEach(run -> runs.update(RunState.CANCELLING, run.finishCancel(clock.instant())));
+    }
+
+    /** The case totals of all the given runs in one read; nothing is read when there are no runs. */
+    private Map<UUID, CaseCounts> countsOf(List<Run> some) {
+        return some.isEmpty()
+                ? Map.of()
+                : runs.countsOf(some.stream().map(Run::runId).toList());
     }
 
     private static String describe(RuntimeException e) {
