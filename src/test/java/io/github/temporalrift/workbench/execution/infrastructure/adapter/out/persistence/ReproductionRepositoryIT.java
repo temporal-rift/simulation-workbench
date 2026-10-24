@@ -137,7 +137,7 @@ class ReproductionRepositoryIT {
     void aDivergenceAndAFailureSurviveStorage() {
         var diverged = queue();
         reproductions.claimNext("worker", NOW, NOW.plusSeconds(30), LANES);
-        var divergence = new Divergence(3, "OBSERVATION", Map.of("seatIndex", 1), Map.of("seatIndex", 2));
+        var divergence = new Divergence.Eras(3, 2, 3);
         reproductions.settle(diverged.reproductionId(), "worker", diverged.diverged(divergence, NOW));
 
         var failed = queue();
@@ -149,10 +149,7 @@ class ReproductionRepositoryIT {
 
         var stored = reproductions.find(diverged.reproductionId()).orElseThrow();
         assertThat(stored.state()).isEqualTo(ReproductionState.DIVERGED);
-        assertThat(stored.firstDivergence().step()).isEqualTo(3);
-        assertThat(stored.firstDivergence().kind()).isEqualTo("OBSERVATION");
-        assertThat(stored.firstDivergence().expected()).containsEntry("seatIndex", 1);
-        assertThat(stored.firstDivergence().actual()).containsEntry("seatIndex", 2);
+        assertThat(stored.firstDivergence()).isEqualTo(divergence);
         var storedFailure = reproductions.find(failed.reproductionId()).orElseThrow();
         assertThat(storedFailure.state()).isEqualTo(ReproductionState.FAILED);
         assertThat(storedFailure.failure()).isEqualTo(new Failure(FailureCode.RUNNER_TIMEOUT, "too slow"));

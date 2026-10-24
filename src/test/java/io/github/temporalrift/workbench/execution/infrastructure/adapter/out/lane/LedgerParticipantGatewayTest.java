@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 
 import io.github.temporalrift.workbench.execution.domain.command.SlotId;
 import io.github.temporalrift.workbench.execution.domain.command.SlotStatus;
+import io.github.temporalrift.workbench.execution.domain.evidence.StepEntropy;
 import io.github.temporalrift.workbench.execution.domain.evidence.StepOutcome;
 import io.github.temporalrift.workbench.execution.support.InMemoryCommandLedger;
 import io.github.temporalrift.workbench.execution.support.InMemoryEvidenceLedger;
@@ -33,6 +34,8 @@ import io.github.temporalrift.workbench.policy.domain.port.out.ParticipantGatewa
 import io.github.temporalrift.workbench.shared.game.CardGrade;
 import io.github.temporalrift.workbench.shared.game.CardType;
 import io.github.temporalrift.workbench.shared.game.Faction;
+import io.github.temporalrift.workbench.shared.window.WindowKind;
+import io.github.temporalrift.workbench.shared.window.WindowRef;
 
 class LedgerParticipantGatewayTest {
 
@@ -40,7 +43,7 @@ class LedgerParticipantGatewayTest {
     private static final UUID ATTEMPT = new UUID(0, 2);
     private static final UUID GAME = new UUID(0, 3);
     private static final Instant LOGICAL = Instant.parse("2026-01-01T00:00:00Z");
-    private static final String WINDOW = "era1/hand-selection";
+    private static final WindowRef WINDOW = WindowRef.of(WindowKind.HAND_SELECTION, 1);
 
     private final InMemoryCommandLedger ledger = new InMemoryCommandLedger();
     private final InMemoryEvidenceLedger evidence = new InMemoryEvidenceLedger();
@@ -71,7 +74,7 @@ class LedgerParticipantGatewayTest {
         assertThat(delegate.sent).hasSize(1);
         assertThat(ledger.accepted(CASE))
                 .singleElement()
-                .satisfies(slot -> assertThat(slot.id().windowKey()).isEqualTo(WINDOW));
+                .satisfies(slot -> assertThat(slot.id().window()).isEqualTo(WINDOW));
     }
 
     @Test
@@ -207,17 +210,13 @@ class LedgerParticipantGatewayTest {
         assertThat(evidence.steps(CASE, GAME)).singleElement().satisfies(step -> {
             assertThat(step.step()).isZero();
             assertThat(step.seatIndex()).isZero();
-            assertThat(step.windowKey()).isEqualTo(WINDOW);
-            assertThat(step.phase()).isEqualTo("HAND_SELECTION");
-            assertThat(step.era()).isEqualTo(1);
-            assertThat(step.round()).isNull();
+            assertThat(step.window()).isEqualTo(WINDOW);
             assertThat(step.logicalTime()).isEqualTo(LOGICAL);
             assertThat(step.outcome()).isEqualTo(StepOutcome.ACCEPTED);
-            assertThat(step.decision()).isEqualTo(CandidateCodec.encode(keep()));
-            assertThat(step.observation()).contains("\"seatIndex\":0").contains("\"kind\":\"HandSelection\"");
-            assertThat(step.entropy())
-                    .isEqualTo("{\"drawIndex\":0,\"policySeed\":\"42\",\"seat\":0,"
-                            + "\"stream\":\"policy-entropy/v1\",\"window\":\"era1/hand-selection\"}");
+            assertThat(step.decision()).isEqualTo(keep());
+            assertThat(step.observation().seatIndex()).isZero();
+            assertThat(step.observation().window()).isInstanceOf(DecisionWindow.HandSelection.class);
+            assertThat(step.entropy()).isEqualTo(StepEntropy.ofPolicy("42", 0, WINDOW, 0));
         });
     }
 
@@ -232,7 +231,7 @@ class LedgerParticipantGatewayTest {
         assertThat(evidence.steps(CASE, GAME))
                 .extracting(step -> step.outcome() + ":" + step.outcomeCode())
                 .containsExactly("REJECTED:422-11", "ACCEPTED:null");
-        assertThat(evidence.steps(CASE, GAME).get(1).entropy()).contains("\"drawIndex\":1");
+        assertThat(evidence.steps(CASE, GAME).get(1).entropy().drawIndex()).isEqualTo(1);
     }
 
     @Test
@@ -282,7 +281,7 @@ class LedgerParticipantGatewayTest {
         assertThatThrownBy(() -> gateway.submit(0, candidate)).isInstanceOf(NoSuchElementException.class);
         assertThat(evidence.steps(CASE, GAME)).singleElement().satisfies(step -> {
             assertThat(step.outcome()).isEqualTo(StepOutcome.UNACKNOWLEDGED);
-            assertThat(step.decision()).isEqualTo(CandidateCodec.encode(keep()));
+            assertThat(step.decision()).isEqualTo(keep());
         });
 
         held.add(Optional.of(true));
@@ -301,7 +300,7 @@ class LedgerParticipantGatewayTest {
 
         assertThat(evidence.steps(CASE, GAME))
                 .singleElement()
-                .satisfies(step -> assertThat(step.decision()).isEqualTo("ready"));
+                .satisfies(step -> assertThat(step.decision()).isEqualTo(new Candidate.ConfirmReady()));
     }
 
     @Test

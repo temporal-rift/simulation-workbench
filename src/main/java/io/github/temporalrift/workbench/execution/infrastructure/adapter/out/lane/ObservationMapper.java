@@ -28,6 +28,8 @@ import io.github.temporalrift.workbench.shared.game.CardGrade;
 import io.github.temporalrift.workbench.shared.game.CardType;
 import io.github.temporalrift.workbench.shared.game.Faction;
 import io.github.temporalrift.workbench.shared.game.SpecialAction;
+import io.github.temporalrift.workbench.shared.window.WindowKind;
+import io.github.temporalrift.workbench.shared.window.WindowRef;
 
 /**
  * Builds a seat's entitled observation from that participant's own projection response only. The
@@ -37,10 +39,6 @@ import io.github.temporalrift.workbench.shared.game.SpecialAction;
 final class ObservationMapper {
 
     private static final int HAND_KEEP_COUNT = 5;
-    private static final String HAND_SELECTION = "HAND_SELECTION";
-    private static final String DECLARATION = "DECLARATION";
-    private static final String ACTION = "ACTION";
-    private static final String PARADOX_RESOLUTION = "PARADOX_RESOLUTION";
 
     private ObservationMapper() {}
 
@@ -54,7 +52,8 @@ final class ObservationMapper {
     static Optional<Owed> owed(int seatIndex, UUID playerId, PlayerGameStateResponse state) {
         var era = state.getEraNumber();
         var submissions = state.getMySubmissions();
-        if (state.getPendingHandSelection() != null && !submitted(submissions, HAND_SELECTION, era, null)) {
+        if (state.getPendingHandSelection() != null
+                && !submitted(submissions, WindowRef.of(WindowKind.HAND_SELECTION, era))) {
             return Optional.of(handSelection(seatIndex, playerId, state));
         }
         var context = state.getPhaseContext();
@@ -63,7 +62,7 @@ final class ObservationMapper {
         }
         if (Boolean.TRUE.equals(context.getDeclarationOpen())
                 && !state.getMyEligibleDeclarationModes().isEmpty()
-                && !submitted(submissions, DECLARATION, era, null)) {
+                && !submitted(submissions, WindowRef.of(WindowKind.DECLARATION, era))) {
             return Optional.of(declaration(seatIndex, playerId, state));
         }
         var round = state.getRoundNumber();
@@ -71,10 +70,11 @@ final class ObservationMapper {
         if (round != null
                 && progress != null
                 && progress.getPendingPlayerIds().contains(playerId)
-                && !submitted(submissions, ACTION, era, round)) {
+                && !submitted(submissions, WindowRef.actionRound(era, round))) {
             return Optional.of(actionRound(seatIndex, playerId, state, round));
         }
-        if (Boolean.TRUE.equals(context.getParadoxOpen()) && !submitted(submissions, PARADOX_RESOLUTION, era, null)) {
+        if (Boolean.TRUE.equals(context.getParadoxOpen())
+                && !submitted(submissions, WindowRef.of(WindowKind.PARADOX_RESOLUTION, era))) {
             return Optional.of(paradox(seatIndex, playerId, state));
         }
         return Optional.empty();
@@ -202,7 +202,7 @@ final class ObservationMapper {
         var weights = new HashMap<UUID, Integer>();
         var observedIn = new HashMap<UUID, Integer>();
         for (var entry : intel) {
-            if (!"PROBABILITY".equals(entry.getKind().name())) {
+            if (entry.getKind() != RevealedIntel.KindEnum.PROBABILITY) {
                 continue;
             }
             for (var outcome : entry.getOutcomes()) {
@@ -221,10 +221,7 @@ final class ObservationMapper {
         return new DealtCard(cardInstanceId, cardType, CardGrade.valueOf(grade), CardRules.category(cardType));
     }
 
-    private static boolean submitted(List<MySubmission> submissions, String window, int era, Integer round) {
-        return submissions.stream()
-                .anyMatch(submission -> submission.getWindow().name().equals(window)
-                        && submission.getEraNumber() == era
-                        && (round == null || round.equals(submission.getRoundNumber())));
+    private static boolean submitted(List<MySubmission> submissions, WindowRef window) {
+        return Submissions.exists(submissions, window);
     }
 }

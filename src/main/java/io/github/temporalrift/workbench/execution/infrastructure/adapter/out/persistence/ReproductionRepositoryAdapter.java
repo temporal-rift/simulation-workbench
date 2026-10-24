@@ -8,17 +8,14 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-import tools.jackson.core.type.TypeReference;
 
 import io.github.temporalrift.workbench.execution.domain.port.out.ReproductionRepository;
-import io.github.temporalrift.workbench.execution.domain.reproduction.Divergence;
 import io.github.temporalrift.workbench.execution.domain.reproduction.Reproduction;
 import io.github.temporalrift.workbench.execution.domain.reproduction.ReproductionClaim;
 import io.github.temporalrift.workbench.execution.domain.reproduction.ReproductionCreation;
 import io.github.temporalrift.workbench.execution.domain.reproduction.ReproductionState;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.InsertOnce;
-import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.StoredJson;
 
 /** Reproductions, claimed under a lease so a stalled worker can never settle a re-run. */
 @Component
@@ -26,19 +23,21 @@ public class ReproductionRepositoryAdapter implements ReproductionRepository {
 
     private static final String QUEUED = "QUEUED";
     private static final String RUNNING = "RUNNING";
-    private static final TypeReference<Map<String, Object>> OBJECT = new TypeReference<>() {};
 
     private final ReproductionJpaRepository reproductions;
     private final ClaimQueries claims;
     private final InsertOnce insertOnce;
-    private final StoredJson json;
+    private final DivergenceJson divergences;
 
     ReproductionRepositoryAdapter(
-            ReproductionJpaRepository reproductions, ClaimQueries claims, InsertOnce insertOnce, StoredJson json) {
+            ReproductionJpaRepository reproductions,
+            ClaimQueries claims,
+            InsertOnce insertOnce,
+            DivergenceJson divergences) {
         this.reproductions = reproductions;
         this.claims = claims;
         this.insertOnce = insertOnce;
-        this.json = json;
+        this.divergences = divergences;
     }
 
     @Override
@@ -98,7 +97,7 @@ public class ReproductionRepositoryAdapter implements ReproductionRepository {
                 .map(entity -> {
                     entity.settle(
                             settled.state().name(),
-                            settled.firstDivergence() == null ? null : divergenceJson(settled.firstDivergence()),
+                            settled.firstDivergence() == null ? null : divergences.write(settled.firstDivergence()),
                             failure == null ? null : failure.code().name(),
                             failure == null ? null : failure.message(),
                             settled.finishedAt());
@@ -146,27 +145,9 @@ public class ReproductionRepositoryAdapter implements ReproductionRepository {
                 entity.caseId(),
                 entity.laneId(),
                 ReproductionState.valueOf(entity.state()),
-                entity.divergenceJson() == null ? null : divergence(entity.divergenceJson()),
+                entity.divergenceJson() == null ? null : divergences.read(entity.divergenceJson()),
                 Mappings.failure(entity.failureCode(), entity.failureMessage()),
                 entity.createdAt(),
                 entity.finishedAt());
-    }
-
-    private String divergenceJson(Divergence divergence) {
-        return json.write(Map.of(
-                "step", divergence.step(),
-                "kind", divergence.kind(),
-                "expected", divergence.expected(),
-                "actual", divergence.actual()));
-    }
-
-    @SuppressWarnings("unchecked")
-    private Divergence divergence(String stored) {
-        var values = json.read(stored, OBJECT);
-        return new Divergence(
-                ((Number) values.get("step")).intValue(),
-                (String) values.get("kind"),
-                (Map<String, Object>) values.get("expected"),
-                (Map<String, Object>) values.get("actual"));
     }
 }

@@ -28,6 +28,8 @@ import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow
 import io.github.temporalrift.workbench.policy.domain.observation.OutcomeView;
 import io.github.temporalrift.workbench.shared.execution.FailureCode;
 import io.github.temporalrift.workbench.shared.game.Faction;
+import io.github.temporalrift.workbench.shared.window.WindowKind;
+import io.github.temporalrift.workbench.shared.window.WindowRef;
 
 class ObservationMapperTest {
 
@@ -42,7 +44,7 @@ class ObservationMapperTest {
         var observation = owed.observation();
         assertThat(observation.seatIndex()).isEqualTo(SEAT);
         assertThat(observation.faction()).isEqualTo(Faction.ERASERS);
-        assertThat(observation.window().key()).isEqualTo("era2/hand-selection");
+        assertThat(observation.window().ref()).isEqualTo(WindowRef.of(WindowKind.HAND_SELECTION, 2));
         var window = (DecisionWindow.HandSelection) observation.window();
         assertThat(window.deal()).hasSize(7);
         assertThat(window.keepCount()).isEqualTo(5);
@@ -101,7 +103,7 @@ class ObservationMapperTest {
 
         assertThat(owed.round()).isEqualTo(2);
         var window = (DecisionWindow.ActionRound) owed.observation().window();
-        assertThat(window.key()).isEqualTo("era1/round2/action");
+        assertThat(window.ref()).isEqualTo(WindowRef.actionRound(1, 2));
         assertThat(window.cards())
                 .extracting(card -> card.card().type().name() + ":" + card.shape() + ":" + card.targetCount())
                 .containsExactly(
@@ -173,7 +175,7 @@ class ObservationMapperTest {
         var owed = ObservationMapper.owed(SEAT, ProjectionStates.ME, state).orElseThrow();
 
         var window = (DecisionWindow.ParadoxResolution) owed.observation().window();
-        assertThat(window.key()).isEqualTo("era3/paradox-resolution");
+        assertThat(window.ref()).isEqualTo(WindowRef.of(WindowKind.PARADOX_RESOLUTION, 3));
         assertThat(window.offer()).hasSize(2);
         assertThat(owed.observation().events())
                 .singleElement()

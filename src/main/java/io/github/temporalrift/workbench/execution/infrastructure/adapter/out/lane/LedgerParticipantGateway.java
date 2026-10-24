@@ -7,6 +7,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import io.github.temporalrift.workbench.execution.domain.command.CommandIntent;
 import io.github.temporalrift.workbench.execution.domain.command.SlotId;
+import io.github.temporalrift.workbench.execution.domain.command.SlotResolution;
 import io.github.temporalrift.workbench.execution.domain.command.SlotStatus;
 import io.github.temporalrift.workbench.execution.domain.evidence.StepOutcome;
 import io.github.temporalrift.workbench.execution.domain.port.out.CommandLedger;
@@ -58,16 +59,13 @@ public class LedgerParticipantGateway implements ParticipantGateway {
      */
     public void recoverInDoubt() {
         for (var slot : ledger.inDoubt(caseId)) {
-            reconciler.holds(slot.id().seatIndex(), slot.id().windowKey()).ifPresent(held -> {
+            reconciler.holds(slot.id().seatIndex(), slot.id().window()).ifPresent(held -> {
                 ledger.resolve(
                         slot.id(),
-                        held ? SlotStatus.ACCEPTED : SlotStatus.NOT_SPENT,
-                        held ? "RECOVERED" : "ABSENT_FROM_ACCEPTED_STATE",
+                        held ? new SlotResolution.Recovered() : new SlotResolution.AbsentFromAcceptedState(),
                         clock.instant());
                 recorder.resolved(
-                        slot.id().seatIndex(),
-                        slot.id().windowKey(),
-                        held ? StepOutcome.ACCEPTED : StepOutcome.NOT_SPENT);
+                        slot.id().seatIndex(), slot.id().window(), held ? StepOutcome.ACCEPTED : StepOutcome.NOT_SPENT);
             });
         }
     }
@@ -108,16 +106,16 @@ public class LedgerParticipantGateway implements ParticipantGateway {
             case Reconciliation.Accepted(var acceptedCandidate) -> {
                 // Terminal readiness has no decision slot, but its step is resolved all the same.
                 if (!(acceptedCandidate instanceof Candidate.ConfirmReady)) {
-                    ledger.resolve(slot, SlotStatus.ACCEPTED, "RECONCILED", clock.instant());
+                    ledger.resolve(slot, new SlotResolution.Recovered(), clock.instant());
                 }
-                recorder.resolved(seatIndex, slot.windowKey(), StepOutcome.ACCEPTED);
+                recorder.resolved(seatIndex, slot.window(), StepOutcome.ACCEPTED);
             }
             case Reconciliation.NotAccepted _ ->
                 ledger.find(slot)
                         .filter(held -> held.status() == SlotStatus.SENT)
                         .ifPresent(held -> {
-                            ledger.resolve(slot, SlotStatus.NOT_SPENT, "ABSENT_FROM_ACCEPTED_STATE", clock.instant());
-                            recorder.resolved(seatIndex, slot.windowKey(), StepOutcome.NOT_SPENT);
+                            ledger.resolve(slot, new SlotResolution.AbsentFromAcceptedState(), clock.instant());
+                            recorder.resolved(seatIndex, slot.window(), StepOutcome.NOT_SPENT);
                         });
             default -> {
                 // Pending: neither conclusion may be drawn, so the slot stays in doubt.
@@ -130,9 +128,9 @@ public class LedgerParticipantGateway implements ParticipantGateway {
         recorder.sending(observed.get(seatIndex), candidate);
         var outcome = delegate.submit(seatIndex, candidate);
         switch (outcome) {
-            case SubmissionOutcome.Accepted _ -> ledger.resolve(slot, SlotStatus.ACCEPTED, "ACCEPTED", clock.instant());
+            case SubmissionOutcome.Accepted _ -> ledger.resolve(slot, new SlotResolution.Accepted(), clock.instant());
             case SubmissionOutcome.Rejected(var code) ->
-                ledger.resolve(slot, SlotStatus.NOT_SPENT, code, clock.instant());
+                ledger.resolve(slot, new SlotResolution.Rejected(code), clock.instant());
             case SubmissionOutcome.Unacknowledged _ -> {
                 // The slot stays SENT: the service may hold the command, so it is reconciled before any resend.
             }
@@ -143,7 +141,7 @@ public class LedgerParticipantGateway implements ParticipantGateway {
 
     /** Settles the step sent just before; a lost answer leaves it unacknowledged until accepted state is read. */
     private void retain(int seatIndex, SubmissionOutcome outcome) {
-        var window = observed.get(seatIndex).window().key();
+        var window = observed.get(seatIndex).window().ref();
         switch (outcome) {
             case SubmissionOutcome.Accepted _ -> recorder.resolved(seatIndex, window, StepOutcome.ACCEPTED);
             case SubmissionOutcome.Rejected(var code) ->
@@ -159,6 +157,6 @@ public class LedgerParticipantGateway implements ParticipantGateway {
         if (observation == null) {
             throw new IllegalStateException("Seat " + seatIndex + " submitted without observing a window");
         }
-        return new SlotId(caseId, seatIndex, observation.window().key());
+        return new SlotId(caseId, seatIndex, observation.window().ref());
     }
 }

@@ -3,11 +3,14 @@ package io.github.temporalrift.workbench.policy.domain.observation;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import io.github.temporalrift.workbench.shared.window.WindowKind;
+import io.github.temporalrift.workbench.shared.window.WindowRef;
+
 /** A normal decision window, carrying only what its participant may act on. */
 public sealed interface DecisionWindow {
 
-    /** Stable identifier of the window, used to separate policy entropy streams. */
-    String key();
+    /** The window's identity, which also separates policy entropy streams. */
+    WindowRef ref();
 
     /** The era the window belongs to. */
     int era();
@@ -22,8 +25,8 @@ public sealed interface DecisionWindow {
         }
 
         @Override
-        public String key() {
-            return "era" + era + "/hand-selection";
+        public WindowRef ref() {
+            return WindowRef.of(WindowKind.HAND_SELECTION, era);
         }
     }
 
@@ -34,8 +37,8 @@ public sealed interface DecisionWindow {
         }
 
         @Override
-        public String key() {
-            return "era" + era + "/declaration";
+        public WindowRef ref() {
+            return WindowRef.of(WindowKind.DECLARATION, era);
         }
     }
 
@@ -58,8 +61,8 @@ public sealed interface DecisionWindow {
         }
 
         @Override
-        public String key() {
-            return "era" + era + "/round" + round + "/action";
+        public WindowRef ref() {
+            return WindowRef.actionRound(era, round);
         }
     }
 
@@ -70,16 +73,16 @@ public sealed interface DecisionWindow {
         }
 
         @Override
-        public String key() {
-            return "era" + era + "/paradox-resolution";
+        public WindowRef ref() {
+            return WindowRef.of(WindowKind.PARADOX_RESOLUTION, era);
         }
     }
 
     /** Signal readiness to finish. */
     record TerminalReadiness(int era) implements DecisionWindow {
         @Override
-        public String key() {
-            return "era" + era + "/terminal-readiness";
+        public WindowRef ref() {
+            return WindowRef.of(WindowKind.TERMINAL_READINESS, era);
         }
     }
 }

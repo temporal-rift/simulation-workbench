@@ -56,6 +56,7 @@ import io.github.temporalrift.workbench.policy.domain.observation.CardCategory;
 import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow;
 import io.github.temporalrift.workbench.policy.domain.observation.DeclarationMode;
 import io.github.temporalrift.workbench.shared.game.SpecialAction;
+import io.github.temporalrift.workbench.shared.window.WindowRef;
 
 class HttpParticipantGatewayTest {
 
@@ -277,7 +278,7 @@ class HttpParticipantGatewayTest {
         settled.set(false);
 
         assertThat(gateway.reconcile(1)).isInstanceOf(Reconciliation.Pending.class);
-        assertThat(gateway.holds(1, "era1/round1/action")).isEmpty();
+        assertThat(gateway.holds(1, WindowRef.actionRound(1, 1))).isEmpty();
     }
 
     @Test
@@ -291,7 +292,7 @@ class HttpParticipantGatewayTest {
         state(after);
 
         assertThat(gateway.reconcile(1)).isEqualTo(new Reconciliation.Accepted(new Candidate.Pass()));
-        assertThat(gateway.holds(1, "era1/round1/action")).contains(true);
+        assertThat(gateway.holds(1, WindowRef.actionRound(1, 1))).contains(true);
     }
 
     @Test
@@ -321,7 +322,7 @@ class HttpParticipantGatewayTest {
         gateway.observe(1);
 
         assertThat(gateway.reconcile(1)).isInstanceOf(Reconciliation.NotAccepted.class);
-        assertThat(gateway.holds(1, "era1/round1/action")).contains(false);
+        assertThat(gateway.holds(1, WindowRef.actionRound(1, 1))).contains(false);
     }
 
     @Test

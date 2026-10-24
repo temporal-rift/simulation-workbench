@@ -8,6 +8,8 @@ import java.util.Optional;
 import io.github.temporalrift.workbench.execution.domain.command.Slot;
 import io.github.temporalrift.workbench.policy.domain.decision.Candidate;
 import io.github.temporalrift.workbench.policy.domain.decision.CandidateCodec;
+import io.github.temporalrift.workbench.shared.window.WindowKind;
+import io.github.temporalrift.workbench.shared.window.WindowRef;
 
 /**
  * The accepted decisions of a case, one per seat and decision window, as the pinned transcript artifact
@@ -18,9 +20,11 @@ public final class DecisionTranscript {
     private static final String FIELD_SEPARATOR = "\t";
     private static final String LINE_SEPARATOR = "\n";
 
-    private final Map<String, Candidate> decisions;
+    private static final int FIELD_COUNT = 5;
 
-    private DecisionTranscript(Map<String, Candidate> decisions) {
+    private final Map<Decided, Candidate> decisions;
+
+    private DecisionTranscript(Map<Decided, Candidate> decisions) {
         this.decisions = decisions;
     }
 
@@ -31,7 +35,13 @@ public final class DecisionTranscript {
                 accepted.stream()
                         .map(slot -> slot.id().seatIndex()
                                 + FIELD_SEPARATOR
-                                + slot.id().windowKey()
+                                + slot.id().window().kind()
+                                + FIELD_SEPARATOR
+                                + slot.id().window().era()
+                                + FIELD_SEPARATOR
+                                + (slot.id().window().round() == null
+                                        ? ""
+                                        : slot.id().window().round().toString())
                                 + FIELD_SEPARATOR
                                 + slot.request())
                         .toList());
@@ -41,28 +51,34 @@ public final class DecisionTranscript {
      * @throws IllegalArgumentException when a line is not a retained decision
      */
     public static DecisionTranscript parse(String artifact) {
-        var decisions = new HashMap<String, Candidate>();
+        var decisions = new HashMap<Decided, Candidate>();
         if (!artifact.isEmpty()) {
             for (var line : artifact.split(LINE_SEPARATOR)) {
-                var fields = line.split(FIELD_SEPARATOR, 3);
-                if (fields.length != 3) {
+                var fields = line.split(FIELD_SEPARATOR, FIELD_COUNT);
+                if (fields.length != FIELD_COUNT) {
                     throw new IllegalArgumentException("Not a retained decision: " + line);
                 }
-                decisions.put(key(Integer.parseInt(fields[0]), fields[1]), CandidateCodec.decode(fields[2]));
+                try {
+                    var window = new WindowRef(
+                            WindowKind.valueOf(fields[1]),
+                            Integer.parseInt(fields[2]),
+                            fields[3].isEmpty() ? null : Integer.valueOf(fields[3]));
+                    decisions.put(new Decided(Integer.parseInt(fields[0]), window), CandidateCodec.decode(fields[4]));
+                } catch (IllegalArgumentException e) {
+                    throw new IllegalArgumentException("Not a retained decision: " + line, e);
+                }
             }
         }
         return new DecisionTranscript(decisions);
     }
 
-    public Optional<Candidate> decisionFor(int seatIndex, String windowKey) {
-        return Optional.ofNullable(decisions.get(key(seatIndex, windowKey)));
+    public Optional<Candidate> decisionFor(int seatIndex, WindowRef window) {
+        return Optional.ofNullable(decisions.get(new Decided(seatIndex, window)));
     }
 
     public int size() {
         return decisions.size();
     }
 
-    private static String key(int seatIndex, String windowKey) {
-        return seatIndex + FIELD_SEPARATOR + windowKey;
-    }
+    private record Decided(int seatIndex, WindowRef window) {}
 }

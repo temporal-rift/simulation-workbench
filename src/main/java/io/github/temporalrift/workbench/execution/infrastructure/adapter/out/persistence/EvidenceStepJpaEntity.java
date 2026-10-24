@@ -6,12 +6,19 @@ import java.util.UUID;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
 import jakarta.persistence.Table;
 
 import io.github.temporalrift.workbench.execution.domain.evidence.StepRecord;
+import io.github.temporalrift.workbench.execution.infrastructure.serialization.ObservationJson;
+import io.github.temporalrift.workbench.policy.domain.decision.CandidateCodec;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.AssignedIdJpaEntity;
+import io.github.temporalrift.workbench.shared.text.JsonText;
+import io.github.temporalrift.workbench.shared.window.WindowKind;
+import io.github.temporalrift.workbench.shared.window.WindowRef;
 
 @Entity
 @Table(name = "evidence_step")
@@ -36,14 +43,12 @@ class EvidenceStepJpaEntity extends AssignedIdJpaEntity<EvidenceStepJpaEntity.Ke
     @Column(name = "seat_index", nullable = false)
     private int seatIndex;
 
-    @Column(name = "window_key", nullable = false, length = 100)
-    private String windowKey;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "window_kind", nullable = false, length = 32)
+    private WindowKind windowKind;
 
-    @Column(name = "phase", nullable = false, length = 40)
-    private String phase;
-
-    @Column(name = "era")
-    private Integer era;
+    @Column(name = "era", nullable = false)
+    private int era;
 
     @Column(name = "round")
     private Integer round;
@@ -78,16 +83,15 @@ class EvidenceStepJpaEntity extends AssignedIdJpaEntity<EvidenceStepJpaEntity.Ke
         this.step = step;
         this.attemptId = attemptId;
         this.seatIndex = stepRecord.seatIndex();
-        this.windowKey = stepRecord.windowKey();
-        this.phase = stepRecord.phase();
-        this.era = stepRecord.era();
-        this.round = stepRecord.round();
+        this.windowKind = stepRecord.window().kind();
+        this.era = stepRecord.window().era();
+        this.round = stepRecord.window().round();
         this.logicalTime = stepRecord.logicalTime();
-        this.observation = stepRecord.observation();
-        this.decision = stepRecord.decision();
+        this.observation = ObservationJson.of(stepRecord.observation());
+        this.decision = CandidateCodec.encode(stepRecord.decision());
         this.outcome = stepRecord.outcome().name();
         this.outcomeCode = stepRecord.outcomeCode();
-        this.entropy = stepRecord.entropy();
+        this.entropy = stepRecord.entropy() == null ? null : JsonText.write(stepRecord.entropy(), "evidence");
         this.recordedAt = recordedAt;
     }
 
@@ -109,20 +113,8 @@ class EvidenceStepJpaEntity extends AssignedIdJpaEntity<EvidenceStepJpaEntity.Ke
         return seatIndex;
     }
 
-    String windowKey() {
-        return windowKey;
-    }
-
-    String phase() {
-        return phase;
-    }
-
-    Integer era() {
-        return era;
-    }
-
-    Integer round() {
-        return round;
+    WindowRef window() {
+        return new WindowRef(windowKind, era, round);
     }
 
     Instant logicalTime() {

@@ -1,4 +1,4 @@
-package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane;
+package io.github.temporalrift.workbench.execution.infrastructure.serialization;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -37,5 +37,13 @@ class ObservationJsonTest {
                         + card.at("/playable").asBoolean())
                 .containsExactly("PUSH:true", "TRACE:false");
         assertThat(retained.at("/window/cards")).hasSize(1);
+    }
+
+    @Test
+    void aRetainedObservationReadsBackAsTheSameWindow() {
+        var observation = PolicyFixtures.handSelection(Faction.WEAVERS);
+
+        assertThat(ObservationJson.parse(ObservationJson.of(observation))).isEqualTo(observation);
+        assertThat(ObservationJson.toMap(observation)).containsKey("window");
     }
 }

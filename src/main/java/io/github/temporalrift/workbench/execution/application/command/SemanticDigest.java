@@ -8,6 +8,7 @@ import io.github.temporalrift.workbench.execution.domain.command.Slot;
 import io.github.temporalrift.workbench.execution.domain.port.out.GameSession;
 import io.github.temporalrift.workbench.execution.domain.run.SeatPlan;
 import io.github.temporalrift.workbench.shared.text.Sha256;
+import io.github.temporalrift.workbench.shared.window.WindowKind;
 
 /**
  * The semantic identity of a case: its setup, every accepted decision and the authoritative ending.
@@ -15,8 +16,6 @@ import io.github.temporalrift.workbench.shared.text.Sha256;
  * the digest does not change when a case is interrupted and recovered.
  */
 final class SemanticDigest {
-
-    private static final String ACTION_WINDOW_SUFFIX = "/action";
 
     private SemanticDigest() {}
 
@@ -30,8 +29,8 @@ final class SemanticDigest {
         text.add("case|" + caseKey + "|" + seed);
         seats.forEach(seat -> text.add("seat|" + seat.seatIndex() + "|" + seat.faction() + "|" + seat.policyId() + "@"
                 + seat.policyVersion()));
-        decisions.forEach(slot ->
-                text.add("decision|" + slot.id().windowKey() + "|" + slot.id().seatIndex() + "|" + slot.request()));
+        decisions.forEach(slot -> text.add(
+                "decision|" + slot.id().window().label() + "|" + slot.id().seatIndex() + "|" + slot.request()));
         text.add("end|" + ending.endReason() + "|" + ending.eras());
         ending.winners().forEach(w -> text.add("winner|" + w.seatIndex() + "|" + w.faction() + "|" + w.winType()));
         ending.finalScores().forEach(s -> text.add("score|" + s.seatIndex() + "|" + s.faction() + "|" + s.score()));
@@ -41,8 +40,8 @@ final class SemanticDigest {
     /** Distinct action rounds that took at least one accepted decision. */
     static int rounds(List<Slot> decisions) {
         return (int) decisions.stream()
-                .map(slot -> slot.id().windowKey())
-                .filter(key -> key.endsWith(ACTION_WINDOW_SUFFIX))
+                .map(slot -> slot.id().window())
+                .filter(window -> window.kind() == WindowKind.ACTION_ROUND)
                 .distinct()
                 .count();
     }

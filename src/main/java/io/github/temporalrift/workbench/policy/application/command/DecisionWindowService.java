@@ -120,7 +120,7 @@ public class DecisionWindowService implements PlayDecisionWindowUseCase {
     private PolicyDecision decide(
             SeatPolicy seat, EntitledObservation observation, Set<Candidate> excluded, int rejections) {
         var entropy = PolicyEntropy.derive(
-                seat.policySeed(), seat.seatIndex(), observation.window().key(), rejections);
+                seat.policySeed(), seat.seatIndex(), observation.window().ref(), rejections);
         return timings.time(seat.policyId(), () -> seat.policy().decide(observation, excluded, entropy));
     }
 

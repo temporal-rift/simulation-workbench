@@ -1,14 +1,11 @@
 package io.github.temporalrift.workbench.execution.application.command;
 
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import io.github.temporalrift.workbench.execution.domain.evidence.StepRecord;
 import io.github.temporalrift.workbench.execution.domain.reproduction.Divergence;
 import io.github.temporalrift.workbench.execution.domain.run.CaseResult;
-import io.github.temporalrift.workbench.shared.text.JsonText;
 
 /**
  * Finds the first place a reproduction differs from the saved case. Only accepted commands take part:
@@ -16,8 +13,6 @@ import io.github.temporalrift.workbench.shared.text.JsonText;
  * accepted. Steps are compared in the order the seats sent them, then the authoritative ending.
  */
 final class DivergenceFinder {
-
-    private static final String DECISION = "decision";
 
     private DivergenceFinder() {}
 
@@ -33,88 +28,52 @@ final class DivergenceFinder {
             }
         }
         if (saved.size() > shared) {
-            return Optional.of(
-                    new Divergence(saved.get(shared).step(), "MISSING_STEP", summary(saved.get(shared)), Map.of()));
+            return Optional.of(new Divergence.MissingStep(saved.get(shared).step(), summary(saved.get(shared))));
         }
         if (again.size() > shared) {
-            return Optional.of(
-                    new Divergence(again.get(shared).step(), "UNEXPECTED_STEP", Map.of(), summary(again.get(shared))));
+            return Optional.of(new Divergence.UnexpectedStep(again.get(shared).step(), summary(again.get(shared))));
         }
         var endingStep = saved.isEmpty() ? 0 : saved.getLast().step() + 1;
         return ending(endingStep, expected, actual);
     }
 
     private static Optional<Divergence> compare(StepRecord saved, StepRecord again) {
-        if (saved.seatIndex() != again.seatIndex() || !saved.windowKey().equals(again.windowKey())) {
-            return Optional.of(new Divergence(saved.step(), "WINDOW", summary(saved), summary(again)));
+        if (saved.seatIndex() != again.seatIndex() || !saved.window().equals(again.window())) {
+            return Optional.of(new Divergence.Window(saved.step(), summary(saved), summary(again)));
         }
         if (!saved.observation().equals(again.observation())) {
-            return Optional.of(new Divergence(
-                    saved.step(),
-                    "OBSERVATION",
-                    detail(saved, "observation", parse(saved.observation())),
-                    detail(again, "observation", parse(again.observation()))));
+            return Optional.of(new Divergence.Observation(saved.step(), observed(saved), observed(again)));
         }
         if (!saved.decision().equals(again.decision())) {
-            return Optional.of(new Divergence(
-                    saved.step(),
-                    "DECISION",
-                    detail(saved, DECISION, saved.decision()),
-                    detail(again, DECISION, again.decision())));
+            return Optional.of(new Divergence.Decision(saved.step(), summary(saved), summary(again)));
         }
         return Optional.empty();
     }
 
     private static Optional<Divergence> ending(int step, CaseResult expected, CaseResult actual) {
         if (expected.endReason() != actual.endReason()) {
-            return Optional.of(new Divergence(
-                    step,
-                    "END_REASON",
-                    Map.of("endReason", expected.endReason().name()),
-                    Map.of("endReason", actual.endReason().name())));
+            return Optional.of(new Divergence.EndReason(step, expected.endReason(), actual.endReason()));
         }
         if (!expected.winners().equals(actual.winners())) {
-            return Optional.of(new Divergence(
-                    step, "WINNERS", Map.of("winners", expected.winners()), Map.of("winners", actual.winners())));
+            return Optional.of(new Divergence.Winners(step, expected.winners(), actual.winners()));
         }
         if (!expected.finalScores().equals(actual.finalScores())) {
-            return Optional.of(new Divergence(
-                    step,
-                    "FINAL_SCORES",
-                    Map.of("finalScores", expected.finalScores()),
-                    Map.of("finalScores", actual.finalScores())));
+            return Optional.of(new Divergence.FinalScores(step, expected.finalScores(), actual.finalScores()));
         }
         if (expected.eras() != actual.eras()) {
-            return Optional.of(
-                    new Divergence(step, "ERAS", Map.of("eras", expected.eras()), Map.of("eras", actual.eras())));
+            return Optional.of(new Divergence.Eras(step, expected.eras(), actual.eras()));
         }
         if (!expected.semanticDigest().equals(actual.semanticDigest())) {
-            return Optional.of(new Divergence(
-                    step,
-                    "SEMANTIC_DIGEST",
-                    Map.of("semanticDigest", expected.semanticDigest()),
-                    Map.of("semanticDigest", actual.semanticDigest())));
+            return Optional.of(new Divergence.SemanticDigest(step, expected.semanticDigest(), actual.semanticDigest()));
         }
         return Optional.empty();
     }
 
-    private static Map<String, Object> summary(StepRecord step) {
-        var summary = new LinkedHashMap<String, Object>();
-        summary.put("seatIndex", step.seatIndex());
-        summary.put("window", step.windowKey());
-        summary.put(DECISION, step.decision());
-        return summary;
+    private static Divergence.StepSummary summary(StepRecord step) {
+        return new Divergence.StepSummary(step.seatIndex(), step.window(), step.decision());
     }
 
-    private static Map<String, Object> detail(StepRecord step, String name, Object value) {
-        var detail = new LinkedHashMap<String, Object>();
-        detail.put("seatIndex", step.seatIndex());
-        detail.put("window", step.windowKey());
-        detail.put(name, value);
-        return detail;
-    }
-
-    private static Object parse(String json) {
-        return JsonText.read(json, Object.class, "A retained observation");
+    private static Divergence.ObservedStep observed(StepRecord step) {
+        return new Divergence.ObservedStep(step.seatIndex(), step.window(), step.observation());
     }
 }

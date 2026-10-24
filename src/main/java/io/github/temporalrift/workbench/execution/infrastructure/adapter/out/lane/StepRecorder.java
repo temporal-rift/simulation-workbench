@@ -6,12 +6,13 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.Supplier;
 
+import io.github.temporalrift.workbench.execution.domain.evidence.StepEntropy;
 import io.github.temporalrift.workbench.execution.domain.evidence.StepOutcome;
 import io.github.temporalrift.workbench.execution.domain.evidence.StepRecord;
 import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
 import io.github.temporalrift.workbench.policy.domain.decision.Candidate;
-import io.github.temporalrift.workbench.policy.domain.decision.CandidateCodec;
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
+import io.github.temporalrift.workbench.shared.window.WindowRef;
 
 /**
  * Retains every command a seat sends, with the entitled observation it decided from. The step is appended
@@ -27,7 +28,7 @@ public class StepRecorder {
     private final UUID attemptId;
     private final String policySeed;
     private final Supplier<Instant> logicalTime;
-    private final Map<String, Integer> rejections = new HashMap<>();
+    private final Map<Draw, Integer> rejections = new HashMap<>();
 
     /**
      * @param scopeId the logical case, or the reproduction, whose evidence this is
@@ -53,7 +54,7 @@ public class StepRecorder {
     public void sending(EntitledObservation observation, Candidate candidate) {
         var window = observation.window();
         var seat = observation.seatIndex();
-        var draws = rejections.getOrDefault(drawKey(seat, window.key()), 0);
+        var draws = rejections.getOrDefault(new Draw(seat, window.ref()), 0);
         evidence.append(
                 scopeId,
                 gameId,
@@ -61,31 +62,26 @@ public class StepRecorder {
                 new StepRecord(
                         0,
                         seat,
-                        window.key(),
-                        ObservationJson.phase(window),
-                        window.era(),
-                        ObservationJson.round(window),
+                        window.ref(),
                         logicalTime.get(),
-                        ObservationJson.of(observation),
-                        CandidateCodec.encode(candidate),
+                        observation,
+                        candidate,
                         StepOutcome.UNACKNOWLEDGED,
                         null,
-                        ObservationJson.entropy(policySeed, seat, window.key(), draws)));
+                        StepEntropy.ofPolicy(policySeed, seat, window.ref(), draws)));
     }
 
-    public void resolved(int seatIndex, String windowKey, StepOutcome outcome) {
-        resolved(seatIndex, windowKey, outcome, null);
+    public void resolved(int seatIndex, WindowRef window, StepOutcome outcome) {
+        resolved(seatIndex, window, outcome, null);
     }
 
     /** Resolves the unacknowledged step; a rejection advances the entropy draw of the next decision. */
-    public void resolved(int seatIndex, String windowKey, StepOutcome outcome, String code) {
-        evidence.resolve(scopeId, gameId, seatIndex, windowKey, outcome, code);
+    public void resolved(int seatIndex, WindowRef window, StepOutcome outcome, String code) {
+        evidence.resolve(scopeId, gameId, seatIndex, window, outcome, code);
         if (outcome == StepOutcome.REJECTED) {
-            rejections.merge(drawKey(seatIndex, windowKey), 1, Integer::sum);
+            rejections.merge(new Draw(seatIndex, window), 1, Integer::sum);
         }
     }
 
-    private static String drawKey(int seatIndex, String windowKey) {
-        return seatIndex + "|" + windowKey;
-    }
+    private record Draw(int seatIndex, WindowRef window) {}
 }

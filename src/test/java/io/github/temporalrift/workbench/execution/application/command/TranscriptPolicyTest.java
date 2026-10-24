@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import io.github.temporalrift.workbench.execution.domain.command.Slot;
 import io.github.temporalrift.workbench.execution.domain.command.SlotId;
+import io.github.temporalrift.workbench.execution.domain.command.SlotResolution;
 import io.github.temporalrift.workbench.execution.domain.command.SlotStatus;
 import io.github.temporalrift.workbench.execution.domain.evidence.DecisionTranscript;
 import io.github.temporalrift.workbench.policy.domain.decision.Candidate;
@@ -19,11 +20,13 @@ import io.github.temporalrift.workbench.policy.domain.decision.PolicyEntropy;
 import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow;
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
 import io.github.temporalrift.workbench.shared.game.Faction;
+import io.github.temporalrift.workbench.shared.window.WindowKind;
+import io.github.temporalrift.workbench.shared.window.WindowRef;
 
 class TranscriptPolicyTest {
 
     private static final Candidate KEEP = new Candidate.KeepHand(List.of(new UUID(0, 5)));
-    private static final String WINDOW = "era1/hand-selection";
+    private static final WindowRef WINDOW = WindowRef.of(WindowKind.HAND_SELECTION, 1);
 
     private final TranscriptPolicy policy =
             new TranscriptPolicy(DecisionTranscript.parse(DecisionTranscript.render(List.of(new Slot(
@@ -31,7 +34,7 @@ class TranscriptPolicyTest {
                     new UUID(0, 2),
                     CandidateCodec.encode(KEEP),
                     SlotStatus.ACCEPTED,
-                    "ACCEPTED")))));
+                    new SlotResolution.Accepted())))));
 
     @Test
     void itChoosesExactlyWhatTheTranscriptAcceptedForTheSeatAndWindow() {
@@ -53,7 +56,7 @@ class TranscriptPolicyTest {
         assertThat(decision).isInstanceOf(PolicyDecision.Exhausted.class);
         assertThat(policy.miss()).hasValueSatisfying(miss -> {
             assertThat(miss.seatIndex()).isEqualTo(1);
-            assertThat(miss.windowKey()).isEqualTo(WINDOW);
+            assertThat(miss.window()).isEqualTo(WINDOW);
             assertThat(miss.refused()).isNull();
         });
     }

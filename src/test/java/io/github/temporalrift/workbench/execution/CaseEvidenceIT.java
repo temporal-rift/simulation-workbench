@@ -37,6 +37,7 @@ import io.github.temporalrift.workbench.execution.domain.evidence.StepRecord;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
 import io.github.temporalrift.workbench.execution.domain.port.out.ReproductionRepository;
+import io.github.temporalrift.workbench.execution.domain.reproduction.Divergence;
 import io.github.temporalrift.workbench.execution.domain.reproduction.ReproductionState;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptState;
@@ -53,6 +54,7 @@ import io.github.temporalrift.workbench.policy.domain.observation.OutcomeView;
 import io.github.temporalrift.workbench.shared.execution.CaseState;
 import io.github.temporalrift.workbench.shared.execution.FailureCode;
 import io.github.temporalrift.workbench.shared.game.EndReason;
+import io.github.temporalrift.workbench.shared.window.WindowKind;
 
 @WorkbenchIntegrationTest
 class CaseEvidenceIT {
@@ -125,7 +127,9 @@ class CaseEvidenceIT {
         assertThat(steps)
                 .hasSize(6)
                 .allSatisfy(step -> assertThat(step.outcome()).isEqualTo(StepOutcome.ACCEPTED));
-        assertThat(steps).extracting(StepRecord::phase).containsOnly("HAND_SELECTION", "TERMINAL_READINESS");
+        assertThat(steps)
+                .extracting(step -> step.window().kind())
+                .containsOnly(WindowKind.HAND_SELECTION, WindowKind.TERMINAL_READINESS);
         assertThat(steps).extracting(StepRecord::step).containsExactly(0, 1, 2, 3, 4, 5);
         var pinned = evidence.pinned(saved.caseId()).orElseThrow();
         assertThat(pinned.manifestDigest()).isEqualTo(saved.manifestDigest());
@@ -490,10 +494,8 @@ class CaseEvidenceIT {
 
         assertThat(reproduction.state()).isEqualTo(ReproductionState.DIVERGED);
         var divergence = reproduction.firstDivergence();
-        assertThat(divergence.kind()).isEqualTo("END_REASON");
-        assertThat(divergence.step()).isEqualTo(6);
-        assertThat(divergence.expected()).containsEntry("endReason", "WIN_CONDITION_MET");
-        assertThat(divergence.actual()).containsEntry("endReason", "RESOLUTION_FAILED");
+        assertThat(divergence)
+                .isEqualTo(new Divergence.EndReason(6, EndReason.WIN_CONDITION_MET, EndReason.RESOLUTION_FAILED));
     }
 
     @Test
@@ -530,9 +532,10 @@ class CaseEvidenceIT {
         var reproduction = reproduce(saved);
 
         assertThat(reproduction.state()).isEqualTo(ReproductionState.DIVERGED);
-        assertThat(reproduction.firstDivergence().kind()).isEqualTo("OBSERVATION");
-        assertThat(reproduction.firstDivergence().step()).isEqualTo(1);
-        assertThat(reproduction.firstDivergence().expected()).containsEntry("seatIndex", 1);
+        assertThat(reproduction.firstDivergence()).isInstanceOfSatisfying(Divergence.Observation.class, observation -> {
+            assertThat(observation.step()).isEqualTo(1);
+            assertThat(observation.expected().seatIndex()).isEqualTo(1);
+        });
     }
 
     @Test
@@ -555,9 +558,10 @@ class CaseEvidenceIT {
 
         assertThat(reproduction.state()).isEqualTo(ReproductionState.DIVERGED);
         var divergence = reproduction.firstDivergence();
-        assertThat(divergence.kind()).isEqualTo("COMMAND_REJECTED");
-        assertThat(divergence.expected()).containsEntry("seatIndex", 2).containsEntry("outcome", "ACCEPTED");
-        assertThat(divergence.actual()).containsEntry("outcome", "REJECTED");
+        assertThat(divergence).isInstanceOfSatisfying(Divergence.CommandRejected.class, rejected -> {
+            assertThat(rejected.seatIndex()).isEqualTo(2);
+            assertThat(rejected.codes()).containsExactly("422-11");
+        });
     }
 
     @Test

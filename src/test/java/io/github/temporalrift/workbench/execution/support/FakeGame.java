@@ -63,7 +63,7 @@ public class FakeGame implements GameSession {
         this.script = script;
         this.participants = new LedgerParticipantGateway(
                 new Seats(),
-                (seatIndex, windowKey) -> Optional.of(state.accepted.containsKey(seatIndex)),
+                (seatIndex, window) -> Optional.of(state.accepted.containsKey(seatIndex)),
                 ledger,
                 new StepRecorder(
                         evidence, context.caseId(), gameId, context.attemptId(), context.seed(), context::logicalEpoch),
