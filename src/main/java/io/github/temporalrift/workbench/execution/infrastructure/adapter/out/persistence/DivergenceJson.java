@@ -29,6 +29,10 @@ class DivergenceJson {
     private static final String DECISION = "decision";
     private static final String OBSERVATION = "observation";
     private static final String OUTCOME = "outcome";
+    private static final String END_REASON_FIELD = "endReason";
+    private static final String WINNERS_FIELD = "winners";
+    private static final String FINAL_SCORES_FIELD = "finalScores";
+    private static final String SEMANTIC_DIGEST_FIELD = "semanticDigest";
 
     private final StoredJson json;
 
@@ -59,18 +63,18 @@ class DivergenceJson {
             case END_REASON ->
                 new Divergence.EndReason(
                         step,
-                        EndReason.valueOf(expected.get("endReason").asString()),
-                        EndReason.valueOf(actual.get("endReason").asString()));
+                        EndReason.valueOf(expected.get(END_REASON_FIELD).asString()),
+                        EndReason.valueOf(actual.get(END_REASON_FIELD).asString()));
             case WINNERS ->
                 new Divergence.Winners(
                         step,
-                        list(expected.get("winners"), Winner[].class),
-                        list(actual.get("winners"), Winner[].class));
+                        list(expected.get(WINNERS_FIELD), Winner[].class),
+                        list(actual.get(WINNERS_FIELD), Winner[].class));
             case FINAL_SCORES ->
                 new Divergence.FinalScores(
                         step,
-                        list(expected.get("finalScores"), FinalScore[].class),
-                        list(actual.get("finalScores"), FinalScore[].class));
+                        list(expected.get(FINAL_SCORES_FIELD), FinalScore[].class),
+                        list(actual.get(FINAL_SCORES_FIELD), FinalScore[].class));
             case ERAS ->
                 new Divergence.Eras(
                         step,
@@ -79,8 +83,8 @@ class DivergenceJson {
             case SEMANTIC_DIGEST ->
                 new Divergence.SemanticDigest(
                         step,
-                        expected.get("semanticDigest").asString(),
-                        actual.get("semanticDigest").asString());
+                        expected.get(SEMANTIC_DIGEST_FIELD).asString(),
+                        actual.get(SEMANTIC_DIGEST_FIELD).asString());
             case UNEXPECTED_WINDOW ->
                 new Divergence.UnexpectedWindow(step, actual.get(SEAT_INDEX).intValue(), window(actual.get(WINDOW)));
             case COMMAND_REJECTED ->
@@ -100,11 +104,11 @@ class DivergenceJson {
             case Divergence.Decision d -> step(d.expected());
             case Divergence.MissingStep d -> step(d.expected());
             case Divergence.UnexpectedStep _ -> Map.of();
-            case Divergence.EndReason d -> Map.of("endReason", d.expected());
-            case Divergence.Winners d -> Map.of("winners", d.expected());
-            case Divergence.FinalScores d -> Map.of("finalScores", d.expected());
+            case Divergence.EndReason d -> Map.of(END_REASON_FIELD, d.expected());
+            case Divergence.Winners d -> Map.of(WINNERS_FIELD, d.expected());
+            case Divergence.FinalScores d -> Map.of(FINAL_SCORES_FIELD, d.expected());
             case Divergence.Eras d -> Map.of("eras", d.expected());
-            case Divergence.SemanticDigest d -> Map.of("semanticDigest", d.expected());
+            case Divergence.SemanticDigest d -> Map.of(SEMANTIC_DIGEST_FIELD, d.expected());
             case Divergence.UnexpectedWindow d -> Map.of(SEAT_INDEX, d.seatIndex());
             case Divergence.CommandRejected d ->
                 Map.of(
@@ -126,11 +130,11 @@ class DivergenceJson {
             case Divergence.Decision d -> step(d.actual());
             case Divergence.MissingStep _ -> Map.of();
             case Divergence.UnexpectedStep d -> step(d.actual());
-            case Divergence.EndReason d -> Map.of("endReason", d.actual());
-            case Divergence.Winners d -> Map.of("winners", d.actual());
-            case Divergence.FinalScores d -> Map.of("finalScores", d.actual());
+            case Divergence.EndReason d -> Map.of(END_REASON_FIELD, d.actual());
+            case Divergence.Winners d -> Map.of(WINNERS_FIELD, d.actual());
+            case Divergence.FinalScores d -> Map.of(FINAL_SCORES_FIELD, d.actual());
             case Divergence.Eras d -> Map.of("eras", d.actual());
-            case Divergence.SemanticDigest d -> Map.of("semanticDigest", d.actual());
+            case Divergence.SemanticDigest d -> Map.of(SEMANTIC_DIGEST_FIELD, d.actual());
             case Divergence.UnexpectedWindow d -> unexpectedWindow(d);
             case Divergence.CommandRejected d -> Map.of(OUTCOME, "REJECTED", "codes", d.codes());
         };

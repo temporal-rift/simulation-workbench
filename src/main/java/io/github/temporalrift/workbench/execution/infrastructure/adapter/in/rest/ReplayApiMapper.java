@@ -54,7 +54,7 @@ final class ReplayApiMapper {
         decision.put("seatIndex", step.seatIndex());
         decision.put("window", step.window().label());
         decision.put("candidate", CandidateCodec.encode(step.decision()));
-        decision.put("entropy", entropy(step.entropy()));
+        decision.put("entropy", step.entropy() == null ? null : entropy(step.entropy()));
         var result = new LinkedHashMap<String, Object>();
         result.put("outcome", step.outcome().name());
         if (step.outcomeCode() != null) {
@@ -96,9 +96,6 @@ final class ReplayApiMapper {
     }
 
     private static Map<String, Object> entropy(StepEntropy entropy) {
-        if (entropy == null) {
-            return null;
-        }
         var coordinates = new LinkedHashMap<String, Object>();
         coordinates.put("stream", entropy.stream());
         coordinates.put("policySeed", entropy.policySeed());

@@ -39,7 +39,7 @@ public sealed interface Divergence {
     /** A step's seat, window and decision. */
     record StepSummary(int seatIndex, WindowRef window, Candidate decision) {
         public StepSummary {
-            Objects.requireNonNull(window, "window");
+            Objects.requireNonNull(window);
             Objects.requireNonNull(decision, "decision");
         }
     }
@@ -47,7 +47,7 @@ public sealed interface Divergence {
     /** A step's seat, window and the observation it decided from. */
     record ObservedStep(int seatIndex, WindowRef window, EntitledObservation observation) {
         public ObservedStep {
-            Objects.requireNonNull(window, "window");
+            Objects.requireNonNull(window);
             Objects.requireNonNull(observation, "observation");
         }
     }
@@ -167,7 +167,7 @@ public sealed interface Divergence {
     record CommandRejected(int step, int seatIndex, WindowRef window, Candidate refused, List<String> codes)
             implements Divergence {
         public CommandRejected {
-            Objects.requireNonNull(window, "window");
+            Objects.requireNonNull(window);
             Objects.requireNonNull(refused, "refused");
             codes = List.copyOf(codes);
         }

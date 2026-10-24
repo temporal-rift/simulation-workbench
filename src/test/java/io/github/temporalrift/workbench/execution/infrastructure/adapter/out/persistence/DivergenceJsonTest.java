@@ -62,6 +62,7 @@ class DivergenceJsonTest {
                         2, 1, WindowRef.of(WindowKind.HAND_SELECTION, 1), PASS, List.of("422-11", "422-12")));
 
         assertThat(divergences)
+                .isNotEmpty()
                 .allSatisfy(divergence ->
                         assertThat(json.read(json.write(divergence))).isEqualTo(divergence));
     }
