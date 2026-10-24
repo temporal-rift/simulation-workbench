@@ -12,8 +12,12 @@ import { isTerminalRunState } from './runView'
 export function FailuresSection({ run }: { readonly run: Run }) {
   const client = useApiClient()
   const [offset, setOffset] = useState(0)
-  const query = useQuery(runCasesQuery(client, run.runId, { state: 'FAILED' }, offset, !isTerminalRunState(run.state)))
-  if (run.counts.failed === 0 && query.data?.total === 0) {
+  // The list is read only once the run's own counts report a failure, so a healthy run polls no failed list.
+  const query = useQuery({
+    ...runCasesQuery(client, run.runId, { state: 'FAILED' }, offset, !isTerminalRunState(run.state)),
+    enabled: run.counts.failed > 0,
+  })
+  if (run.counts.failed === 0) {
     return null
   }
   return (

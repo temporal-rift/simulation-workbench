@@ -3,6 +3,8 @@ package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.la
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -136,6 +138,7 @@ class HttpCaseLaneTest {
         verify(clients.session("t2")).joinLobby(any(), any());
         verify(clients.session("t3")).joinLobby(any(), any());
         verify(clients.session("t1")).startGame(LOBBY);
+        verify(clients.session("t1"), never()).getLobby(any());
         assertThat(ledger.find(new SlotId(CASE_ID, 0, "era1/hand-selection"))).isEmpty();
     }
 
@@ -184,16 +187,34 @@ class HttpCaseLaneTest {
     }
 
     @Test
-    void aBotThatAlreadyJoinedIsNotJoinedAgain() {
+    void aJoinThatLostItsAcknowledgementIsConfirmedAgainstTheLobbyAndNotRepeated() {
         configured();
         var hosted = new HostedLobby();
-        hosted.members.add(new PlayerInLobby(ProjectionStates.id(2), "bot-1", false));
         lobby(hosted);
+        doAnswer(_ -> {
+                    hosted.members.add(new PlayerInLobby(ProjectionStates.id(2), "bot-1", false));
+                    throw new ResourceAccessException("reset");
+                })
+                .when(clients.session("t2"))
+                .joinLobby(any(), any());
 
         lane.open(context(), null);
 
-        verify(clients.session("t2"), never()).joinLobby(any(), any());
+        verify(clients.session("t2"), times(1)).joinLobby(any(), any());
         verify(clients.session("t3")).joinLobby(any(), any());
+        verify(clients.session("t1"), times(1)).getLobby(LOBBY);
+    }
+
+    @Test
+    void aJoinThatFailedWithoutJoiningFailsTheAttempt() {
+        configured();
+        lobby(new HostedLobby());
+        doThrow(new ResourceAccessException("down")).when(clients.session("t2")).joinLobby(any(), any());
+
+        assertThatThrownBy(() -> lane.open(context(), null))
+                .isInstanceOfSatisfying(
+                        AttemptFailedException.class,
+                        e -> assertThat(e.failure().code()).isEqualTo(FailureCode.EXECUTION_FAILED));
     }
 
     @Test

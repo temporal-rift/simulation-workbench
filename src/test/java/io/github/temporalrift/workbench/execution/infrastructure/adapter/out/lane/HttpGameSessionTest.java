@@ -79,6 +79,8 @@ class HttpGameSessionTest {
     private final AtomicInteger sleeps = new AtomicInteger();
     private final StubEventObserver events = new StubEventObserver();
     private HttpGameSession session;
+    private HttpParticipantGateway gateway;
+    private CaseLane.CaseContext context;
 
     @BeforeEach
     void setUp() {
@@ -91,19 +93,91 @@ class HttpGameSessionTest {
             plans.add(new SeatPlan(seat, FACTIONS.get(seat), "random", "1.0.0"));
             setState(seat, handSelection());
         }
-        var gateway = new HttpParticipantGateway(GAME, seats, () -> true, waits);
-        var context = new CaseLane.CaseContext(
+        gateway = new HttpParticipantGateway(GAME, seats, () -> true, waits);
+        context = new CaseLane.CaseContext(
                 new UUID(1, 1), new UUID(2, 2), CASE_KEY, "42", DIGEST, plans, Instant.parse("2026-01-01T00:00:00Z"));
-        session = new HttpGameSession(
+        session = sessionWith(new LaneEndpoints.Barrier(Duration.ZERO, 2, 3));
+        checkpoints(true, null);
+    }
+
+    private HttpGameSession sessionWith(LaneEndpoints.Barrier barrier) {
+        return new HttpGameSession(
                 context,
                 new HttpGameSession.ServiceControls(gameControl, timelineControl),
                 gateway,
                 gateway,
                 scoring,
-                new HttpGameSession.Pacing(
-                        new LaneEndpoints.Barrier(Duration.ZERO, 2, 3), _ -> sleeps.incrementAndGet(), waits),
+                new HttpGameSession.Pacing(barrier, _ -> sleeps.incrementAndGet(), waits),
                 events);
-        checkpoints(true, null);
+    }
+
+    @Test
+    void anIterationThatSettlesReadsEachCheckpointAndEachSeatOnce() {
+        var once = sessionWith(new LaneEndpoints.Barrier(Duration.ZERO, 0, 3));
+
+        assertThat(once.poll()).isEqualTo(new GameProgress.Open(List.of(0, 1, 2)));
+
+        verify(gameControl, times(1)).getSimulationCheckpoint();
+        verify(timelineControl, times(1)).getSimulationCheckpoint();
+        projections.values().forEach(projection -> verify(projection, times(1)).getGameState(GAME));
+    }
+
+    @Test
+    void anEndingReusesTheStatesAndCheckpointsOfTheIterationThatSettled() {
+        var once = sessionWith(new LaneEndpoints.Barrier(Duration.ZERO, 0, 3));
+        endGame(GameResult.EndReasonEnum.WIN_CONDITION_MET, List.of(0), 3, 30, 20, 10);
+        when(scoring.getScores(GAME)).thenReturn(ResponseEntity.ok(scores(30, 20, 10)));
+
+        assertThat(once.ending()).isPresent();
+
+        verify(gameControl, times(1)).getSimulationCheckpoint();
+        verify(timelineControl, times(1)).getSimulationCheckpoint();
+        projections.values().forEach(projection -> verify(projection, times(1)).getGameState(GAME));
+    }
+
+    @Test
+    void theClockAdvancesFromTheCheckpointsThePollJustSettledOn() {
+        var once = sessionWith(new LaneEndpoints.Barrier(Duration.ZERO, 0, 3));
+        var deadline = EPOCH.plusSeconds(30);
+        for (var seat = 0; seat < 3; seat++) {
+            setState(seat, ProjectionStates.base(Phase.RESOLUTION, 1));
+        }
+        when(gameControl.getSimulationCheckpoint())
+                .thenReturn(ResponseEntity.ok(checkpoint(CASE_KEY, DIGEST, true, deadline, 4)));
+        when(timelineControl.getSimulationCheckpoint())
+                .thenReturn(ResponseEntity.ok(checkpoint(CASE_KEY, DIGEST, true, deadline, 7)));
+        when(gameControl.advanceSimulationClock(any())).thenReturn(ResponseEntity.ok(new ClockAcknowledgement()));
+        when(timelineControl.advanceSimulationClock(any())).thenReturn(ResponseEntity.ok(new ClockAcknowledgement()));
+
+        assertThat(once.poll()).isInstanceOf(GameProgress.Waiting.class);
+        once.advanceClock();
+
+        var advance = ArgumentCaptor.forClass(ClockAdvance.class);
+        verify(gameControl).advanceSimulationClock(advance.capture());
+        assertThat(advance.getValue().getExpectedRevision()).isEqualTo(4L);
+        verify(gameControl, times(1)).getSimulationCheckpoint();
+        verify(timelineControl, times(1)).getSimulationCheckpoint();
+    }
+
+    @Test
+    void theLogicalTimeIsReadAgainOnlyAfterTheClockMoved() {
+        var once = sessionWith(new LaneEndpoints.Barrier(Duration.ZERO, 0, 3));
+        var deadline = EPOCH.plusSeconds(30);
+        when(gameControl.getSimulationCheckpoint())
+                .thenReturn(ResponseEntity.ok(checkpoint(CASE_KEY, DIGEST, true, deadline, 4)));
+        when(timelineControl.getSimulationCheckpoint())
+                .thenReturn(ResponseEntity.ok(checkpoint(CASE_KEY, DIGEST, true, deadline, 4)));
+        when(gameControl.advanceSimulationClock(any())).thenReturn(ResponseEntity.ok(new ClockAcknowledgement()));
+        when(timelineControl.advanceSimulationClock(any())).thenReturn(ResponseEntity.ok(new ClockAcknowledgement()));
+
+        once.poll();
+        once.logicalTime();
+        once.logicalTime();
+        verify(gameControl, times(1)).getSimulationCheckpoint();
+
+        once.advanceClock();
+        once.logicalTime();
+        verify(gameControl, times(2)).getSimulationCheckpoint();
     }
 
     @Test

@@ -257,9 +257,6 @@ public class HttpCaseLane implements CaseLane {
 
     private void join(UUID lobbyId, LaneEndpoints.BotIdentity bot, int seatIndex, SessionApi hostSession) {
         var botSession = clients.create(SessionApi.class, lane.gameServiceUrl(), bot.token());
-        if (isMember(hostSession, lobbyId, bot)) {
-            return;
-        }
         try {
             var joined = botSession
                     .joinLobby(lobbyId, new JoinLobbyRequest("bot-" + seatIndex))
@@ -269,6 +266,7 @@ public class HttpCaseLane implements CaseLane {
                         FailureCode.CONFIGURATION_DRIFT, "Seat " + seatIndex + " joined as another player");
             }
         } catch (RestClientException e) {
+            // A lost acknowledgement may still have joined the seat; only then is the failure not one.
             if (!isMember(hostSession, lobbyId, bot)) {
                 throw new AttemptFailedException(
                         FailureCode.EXECUTION_FAILED,

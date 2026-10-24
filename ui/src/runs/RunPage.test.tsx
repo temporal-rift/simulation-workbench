@@ -30,6 +30,13 @@ describe('a run in progress', () => {
     expect(screen.queryByRole('button', { name: 'Resume run' })).not.toBeInTheDocument()
   })
 
+  it('reads the cases page but not the failed list while nothing has failed', async () => {
+    await renderApp(path, service)
+
+    await screen.findByRole('table', { name: 'Cases of this run' })
+    expect(service.requests.filter((request) => request.query.get('state') === 'FAILED')).toHaveLength(0)
+  })
+
   it('marks the data partial and never presents unfinished cases as results', async () => {
     service.cases.set(IDS.run, [
       caseDetail({ caseId: '00000000-0000-4000-8000-00000000000a', state: 'SUCCEEDED', attempts: [], result: {
@@ -149,6 +156,18 @@ describe('a run with failures', () => {
     const link = within(section).getByRole('link', { name: /seed 43/ })
     expect(link).toHaveAttribute('href', `/runs/${IDS.run}/cases/${IDS.caseB}`)
     expect(screen.getByText('CONFIGURATION_DRIFT')).toBeInTheDocument()
+  })
+
+  it('reads the failed list once and each failed case once', async () => {
+    service.addFailedCase({ caseId: IDS.caseA })
+    service.addFailedCase({ caseId: IDS.caseB, seed: '43' })
+    await renderApp(path, service)
+
+    const section = await screen.findByRole('region', { name: 'Failed cases' })
+    await within(section).findAllByText('CONTRACT_MISMATCH')
+    expect(service.requests.filter((request) => request.query.get('state') === 'FAILED')).toHaveLength(1)
+    expect(service.count('GET', new RegExp(`/cases/${IDS.caseA}$`))).toBe(1)
+    expect(service.count('GET', new RegExp(`/cases/${IDS.caseB}$`))).toBe(1)
   })
 
   it('opens the failed case and says it has no result', async () => {
