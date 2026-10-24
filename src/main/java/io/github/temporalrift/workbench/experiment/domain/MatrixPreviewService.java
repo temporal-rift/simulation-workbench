@@ -78,8 +78,9 @@ public final class MatrixPreviewService {
         int variants = view.variantLabels().size();
         int policies = view.policies().size();
         long total = seeds.size() * (long) variants * policies * perBlock;
-        long end = Math.min(total, (long) offset + limit);
-        for (long index = offset; index < end; index++) {
+        long start = Math.max(0, offset);
+        long end = Math.min(total, start + Math.max(0, limit));
+        for (long index = start; index < end; index++) {
             long block = index / perBlock;
             visitor.accept(blockCoordinate(
                     manifestDigest,
