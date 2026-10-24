@@ -11,6 +11,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import io.github.temporalrift.workbench.execution.domain.command.CommandIntent;
 import io.github.temporalrift.workbench.execution.domain.command.Slot;
 import io.github.temporalrift.workbench.execution.domain.command.SlotId;
+import io.github.temporalrift.workbench.execution.domain.command.SlotResolution;
 import io.github.temporalrift.workbench.execution.domain.command.SlotStatus;
 import io.github.temporalrift.workbench.execution.domain.port.out.CommandLedger;
 
@@ -32,10 +33,10 @@ public class InMemoryCommandLedger implements CommandLedger {
     }
 
     @Override
-    public synchronized void resolve(SlotId slot, SlotStatus status, String outcome, Instant now) {
+    public synchronized void resolve(SlotId slot, SlotResolution resolution, Instant now) {
         var existing = slots.get(slot);
         if (existing != null) {
-            slots.put(slot, new Slot(slot, existing.attemptId(), existing.request(), status, outcome));
+            slots.put(slot, new Slot(slot, existing.attemptId(), existing.request(), resolution.status(), resolution));
         }
     }
 
@@ -67,7 +68,7 @@ public class InMemoryCommandLedger implements CommandLedger {
     private List<Slot> with(UUID caseId, SlotStatus status) {
         return slots.values().stream()
                 .filter(slot -> slot.id().caseId().equals(caseId) && slot.status() == status)
-                .sorted(Comparator.comparing((Slot slot) -> slot.id().windowKey())
+                .sorted(Comparator.comparing((Slot slot) -> slot.id().window())
                         .thenComparingInt(slot -> slot.id().seatIndex()))
                 .toList();
     }

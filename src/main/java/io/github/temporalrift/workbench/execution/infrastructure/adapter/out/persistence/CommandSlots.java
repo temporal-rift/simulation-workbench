@@ -22,8 +22,12 @@ class CommandSlots {
 
     @Transactional
     CommandIntent decide(SlotId slot, UUID attemptId, String request, Instant now) {
-        var command = commands.findWithLockByCaseIdAndSeatIndexAndWindowKey(
-                        slot.caseId(), slot.seatIndex(), slot.windowKey())
+        var command = commands.findWithLockByCaseIdAndSeatIndexAndWindowKindAndEraAndRound(
+                        slot.caseId(),
+                        slot.seatIndex(),
+                        slot.window().kind(),
+                        slot.window().era(),
+                        CaseCommandJpaEntity.roundColumn(slot.window()))
                 .orElseThrow(() -> new IllegalStateException("Command slot vanished: " + slot));
         return switch (SlotStatus.valueOf(command.status())) {
             case ACCEPTED -> new CommandIntent.AlreadyAccepted(CommandLedgerAdapter.slot(command));

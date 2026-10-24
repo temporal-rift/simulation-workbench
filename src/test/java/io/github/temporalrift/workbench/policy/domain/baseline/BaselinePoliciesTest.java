@@ -120,7 +120,7 @@ class BaselinePoliciesTest {
 
     private static PolicyEntropy entropy(EntitledObservation observation) {
         return PolicyEntropy.derive(
-                7, observation.seatIndex(), observation.window().key(), 0);
+                7, observation.seatIndex(), observation.window().ref(), 0);
     }
 
     private static String sha256(String text) {

@@ -20,10 +20,13 @@ import io.github.temporalrift.workbench.WorkbenchIntegrationTest;
 import io.github.temporalrift.workbench.execution.application.port.in.StartRunUseCase;
 import io.github.temporalrift.workbench.execution.domain.command.CommandIntent;
 import io.github.temporalrift.workbench.execution.domain.command.SlotId;
+import io.github.temporalrift.workbench.execution.domain.command.SlotResolution;
 import io.github.temporalrift.workbench.execution.domain.command.SlotStatus;
 import io.github.temporalrift.workbench.execution.domain.port.out.CommandLedger;
 import io.github.temporalrift.workbench.experiment.ExperimentManifests;
 import io.github.temporalrift.workbench.experiment.application.port.in.CreateExperimentUseCase;
+import io.github.temporalrift.workbench.shared.window.WindowKind;
+import io.github.temporalrift.workbench.shared.window.WindowRef;
 
 @WorkbenchIntegrationTest
 class CommandLedgerIT {
@@ -65,7 +68,7 @@ class CommandLedgerIT {
 
     @Test
     void aFreeSlotIsSentOnceAndThenIsInDoubtUntilItIsResolved() {
-        var slot = slot(0, "era1/hand-selection");
+        var slot = slot(0, hand());
 
         assertThat(ledger.begin(slot, ATTEMPT, "keep", NOW)).isInstanceOf(CommandIntent.Send.class);
         assertThat(ledger.begin(slot, ATTEMPT, "keep", NOW)).isInstanceOf(CommandIntent.InDoubt.class);
@@ -73,7 +76,7 @@ class CommandLedgerIT {
                 .singleElement()
                 .satisfies(held -> assertThat(held.request()).isEqualTo("keep"));
 
-        ledger.resolve(slot, SlotStatus.ACCEPTED, "ACCEPTED", NOW);
+        ledger.resolve(slot, new SlotResolution.Accepted(), NOW);
 
         assertThat(ledger.begin(slot, ATTEMPT, "keep", NOW)).isInstanceOf(CommandIntent.AlreadyAccepted.class);
         assertThat(ledger.inDoubt(caseId)).isEmpty();
@@ -81,9 +84,9 @@ class CommandLedgerIT {
 
     @Test
     void aSlotThatWasDefinitivelyNotSpentIsReleasedForANewCommand() {
-        var slot = slot(1, "era1/round1/action");
+        var slot = slot(1, WindowRef.actionRound(1, 1));
         ledger.begin(slot, ATTEMPT, "first", NOW);
-        ledger.resolve(slot, SlotStatus.NOT_SPENT, "422-03", NOW);
+        ledger.resolve(slot, new SlotResolution.Rejected("422-03"), NOW);
 
         assertThat(ledger.begin(slot, new UUID(0, 2), "second", NOW)).isInstanceOf(CommandIntent.Send.class);
 
@@ -91,19 +94,19 @@ class CommandLedgerIT {
         assertThat(held.status()).isEqualTo(SlotStatus.SENT);
         assertThat(held.request()).isEqualTo("second");
         assertThat(held.attemptId()).isEqualTo(new UUID(0, 2));
-        assertThat(held.outcome()).isNull();
+        assertThat(held.resolution()).isNull();
     }
 
     @Test
     void theTranscriptIsTheAcceptedSlotsInCanonicalOrderWhateverAttemptSentThem() {
-        accept(2, "era1/round2/action", "b");
-        accept(0, "era1/round1/action", "a");
-        accept(1, "era1/hand-selection", "c");
-        accept(0, "era1/hand-selection", "d");
-        ledger.begin(slot(2, "era1/paradox-resolution"), ATTEMPT, "pending", NOW);
+        accept(2, WindowRef.actionRound(1, 2), "b");
+        accept(0, WindowRef.actionRound(1, 1), "a");
+        accept(1, hand(), "c");
+        accept(0, hand(), "d");
+        ledger.begin(slot(2, WindowRef.of(WindowKind.PARADOX_RESOLUTION, 1)), ATTEMPT, "pending", NOW);
 
         assertThat(ledger.accepted(caseId))
-                .extracting(held -> held.id().windowKey() + "#" + held.id().seatIndex())
+                .extracting(held -> held.id().window().label() + "#" + held.id().seatIndex())
                 .containsExactly(
                         "era1/hand-selection#0",
                         "era1/hand-selection#1",
@@ -113,23 +116,22 @@ class CommandLedgerIT {
 
     @Test
     void resettingACaseForgetsItsSlotsAndOnlyThose() {
-        accept(0, "era1/hand-selection", "kept");
+        accept(0, hand(), "kept");
         var otherCase =
                 jdbc.queryForObject("SELECT case_id FROM run_case WHERE case_id <> ? LIMIT 1", UUID.class, caseId);
-        var other = new SlotId(otherCase, 0, "era1/hand-selection");
+        var other = new SlotId(otherCase, 0, hand());
         ledger.begin(other, ATTEMPT, "elsewhere", NOW);
 
         ledger.reset(caseId);
 
         assertThat(ledger.accepted(caseId)).isEmpty();
         assertThat(ledger.find(other)).isPresent();
-        assertThat(ledger.begin(slot(0, "era1/hand-selection"), ATTEMPT, "fresh game", NOW))
-                .isInstanceOf(CommandIntent.Send.class);
+        assertThat(ledger.begin(slot(0, hand()), ATTEMPT, "fresh game", NOW)).isInstanceOf(CommandIntent.Send.class);
     }
 
     @Test
     void racingAttemptsCanOnlyOneSendTheSameSlot() throws Exception {
-        var slot = slot(0, "era1/hand-selection");
+        var slot = slot(0, hand());
         var gate = new CountDownLatch(1);
         var intents = new ArrayList<Future<CommandIntent>>();
         try (var pool = Executors.newFixedThreadPool(6)) {
@@ -153,13 +155,17 @@ class CommandLedgerIT {
         }
     }
 
-    private void accept(int seat, String window, String request) {
+    private void accept(int seat, WindowRef window, String request) {
         var slot = slot(seat, window);
         ledger.begin(slot, ATTEMPT, request, NOW);
-        ledger.resolve(slot, SlotStatus.ACCEPTED, "ACCEPTED", NOW);
+        ledger.resolve(slot, new SlotResolution.Accepted(), NOW);
     }
 
-    private SlotId slot(int seat, String window) {
+    private static WindowRef hand() {
+        return WindowRef.of(WindowKind.HAND_SELECTION, 1);
+    }
+
+    private SlotId slot(int seat, WindowRef window) {
         return new SlotId(caseId, seat, window);
     }
 }

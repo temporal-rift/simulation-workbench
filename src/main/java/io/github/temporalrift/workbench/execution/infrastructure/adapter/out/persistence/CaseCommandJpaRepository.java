@@ -8,13 +8,13 @@ import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 
+import io.github.temporalrift.workbench.shared.window.WindowKind;
+
 interface CaseCommandJpaRepository extends JpaRepository<CaseCommandJpaEntity, CaseCommandJpaEntity.Key> {
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    Optional<CaseCommandJpaEntity> findWithLockByCaseIdAndSeatIndexAndWindowKey(
-            UUID caseId, int seatIndex, String windowKey);
-
-    Optional<CaseCommandJpaEntity> findByCaseIdAndSeatIndexAndWindowKey(UUID caseId, int seatIndex, String windowKey);
+    Optional<CaseCommandJpaEntity> findWithLockByCaseIdAndSeatIndexAndWindowKindAndEraAndRound(
+            UUID caseId, int seatIndex, WindowKind windowKind, int era, int round);
 
     List<CaseCommandJpaEntity> findAllByCaseIdAndStatus(UUID caseId, String status);
 

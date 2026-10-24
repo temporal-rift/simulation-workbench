@@ -29,6 +29,7 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.model.ClockAdvance;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.model.ExecutionCheckpoint;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.GameResult;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.Phase;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.PlayerGameStateResponse;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.scoring.ScoringApi;
 import io.github.temporalrift.workbench.policy.domain.port.out.ParticipantGateway;
@@ -43,7 +44,6 @@ import io.github.temporalrift.workbench.shared.game.Faction;
  */
 public class HttpGameSession implements GameSession {
 
-    private static final String GAME_ENDED = "GAME_ENDED";
     private static final int CLOCK_RETRIES = 2;
 
     private static final String GAME_SERVICE = "game-service";
@@ -161,7 +161,7 @@ public class HttpGameSession implements GameSession {
         for (var index = 0; index < seats.size(); index++) {
             var seat = seats.get(index);
             var state = snapshot.get().states().get(index);
-            if (GAME_ENDED.equals(state.getPhase().name())) {
+            if (state.getPhase() == Phase.GAME_ENDED) {
                 return new GameProgress.Ended();
             }
             if (ObservationMapper.owed(seat.seatIndex(), seat.playerId(), state).isPresent()) {
@@ -193,7 +193,7 @@ public class HttpGameSession implements GameSession {
         }
         var states = new ArrayList<PlayerGameStateResponse>();
         for (var state : snapshot.get().states()) {
-            if (!GAME_ENDED.equals(state.getPhase().name()) || state.getResult() == null) {
+            if (state.getPhase() != Phase.GAME_ENDED || state.getResult() == null) {
                 return Optional.empty();
             }
             states.add(state);
@@ -229,8 +229,8 @@ public class HttpGameSession implements GameSession {
      */
     private boolean published(GameResult result) {
         return events.gameEnded()
-                .filter(fact ->
-                        fact.endReason().name().equals(result.getEndReason().name()))
+                .filter(fact -> fact.endReason()
+                        == EndReason.valueOf(result.getEndReason().name()))
                 .filter(fact -> fact.finalScores().equals(scoresByPlayer(result)))
                 .isPresent();
     }
@@ -325,7 +325,7 @@ public class HttpGameSession implements GameSession {
                     var seat = seatOf(winner.getPlayerId());
                     var planned = factionOf(winner.getPlayerId());
                     if (winner.getFaction() != null
-                            && !winner.getFaction().name().equals(planned.name())) {
+                            && Faction.valueOf(winner.getFaction().name()) != planned) {
                         throw new AttemptFailedException(
                                 FailureCode.CONFIGURATION_DRIFT,
                                 "Seat " + seat + " was revealed as "

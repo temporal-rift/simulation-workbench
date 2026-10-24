@@ -23,13 +23,12 @@
       <column name="seat_index" type="INTEGER">
         <constraints nullable="false"/>
       </column>
-      <column name="window_key" type="VARCHAR(100)">
+      <column name="window_kind" type="VARCHAR(32)">
         <constraints nullable="false"/>
       </column>
-      <column name="phase" type="VARCHAR(40)">
+      <column name="era" type="INTEGER">
         <constraints nullable="false"/>
       </column>
-      <column name="era" type="INTEGER"/>
       <column name="round" type="INTEGER"/>
       <column name="logical_time" type="TIMESTAMP WITH TIME ZONE">
         <constraints nullable="false"/>

@@ -10,6 +10,7 @@ import io.github.temporalrift.workbench.policy.domain.decision.PolicyDecision;
 import io.github.temporalrift.workbench.policy.domain.decision.PolicyEntropy;
 import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow;
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
+import io.github.temporalrift.workbench.shared.window.WindowRef;
 
 /**
  * Plays a saved case instead of deciding: in each window it chooses exactly the decision the transcript
@@ -31,13 +32,13 @@ final class TranscriptPolicy implements BotPolicy {
         if (window instanceof DecisionWindow.TerminalReadiness) {
             return new PolicyDecision.Chosen(new Candidate.ConfirmReady());
         }
-        var decision = transcript.decisionFor(observation.seatIndex(), window.key());
+        var decision = transcript.decisionFor(observation.seatIndex(), window.ref());
         if (decision.isEmpty()) {
-            miss = new Miss(observation.seatIndex(), window.key(), null);
+            miss = new Miss(observation.seatIndex(), window.ref(), null);
             return new PolicyDecision.Exhausted();
         }
         if (excluded.contains(decision.get())) {
-            miss = new Miss(observation.seatIndex(), window.key(), decision.get());
+            miss = new Miss(observation.seatIndex(), window.ref(), decision.get());
             return new PolicyDecision.Exhausted();
         }
         return new PolicyDecision.Chosen(decision.get());
@@ -51,5 +52,5 @@ final class TranscriptPolicy implements BotPolicy {
     /**
      * @param refused the transcript decision the service refused, or null when the window has no decision
      */
-    record Miss(int seatIndex, String windowKey, Candidate refused) {}
+    record Miss(int seatIndex, WindowRef window, Candidate refused) {}
 }

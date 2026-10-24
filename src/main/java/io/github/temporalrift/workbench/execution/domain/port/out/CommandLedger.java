@@ -8,7 +8,7 @@ import java.util.UUID;
 import io.github.temporalrift.workbench.execution.domain.command.CommandIntent;
 import io.github.temporalrift.workbench.execution.domain.command.Slot;
 import io.github.temporalrift.workbench.execution.domain.command.SlotId;
-import io.github.temporalrift.workbench.execution.domain.command.SlotStatus;
+import io.github.temporalrift.workbench.execution.domain.command.SlotResolution;
 
 /**
  * Durable record of the commands sent to the real services, one per decision slot: a seat's decision in
@@ -25,11 +25,11 @@ public interface CommandLedger {
     CommandIntent begin(SlotId slot, UUID attemptId, String request, Instant now);
 
     /** Resolves the slot after the service answered or accepted state was reconciled. */
-    void resolve(SlotId slot, SlotStatus status, String outcome, Instant now);
+    void resolve(SlotId slot, SlotResolution resolution, Instant now);
 
     Optional<Slot> find(SlotId slot);
 
-    /** Every accepted decision of the case in canonical order (window key, then seat). */
+    /** Every accepted decision of the case in canonical order (window, then seat). */
     List<Slot> accepted(UUID caseId);
 
     /** The slots that were sent and never resolved. */

@@ -25,7 +25,7 @@ class FactionGreedyPolicyTest {
     private final FactionGreedyPolicy policy = new FactionGreedyPolicy();
 
     private Candidate decide(EntitledObservation observation, long seed) {
-        var entropy = PolicyEntropy.derive(seed, 0, observation.window().key(), 0);
+        var entropy = PolicyEntropy.derive(seed, 0, observation.window().ref(), 0);
         return ((PolicyDecision.Chosen) policy.decide(observation, Set.of(), entropy)).candidate();
     }
 

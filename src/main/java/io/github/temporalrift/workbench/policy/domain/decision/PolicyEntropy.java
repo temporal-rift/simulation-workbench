@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.SplittableRandom;
 
 import io.github.temporalrift.workbench.shared.text.Sha256;
+import io.github.temporalrift.workbench.shared.window.WindowRef;
 
 /**
  * Deterministic policy entropy. A stream is derived from the policy seed, the seat, the window and
@@ -21,8 +22,8 @@ public final class PolicyEntropy {
         this.random = new SplittableRandom(streamSeed);
     }
 
-    public static PolicyEntropy derive(long policySeed, int seatIndex, String windowKey, int rejectionCount) {
-        var material = DOMAIN + "|" + Long.toUnsignedString(policySeed) + "|" + seatIndex + "|" + windowKey + "|"
+    public static PolicyEntropy derive(long policySeed, int seatIndex, WindowRef window, int rejectionCount) {
+        var material = DOMAIN + "|" + Long.toUnsignedString(policySeed) + "|" + seatIndex + "|" + window.label() + "|"
                 + rejectionCount;
         return new PolicyEntropy(ByteBuffer.wrap(Sha256.digest(material.getBytes(StandardCharsets.UTF_8)))
                 .getLong());

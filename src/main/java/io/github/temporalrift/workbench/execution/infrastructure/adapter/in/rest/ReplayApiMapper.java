@@ -6,13 +6,13 @@ import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import tools.jackson.core.type.TypeReference;
-
 import io.github.temporalrift.workbench.execution.application.port.in.GetCaseReplayUseCase;
 import io.github.temporalrift.workbench.execution.domain.evidence.ObservedEvent;
+import io.github.temporalrift.workbench.execution.domain.evidence.StepEntropy;
 import io.github.temporalrift.workbench.execution.domain.evidence.StepRecord;
-import io.github.temporalrift.workbench.execution.domain.reproduction.Divergence;
 import io.github.temporalrift.workbench.execution.domain.reproduction.Reproduction;
+import io.github.temporalrift.workbench.execution.infrastructure.serialization.ObservationJson;
+import io.github.temporalrift.workbench.policy.domain.decision.CandidateCodec;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Replay;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ReplayPerspective;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ReplayStep;
@@ -21,8 +21,6 @@ import io.github.temporalrift.workbench.shared.text.JsonText;
 
 /** Maps retained evidence and reproductions to the published {@code simulation-api} representations. */
 final class ReplayApiMapper {
-
-    private static final TypeReference<Map<String, Object>> OBJECT = new TypeReference<>() {};
 
     private ReplayApiMapper() {}
 
@@ -41,7 +39,7 @@ final class ReplayApiMapper {
                 reproduction.reproductionId(),
                 reproduction.attemptId(),
                 ReproductionState.valueOf(reproduction.state().name()),
-                divergence(reproduction.firstDivergence()));
+                reproduction.firstDivergence() == null ? null : DivergenceWire.toApi(reproduction.firstDivergence()));
     }
 
     private static ReplayStep step(GetCaseReplayUseCase.Entry entry) {
@@ -54,9 +52,9 @@ final class ReplayApiMapper {
     private static ReplayStep commandStep(int number, StepRecord step) {
         var decision = new LinkedHashMap<String, Object>();
         decision.put("seatIndex", step.seatIndex());
-        decision.put("window", step.windowKey());
-        decision.put("candidate", step.decision());
-        decision.put("entropy", step.entropy() == null ? null : parse(step.entropy()));
+        decision.put("window", step.window().label());
+        decision.put("candidate", CandidateCodec.encode(step.decision()));
+        decision.put("entropy", step.entropy() == null ? null : entropy(step.entropy()));
         var result = new LinkedHashMap<String, Object>();
         result.put("outcome", step.outcome().name());
         if (step.outcomeCode() != null) {
@@ -64,11 +62,11 @@ final class ReplayApiMapper {
         }
         return new ReplayStep(
                 number,
-                step.era(),
-                step.round(),
-                step.phase(),
+                step.window().era(),
+                step.window().round(),
+                step.window().kind().name(),
                 utc(step.logicalTime()),
-                parse(step.observation()),
+                ObservationJson.toMap(step.observation()),
                 decision,
                 result);
     }
@@ -97,16 +95,14 @@ final class ReplayApiMapper {
                 null);
     }
 
-    private static io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Divergence
-            divergence(Divergence divergence) {
-        return divergence == null
-                ? null
-                : new io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Divergence(
-                        divergence.step(), divergence.kind(), divergence.expected(), divergence.actual());
-    }
-
-    private static Map<String, Object> parse(String json) {
-        return JsonText.read(json, OBJECT, "Retained evidence");
+    private static Map<String, Object> entropy(StepEntropy entropy) {
+        var coordinates = new LinkedHashMap<String, Object>();
+        coordinates.put("stream", entropy.stream());
+        coordinates.put("policySeed", entropy.policySeed());
+        coordinates.put("seat", entropy.seat());
+        coordinates.put("window", entropy.window().label());
+        coordinates.put("drawIndex", entropy.drawIndex());
+        return coordinates;
     }
 
     private static Object parseAny(String json) {

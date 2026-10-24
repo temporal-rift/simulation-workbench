@@ -2,6 +2,7 @@ package io.github.temporalrift.workbench.analysis.infrastructure.adapter.out.exe
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -16,6 +17,16 @@ import io.github.temporalrift.workbench.execution.CaseEvidence;
 import io.github.temporalrift.workbench.execution.RunCase;
 import io.github.temporalrift.workbench.execution.RunCatalog;
 import io.github.temporalrift.workbench.execution.RunSummary;
+import io.github.temporalrift.workbench.execution.domain.evidence.ObservedEvent;
+import io.github.temporalrift.workbench.execution.domain.evidence.StepOutcome;
+import io.github.temporalrift.workbench.execution.domain.evidence.StepRecord;
+import io.github.temporalrift.workbench.policy.domain.decision.Candidate;
+import io.github.temporalrift.workbench.policy.domain.decision.Target;
+import io.github.temporalrift.workbench.policy.domain.observation.CardCategory;
+import io.github.temporalrift.workbench.policy.domain.observation.DealtCard;
+import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow;
+import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
+import io.github.temporalrift.workbench.policy.domain.observation.HandCard;
 import io.github.temporalrift.workbench.shared.execution.CaseState;
 import io.github.temporalrift.workbench.shared.game.CardGrade;
 import io.github.temporalrift.workbench.shared.game.CardType;
@@ -87,9 +98,9 @@ class RunSourceAdapterTest {
                                 .formatted(GAME, WEAVER)),
                 event("ScoresUpdated", "{\"anything\":true}"));
         var steps = List.of(
-                step("ACTION_ROUND", "card:" + SCAN + ":-", "ACCEPTED", observation(true)),
-                step("ACTION_ROUND", "special:THREAD:-", "REJECTED", observation(true)),
-                step("ACTION_ROUND", "special:THREAD:-", "NOT_SPENT", observation(true)));
+                step(play(SCAN), StepOutcome.ACCEPTED, actionRound(true)),
+                step(thread(), StepOutcome.REJECTED, actionRound(true)),
+                step(thread(), StepOutcome.NOT_SPENT, actionRound(true)));
 
         var gameRecord = adapter(new CaseEvidence(steps, events))
                 .countingGame(RUN, adapter(null).cases(RUN).getFirst())
@@ -117,9 +128,13 @@ class RunSourceAdapterTest {
     }
 
     @Test
-    void anObservationRetainedWithoutItsHandLeavesTheRoundUnobserved() {
+    void aStepOutsideAnActionRoundObservesNoRound() {
         var gameRecord = adapter(new CaseEvidence(
-                        List.of(step("ACTION_ROUND", "pass", "ACCEPTED", "{\"window\":{\"cards\":[]}}")), List.of()))
+                        List.of(step(
+                                new Candidate.Decline(),
+                                StepOutcome.ACCEPTED,
+                                new DecisionWindow.Declaration(1, List.of()))),
+                        List.of()))
                 .countingGame(RUN, adapter(null).cases(RUN).getFirst())
                 .orElseThrow();
 
@@ -156,18 +171,26 @@ class RunSourceAdapterTest {
                 new StoredJson(JsonMapper.builder().build()));
     }
 
-    private static CaseEvidence.Event event(String type, String payload) {
-        return new CaseEvidence.Event("game.events", type, payload);
+    private static ObservedEvent event(String type, String payload) {
+        return new ObservedEvent("game.events", 0, 0, UUID.randomUUID(), type, null, null, GAME, null, 1, payload);
     }
 
-    private static CaseEvidence.Step step(String phase, String decision, String outcome, String observation) {
-        return new CaseEvidence.Step(1, phase, 1, 1, observation, decision, outcome, null);
+    private static StepRecord step(Candidate decision, StepOutcome outcome, DecisionWindow window) {
+        var observation = new EntitledObservation(1, Faction.WEAVERS, List.of(), List.of(), window);
+        return new StepRecord(0, 1, window.ref(), Instant.EPOCH, observation, decision, outcome, null, null);
     }
 
-    private static String observation(boolean playable) {
-        return ("{\"seatIndex\":1,\"window\":{\"hand\":[{\"card\":{\"cardInstanceId\":\"%s\",\"type\":\"SCAN\","
-                        + "\"grade\":\"II\",\"category\":\"INFORMATION\"},\"playable\":%s}],\"kind\":\"ActionRound\"}}")
-                .formatted(SCAN, playable);
+    private static Candidate play(UUID card) {
+        return new Candidate.PlayCard(card, new Target.Disguise(CardCategory.INFORMATION));
+    }
+
+    private static Candidate thread() {
+        return new Candidate.PlaySpecial(SpecialAction.THREAD, new Target.Player(WEAVER));
+    }
+
+    private static DecisionWindow actionRound(boolean playable) {
+        var scan = new DealtCard(SCAN, CardType.SCAN, CardGrade.II, CardCategory.INFORMATION);
+        return new DecisionWindow.ActionRound(1, 1, List.of(new HandCard(scan, playable)), List.of(), List.of());
     }
 
     private static String cards(int count) {

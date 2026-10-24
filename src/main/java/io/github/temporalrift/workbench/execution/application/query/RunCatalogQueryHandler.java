@@ -46,22 +46,7 @@ public class RunCatalogQueryHandler implements RunCatalog {
         return runs.findCase(runId, caseId)
                 .filter(logicalCase -> logicalCase.state() == CaseState.SUCCEEDED)
                 .flatMap(logicalCase -> CountingGame.of(runs.attemptsOf(caseId)))
-                .map(gameId -> new CaseEvidence(
-                        evidence.steps(caseId, gameId).stream()
-                                .map(step -> new CaseEvidence.Step(
-                                        step.seatIndex(),
-                                        step.phase(),
-                                        step.era(),
-                                        step.round(),
-                                        step.observation(),
-                                        step.decision(),
-                                        step.outcome().name(),
-                                        step.outcomeCode()))
-                                .toList(),
-                        evidence.events(caseId, gameId).stream()
-                                .map(event ->
-                                        new CaseEvidence.Event(event.source(), event.eventType(), event.payload()))
-                                .toList()));
+                .map(gameId -> new CaseEvidence(evidence.steps(caseId, gameId), evidence.events(caseId, gameId)));
     }
 
     private static RunCase runCase(LogicalCase logicalCase, FailureCode failureCode) {

@@ -12,8 +12,6 @@ import java.util.UUID;
 import java.util.function.IntFunction;
 import java.util.stream.Stream;
 
-import tools.jackson.databind.JsonNode;
-
 import io.github.temporalrift.asyncapi.actionevents.GeneratedChannelContract.ActionRoundStartedPayload;
 import io.github.temporalrift.asyncapi.actionevents.GeneratedChannelContract.ActivistDeclarationRecordedPayload;
 import io.github.temporalrift.asyncapi.actionevents.GeneratedChannelContract.CardPlayedPayload;
@@ -39,12 +37,17 @@ import io.github.temporalrift.workbench.execution.CaseEvidence;
 import io.github.temporalrift.workbench.execution.RunCase;
 import io.github.temporalrift.workbench.execution.RunCatalog;
 import io.github.temporalrift.workbench.execution.RunSummary;
+import io.github.temporalrift.workbench.execution.domain.evidence.ObservedEvent;
+import io.github.temporalrift.workbench.execution.domain.evidence.StepOutcome;
+import io.github.temporalrift.workbench.execution.domain.evidence.StepRecord;
+import io.github.temporalrift.workbench.policy.domain.decision.Candidate;
+import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow;
 import io.github.temporalrift.workbench.shared.game.CardGrade;
 import io.github.temporalrift.workbench.shared.game.CardType;
 import io.github.temporalrift.workbench.shared.game.Faction;
 import io.github.temporalrift.workbench.shared.game.SpecialAction;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.StoredJson;
-import io.github.temporalrift.workbench.shared.text.JsonText;
+import io.github.temporalrift.workbench.shared.window.WindowRef;
 
 /**
  * Reads runs through the execution module's public API and turns a counting game's retained evidence into the
@@ -52,10 +55,6 @@ import io.github.temporalrift.workbench.shared.text.JsonText;
  * faction identifies its seat.
  */
 public class RunSourceAdapter implements RunSource {
-
-    private static final String ACTION_ROUND = "ACTION_ROUND";
-    private static final String SPECIAL_DECISION = "special:";
-    private static final Set<String> DECIDED = Set.of("ACCEPTED", "REJECTED");
 
     private final RunCatalog catalog;
     private final StoredJson json;
@@ -127,7 +126,7 @@ public class RunSourceAdapter implements RunSource {
         return new GameRecord(events, observations(evidence.steps()), submissions(evidence.steps()));
     }
 
-    private Stream<GameEvent> gameEvents(CaseEvidence.Event event, Map<UUID, Integer> seats) {
+    private Stream<GameEvent> gameEvents(ObservedEvent event, Map<UUID, Integer> seats) {
         return switch (event.eventType()) {
             case SessionEvents.HAND_DEALT_EVENT_TYPE -> {
                 var dealt = read(event, HandDealtPayload.class);
@@ -258,39 +257,35 @@ public class RunSourceAdapter implements RunSource {
         };
     }
 
-    private List<GameRecord.RoundObservation> observations(List<CaseEvidence.Step> steps) {
+    private static List<GameRecord.RoundObservation> observations(List<StepRecord> steps) {
         var observations = new ArrayList<GameRecord.RoundObservation>();
-        var seen = new HashSet<String>();
+        var seen = new HashSet<WindowSeat>();
         for (var step : steps) {
-            if (!ACTION_ROUND.equals(step.phase()) || step.era() == null || step.round() == null) {
-                continue;
-            }
-            var window = step.seatIndex() + "/" + step.era() + "/" + step.round();
-            var hand = tree(step.observation()).at("/window/hand");
-            // An observation retained without its hand leaves the round's playability unknown.
-            if (hand.isArray() && seen.add(window)) {
-                var held = new ArrayList<GameRecord.HeldCard>();
-                hand.forEach(card -> held.add(new GameRecord.HeldCard(
-                        UUID.fromString(card.at("/card/cardInstanceId").asString()),
-                        key(
-                                card.at("/card/type").asString(),
-                                card.at("/card/grade").asString()),
-                        card.at("/playable").asBoolean())));
-                observations.add(new GameRecord.RoundObservation(step.seatIndex(), step.era(), step.round(), held));
+            if (step.observation().window() instanceof DecisionWindow.ActionRound round
+                    && seen.add(new WindowSeat(step.seatIndex(), step.window()))) {
+                var held = round.hand().stream()
+                        .map(card -> new GameRecord.HeldCard(
+                                card.card().cardInstanceId(),
+                                new CardKey(card.card().type(), card.card().grade()),
+                                card.playable()))
+                        .toList();
+                observations.add(new GameRecord.RoundObservation(step.seatIndex(), round.era(), round.round(), held));
             }
         }
         return observations;
     }
 
-    private static List<GameRecord.SpecialSubmission> submissions(List<CaseEvidence.Step> steps) {
+    private static List<GameRecord.SpecialSubmission> submissions(List<StepRecord> steps) {
         return steps.stream()
-                .filter(step -> step.decision().startsWith(SPECIAL_DECISION) && DECIDED.contains(step.outcome()))
-                .map(step -> new GameRecord.SpecialSubmission(
-                        step.seatIndex(),
-                        SpecialAction.valueOf(step.decision().split(":", 3)[1]),
-                        "REJECTED".equals(step.outcome())))
+                .filter(step -> step.outcome() == StepOutcome.ACCEPTED || step.outcome() == StepOutcome.REJECTED)
+                .flatMap(step -> step.decision() instanceof Candidate.PlaySpecial special
+                        ? Stream.of(new GameRecord.SpecialSubmission(
+                                step.seatIndex(), special.action(), step.outcome() == StepOutcome.REJECTED))
+                        : Stream.empty())
                 .toList();
     }
+
+    private record WindowSeat(int seatIndex, WindowRef window) {}
 
     private static Stream<GameEvent> seated(Map<UUID, Integer> seats, UUID playerId, IntFunction<GameEvent> event) {
         var seat = seats.get(playerId);
@@ -301,12 +296,8 @@ public class RunSourceAdapter implements RunSource {
         return new CardKey(CardType.valueOf(type), CardGrade.valueOf(grade));
     }
 
-    private <T> T read(CaseEvidence.Event event, Class<T> type) {
+    private <T> T read(ObservedEvent event, Class<T> type) {
         return json.read(event.payload(), type);
-    }
-
-    private static JsonNode tree(String json) {
-        return JsonText.readTree(json, "A retained observation");
     }
 
     /** Event types of the session events contract, usable as switch labels. */

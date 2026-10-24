@@ -61,6 +61,8 @@ import io.github.temporalrift.workbench.execution.support.Provenances;
 import io.github.temporalrift.workbench.execution.support.StubEventObserver;
 import io.github.temporalrift.workbench.shared.execution.FailureCode;
 import io.github.temporalrift.workbench.shared.game.Faction;
+import io.github.temporalrift.workbench.shared.window.WindowKind;
+import io.github.temporalrift.workbench.shared.window.WindowRef;
 
 class HttpCaseLaneTest {
 
@@ -112,7 +114,11 @@ class HttpCaseLaneTest {
 
     @Test
     void aFreshStartConfiguresBothServicesAndThenPlaysTheLobbyAsTheBots() {
-        ledger.put(new SlotId(CASE_ID, 0, "era1/hand-selection"), new UUID(9, 9), "old", SlotStatus.ACCEPTED);
+        ledger.put(
+                new SlotId(CASE_ID, 0, WindowRef.of(WindowKind.HAND_SELECTION, 1)),
+                new UUID(9, 9),
+                "old",
+                SlotStatus.ACCEPTED);
         configured();
         lobby(new HostedLobby());
 
@@ -139,7 +145,8 @@ class HttpCaseLaneTest {
         verify(clients.session("t3")).joinLobby(any(), any());
         verify(clients.session("t1")).startGame(LOBBY);
         verify(clients.session("t1"), never()).getLobby(any());
-        assertThat(ledger.find(new SlotId(CASE_ID, 0, "era1/hand-selection"))).isEmpty();
+        assertThat(ledger.find(new SlotId(CASE_ID, 0, WindowRef.of(WindowKind.HAND_SELECTION, 1))))
+                .isEmpty();
     }
 
     @Test
@@ -289,14 +296,18 @@ class HttpCaseLaneTest {
             }
             when(clients.projection("t" + seat).getGameState(GAME)).thenReturn(ResponseEntity.ok(state));
         }
-        ledger.put(new SlotId(CASE_ID, 0, "era1/hand-selection"), new UUID(9, 9), "kept", SlotStatus.SENT);
+        ledger.put(
+                new SlotId(CASE_ID, 0, WindowRef.of(WindowKind.HAND_SELECTION, 1)),
+                new UUID(9, 9),
+                "kept",
+                SlotStatus.SENT);
 
         var session = lane.open(context(), GAME);
 
         assertThat(session.gameId()).isEqualTo(GAME);
         verify(gameControl, never()).configureSimulationExecution(any());
         verify(clients.session("t1"), never()).createLobby(any());
-        assertThat(ledger.find(new SlotId(CASE_ID, 0, "era1/hand-selection"))
+        assertThat(ledger.find(new SlotId(CASE_ID, 0, WindowRef.of(WindowKind.HAND_SELECTION, 1)))
                         .orElseThrow()
                         .status())
                 .isEqualTo(SlotStatus.ACCEPTED);

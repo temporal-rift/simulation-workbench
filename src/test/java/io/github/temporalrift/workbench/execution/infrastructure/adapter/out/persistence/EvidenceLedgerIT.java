@@ -25,7 +25,13 @@ import io.github.temporalrift.workbench.execution.domain.evidence.StepOutcome;
 import io.github.temporalrift.workbench.execution.domain.evidence.StepRecord;
 import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
 import io.github.temporalrift.workbench.execution.domain.reproduction.ManifestMismatchException;
+import io.github.temporalrift.workbench.policy.domain.decision.Candidate;
+import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow;
+import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
+import io.github.temporalrift.workbench.shared.game.Faction;
 import io.github.temporalrift.workbench.shared.text.Sha256;
+import io.github.temporalrift.workbench.shared.window.WindowKind;
+import io.github.temporalrift.workbench.shared.window.WindowRef;
 
 @WorkbenchIntegrationTest
 class EvidenceLedgerIT {
@@ -34,6 +40,7 @@ class EvidenceLedgerIT {
     private static final UUID SCOPE = new UUID(1, 1);
     private static final UUID GAME = new UUID(2, 2);
     private static final UUID ATTEMPT = new UUID(3, 3);
+    private static final WindowRef HAND = WindowRef.of(WindowKind.HAND_SELECTION, 1);
     private static final String GAME_TOPIC = "game.events";
     private static final String TIMELINE_TOPIC = "timeline.events";
 
@@ -203,12 +210,12 @@ class EvidenceLedgerIT {
 
     @Test
     void stepsKeepTheOrderTheyWereSentAndAnUnacknowledgedOneIsResolvedLater() {
-        assertThat(evidence.append(SCOPE, GAME, ATTEMPT, step(0, "era1/hand-selection", StepOutcome.UNACKNOWLEDGED)))
+        assertThat(evidence.append(SCOPE, GAME, ATTEMPT, step(0, HAND, StepOutcome.UNACKNOWLEDGED)))
                 .isZero();
-        assertThat(evidence.append(SCOPE, GAME, ATTEMPT, step(1, "era1/hand-selection", StepOutcome.REJECTED)))
+        assertThat(evidence.append(SCOPE, GAME, ATTEMPT, step(1, HAND, StepOutcome.REJECTED)))
                 .isEqualTo(1);
 
-        evidence.resolve(SCOPE, GAME, 0, "era1/hand-selection", StepOutcome.ACCEPTED, null);
+        evidence.resolve(SCOPE, GAME, 0, HAND, StepOutcome.ACCEPTED, null);
 
         assertThat(evidence.steps(SCOPE, GAME))
                 .extracting(kept -> kept.seatIndex() + ":" + kept.outcome())
@@ -218,8 +225,8 @@ class EvidenceLedgerIT {
     @Test
     void aGameTheRunnerAbandonedStaysOnRecordNextToTheOneThatCounted() {
         var abandoned = new UUID(2, 3);
-        evidence.append(SCOPE, abandoned, ATTEMPT, step(0, "era1/hand-selection", StepOutcome.ACCEPTED));
-        evidence.append(SCOPE, GAME, new UUID(3, 4), step(0, "era1/hand-selection", StepOutcome.ACCEPTED));
+        evidence.append(SCOPE, abandoned, ATTEMPT, step(0, HAND, StepOutcome.ACCEPTED));
+        evidence.append(SCOPE, GAME, new UUID(3, 4), step(0, HAND, StepOutcome.ACCEPTED));
 
         assertThat(evidence.steps(SCOPE, abandoned)).hasSize(1);
         assertThat(evidence.steps(SCOPE, GAME)).hasSize(1);
@@ -267,7 +274,7 @@ class EvidenceLedgerIT {
     @Test
     void purgingAScopeForgetsEverythingRetainedForIt() {
         evidence.pin(SCOPE, "a".repeat(64), "{}", NOW);
-        evidence.append(SCOPE, GAME, ATTEMPT, step(0, "era1/hand-selection", StepOutcome.ACCEPTED));
+        evidence.append(SCOPE, GAME, ATTEMPT, step(0, HAND, StepOutcome.ACCEPTED));
         evidence.retain(SCOPE, ATTEMPT, event(GAME_TOPIC, 0, 1, new UUID(9, 7), "A", "{}"));
         evidence.advance(SCOPE, GAME, GAME_TOPIC, 0, 2);
 
@@ -299,19 +306,9 @@ class EvidenceLedgerIT {
                 source, partition, offset, eventId, type, new UUID(8, 8), "Game", GAME, NOW, 1, payload);
     }
 
-    private static StepRecord step(int seat, String window, StepOutcome outcome) {
-        return new StepRecord(
-                0,
-                seat,
-                window,
-                "HAND_SELECTION",
-                1,
-                null,
-                NOW,
-                "{\"seatIndex\":" + seat + "}",
-                "pass",
-                outcome,
-                null,
-                null);
+    private static StepRecord step(int seat, WindowRef window, StepOutcome outcome) {
+        var observation = new EntitledObservation(
+                seat, Faction.ERASERS, List.of(), List.of(), new DecisionWindow.HandSelection(1, List.of(), 1));
+        return new StepRecord(0, seat, window, NOW, observation, new Candidate.Pass(), outcome, null, null);
     }
 }

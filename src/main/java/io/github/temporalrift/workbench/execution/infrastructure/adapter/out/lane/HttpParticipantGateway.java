@@ -27,6 +27,7 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.action.model.SpecialActionRequest;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.action.model.SubmitActionRequest;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.ProjectionApi;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.Phase;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.PlayerGameStateResponse;
 import io.github.temporalrift.workbench.policy.domain.decision.Candidate;
 import io.github.temporalrift.workbench.policy.domain.decision.Reconciliation;
@@ -35,6 +36,7 @@ import io.github.temporalrift.workbench.policy.domain.decision.Target;
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
 import io.github.temporalrift.workbench.policy.domain.port.out.ParticipantGateway;
 import io.github.temporalrift.workbench.shared.execution.FailureCode;
+import io.github.temporalrift.workbench.shared.window.WindowRef;
 
 /**
  * The participant operations of one game over the generated clients. Every call is made as the seat's own
@@ -78,7 +80,7 @@ public class HttpParticipantGateway implements ParticipantGateway, SlotReconcile
     public EntitledObservation observe(int seatIndex) {
         var participant = participant(seatIndex);
         var state = state(participant);
-        if (state.getPhase().name().equals("GAME_ENDED")) {
+        if (state.getPhase() == Phase.GAME_ENDED) {
             open.remove(seatIndex);
             return ObservationMapper.terminal(seatIndex, participant.playerId(), state);
         }
@@ -130,11 +132,11 @@ public class HttpParticipantGateway implements ParticipantGateway, SlotReconcile
     }
 
     @Override
-    public Optional<Boolean> holds(int seatIndex, String windowKey) {
+    public Optional<Boolean> holds(int seatIndex, WindowRef window) {
         if (!settled.getAsBoolean()) {
             return Optional.empty();
         }
-        return Optional.of(AcceptedState.holds(stateOf(seatIndex), WindowKeys.parse(windowKey)));
+        return Optional.of(AcceptedState.holds(stateOf(seatIndex), window));
     }
 
     private void send(ActionApi action, ObservationMapper.Owed owed, Candidate candidate) {

@@ -21,6 +21,7 @@ import io.github.temporalrift.workbench.execution.domain.evidence.StepOutcome;
 import io.github.temporalrift.workbench.execution.domain.evidence.StepRecord;
 import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
 import io.github.temporalrift.workbench.execution.domain.reproduction.ManifestMismatchException;
+import io.github.temporalrift.workbench.shared.window.WindowRef;
 
 /** A map-backed evidence ledger with the same semantics as the PostgreSQL one, for tests without a database. */
 public class InMemoryEvidenceLedger implements EvidenceLedger {
@@ -74,12 +75,12 @@ public class InMemoryEvidenceLedger implements EvidenceLedger {
 
     @Override
     public synchronized void resolve(
-            UUID scopeId, UUID gameId, int seatIndex, String windowKey, StepOutcome outcome, String code) {
+            UUID scopeId, UUID gameId, int seatIndex, WindowRef window, StepOutcome outcome, String code) {
         var list = steps.getOrDefault(new Game(scopeId, gameId), List.of());
         for (var index = 0; index < list.size(); index++) {
             var step = list.get(index);
             if (step.seatIndex() == seatIndex
-                    && step.windowKey().equals(windowKey)
+                    && step.window().equals(window)
                     && step.outcome() == StepOutcome.UNACKNOWLEDGED) {
                 list.set(index, step.withOutcome(outcome, code));
             }

@@ -29,6 +29,7 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.session.SessionApi;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.session.model.CreateLobbyRequest;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.session.model.JoinLobbyRequest;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.session.model.LobbyStatus;
 import io.github.temporalrift.workbench.shared.execution.FailureCode;
 
 /**
@@ -303,7 +304,7 @@ public class HttpCaseLane implements CaseLane {
         for (var poll = 0; poll < START_RECONCILE_POLLS; poll++) {
             try {
                 var lobby = hostSession.getLobby(lobbyId).getBody();
-                if (lobby != null && "STARTED".equals(lobby.getStatus().name())) {
+                if (lobby != null && lobby.getStatus() == LobbyStatus.STARTED) {
                     return lobby.getGameId();
                 }
             } catch (RestClientException _) {

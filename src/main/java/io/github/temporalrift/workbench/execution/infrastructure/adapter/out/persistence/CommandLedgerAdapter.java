@@ -12,17 +12,18 @@ import org.springframework.transaction.annotation.Transactional;
 import io.github.temporalrift.workbench.execution.domain.command.CommandIntent;
 import io.github.temporalrift.workbench.execution.domain.command.Slot;
 import io.github.temporalrift.workbench.execution.domain.command.SlotId;
+import io.github.temporalrift.workbench.execution.domain.command.SlotResolution;
 import io.github.temporalrift.workbench.execution.domain.command.SlotStatus;
 import io.github.temporalrift.workbench.execution.domain.port.out.CommandLedger;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.InsertOnce;
+import io.github.temporalrift.workbench.shared.window.WindowRef;
 
 /** Command ledger: one row per decision slot, claimed atomically before anything is sent. */
 @Component
 public class CommandLedgerAdapter implements CommandLedger {
 
-    /** Window keys are ASCII, so their natural order is the byte order the ledger always listed them in. */
-    private static final Comparator<Slot> SLOT_ORDER = Comparator.<Slot, String>comparing(
-                    slot -> slot.id().windowKey())
+    private static final Comparator<Slot> SLOT_ORDER = Comparator.<Slot, WindowRef>comparing(
+                    slot -> slot.id().window())
             .thenComparingInt(slot -> slot.id().seatIndex());
 
     private final CaseCommandJpaRepository commands;
@@ -37,10 +38,9 @@ public class CommandLedgerAdapter implements CommandLedger {
 
     @Override
     public CommandIntent begin(SlotId slot, UUID attemptId, String request, Instant now) {
-        var key = new CaseCommandJpaEntity.Key(slot.caseId(), slot.seatIndex(), slot.windowKey());
-        if (!commands.existsById(key)
-                && insertOnce.insert(() -> commands.saveAndFlush(new CaseCommandJpaEntity(
-                        slot.caseId(), slot.seatIndex(), slot.windowKey(), attemptId, request, "SENT", now)))) {
+        if (!commands.existsById(CaseCommandJpaEntity.Key.of(slot))
+                && insertOnce.insert(() -> commands.saveAndFlush(
+                        new CaseCommandJpaEntity(slot, attemptId, request, SlotStatus.SENT, now)))) {
             return new CommandIntent.Send();
         }
         return slots.decide(slot, attemptId, request, now);
@@ -48,15 +48,13 @@ public class CommandLedgerAdapter implements CommandLedger {
 
     @Override
     @Transactional
-    public void resolve(SlotId slot, SlotStatus status, String outcome, Instant now) {
-        commands.findByCaseIdAndSeatIndexAndWindowKey(slot.caseId(), slot.seatIndex(), slot.windowKey())
-                .ifPresent(command -> command.resolve(status.name(), outcome, now));
+    public void resolve(SlotId slot, SlotResolution resolution, Instant now) {
+        commands.findById(CaseCommandJpaEntity.Key.of(slot)).ifPresent(command -> command.resolve(resolution, now));
     }
 
     @Override
     public Optional<Slot> find(SlotId slot) {
-        return commands.findByCaseIdAndSeatIndexAndWindowKey(slot.caseId(), slot.seatIndex(), slot.windowKey())
-                .map(CommandLedgerAdapter::slot);
+        return commands.findById(CaseCommandJpaEntity.Key.of(slot)).map(CommandLedgerAdapter::slot);
     }
 
     @Override
@@ -84,10 +82,10 @@ public class CommandLedgerAdapter implements CommandLedger {
 
     static Slot slot(CaseCommandJpaEntity command) {
         return new Slot(
-                new SlotId(command.caseId(), command.seatIndex(), command.windowKey()),
+                command.slot(),
                 command.attemptId(),
                 command.request(),
                 SlotStatus.valueOf(command.status()),
-                command.outcome());
+                command.resolution());
     }
 }

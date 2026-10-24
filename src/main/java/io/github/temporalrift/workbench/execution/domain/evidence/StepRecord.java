@@ -3,36 +3,33 @@ package io.github.temporalrift.workbench.execution.domain.evidence;
 import java.time.Instant;
 import java.util.Objects;
 
+import io.github.temporalrift.workbench.policy.domain.decision.Candidate;
+import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
+import io.github.temporalrift.workbench.shared.window.WindowRef;
+
 /**
  * One command a seat sent, with the entitled observation it decided from and what the service answered.
- * Observation and entropy are retained as canonical JSON text; the observation holds only what the seat
- * was entitled to see, so a seat's steps can be shown to that seat without filtering.
+ * The observation holds only what the seat was entitled to see, so a seat's steps can be shown to that seat
+ * without filtering.
  *
  * @param step position in the game's evidence stream, assigned when the step is appended
- * @param phase the kind of decision window, for example {@code ACTION_ROUND}
- * @param era the window's era, or null when it has none
- * @param round the window's action round, or null outside action rounds
- * @param decision canonical candidate text
+ * @param window the decision window the command was sent in
  * @param outcomeCode the service's refusal code for a rejected command
- * @param entropy the policy entropy coordinates the decision drew from
+ * @param entropy the policy entropy coordinates the decision drew from, or null when it drew none
  */
 public record StepRecord(
         int step,
         int seatIndex,
-        String windowKey,
-        String phase,
-        Integer era,
-        Integer round,
+        WindowRef window,
         Instant logicalTime,
-        String observation,
-        String decision,
+        EntitledObservation observation,
+        Candidate decision,
         StepOutcome outcome,
         String outcomeCode,
-        String entropy) {
+        StepEntropy entropy) {
 
     public StepRecord {
-        Objects.requireNonNull(windowKey, "windowKey");
-        Objects.requireNonNull(phase, "phase");
+        Objects.requireNonNull(window, "window");
         Objects.requireNonNull(logicalTime, "logicalTime");
         Objects.requireNonNull(observation, "observation");
         Objects.requireNonNull(decision, "decision");
@@ -41,34 +38,11 @@ public record StepRecord(
 
     public StepRecord numbered(int assigned) {
         return new StepRecord(
-                assigned,
-                seatIndex,
-                windowKey,
-                phase,
-                era,
-                round,
-                logicalTime,
-                observation,
-                decision,
-                outcome,
-                outcomeCode,
-                entropy);
+                assigned, seatIndex, window, logicalTime, observation, decision, outcome, outcomeCode, entropy);
     }
 
     public StepRecord withOutcome(StepOutcome resolved, String code) {
-        return new StepRecord(
-                step,
-                seatIndex,
-                windowKey,
-                phase,
-                era,
-                round,
-                logicalTime,
-                observation,
-                decision,
-                resolved,
-                code,
-                entropy);
+        return new StepRecord(step, seatIndex, window, logicalTime, observation, decision, resolved, code, entropy);
     }
 
     public boolean isAccepted() {

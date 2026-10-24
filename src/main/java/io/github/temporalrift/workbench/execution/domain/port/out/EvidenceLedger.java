@@ -10,6 +10,7 @@ import io.github.temporalrift.workbench.execution.domain.evidence.ObservedEvent;
 import io.github.temporalrift.workbench.execution.domain.evidence.PinnedEvidence;
 import io.github.temporalrift.workbench.execution.domain.evidence.StepOutcome;
 import io.github.temporalrift.workbench.execution.domain.evidence.StepRecord;
+import io.github.temporalrift.workbench.shared.window.WindowRef;
 
 /**
  * Durable, protected evidence of the games a scope played. A scope is a logical case or a reproduction of
@@ -42,7 +43,7 @@ public interface EvidenceLedger {
      *
      * @param code the refusal code of a rejected command, otherwise null
      */
-    void resolve(UUID scopeId, UUID gameId, int seatIndex, String windowKey, StepOutcome outcome, String code);
+    void resolve(UUID scopeId, UUID gameId, int seatIndex, WindowRef window, StepOutcome outcome, String code);
 
     /** The game's steps in the order they were sent. */
     List<StepRecord> steps(UUID scopeId, UUID gameId);

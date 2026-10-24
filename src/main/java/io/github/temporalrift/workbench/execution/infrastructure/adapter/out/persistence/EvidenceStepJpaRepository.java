@@ -11,6 +11,8 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import io.github.temporalrift.workbench.shared.window.WindowKind;
+
 interface EvidenceStepJpaRepository extends JpaRepository<EvidenceStepJpaEntity, EvidenceStepJpaEntity.Key> {
 
     Optional<EvidenceStepJpaEntity> findFirstByScopeIdAndGameIdOrderByStepDesc(UUID scopeId, UUID gameId);
@@ -18,8 +20,8 @@ interface EvidenceStepJpaRepository extends JpaRepository<EvidenceStepJpaEntity,
     List<EvidenceStepJpaEntity> findAllByScopeIdAndGameIdOrderByStep(UUID scopeId, UUID gameId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    List<EvidenceStepJpaEntity> findAllWithLockByScopeIdAndGameIdAndSeatIndexAndWindowKeyAndOutcome(
-            UUID scopeId, UUID gameId, int seatIndex, String windowKey, String outcome);
+    List<EvidenceStepJpaEntity> findAllWithLockByScopeIdAndGameIdAndSeatIndexAndWindowKindAndEraAndRoundAndOutcome(
+            UUID scopeId, UUID gameId, int seatIndex, WindowKind windowKind, int era, Integer round, String outcome);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from EvidenceStepJpaEntity s where s.scopeId = :scopeId")

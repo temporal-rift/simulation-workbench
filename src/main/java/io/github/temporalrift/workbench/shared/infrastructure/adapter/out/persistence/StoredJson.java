@@ -3,6 +3,7 @@ package io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persi
 import org.springframework.stereotype.Component;
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /** Writes and reads the JSON text columns of the workbench tables with the application's configured mapper. */
@@ -27,6 +28,15 @@ public class StoredJson {
     public <T> T read(String json, Class<T> type) {
         try {
             return objectMapper.readValue(json, type);
+        } catch (JacksonException e) {
+            throw new IllegalStateException("Stored " + type.getSimpleName() + " cannot be read as JSON", e);
+        }
+    }
+
+    /** Reads a value out of a part of an already parsed document. */
+    public <T> T read(JsonNode node, Class<T> type) {
+        try {
+            return objectMapper.treeToValue(node, type);
         } catch (JacksonException e) {
             throw new IllegalStateException("Stored " + type.getSimpleName() + " cannot be read as JSON", e);
         }

@@ -25,7 +25,6 @@ import io.github.temporalrift.workbench.execution.domain.run.LogicalCase;
 import io.github.temporalrift.workbench.policy.application.port.in.PlayDecisionWindowUseCase;
 import io.github.temporalrift.workbench.policy.application.port.in.PlayDecisionWindowUseCase.DecisionResult;
 import io.github.temporalrift.workbench.policy.application.port.in.PlayDecisionWindowUseCase.SeatPolicy;
-import io.github.temporalrift.workbench.policy.domain.decision.CandidateCodec;
 import io.github.temporalrift.workbench.shared.execution.FailureCode;
 
 /**
@@ -36,8 +35,6 @@ import io.github.temporalrift.workbench.shared.execution.FailureCode;
  */
 public final class CaseDriver {
 
-    private static final String SEAT_INDEX = "seatIndex";
-    private static final String WINDOW = "window";
     /** Replay decisions come from the pinned transcript, not from a policy, and are published under this id. */
     private static final String REPLAY_POLICY_ID = "transcript";
 
@@ -213,28 +210,12 @@ public final class CaseDriver {
     /** Where a reproduction could not follow the transcript, as the first divergence. */
     private static Divergence divergence(TranscriptPolicy policy, int seatIndex, List<String> codes, int step) {
         var miss = policy.miss().filter(found -> found.seatIndex() == seatIndex);
-        var window = miss.map(TranscriptPolicy.Miss::windowKey).orElse("unknown");
+        var window = miss.map(TranscriptPolicy.Miss::window).orElse(null);
         var refused = miss.map(TranscriptPolicy.Miss::refused).orElse(null);
         if (refused == null) {
-            return new Divergence(
-                    step,
-                    "UNEXPECTED_WINDOW",
-                    java.util.Map.of(SEAT_INDEX, seatIndex, "decision", "none retained in the transcript"),
-                    java.util.Map.of(SEAT_INDEX, seatIndex, WINDOW, window));
+            return new Divergence.UnexpectedWindow(step, seatIndex, window);
         }
-        return new Divergence(
-                step,
-                "COMMAND_REJECTED",
-                java.util.Map.of(
-                        SEAT_INDEX,
-                        seatIndex,
-                        WINDOW,
-                        window,
-                        "decision",
-                        CandidateCodec.encode(refused),
-                        "outcome",
-                        "ACCEPTED"),
-                java.util.Map.of(SEAT_INDEX, seatIndex, WINDOW, window, "outcome", "REJECTED", "codes", codes));
+        return new Divergence.CommandRejected(step, seatIndex, window, refused, codes);
     }
 
     private List<SeatPolicy> seatPolicies(LogicalCase logicalCase) {

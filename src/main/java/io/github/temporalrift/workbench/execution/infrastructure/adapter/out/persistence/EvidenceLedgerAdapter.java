@@ -17,12 +17,17 @@ import org.springframework.transaction.annotation.Transactional;
 
 import io.github.temporalrift.workbench.execution.domain.evidence.ObservedEvent;
 import io.github.temporalrift.workbench.execution.domain.evidence.PinnedEvidence;
+import io.github.temporalrift.workbench.execution.domain.evidence.StepEntropy;
 import io.github.temporalrift.workbench.execution.domain.evidence.StepOutcome;
 import io.github.temporalrift.workbench.execution.domain.evidence.StepRecord;
 import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
 import io.github.temporalrift.workbench.execution.domain.reproduction.ManifestMismatchException;
+import io.github.temporalrift.workbench.execution.infrastructure.serialization.ObservationJson;
+import io.github.temporalrift.workbench.policy.domain.decision.CandidateCodec;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.InsertOnce;
+import io.github.temporalrift.workbench.shared.text.JsonText;
 import io.github.temporalrift.workbench.shared.text.Sha256;
+import io.github.temporalrift.workbench.shared.window.WindowRef;
 
 /**
  * Evidence: pinned artifacts in a content-addressed store whose digests are re-checked on every read, per-game
@@ -108,9 +113,9 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
 
     @Override
     @Transactional
-    public void resolve(UUID scopeId, UUID gameId, int seatIndex, String windowKey, StepOutcome outcome, String code) {
-        steps.findAllWithLockByScopeIdAndGameIdAndSeatIndexAndWindowKeyAndOutcome(
-                        scopeId, gameId, seatIndex, windowKey, UNACKNOWLEDGED)
+    public void resolve(UUID scopeId, UUID gameId, int seatIndex, WindowRef window, StepOutcome outcome, String code) {
+        steps.findAllWithLockByScopeIdAndGameIdAndSeatIndexAndWindowKindAndEraAndRoundAndOutcome(
+                        scopeId, gameId, seatIndex, window.kind(), window.era(), window.round(), UNACKNOWLEDGED)
                 .forEach(step -> step.resolve(outcome.name(), code));
     }
 
@@ -232,16 +237,13 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
         return new StepRecord(
                 step.step(),
                 step.seatIndex(),
-                step.windowKey(),
-                step.phase(),
-                step.era(),
-                step.round(),
+                step.window(),
                 step.logicalTime(),
-                step.observation(),
-                step.decision(),
+                ObservationJson.parse(step.observation()),
+                CandidateCodec.decode(step.decision()),
                 StepOutcome.valueOf(step.outcome()),
                 step.outcomeCode(),
-                step.entropy());
+                step.entropy() == null ? null : JsonText.read(step.entropy(), StepEntropy.class, "Retained entropy"));
     }
 
     private static ObservedEvent observed(EvidenceEventJpaEntity event, String payload) {

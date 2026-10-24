@@ -8,6 +8,7 @@ import java.util.UUID;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.HandCard;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.MySubmission;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.PlayerGameStateResponse;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.SubmissionChoice;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.SubmissionTargets;
 import io.github.temporalrift.workbench.policy.domain.decision.Candidate;
 import io.github.temporalrift.workbench.policy.domain.decision.Target;
@@ -16,6 +17,8 @@ import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow
 import io.github.temporalrift.workbench.policy.domain.observation.DeclarationMode;
 import io.github.temporalrift.workbench.shared.game.CardType;
 import io.github.temporalrift.workbench.shared.game.SpecialAction;
+import io.github.temporalrift.workbench.shared.window.WindowKind;
+import io.github.temporalrift.workbench.shared.window.WindowRef;
 
 /**
  * Reads what the service has accepted from a seat in the window it owes, using only that participant's
@@ -38,12 +41,12 @@ final class AcceptedState {
     }
 
     /** Whether the state records an accepted submission in the window, whatever it was. */
-    static boolean holds(PlayerGameStateResponse state, WindowKeys.Ref window) {
-        return submission(state, window.window(), window.era(), window.round()).isPresent();
+    static boolean holds(PlayerGameStateResponse state, WindowRef window) {
+        return Submissions.exists(state.getMySubmissions(), window);
     }
 
     private static Optional<Candidate> hand(PlayerGameStateResponse state, int era) {
-        return submission(state, "HAND_SELECTION", era, null).map(_ -> {
+        return submission(state, WindowRef.of(WindowKind.HAND_SELECTION, era)).map(_ -> {
             List<UUID> kept = state.getMyHand().stream()
                     .map(HandCard::getCardInstanceId)
                     .sorted(Comparator.comparing(UUID::toString))
@@ -53,7 +56,7 @@ final class AcceptedState {
     }
 
     private static Optional<Candidate> declaration(PlayerGameStateResponse state, int era, UUID playerId) {
-        return submission(state, "DECLARATION", era, null)
+        return submission(state, WindowRef.of(WindowKind.DECLARATION, era))
                 .map(_ -> state.getDeclarations().stream()
                         .filter(declaration ->
                                 declaration.getPlayerId().equals(playerId) && declaration.getEraNumber() == era)
@@ -66,9 +69,8 @@ final class AcceptedState {
     }
 
     private static Optional<Candidate> action(PlayerGameStateResponse state, int era, int round) {
-        return submission(state, "ACTION", era, round).map(entry -> switch (entry.getChoice()
-                .name()) {
-            case "CARD" -> {
+        return submission(state, WindowRef.actionRound(era, round)).map(entry -> switch (entry.getChoice()) {
+            case CARD -> {
                 var card = entry.getCard();
                 var type = CardType.valueOf(card.getCardType().name());
                 yield new Candidate.PlayCard(
@@ -81,24 +83,25 @@ final class AcceptedState {
                                         : CardCategory.valueOf(
                                                 card.getDisguiseCategory().name())));
             }
-            case "SPECIAL" -> {
+            case SPECIAL -> {
                 var action = SpecialAction.valueOf(entry.getSpecialAction().name());
                 yield new Candidate.PlaySpecial(action, target(CardRules.shape(action), entry.getTargets(), null));
             }
-            default -> new Candidate.Pass();
+            case PASS -> new Candidate.Pass();
         });
     }
 
     private static Optional<Candidate> paradox(PlayerGameStateResponse state, int era) {
-        return submission(state, "PARADOX_RESOLUTION", era, null).map(entry -> {
-            if (!"CARD".equals(entry.getChoice().name())) {
-                return new Candidate.PassParadox();
-            }
-            var targets = entry.getTargets();
-            return new Candidate.PlayParadoxCard(
-                    entry.getCard().getCardInstanceId(),
-                    new Target.EventOutcome(targets.getTargetEventId(), targets.getTargetOutcomeId()));
-        });
+        return submission(state, WindowRef.of(WindowKind.PARADOX_RESOLUTION, era))
+                .map(entry -> {
+                    if (entry.getChoice() != SubmissionChoice.CARD) {
+                        return new Candidate.PassParadox();
+                    }
+                    var targets = entry.getTargets();
+                    return new Candidate.PlayParadoxCard(
+                            entry.getCard().getCardInstanceId(),
+                            new Target.EventOutcome(targets.getTargetEventId(), targets.getTargetOutcomeId()));
+                });
     }
 
     private static Target target(
@@ -123,12 +126,7 @@ final class AcceptedState {
         return ids.stream().sorted(Comparator.comparing(UUID::toString)).toList();
     }
 
-    private static Optional<MySubmission> submission(
-            PlayerGameStateResponse state, String window, int era, Integer round) {
-        return state.getMySubmissions().stream()
-                .filter(entry -> entry.getWindow().name().equals(window)
-                        && entry.getEraNumber() == era
-                        && (round == null || round.equals(entry.getRoundNumber())))
-                .findFirst();
+    private static Optional<MySubmission> submission(PlayerGameStateResponse state, WindowRef window) {
+        return Submissions.find(state.getMySubmissions(), window);
     }
 }
