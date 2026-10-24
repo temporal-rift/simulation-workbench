@@ -27,6 +27,6 @@ class JsonTextTest {
     void unreadableTextNamesWhatWasBeingRead() {
         assertThatThrownBy(() -> JsonText.read("{", Map.class, "The stored thing"))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessage("The stored thing is not valid JSON");
+                .hasMessage("The stored thing cannot be read as JSON");
     }
 }

@@ -28,7 +28,7 @@ public class StoredJson {
         try {
             return objectMapper.readValue(json, type);
         } catch (JacksonException e) {
-            throw new IllegalStateException("Stored " + type.getSimpleName() + " is not valid JSON", e);
+            throw new IllegalStateException("Stored " + type.getSimpleName() + " cannot be read as JSON", e);
         }
     }
 
@@ -36,7 +36,7 @@ public class StoredJson {
         try {
             return objectMapper.readValue(json, type);
         } catch (JacksonException e) {
-            throw new IllegalStateException("Stored JSON column is not valid", e);
+            throw new IllegalStateException("Stored JSON column cannot be read", e);
         }
     }
 }

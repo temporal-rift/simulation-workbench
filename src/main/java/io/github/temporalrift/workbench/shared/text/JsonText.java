@@ -48,7 +48,7 @@ public final class JsonText {
         try {
             return MAPPER.readTree(json);
         } catch (JacksonException e) {
-            throw new IllegalStateException(description + " is not valid JSON", e);
+            throw new IllegalStateException(description + " cannot be read as JSON", e);
         }
     }
 
@@ -56,7 +56,7 @@ public final class JsonText {
         try {
             return MAPPER.readValue(json, type);
         } catch (JacksonException e) {
-            throw new IllegalStateException(description + " is not valid JSON", e);
+            throw new IllegalStateException(description + " cannot be read as JSON", e);
         }
     }
 
@@ -64,7 +64,7 @@ public final class JsonText {
         try {
             return MAPPER.readValue(json, type);
         } catch (JacksonException e) {
-            throw new IllegalStateException(description + " is not valid JSON", e);
+            throw new IllegalStateException(description + " cannot be read as JSON", e);
         }
     }
 }
