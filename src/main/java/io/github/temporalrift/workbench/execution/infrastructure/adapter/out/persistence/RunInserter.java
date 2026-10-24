@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import io.github.temporalrift.workbench.execution.domain.port.out.RunRepository.NewCase;
 import io.github.temporalrift.workbench.execution.domain.run.Run;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.StoredJson;
 
 /**
  * Stores a run, its idempotency claim and all its cases in one transaction, so a lost claim leaves nothing behind.

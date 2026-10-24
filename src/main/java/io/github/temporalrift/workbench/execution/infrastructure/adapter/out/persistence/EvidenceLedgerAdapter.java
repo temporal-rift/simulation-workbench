@@ -22,6 +22,7 @@ import io.github.temporalrift.workbench.execution.domain.evidence.StepRecord;
 import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
 import io.github.temporalrift.workbench.execution.domain.reproduction.ManifestMismatchException;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.InsertOnce;
+import io.github.temporalrift.workbench.shared.text.Sha256;
 
 /**
  * Evidence: pinned artifacts in a content-addressed store whose digests are re-checked on every read, per-game
@@ -195,7 +196,7 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
     }
 
     private String putArtifact(byte[] content, String mediaType, Instant now) {
-        var digest = sha256(content);
+        var digest = Sha256.hex(content);
         if (!artifacts.existsById(digest)) {
             insertOnce.insert(
                     () -> artifacts.saveAndFlush(new EvidenceArtifactJpaEntity(digest, mediaType, content, now)));
@@ -221,7 +222,7 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
         if (content == null) {
             throw new ManifestMismatchException("Pinned artifact " + digest + " is unavailable");
         }
-        if (!sha256(content).equals(digest)) {
+        if (!Sha256.hex(content).equals(digest)) {
             throw new ManifestMismatchException("Pinned artifact " + digest + " does not match its content address");
         }
         return new String(content, StandardCharsets.UTF_8);
@@ -256,9 +257,5 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
                 event.occurredAt(),
                 event.version() == null ? 0 : event.version(),
                 payload);
-    }
-
-    private static String sha256(byte[] content) {
-        return EvidenceBatchWrites.sha256(content);
     }
 }

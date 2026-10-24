@@ -1,9 +1,8 @@
 package io.github.temporalrift.workbench.analysis.domain.statistics;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
+
+import io.github.temporalrift.workbench.shared.text.Sha256;
 
 /**
  * A SplitMix64 stream whose start is the SHA-256 of length-prefixed UTF-8 parts, so distinct parts can never
@@ -20,18 +19,8 @@ public final class SplitMix64 {
     }
 
     public static SplitMix64 seededBy(String... parts) {
-        try {
-            var sha256 = MessageDigest.getInstance("SHA-256");
-            for (var part : parts) {
-                var bytes = part.getBytes(StandardCharsets.UTF_8);
-                sha256.update(
-                        ByteBuffer.allocate(Integer.BYTES).putInt(bytes.length).array());
-                sha256.update(bytes);
-            }
-            return new SplitMix64(ByteBuffer.wrap(sha256.digest()).getLong());
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 is a mandatory JDK algorithm", e);
-        }
+        return new SplitMix64(
+                ByteBuffer.wrap(Sha256.digestOfParts((Object[]) parts)).getLong());
     }
 
     public long nextLong() {

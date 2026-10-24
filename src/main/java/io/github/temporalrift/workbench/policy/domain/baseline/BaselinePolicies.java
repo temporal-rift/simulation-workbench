@@ -1,11 +1,9 @@
 package io.github.temporalrift.workbench.policy.domain.baseline;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
+
+import io.github.temporalrift.workbench.shared.text.Sha256;
 
 /**
  * The two baseline bundles. Ids are {@code random} and {@code faction-greedy} at version
@@ -48,15 +46,7 @@ public final class BaselinePolicies {
             String definition,
             String description,
             io.github.temporalrift.workbench.policy.domain.decision.BotPolicy policy) {
-        return new PolicyBundle(id, VERSION, sha256Hex(id + "|" + VERSION + "|" + definition), description, policy);
-    }
-
-    private static String sha256Hex(String text) {
-        try {
-            return HexFormat.of()
-                    .formatHex(MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 unavailable", e);
-        }
+        return new PolicyBundle(
+                id, VERSION, Sha256.hexUtf8(id + "|" + VERSION + "|" + definition), description, policy);
     }
 }

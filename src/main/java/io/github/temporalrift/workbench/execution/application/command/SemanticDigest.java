@@ -1,16 +1,13 @@
 package io.github.temporalrift.workbench.execution.application.command;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.execution.domain.command.Slot;
 import io.github.temporalrift.workbench.execution.domain.port.out.GameSession;
 import io.github.temporalrift.workbench.execution.domain.run.SeatPlan;
+import io.github.temporalrift.workbench.shared.text.Sha256;
 
 /**
  * The semantic identity of a case: its setup, every accepted decision and the authoritative ending.
@@ -38,12 +35,7 @@ final class SemanticDigest {
         text.add("end|" + ending.endReason() + "|" + ending.eras());
         ending.winners().forEach(w -> text.add("winner|" + w.seatIndex() + "|" + w.faction() + "|" + w.winType()));
         ending.finalScores().forEach(s -> text.add("score|" + s.seatIndex() + "|" + s.faction() + "|" + s.score()));
-        try {
-            var bytes = String.join("\n", text).getBytes(StandardCharsets.UTF_8);
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 unavailable", e);
-        }
+        return Sha256.hexUtf8(String.join("\n", text));
     }
 
     /** Distinct action rounds that took at least one accepted decision. */

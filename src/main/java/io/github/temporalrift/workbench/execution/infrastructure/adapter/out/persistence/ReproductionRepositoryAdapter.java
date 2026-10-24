@@ -18,6 +18,7 @@ import io.github.temporalrift.workbench.execution.domain.reproduction.Reproducti
 import io.github.temporalrift.workbench.execution.domain.reproduction.ReproductionState;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.InsertOnce;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.StoredJson;
 
 /** Reproductions, claimed under a lease so a stalled worker can never settle a re-run. */
 @Component

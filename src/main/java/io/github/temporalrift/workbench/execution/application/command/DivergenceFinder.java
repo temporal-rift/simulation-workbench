@@ -5,13 +5,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import tools.jackson.core.JacksonException;
-import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.json.JsonMapper;
-
 import io.github.temporalrift.workbench.execution.domain.evidence.StepRecord;
 import io.github.temporalrift.workbench.execution.domain.reproduction.Divergence;
 import io.github.temporalrift.workbench.execution.domain.run.CaseResult;
+import io.github.temporalrift.workbench.shared.text.JsonText;
 
 /**
  * Finds the first place a reproduction differs from the saved case. Only accepted commands take part:
@@ -21,7 +18,6 @@ import io.github.temporalrift.workbench.execution.domain.run.CaseResult;
 final class DivergenceFinder {
 
     private static final String DECISION = "decision";
-    private static final ObjectMapper JSON = JsonMapper.builder().build();
 
     private DivergenceFinder() {}
 
@@ -119,10 +115,6 @@ final class DivergenceFinder {
     }
 
     private static Object parse(String json) {
-        try {
-            return JSON.readValue(json, Object.class);
-        } catch (JacksonException e) {
-            throw new IllegalStateException("A retained observation is not valid JSON", e);
-        }
+        return JsonText.read(json, Object.class, "A retained observation");
     }
 }

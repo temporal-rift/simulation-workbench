@@ -10,8 +10,6 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
-import tools.jackson.core.JacksonException;
-import tools.jackson.databind.ObjectMapper;
 
 import io.github.temporalrift.workbench.analysis.domain.fact.CaseFacts;
 import io.github.temporalrift.workbench.analysis.domain.fact.GameFacts;
@@ -23,6 +21,7 @@ import io.github.temporalrift.workbench.shared.game.CardType;
 import io.github.temporalrift.workbench.shared.game.Faction;
 import io.github.temporalrift.workbench.shared.game.SpecialAction;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.InsertOnce;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.StoredJson;
 
 /** Case facts, one JSON document per case and analysis version. */
 @Component
@@ -32,14 +31,14 @@ public class CaseFactsRepositoryAdapter implements CaseFactsRepository {
 
     private final AnalysisCaseFactJpaRepository stored;
     private final InsertOnce insertOnce;
-    private final ObjectMapper objectMapper;
+    private final StoredJson storedJson;
     private final Clock clock;
 
     CaseFactsRepositoryAdapter(
-            AnalysisCaseFactJpaRepository stored, InsertOnce insertOnce, ObjectMapper objectMapper, Clock clock) {
+            AnalysisCaseFactJpaRepository stored, InsertOnce insertOnce, StoredJson json, Clock clock) {
         this.stored = stored;
         this.insertOnce = insertOnce;
-        this.objectMapper = objectMapper;
+        this.storedJson = json;
         this.clock = clock;
     }
 
@@ -80,26 +79,18 @@ public class CaseFactsRepositoryAdapter implements CaseFactsRepository {
     }
 
     private String write(CaseFacts facts) {
-        try {
-            return objectMapper.writeValueAsString(new CaseDocument(
-                    facts.caseId(),
-                    facts.game(),
-                    facts.seats().stream().map(SeatDocument::of).toList()));
-        } catch (JacksonException e) {
-            throw new IllegalStateException("Cannot store the facts of case " + facts.caseId(), e);
-        }
+        return storedJson.write(new CaseDocument(
+                facts.caseId(),
+                facts.game(),
+                facts.seats().stream().map(SeatDocument::of).toList()));
     }
 
     private CaseFacts read(String json) {
-        try {
-            var document = objectMapper.readValue(json, CaseDocument.class);
-            return new CaseFacts(
-                    document.caseId(),
-                    document.game(),
-                    document.seats().stream().map(SeatDocument::facts).toList());
-        } catch (JacksonException e) {
-            throw new IllegalStateException("Stored case facts are unreadable", e);
-        }
+        var document = storedJson.read(json, CaseDocument.class);
+        return new CaseFacts(
+                document.caseId(),
+                document.game(),
+                document.seats().stream().map(SeatDocument::facts).toList());
     }
 
     record CaseDocument(UUID caseId, GameFacts game, List<SeatDocument> seats) {}

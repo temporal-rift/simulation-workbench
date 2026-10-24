@@ -1,8 +1,5 @@
 package io.github.temporalrift.workbench.experiment.domain;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -13,6 +10,8 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
+
+import io.github.temporalrift.workbench.shared.text.Sha256;
 
 /**
  * Canonical manifest digest. Object keys are sorted recursively; array order is significant because
@@ -26,18 +25,7 @@ public final class ManifestDigest {
 
     public static String sha256Hex(JsonNode manifest) {
         var canonical = canonicalize(manifest);
-        var bytes = canonical.getBytes(StandardCharsets.UTF_8);
-        try {
-            var digest = MessageDigest.getInstance("SHA-256").digest(bytes);
-            var hex = new StringBuilder(digest.length * 2);
-            for (byte b : digest) {
-                hex.append(Character.forDigit((b >> 4) & 0xF, 16));
-                hex.append(Character.forDigit(b & 0xF, 16));
-            }
-            return hex.toString();
-        } catch (NoSuchAlgorithmException _) {
-            throw new IllegalStateException("SHA-256 unavailable");
-        }
+        return Sha256.hexUtf8(canonical);
     }
 
     static String canonicalize(JsonNode manifest) {

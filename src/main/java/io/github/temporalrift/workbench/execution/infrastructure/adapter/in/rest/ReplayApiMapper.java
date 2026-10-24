@@ -6,10 +6,7 @@ import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
-import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.json.JsonMapper;
 
 import io.github.temporalrift.workbench.execution.application.port.in.GetCaseReplayUseCase;
 import io.github.temporalrift.workbench.execution.domain.evidence.ObservedEvent;
@@ -20,11 +17,11 @@ import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ReplayPerspective;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ReplayStep;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ReproductionState;
+import io.github.temporalrift.workbench.shared.text.JsonText;
 
 /** Maps retained evidence and reproductions to the published {@code simulation-api} representations. */
 final class ReplayApiMapper {
 
-    private static final ObjectMapper JSON = JsonMapper.builder().build();
     private static final TypeReference<Map<String, Object>> OBJECT = new TypeReference<>() {};
 
     private ReplayApiMapper() {}
@@ -109,17 +106,13 @@ final class ReplayApiMapper {
     }
 
     private static Map<String, Object> parse(String json) {
-        try {
-            return JSON.readValue(json, OBJECT);
-        } catch (JacksonException e) {
-            throw new IllegalStateException("Retained evidence is not valid JSON", e);
-        }
+        return JsonText.read(json, OBJECT, "Retained evidence");
     }
 
     private static Object parseAny(String json) {
         try {
-            return JSON.readValue(json, Object.class);
-        } catch (JacksonException _) {
+            return JsonText.read(json, Object.class, "Retained evidence");
+        } catch (IllegalStateException _) {
             return json;
         }
     }

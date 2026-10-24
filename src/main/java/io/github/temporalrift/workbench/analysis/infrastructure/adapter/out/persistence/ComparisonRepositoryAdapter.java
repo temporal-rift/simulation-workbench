@@ -8,9 +8,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
-import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
-import tools.jackson.databind.ObjectMapper;
 
 import io.github.temporalrift.workbench.analysis.domain.AnalysisVersion;
 import io.github.temporalrift.workbench.analysis.domain.comparison.ComparisonDefinition;
@@ -18,6 +16,7 @@ import io.github.temporalrift.workbench.analysis.domain.comparison.ComparisonSid
 import io.github.temporalrift.workbench.analysis.domain.comparison.DeclaredDifference;
 import io.github.temporalrift.workbench.analysis.domain.port.out.ComparisonRepository;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.InsertOnce;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.StoredJson;
 
 /** Stored comparison definitions; a unique idempotency key makes a concurrent repeat lose the insert. */
 @Component
@@ -28,19 +27,19 @@ public class ComparisonRepositoryAdapter implements ComparisonRepository {
     private final AnalysisComparisonJpaRepository comparisons;
     private final ComparisonListingQueries listing;
     private final InsertOnce insertOnce;
-    private final ObjectMapper objectMapper;
+    private final StoredJson storedJson;
     private final Clock clock;
 
     ComparisonRepositoryAdapter(
             AnalysisComparisonJpaRepository comparisons,
             ComparisonListingQueries listing,
             InsertOnce insertOnce,
-            ObjectMapper objectMapper,
+            StoredJson json,
             Clock clock) {
         this.comparisons = comparisons;
         this.listing = listing;
         this.insertOnce = insertOnce;
-        this.objectMapper = objectMapper;
+        this.storedJson = json;
         this.clock = clock;
     }
 
@@ -88,18 +87,10 @@ public class ComparisonRepositoryAdapter implements ComparisonRepository {
     }
 
     private String write(List<DeclaredDifference> differences) {
-        try {
-            return objectMapper.writeValueAsString(differences);
-        } catch (JacksonException e) {
-            throw new IllegalStateException("Cannot store declared differences", e);
-        }
+        return storedJson.write(differences);
     }
 
     private List<DeclaredDifference> read(String json) {
-        try {
-            return objectMapper.readValue(json, DIFFERENCES);
-        } catch (JacksonException e) {
-            throw new IllegalStateException("Stored declared differences are unreadable", e);
-        }
+        return storedJson.read(json, DIFFERENCES);
     }
 }

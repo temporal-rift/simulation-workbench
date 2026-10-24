@@ -8,14 +8,13 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.jar.JarFile;
 import java.util.stream.Stream;
+
+import io.github.temporalrift.workbench.shared.text.Sha256;
 
 /**
  * A service's executable jar, extracted once into its layout of classes and libraries so a class loader can host it.
@@ -70,14 +69,7 @@ final class ServiceJar {
 
     private static String digestOf(Path jar) throws IOException {
         try (InputStream in = Files.newInputStream(jar)) {
-            var sha = MessageDigest.getInstance("SHA-256");
-            var buffer = new byte[64 * 1024];
-            for (var read = in.read(buffer); read >= 0; read = in.read(buffer)) {
-                sha.update(buffer, 0, read);
-            }
-            return HexFormat.of().formatHex(sha.digest());
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("Every JVM provides SHA-256", e);
+            return Sha256.hex(in);
         }
     }
 

@@ -1,12 +1,9 @@
 package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.persistence;
 
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import io.github.temporalrift.workbench.execution.domain.evidence.ObservedEvent;
 import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger.SourcePartition;
+import io.github.temporalrift.workbench.shared.text.Sha256;
 
 /**
  * Multi-row evidence writes: the payload artifacts and the events that reference them are stored together in one
@@ -86,7 +84,7 @@ class EvidenceBatchWrites {
         var rows = distinct.values().stream()
                 .map(event -> {
                     var content = event.payload().getBytes(StandardCharsets.UTF_8);
-                    var digest = sha256(content);
+                    var digest = Sha256.hex(content);
                     payloads.putIfAbsent(digest, content);
                     return new Row(event, digest);
                 })
@@ -159,13 +157,5 @@ class EvidenceBatchWrites {
                 .mapToObj(
                         i -> rows.subList(i * ROWS_PER_STATEMENT, Math.min(rows.size(), (i + 1) * ROWS_PER_STATEMENT)))
                 .toList();
-    }
-
-    static String sha256(byte[] content) {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(content));
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 unavailable", e);
-        }
     }
 }

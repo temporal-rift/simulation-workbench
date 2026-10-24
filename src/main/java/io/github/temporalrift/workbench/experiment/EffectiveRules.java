@@ -1,17 +1,15 @@
 package io.github.temporalrift.workbench.experiment;
 
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Collections;
-import java.util.HexFormat;
 import java.util.Optional;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.JsonNodeFactory;
+
+import io.github.temporalrift.workbench.shared.text.Sha256;
 
 /**
  * A complete, materialised rules document: every {@code game.rules.*} property keyed by its full path. Its digest is
@@ -66,12 +64,7 @@ public record EffectiveRules(SortedMap<String, JsonNode> properties) {
 
     /** The lowercase hex SHA-256 of the canonical serialisation of the properties. */
     public String digest() {
-        try {
-            var canonical = RulesCanonicalJson.write(properties).getBytes(StandardCharsets.UTF_8);
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(canonical));
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 unavailable", e);
-        }
+        return Sha256.hexUtf8(RulesCanonicalJson.write(properties));
     }
 
     /** The numeric value of a property, or empty when it is absent or not a number. */
