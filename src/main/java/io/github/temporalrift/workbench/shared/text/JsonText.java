@@ -52,6 +52,15 @@ public final class JsonText {
         }
     }
 
+    /** The value a tree already read stands for, so one parse can serve several typed views. */
+    public static <T> T convert(JsonNode tree, Class<T> type, String description) {
+        try {
+            return MAPPER.treeToValue(tree, type);
+        } catch (JacksonException e) {
+            throw new IllegalStateException(description + " cannot be read as " + type.getSimpleName(), e);
+        }
+    }
+
     public static <T> T read(String json, Class<T> type, String description) {
         try {
             return MAPPER.readValue(json, type);

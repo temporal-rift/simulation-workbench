@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
@@ -27,7 +28,7 @@ class ExperimentCatalogQueryHandlerTest {
         var catalog = catalogOf(null);
 
         assertThat(catalog.bounds(ID)).isEmpty();
-        assertThat(catalog.cases(ID)).isEmpty();
+        assertThat(catalog.snapshot(ID)).isEmpty();
     }
 
     @Test
@@ -77,7 +78,7 @@ class ExperimentCatalogQueryHandlerTest {
         var manifest = ExperimentManifests.valid();
         var catalog = catalogOf(manifest);
 
-        var cases = catalog.cases(ID).orElseThrow();
+        var cases = catalog.snapshot(ID).orElseThrow().cases();
 
         var expected = MatrixPreviewService.preview(manifest, ManifestDigest.sha256Hex(manifest));
         assertThat(cases).hasSize(220).hasSameSizeAs(expected);
@@ -89,7 +90,24 @@ class ExperimentCatalogQueryHandlerTest {
         assertThat(cases.getFirst().seats().getFirst().policyId()).isNotBlank();
     }
 
+    @Test
+    void aSnapshotCarriesTheBoundsAndTheCasesFromOneStoredRead() {
+        var manifest = ExperimentManifests.valid();
+        var reads = new AtomicInteger();
+        var catalog = catalogOf(manifest, reads);
+
+        var snapshot = catalog.snapshot(ID).orElseThrow();
+
+        assertThat(reads).hasValue(1);
+        assertThat(snapshot.bounds()).isEqualTo(catalog.bounds(ID).orElseThrow());
+        assertThat(snapshot.cases()).hasSize(220);
+    }
+
     private ExperimentCatalogQueryHandler catalogOf(JsonNode manifest) {
+        return catalogOf(manifest, new AtomicInteger());
+    }
+
+    private ExperimentCatalogQueryHandler catalogOf(JsonNode manifest, AtomicInteger reads) {
         return new ExperimentCatalogQueryHandler(new ExperimentRepository() {
             @Override
             public void save(
@@ -109,6 +127,7 @@ class ExperimentCatalogQueryHandlerTest {
 
             @Override
             public Optional<StoredExperiment> findById(UUID experimentId) {
+                reads.incrementAndGet();
                 if (manifest == null || !experimentId.equals(ID)) {
                     return Optional.empty();
                 }

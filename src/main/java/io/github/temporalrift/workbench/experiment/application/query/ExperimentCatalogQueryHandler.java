@@ -1,6 +1,5 @@
 package io.github.temporalrift.workbench.experiment.application.query;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -8,6 +7,7 @@ import io.github.temporalrift.workbench.experiment.ExperimentBounds;
 import io.github.temporalrift.workbench.experiment.ExperimentCase;
 import io.github.temporalrift.workbench.experiment.ExperimentCatalog;
 import io.github.temporalrift.workbench.experiment.ExperimentSeat;
+import io.github.temporalrift.workbench.experiment.ExperimentSnapshot;
 import io.github.temporalrift.workbench.experiment.domain.MatrixPreviewService;
 import io.github.temporalrift.workbench.experiment.domain.StoredManifests;
 import io.github.temporalrift.workbench.experiment.domain.port.out.ExperimentRepository;
@@ -27,13 +27,14 @@ public class ExperimentCatalogQueryHandler implements ExperimentCatalog {
     }
 
     @Override
-    public Optional<List<ExperimentCase>> cases(UUID experimentId) {
-        return experiments
-                .findById(experimentId)
-                .map(stored ->
-                        MatrixPreviewService.preview(StoredManifests.tree(stored), stored.manifestDigest()).stream()
-                                .map(ExperimentCatalogQueryHandler::toCase)
-                                .toList());
+    public Optional<ExperimentSnapshot> snapshot(UUID experimentId) {
+        return experiments.findById(experimentId).map(stored -> {
+            var tree = StoredManifests.tree(stored);
+            var cases = MatrixPreviewService.preview(tree, stored.manifestDigest()).stream()
+                    .map(ExperimentCatalogQueryHandler::toCase)
+                    .toList();
+            return new ExperimentSnapshot(StoredManifests.bounds(stored, tree), cases);
+        });
     }
 
     private static ExperimentCase toCase(MatrixPreviewService.CaseCoordinate coordinate) {

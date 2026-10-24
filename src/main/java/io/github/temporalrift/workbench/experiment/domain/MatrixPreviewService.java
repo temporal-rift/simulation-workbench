@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -21,45 +22,90 @@ public final class MatrixPreviewService {
     private MatrixPreviewService() {}
 
     public static List<CaseCoordinate> preview(JsonNode manifest, String manifestDigest) {
+        var view = ExperimentValidator.validate(manifest);
         var cases = new ArrayList<CaseCoordinate>();
-        enumerate(manifest, manifestDigest, cases::add);
+        page(view, manifestDigest, 0, Integer.MAX_VALUE, cases::add);
         return List.copyOf(cases);
     }
 
+    /** The size of the matrix of a manifest, computed arithmetically without visiting any coordinate. */
+    public static MatrixSize size(JsonNode manifest) {
+        return size(ExperimentValidator.validate(manifest));
+    }
+
+    /** The size of the matrix of an already validated manifest. */
+    public static MatrixSize size(ExperimentValidator.ManifestView view) {
+        var coordinatesByPlayers = new TreeMap<Integer, Integer>();
+        view.factionSets().forEach(set -> coordinatesByPlayers.merge(set.size(), set.size(), Integer::sum));
+        long perVariantAndPolicy = (long) view.seeds().size() * view.policies().size();
+        var breakdown = new ArrayList<Slice>();
+        long total = 0;
+        for (String variant : view.variantLabels()) {
+            for (var entry : coordinatesByPlayers.entrySet()) {
+                int count = Math.toIntExact(perVariantAndPolicy * entry.getValue());
+                breakdown.add(new Slice(variant, entry.getKey(), count));
+                total += count;
+            }
+        }
+        return new MatrixSize(Math.toIntExact(total), List.copyOf(breakdown));
+    }
+
     /**
-     * Visits every case coordinate in the stable order without retaining any, so a caller can count the matrix
-     * and keep only the window it needs.
+     * The coordinates {@code offset ..< offset + limit} of the stable order of an already validated manifest, each
+     * derived by index arithmetic, so the cost follows the window and not the matrix.
      */
-    public static void enumerate(JsonNode manifest, String manifestDigest, Consumer<CaseCoordinate> visitor) {
-        var view = ExperimentValidator.validate(manifest);
+    public static List<CaseCoordinate> page(
+            ExperimentValidator.ManifestView view, String manifestDigest, int offset, int limit) {
+        var window = new ArrayList<CaseCoordinate>();
+        page(view, manifestDigest, offset, limit, window::add);
+        return List.copyOf(window);
+    }
+
+    /** Visits only the coordinates of the window, in the stable order. */
+    public static void page(
+            ExperimentValidator.ManifestView view,
+            String manifestDigest,
+            int offset,
+            int limit,
+            Consumer<CaseCoordinate> visitor) {
         var seeds = view.seeds().stream()
                 .sorted(MatrixPreviewService::compareUint64)
                 .toList();
         var sets = view.factionSets().stream()
                 .sorted(MatrixPreviewService::compareSets)
                 .toList();
-        for (String seed : seeds) {
-            for (String variant : view.variantLabels()) {
-                for (var policy : view.policies()) {
-                    baseCases(manifestDigest, seed, variant, policy, sets).forEach(visitor);
-                }
-            }
+        long perBlock = sets.stream().mapToLong(List::size).sum();
+        int variants = view.variantLabels().size();
+        int policies = view.policies().size();
+        long total = seeds.size() * (long) variants * policies * perBlock;
+        long end = Math.min(total, (long) offset + limit);
+        for (long index = offset; index < end; index++) {
+            long block = index / perBlock;
+            visitor.accept(blockCoordinate(
+                    manifestDigest,
+                    seeds.get((int) (block / policies / variants)),
+                    view.variantLabels().get((int) (block / policies % variants)),
+                    view.policies().get((int) (block % policies)),
+                    sets,
+                    (int) (index % perBlock)));
         }
     }
 
-    private static List<CaseCoordinate> baseCases(
+    private static CaseCoordinate blockCoordinate(
             String manifestDigest,
             String seed,
             String variant,
             ExperimentValidator.PolicyRef policy,
-            List<List<String>> sets) {
-        var cases = new ArrayList<CaseCoordinate>();
+            List<List<String>> sets,
+            int positionInBlock) {
+        int remaining = positionInBlock;
         for (List<String> set : sets) {
-            for (int rotation = 0; rotation < set.size(); rotation++) {
-                cases.add(coordinate(manifestDigest, seed, variant, policy, set, rotation));
+            if (remaining < set.size()) {
+                return coordinate(manifestDigest, seed, variant, policy, set, remaining);
             }
+            remaining -= set.size();
         }
-        return cases;
+        throw new IllegalStateException("position " + positionInBlock + " is outside its block");
     }
 
     private static CaseCoordinate coordinate(
@@ -105,6 +151,12 @@ public final class MatrixPreviewService {
         }
         return Comparator.<List<String>, String>comparing(Object::toString).compare(left, right);
     }
+
+    /** The number of coordinates of a matrix and how they split over variants and player counts. */
+    public record MatrixSize(int total, List<Slice> breakdown) {}
+
+    /** The coordinates of one variant at one player count; variants in manifest order, player counts ascending. */
+    public record Slice(String variantLabel, int playerCount, int caseCount) {}
 
     /** One deterministic case coordinate of the cohort matrix. */
     public record CaseCoordinate(
