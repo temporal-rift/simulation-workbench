@@ -18,6 +18,7 @@ import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.CaseResult;
 import io.github.temporalrift.workbench.execution.domain.run.Failure;
 import io.github.temporalrift.workbench.shared.execution.CaseState;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.StoredJson;
 
 /**
  * Scheduling of logical cases. A run's row lock serializes the claims on it, so its concurrency bound holds

@@ -67,4 +67,14 @@ class ManifestDigestTest {
 
         assertThat(ManifestDigest.sha256Hex(reordered)).isEqualTo(ManifestDigest.sha256Hex(first));
     }
+
+    @Test
+    void digestOfNonAsciiUnsortedManifestIsStable() {
+        var manifest = new tools.jackson.databind.ObjectMapper()
+                .readTree("{\"zeta\":\"é\",\"alpha\":1,\"factionSets\":"
+                        + "[[\"WEAVERS\",\"ERASERS\",\"PROPHETS\"],[\"PROPHETS\",\"ERASERS\",\"WEAVERS\"]]}");
+
+        assertThat(ManifestDigest.sha256Hex(manifest))
+                .isEqualTo("047eab792a3df3f09fa19ebb994c3bea714312ac7287785c394f5d150f0fa2f4");
+    }
 }

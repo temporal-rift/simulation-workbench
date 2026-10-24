@@ -115,9 +115,8 @@ public class ExperimentConfiguration {
     }
 
     @Bean
-    GetVariantRulesUseCase getVariantRulesUseCase(
-            ExperimentRepository experiments, VariantRules variantRules, ObjectMapper objectMapper) {
-        return new GetVariantRulesQueryHandler(experiments, variantRules, objectMapper);
+    GetVariantRulesUseCase getVariantRulesUseCase(ExperimentRepository experiments, VariantRules variantRules) {
+        return new GetVariantRulesQueryHandler(experiments, variantRules);
     }
 
     @Bean
@@ -142,8 +141,8 @@ public class ExperimentConfiguration {
     }
 
     @Bean
-    GetExperimentUseCase getExperimentUseCase(ExperimentRepository experiments, ObjectMapper objectMapper) {
-        return new GetExperimentQueryHandler(experiments, objectMapper);
+    GetExperimentUseCase getExperimentUseCase(ExperimentRepository experiments) {
+        return new GetExperimentQueryHandler(experiments);
     }
 
     @Bean
@@ -152,7 +151,7 @@ public class ExperimentConfiguration {
     }
 
     @Bean
-    ExperimentCatalog experimentCatalog(ExperimentRepository experiments, ObjectMapper objectMapper) {
-        return new ExperimentCatalogQueryHandler(experiments, objectMapper);
+    ExperimentCatalog experimentCatalog(ExperimentRepository experiments) {
+        return new ExperimentCatalogQueryHandler(experiments);
     }
 }

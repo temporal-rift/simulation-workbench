@@ -1,23 +1,20 @@
 package io.github.temporalrift.workbench.experiment.application.command;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
-import tools.jackson.databind.JsonNode;
-
 import io.github.temporalrift.workbench.experiment.application.port.in.CreateExperimentUseCase;
 import io.github.temporalrift.workbench.experiment.domain.ExperimentValidator;
 import io.github.temporalrift.workbench.experiment.domain.IdempotencyConflictException;
 import io.github.temporalrift.workbench.experiment.domain.ManifestDigest;
+import io.github.temporalrift.workbench.experiment.domain.StoredManifests;
 import io.github.temporalrift.workbench.experiment.domain.port.out.ExperimentRepository;
 import io.github.temporalrift.workbench.experiment.domain.port.out.IdempotencyStore;
 import io.github.temporalrift.workbench.experiment.domain.port.out.PolicyReferenceVerifier;
 import io.github.temporalrift.workbench.experiment.domain.rules.VariantRules;
+import io.github.temporalrift.workbench.shared.text.Sha256;
 
 /**
  * Validates, digests, and freezes an experiment exactly once per idempotency key. A repeated key
@@ -90,31 +87,14 @@ public class CreateExperimentCommandHandler implements CreateExperimentUseCase {
         var stored = experiments
                 .findById(experimentId)
                 .orElseThrow(() -> new IllegalStateException("Experiment vanished after freeze: " + experimentId));
-        try {
-            var mapper = new tools.jackson.databind.ObjectMapper();
-            JsonNode manifest = mapper.readTree(stored.manifestJson());
-            return new Result(
-                    stored.experimentId(),
-                    manifest,
-                    stored.manifestDigest(),
-                    DateTimeFormatter.ISO_INSTANT.format(stored.createdAt()));
-        } catch (tools.jackson.core.JacksonException e) {
-            throw new IllegalStateException("Stored manifest is not valid JSON", e);
-        }
+        return new Result(
+                stored.experimentId(),
+                StoredManifests.tree(stored),
+                stored.manifestDigest(),
+                DateTimeFormatter.ISO_INSTANT.format(stored.createdAt()));
     }
 
     private static String requestHash(UUID key, String digest) {
-        try {
-            var bytes = (key + "|" + digest).getBytes(StandardCharsets.UTF_8);
-            var hashed = MessageDigest.getInstance("SHA-256").digest(bytes);
-            var hex = new StringBuilder(hashed.length * 2);
-            for (byte b : hashed) {
-                hex.append(Character.forDigit((b >> 4) & 0xF, 16));
-                hex.append(Character.forDigit(b & 0xF, 16));
-            }
-            return hex.toString();
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 unavailable", e);
-        }
+        return Sha256.hexUtf8(key + "|" + digest);
     }
 }

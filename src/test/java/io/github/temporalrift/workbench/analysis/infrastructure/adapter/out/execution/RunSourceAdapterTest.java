@@ -22,6 +22,7 @@ import io.github.temporalrift.workbench.shared.game.CardType;
 import io.github.temporalrift.workbench.shared.game.EndReason;
 import io.github.temporalrift.workbench.shared.game.Faction;
 import io.github.temporalrift.workbench.shared.game.SpecialAction;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.StoredJson;
 
 class RunSourceAdapterTest {
 
@@ -152,7 +153,7 @@ class RunSourceAdapterTest {
                         return Optional.ofNullable(evidence);
                     }
                 },
-                JsonMapper.builder().build());
+                new StoredJson(JsonMapper.builder().build()));
     }
 
     private static CaseEvidence.Event event(String type, String payload) {

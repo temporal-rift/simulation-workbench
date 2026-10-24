@@ -1,10 +1,5 @@
 package io.github.temporalrift.workbench.analysis.application.command;
 
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.analysis.application.port.in.CreateComparisonUseCase;
@@ -19,6 +14,7 @@ import io.github.temporalrift.workbench.analysis.domain.comparison.ExperimentDef
 import io.github.temporalrift.workbench.analysis.domain.port.out.ComparisonRepository;
 import io.github.temporalrift.workbench.analysis.domain.port.out.ExperimentDefinitions;
 import io.github.temporalrift.workbench.analysis.domain.port.out.RunSource;
+import io.github.temporalrift.workbench.shared.text.Sha256;
 
 /**
  * Defines and stores a comparison of two run variants. The same key with the same request returns the original
@@ -80,23 +76,11 @@ public class CreateComparisonCommandHandler implements CreateComparisonUseCase {
     }
 
     private static String hash(ComparisonSide baseline, ComparisonSide candidate) {
-        try {
-            var sha256 = MessageDigest.getInstance("SHA-256");
-            for (var part : new String[] {
+        return Sha256.hexOfParts(
                 "createComparison",
-                baseline.runId().toString(),
+                baseline.runId(),
                 baseline.variantLabel(),
-                candidate.runId().toString(),
-                candidate.variantLabel()
-            }) {
-                var bytes = part.getBytes(StandardCharsets.UTF_8);
-                sha256.update(
-                        ByteBuffer.allocate(Integer.BYTES).putInt(bytes.length).array());
-                sha256.update(bytes);
-            }
-            return HexFormat.of().formatHex(sha256.digest());
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 is a mandatory JDK algorithm", e);
-        }
+                candidate.runId(),
+                candidate.variantLabel());
     }
 }

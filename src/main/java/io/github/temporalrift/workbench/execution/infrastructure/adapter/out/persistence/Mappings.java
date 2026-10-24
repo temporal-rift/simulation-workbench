@@ -16,6 +16,7 @@ import io.github.temporalrift.workbench.execution.domain.run.RunState;
 import io.github.temporalrift.workbench.execution.domain.run.SeatPlan;
 import io.github.temporalrift.workbench.shared.execution.CaseState;
 import io.github.temporalrift.workbench.shared.execution.FailureCode;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.StoredJson;
 
 /** Maps the run, case and attempt entities to the domain values the ports speak. */
 @Component

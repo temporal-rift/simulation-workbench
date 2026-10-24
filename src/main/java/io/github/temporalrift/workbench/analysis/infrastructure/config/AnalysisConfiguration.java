@@ -43,13 +43,14 @@ import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Metric;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.PairedMetricDifference;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.RunEvaluation;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.StoredJson;
 
 @Configuration
 public class AnalysisConfiguration {
 
     @Bean
-    RunSource analysisRunSource(RunCatalog catalog, ObjectMapper objectMapper) {
-        return new RunSourceAdapter(catalog, objectMapper);
+    RunSource analysisRunSource(RunCatalog catalog, StoredJson json) {
+        return new RunSourceAdapter(catalog, json);
     }
 
     @Bean

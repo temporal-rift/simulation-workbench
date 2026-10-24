@@ -12,9 +12,7 @@ import java.util.UUID;
 import java.util.function.IntFunction;
 import java.util.stream.Stream;
 
-import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
 
 import io.github.temporalrift.asyncapi.actionevents.GeneratedChannelContract.ActionRoundStartedPayload;
 import io.github.temporalrift.asyncapi.actionevents.GeneratedChannelContract.ActivistDeclarationRecordedPayload;
@@ -45,6 +43,8 @@ import io.github.temporalrift.workbench.shared.game.CardGrade;
 import io.github.temporalrift.workbench.shared.game.CardType;
 import io.github.temporalrift.workbench.shared.game.Faction;
 import io.github.temporalrift.workbench.shared.game.SpecialAction;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.StoredJson;
+import io.github.temporalrift.workbench.shared.text.JsonText;
 
 /**
  * Reads runs through the execution module's public API and turns a counting game's retained evidence into the
@@ -58,11 +58,11 @@ public class RunSourceAdapter implements RunSource {
     private static final Set<String> DECIDED = Set.of("ACCEPTED", "REJECTED");
 
     private final RunCatalog catalog;
-    private final ObjectMapper objectMapper;
+    private final StoredJson json;
 
-    public RunSourceAdapter(RunCatalog catalog, ObjectMapper objectMapper) {
+    public RunSourceAdapter(RunCatalog catalog, StoredJson json) {
         this.catalog = catalog;
-        this.objectMapper = objectMapper;
+        this.json = json;
     }
 
     @Override
@@ -302,20 +302,11 @@ public class RunSourceAdapter implements RunSource {
     }
 
     private <T> T read(CaseEvidence.Event event, Class<T> type) {
-        try {
-            return objectMapper.readValue(event.payload(), type);
-        } catch (JacksonException e) {
-            throw new IllegalStateException(
-                    "Retained " + event.eventType() + " evidence does not match the pinned event contract", e);
-        }
+        return json.read(event.payload(), type);
     }
 
-    private JsonNode tree(String json) {
-        try {
-            return objectMapper.readTree(json);
-        } catch (JacksonException e) {
-            throw new IllegalStateException("A retained observation is not JSON", e);
-        }
+    private static JsonNode tree(String json) {
+        return JsonText.readTree(json, "A retained observation");
     }
 
     /** Event types of the session events contract, usable as switch labels. */

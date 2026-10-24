@@ -10,7 +10,6 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 
 import io.github.temporalrift.workbench.experiment.ExperimentManifests;
@@ -22,7 +21,6 @@ import io.github.temporalrift.workbench.experiment.domain.port.out.ExperimentRep
 class ExperimentCatalogQueryHandlerTest {
 
     private static final UUID ID = UUID.randomUUID();
-    private final ObjectMapper mapper = new ObjectMapper();
 
     @Test
     void anUnknownExperimentHasNoBoundsAndNoCases() {
@@ -60,6 +58,21 @@ class ExperimentCatalogQueryHandlerTest {
     }
 
     @Test
+    void boundsExposeTheTypedGameplayDefinition() {
+        var manifest = ExperimentManifests.valid();
+
+        var frozen = catalogOf(manifest).bounds(ID).orElseThrow().manifest();
+
+        assertThat(frozen.seatRotationMode()).isEqualTo("CYCLIC");
+        assertThat(frozen.timingMode()).isEqualTo("LOGICAL");
+        assertThat(frozen.maxRejectedCandidatesPerWindow()).isEqualTo(10);
+        assertThat(frozen.seeds()).hasSize(manifest.get("seeds").size());
+        assertThat(frozen.policies()).hasSize(manifest.get("policies").size());
+        assertThat(frozen.factionSets()).hasSize(manifest.get("factionSets").size());
+        assertThat(frozen.variants()).hasSize(2);
+    }
+
+    @Test
     void casesAreTheMatrixInItsStableOrderWithTheirSeats() {
         var manifest = ExperimentManifests.valid();
         var catalog = catalogOf(manifest);
@@ -77,48 +90,46 @@ class ExperimentCatalogQueryHandlerTest {
     }
 
     private ExperimentCatalogQueryHandler catalogOf(JsonNode manifest) {
-        return new ExperimentCatalogQueryHandler(
-                new ExperimentRepository() {
-                    @Override
-                    public void save(
-                            UUID id,
-                            String digest,
-                            String json,
-                            String name,
-                            Instant createdAt,
-                            Map<String, String> baselineDocuments) {
-                        throw new UnsupportedOperationException();
-                    }
+        return new ExperimentCatalogQueryHandler(new ExperimentRepository() {
+            @Override
+            public void save(
+                    UUID id,
+                    String digest,
+                    String json,
+                    String name,
+                    Instant createdAt,
+                    Map<String, String> baselineDocuments) {
+                throw new UnsupportedOperationException();
+            }
 
-                    @Override
-                    public Optional<String> findBaselineDocument(UUID experimentId, String rulesArtifactDigest) {
-                        throw new UnsupportedOperationException();
-                    }
+            @Override
+            public Optional<String> findBaselineDocument(UUID experimentId, String rulesArtifactDigest) {
+                throw new UnsupportedOperationException();
+            }
 
-                    @Override
-                    public Optional<StoredExperiment> findById(UUID experimentId) {
-                        if (manifest == null || !experimentId.equals(ID)) {
-                            return Optional.empty();
-                        }
-                        return Optional.of(new StoredExperiment(
-                                ID, ManifestDigest.sha256Hex(manifest), manifest.toString(), "x", Instant.now()));
-                    }
+            @Override
+            public Optional<StoredExperiment> findById(UUID experimentId) {
+                if (manifest == null || !experimentId.equals(ID)) {
+                    return Optional.empty();
+                }
+                return Optional.of(new StoredExperiment(
+                        ID, ManifestDigest.sha256Hex(manifest), manifest.toString(), "x", Instant.now()));
+            }
 
-                    @Override
-                    public List<StoredExperiment> findNewest(int limit, int offset) {
-                        throw new UnsupportedOperationException();
-                    }
+            @Override
+            public List<StoredExperiment> findNewest(int limit, int offset) {
+                throw new UnsupportedOperationException();
+            }
 
-                    @Override
-                    public long count() {
-                        throw new UnsupportedOperationException();
-                    }
+            @Override
+            public long count() {
+                throw new UnsupportedOperationException();
+            }
 
-                    @Override
-                    public void delete(UUID experimentId) {
-                        throw new UnsupportedOperationException();
-                    }
-                },
-                mapper);
+            @Override
+            public void delete(UUID experimentId) {
+                throw new UnsupportedOperationException();
+            }
+        });
     }
 }

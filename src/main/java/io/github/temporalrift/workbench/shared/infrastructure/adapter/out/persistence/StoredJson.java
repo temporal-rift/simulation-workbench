@@ -1,21 +1,21 @@
-package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.persistence;
+package io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence;
 
 import org.springframework.stereotype.Component;
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
-/** Writes and reads the JSON text columns of the execution tables. */
+/** Writes and reads the JSON text columns of the workbench tables with the application's configured mapper. */
 @Component
-class StoredJson {
+public class StoredJson {
 
     private final ObjectMapper objectMapper;
 
-    StoredJson(ObjectMapper objectMapper) {
+    public StoredJson(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
 
-    String write(Object value) {
+    public String write(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
         } catch (JacksonException e) {
@@ -24,7 +24,7 @@ class StoredJson {
         }
     }
 
-    <T> T read(String json, Class<T> type) {
+    public <T> T read(String json, Class<T> type) {
         try {
             return objectMapper.readValue(json, type);
         } catch (JacksonException e) {
@@ -32,7 +32,7 @@ class StoredJson {
         }
     }
 
-    <T> T read(String json, TypeReference<T> type) {
+    public <T> T read(String json, TypeReference<T> type) {
         try {
             return objectMapper.readValue(json, type);
         } catch (JacksonException e) {

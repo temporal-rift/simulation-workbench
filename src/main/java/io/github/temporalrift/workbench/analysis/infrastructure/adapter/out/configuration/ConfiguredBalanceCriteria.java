@@ -3,12 +3,8 @@ package io.github.temporalrift.workbench.analysis.infrastructure.adapter.out.con
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
 import java.util.TreeMap;
@@ -33,6 +29,7 @@ import io.github.temporalrift.workbench.analysis.domain.criterion.Pooling;
 import io.github.temporalrift.workbench.analysis.domain.port.out.BalanceCriteria;
 import io.github.temporalrift.workbench.shared.execution.FailureCode;
 import io.github.temporalrift.workbench.shared.game.EndReason;
+import io.github.temporalrift.workbench.shared.text.Sha256;
 
 /**
  * The criterion versions found as {@code balance-criteria/v*.json} on the classpath. A version is added by adding a
@@ -77,12 +74,7 @@ public class ConfiguredBalanceCriteria implements BalanceCriteria {
 
     /** The digest of a criterion document as configured. */
     public static String digestOf(JsonNode document) {
-        try {
-            var bytes = canonical(document).toString().getBytes(StandardCharsets.UTF_8);
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 is a mandatory JDK algorithm", e);
-        }
+        return Sha256.hexUtf8(canonical(document).toString());
     }
 
     /** Reads a criterion document, computing its digest from the document itself. */

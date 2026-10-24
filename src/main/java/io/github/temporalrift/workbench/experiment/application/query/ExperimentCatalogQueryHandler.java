@@ -1,72 +1,39 @@
 package io.github.temporalrift.workbench.experiment.application.query;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-
-import tools.jackson.core.JacksonException;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
 
 import io.github.temporalrift.workbench.experiment.ExperimentBounds;
 import io.github.temporalrift.workbench.experiment.ExperimentCase;
 import io.github.temporalrift.workbench.experiment.ExperimentCatalog;
 import io.github.temporalrift.workbench.experiment.ExperimentSeat;
-import io.github.temporalrift.workbench.experiment.ExperimentVariant;
 import io.github.temporalrift.workbench.experiment.domain.MatrixPreviewService;
+import io.github.temporalrift.workbench.experiment.domain.StoredManifests;
 import io.github.temporalrift.workbench.experiment.domain.port.out.ExperimentRepository;
 
 /** Reads frozen experiments for other modules; the stored manifest was validated when it was frozen. */
 public class ExperimentCatalogQueryHandler implements ExperimentCatalog {
 
     private final ExperimentRepository experiments;
-    private final ObjectMapper objectMapper;
 
-    public ExperimentCatalogQueryHandler(ExperimentRepository experiments, ObjectMapper objectMapper) {
+    public ExperimentCatalogQueryHandler(ExperimentRepository experiments) {
         this.experiments = experiments;
-        this.objectMapper = objectMapper;
     }
 
     @Override
     public Optional<ExperimentBounds> bounds(UUID experimentId) {
-        return experiments.findById(experimentId).map(stored -> {
-            var manifest = parse(stored);
-            return new ExperimentBounds(
-                    stored.manifestDigest(),
-                    stored.manifestJson(),
-                    manifest.get("concurrency").asInt(),
-                    manifest.get("caseWallTimeoutSeconds").asInt(),
-                    manifest.get("maxRejectedCandidatesPerWindow").asInt(),
-                    variants(manifest));
-        });
+        return experiments.findById(experimentId).map(StoredManifests::bounds);
     }
 
     @Override
     public Optional<List<ExperimentCase>> cases(UUID experimentId) {
         return experiments
                 .findById(experimentId)
-                .map(stored -> MatrixPreviewService.preview(parse(stored), stored.manifestDigest()).stream()
-                        .map(ExperimentCatalogQueryHandler::toCase)
-                        .toList());
-    }
-
-    private static List<ExperimentVariant> variants(JsonNode manifest) {
-        var variants = new ArrayList<ExperimentVariant>();
-        manifest.get("variants")
-                .forEach(variant -> variants.add(new ExperimentVariant(
-                        variant.get("label").asString(),
-                        variant.get("effectiveRulesDigest").asString(),
-                        variant.get("effectiveContentDigest").asString())));
-        return variants;
-    }
-
-    private JsonNode parse(ExperimentRepository.StoredExperiment stored) {
-        try {
-            return objectMapper.readTree(stored.manifestJson());
-        } catch (JacksonException e) {
-            throw new IllegalStateException("Stored manifest is not valid JSON: " + stored.experimentId(), e);
-        }
+                .map(stored ->
+                        MatrixPreviewService.preview(StoredManifests.tree(stored), stored.manifestDigest()).stream()
+                                .map(ExperimentCatalogQueryHandler::toCase)
+                                .toList());
     }
 
     private static ExperimentCase toCase(MatrixPreviewService.CaseCoordinate coordinate) {

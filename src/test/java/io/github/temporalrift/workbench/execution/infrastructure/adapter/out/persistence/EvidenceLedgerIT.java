@@ -25,6 +25,7 @@ import io.github.temporalrift.workbench.execution.domain.evidence.StepOutcome;
 import io.github.temporalrift.workbench.execution.domain.evidence.StepRecord;
 import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
 import io.github.temporalrift.workbench.execution.domain.reproduction.ManifestMismatchException;
+import io.github.temporalrift.workbench.shared.text.Sha256;
 
 @WorkbenchIntegrationTest
 class EvidenceLedgerIT {
@@ -289,7 +290,7 @@ class EvidenceLedgerIT {
     }
 
     private static String digestOf(ObservedEvent event) {
-        return EvidenceBatchWrites.sha256(event.payload().getBytes(StandardCharsets.UTF_8));
+        return Sha256.hex(event.payload().getBytes(StandardCharsets.UTF_8));
     }
 
     private static ObservedEvent event(
