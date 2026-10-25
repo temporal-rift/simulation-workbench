@@ -62,15 +62,18 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.in.sche
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.experiment.ExperimentSourceAdapter;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.kafka.KafkaGameEventObservers;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.ApiClients;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.CachingApiClients;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.CompositeLaneProvider;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.ConfiguredLanePool;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.GameEventObservers;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.HttpGameSession;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.HttpLaneContexts;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.HttpLaneResets;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneEndpoints;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneRoster;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneServices;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneWaits;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.MeteredLaneContexts;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.MeteredLaneResets;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.ResetScheduler;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.RestApiClients;
@@ -145,8 +148,8 @@ public class ExecutionConfiguration {
     }
 
     /**
-     * Runs lane resets off the worker threads. A reset may wait minutes for the deployment to recycle its lane, and a
-     * lane has at most one reset in flight, so one thread per lane keeps a slow lane from delaying the others.
+     * Runs lane recoveries off the worker threads. A reset may wait minutes for the deployment to recycle its lane, and
+     * a lane has at most one recovery in flight, so one thread per lane keeps a slow lane from delaying the others.
      */
     @Bean(destroyMethod = "shutdownNow")
     ScheduledExecutorService laneResetExecutor(ExecutionProperties properties, SimulatorProperties simulator) {
@@ -224,8 +227,11 @@ public class ExecutionConfiguration {
                                 .map(bot -> new LaneEndpoints.BotIdentity(bot.playerId(), bot.token()))
                                 .toList()))
                 .toList();
+        var closing = new CachingApiClients(
+                new RestApiClients(properties.client().connectTimeout(), properties.resetTimeout()));
         var roster = new LaneRoster(
                 lanes.stream().map(LaneEndpoints::member).toList(),
+                new MeteredLaneContexts(new HttpLaneContexts(lanes, closing), registry),
                 new MeteredLaneResets(
                         new HttpLaneResets(lanes, properties.client().connectTimeout(), properties.resetTimeout()),
                         registry),

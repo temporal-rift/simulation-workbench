@@ -11,7 +11,7 @@ import io.github.temporalrift.workbench.execution.domain.run.ServedBundle;
 
 /**
  * The lanes this deployment was configured with; each hosts one case at a time of the bundle it serves, and a lane
- * with a reset hook is reset through it between cases.
+ * is recovered through its reset hook when a context close fails.
  */
 public class ConfiguredLanePool extends RosterBackedLaneProvider {
 

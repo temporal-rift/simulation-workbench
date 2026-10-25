@@ -12,6 +12,7 @@ import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.UUID;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -20,6 +21,7 @@ import org.springframework.http.ResponseEntity;
 
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
+import io.github.temporalrift.workbench.execution.domain.run.CaseRules;
 import io.github.temporalrift.workbench.execution.domain.run.SeatPlan;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.SimulationExecutionApi;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.model.ExecutionCheckpoint;
@@ -30,6 +32,7 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 import io.github.temporalrift.workbench.execution.support.InMemoryCommandLedger;
 import io.github.temporalrift.workbench.execution.support.InMemoryEvidenceLedger;
 import io.github.temporalrift.workbench.execution.support.Provenances;
+import io.github.temporalrift.workbench.execution.support.RecordingContexts;
 import io.github.temporalrift.workbench.execution.support.StubEventObserver;
 import io.github.temporalrift.workbench.shared.game.Faction;
 
@@ -38,6 +41,7 @@ class LaneClientReuseTest {
     private static final BundleDigests BUNDLE = new BundleDigests("a".repeat(64), "b".repeat(64));
     private static final UUID CASE_KEY = new UUID(2, 2);
     private static final String DIGEST = "c".repeat(64);
+    private static final String RULES_DIGEST = "e".repeat(64);
     private static final UUID BOT = new UUID(0, 1);
     private static final UUID LOBBY = new UUID(8, 8);
     private static final UUID GAME = new UUID(9, 9);
@@ -59,7 +63,8 @@ class LaneClientReuseTest {
                 null,
                 null,
                 List.of(new LaneEndpoints.BotIdentity(BOT, "t1")));
-        var roster = new LaneRoster(List.of(endpoints.member()), (_, _, _) -> {}, (task, _) -> task.run());
+        var roster = new LaneRoster(
+                List.of(endpoints.member()), new RecordingContexts(), (_, _, _) -> {}, (task, _) -> task.run());
         var pool = new ConfiguredLanePool(
                 List.of(endpoints),
                 roster,
@@ -74,9 +79,10 @@ class LaneClientReuseTest {
                         _ -> {},
                         new LaneWaits(new SimpleMeterRegistry())));
 
+        pool.prepare();
         for (var round = 0; round < 10; round++) {
-            var lane = pool.acquire(new UUID(1, round), BUNDLE, null).orElseThrow();
-            lane.open(context(round), null);
+            var lane = pool.acquire(Provenances.fitOf(BUNDLE), null).orElseThrow();
+            lane.open(context(round));
             lane.close();
         }
 
@@ -98,6 +104,7 @@ class LaneClientReuseTest {
             var checkpoint = new ExecutionCheckpoint()
                     .caseKey(CASE_KEY)
                     .manifestDigest(DIGEST)
+                    .rulesDigest(RULES_DIGEST)
                     .revision(0L)
                     .logicalTime(OffsetDateTime.parse("2026-01-01T00:00:00Z"))
                     .state(ExecutionState.READY)
@@ -121,6 +128,7 @@ class LaneClientReuseTest {
                 CASE_KEY,
                 "42",
                 DIGEST,
+                new CaseRules(new TreeMap<>(), RULES_DIGEST),
                 List.of(new SeatPlan(0, Faction.ERASERS, "random", "1.0.0")),
                 Instant.parse("2026-01-01T00:00:00Z"));
     }

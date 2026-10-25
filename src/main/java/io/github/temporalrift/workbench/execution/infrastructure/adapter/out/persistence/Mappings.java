@@ -10,6 +10,7 @@ import io.github.temporalrift.workbench.execution.domain.run.AttemptState;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.CaseResult;
 import io.github.temporalrift.workbench.execution.domain.run.Failure;
+import io.github.temporalrift.workbench.execution.domain.run.LaneFit;
 import io.github.temporalrift.workbench.execution.domain.run.LogicalCase;
 import io.github.temporalrift.workbench.execution.domain.run.Run;
 import io.github.temporalrift.workbench.execution.domain.run.RunState;
@@ -49,6 +50,7 @@ class Mappings {
                 entity.ordinal(),
                 entity.variantLabel(),
                 new BundleDigests(entity.rulesDigest(), entity.contentDigest()),
+                new LaneFit(entity.laneFit()),
                 entity.seed(),
                 entity.playerCount(),
                 json.read(entity.seatsJson(), SEATS),

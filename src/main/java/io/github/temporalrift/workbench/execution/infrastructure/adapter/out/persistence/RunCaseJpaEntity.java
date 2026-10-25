@@ -36,6 +36,9 @@ class RunCaseJpaEntity extends AssignedIdJpaEntity<UUID> {
     @Column(name = "content_digest", nullable = false, length = 64)
     private String contentDigest;
 
+    @Column(name = "lane_fit", nullable = false, length = 64)
+    private String laneFit;
+
     @Column(name = "seed", nullable = false, length = 20)
     private String seed;
 
@@ -61,6 +64,7 @@ class RunCaseJpaEntity extends AssignedIdJpaEntity<UUID> {
         this.variantLabel = plan.variantLabel();
         this.rulesDigest = plan.bundle().rulesDigest();
         this.contentDigest = plan.bundle().contentDigest();
+        this.laneFit = plan.fit().digest();
         this.seed = plan.seed();
         this.playerCount = plan.playerCount();
         this.seatsJson = seatsJson;
@@ -103,6 +107,10 @@ class RunCaseJpaEntity extends AssignedIdJpaEntity<UUID> {
 
     String contentDigest() {
         return contentDigest;
+    }
+
+    String laneFit() {
+        return laneFit;
     }
 
     String seed() {

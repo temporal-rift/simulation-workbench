@@ -5,6 +5,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
+import io.github.temporalrift.workbench.execution.domain.run.CaseRules;
+import io.github.temporalrift.workbench.execution.domain.run.LaneFit;
 import io.github.temporalrift.workbench.execution.domain.run.SeatPlan;
 
 /** The frozen experiments a run executes. */
@@ -34,8 +36,14 @@ public interface ExperimentSource {
         }
     }
 
-    /** A rules variant and the bundle its cases must play under. */
-    record Variant(String label, BundleDigests bundle) {}
+    /**
+     * The frozen effective rules of a variant, or empty when the experiment does not retain the baseline document they
+     * are built from.
+     */
+    Optional<CaseRules> rules(UUID experimentId, String variantLabel);
+
+    /** A rules variant, the bundle it names and the fit a lane needs to play it. */
+    record Variant(String label, BundleDigests bundle, LaneFit fit) {}
 
     record PlannedCase(UUID caseKey, String seed, String variantLabel, int playerCount, List<SeatPlan> seats) {
         public PlannedCase {

@@ -16,6 +16,12 @@ class EvidenceUpdates {
         this.evidence = evidence;
     }
 
+    /** Records the digests the services reported; a scope without pinned evidence, a reproduction, has no row. */
+    @Transactional
+    void reportRulesDigests(UUID scopeId, String gameRulesDigest, String timelineRulesDigest) {
+        evidence.findById(scopeId).ifPresent(row -> row.reportRules(gameRulesDigest, timelineRulesDigest));
+    }
+
     @Transactional
     void seal(UUID scopeId, String transcriptArtifact, String resultDigest, Instant now) {
         evidence.findById(scopeId)

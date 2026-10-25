@@ -1,6 +1,7 @@
 package io.github.temporalrift.workbench.execution;
 
 import static io.github.temporalrift.workbench.ExecutionTestConfiguration.DEFAULT_BUNDLE;
+import static io.github.temporalrift.workbench.ExecutionTestConfiguration.DEFAULT_FIT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -43,8 +44,6 @@ import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedExcept
 import io.github.temporalrift.workbench.execution.domain.run.AttemptState;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.FinalScore;
-import io.github.temporalrift.workbench.execution.support.ManualResetScheduler;
-import io.github.temporalrift.workbench.execution.support.RecordingResets;
 import io.github.temporalrift.workbench.execution.support.ScriptedLanes;
 import io.github.temporalrift.workbench.experiment.ExperimentManifests;
 import io.github.temporalrift.workbench.experiment.application.port.in.CreateExperimentUseCase;
@@ -181,7 +180,6 @@ class CaseEvidenceIT {
         var runId = start();
         batch.maintain();
         batch.runNextCase(WORKER);
-        lanes.forgetGames();
         batch.runNextCase(WORKER);
 
         var caseId = caseIds(runId).getFirst();
@@ -324,21 +322,16 @@ class CaseEvidenceIT {
     }
 
     @Test
-    void aReproductionThatMatchesLeavesItsLaneToBeResetOnceMore() {
-        var hook = new RecordingResets();
-        var resets = new ManualResetScheduler();
-        lanes.resetThrough(hook, resets);
-        lanes.prepare(List.of());
-        resets.runAll();
+    void aReproductionThatMatchesClosesItsContextBeforeItsLaneIsOfferedAgain() {
         var runId = start();
         batch.maintain();
-        while (batch.runNextCase(WORKER) || resets.runPending() > 0) {
+        while (batch.runNextCase(WORKER)) {
             batch.maintain();
         }
         var caseId = caseIds(runId).getFirst();
         var view = getCase.handle(runId, caseId);
         var lane = view.attempts().getFirst().laneId();
-        var before = hook.callsFor(lane).size();
+        var before = lanes.contexts().callsFor(lane).size();
         var reproduction = reproduceCase.handle(new ReproduceCaseUseCase.Command(runId, caseId, UUID.randomUUID()));
 
         assertThat(reproductions.runNext(WORKER)).isTrue();
@@ -348,10 +341,8 @@ class CaseEvidenceIT {
                         .orElseThrow()
                         .state())
                 .isEqualTo(ReproductionState.MATCH);
-        assertThat(lanes.freeLanes()).doesNotContainKey(lane);
-        resets.runAll();
-        assertThat(hook.callsFor(lane)).hasSize(before + 1);
-        assertThat(hook.callsFor(lane).getLast().caseKey())
+        assertThat(lanes.contexts().callsFor(lane)).hasSize(before + 1);
+        assertThat(lanes.contexts().callsFor(lane).getLast().caseKey())
                 .isEqualTo(view.logicalCase().caseKey());
         assertThat(lanes.freeLanes()).containsKey(lane);
     }
@@ -365,7 +356,7 @@ class CaseEvidenceIT {
                 new ReproduceCaseUseCase.Command(saved.runId(), saved.caseId(), UUID.randomUUID()));
         assertThat(reproduction.laneId()).isEqualTo(lane);
 
-        var busy = lanes.acquireExactly(lane, DEFAULT_BUNDLE).orElseThrow();
+        var busy = lanes.acquireExactly(lane, DEFAULT_FIT).orElseThrow();
         assertThat(reproductions.runNext(WORKER)).isFalse();
         assertThat(reproductionRepository
                         .find(reproduction.reproductionId())
@@ -384,11 +375,11 @@ class CaseEvidenceIT {
     }
 
     @Test
-    void aReproductionWaitsWhileItsLaneServesAnotherBundleAndNeverPlaysElsewhere() {
+    void aReproductionWaitsWhileItsLaneNoLongerFitsTheCaseAndNeverPlaysElsewhere() {
         var saved = savedCase();
         var lane = jdbc.queryForObject(
                 "SELECT lane_id FROM case_attempt WHERE attempt_id = ?", String.class, saved.attemptId());
-        var other = new BundleDigests("e".repeat(64), "b".repeat(64));
+        var other = new BundleDigests("a".repeat(64), "e".repeat(64));
         lanes.serve(lane.equals("lane-0") ? other : DEFAULT_BUNDLE, lane.equals("lane-1") ? other : DEFAULT_BUNDLE);
         var opened = lanes.opened().size();
         var reproduction = reproduceCase.handle(

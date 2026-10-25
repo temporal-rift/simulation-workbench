@@ -151,7 +151,7 @@ public class ExperimentConfiguration {
     }
 
     @Bean
-    ExperimentCatalog experimentCatalog(ExperimentRepository experiments) {
-        return new ExperimentCatalogQueryHandler(experiments);
+    ExperimentCatalog experimentCatalog(ExperimentRepository experiments, GetVariantRulesUseCase variantRules) {
+        return new ExperimentCatalogQueryHandler(experiments, variantRules);
     }
 }

@@ -28,6 +28,7 @@ import io.github.temporalrift.workbench.execution.domain.port.out.RunRepository;
 import io.github.temporalrift.workbench.execution.domain.run.Attempt;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptState;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
+import io.github.temporalrift.workbench.execution.domain.run.LaneFit;
 import io.github.temporalrift.workbench.execution.domain.run.LogicalCase;
 import io.github.temporalrift.workbench.execution.domain.run.Run;
 import io.github.temporalrift.workbench.execution.domain.run.RunNotFoundException;
@@ -214,6 +215,7 @@ class GetCaseReplayQueryHandlerTest {
                 0,
                 "base",
                 new BundleDigests(DIGEST, DIGEST),
+                new LaneFit("f".repeat(64)),
                 "1",
                 3,
                 List.of(

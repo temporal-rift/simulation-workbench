@@ -14,4 +14,10 @@ public interface ExperimentCatalog {
      * parse, or empty for an unknown experiment.
      */
     Optional<ExperimentSnapshot> snapshot(UUID experimentId);
+
+    /**
+     * The effective rules of a variant of the frozen experiment, rebuilt from the baseline document retained with it,
+     * or empty when the experiment or variant is unknown or retains no such document.
+     */
+    Optional<EffectiveRules> variantRules(UUID experimentId, String variantLabel);
 }

@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -35,6 +36,7 @@ import org.springframework.web.client.RestClientException;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.port.out.GameEventObserver;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
+import io.github.temporalrift.workbench.execution.domain.run.CaseRules;
 import io.github.temporalrift.workbench.execution.domain.run.GameProgress;
 import io.github.temporalrift.workbench.execution.domain.run.SeatPlan;
 import io.github.temporalrift.workbench.execution.domain.run.WinType;
@@ -62,6 +64,7 @@ class HttpGameSessionTest {
 
     private static final UUID CASE_KEY = new UUID(5, 5);
     private static final String DIGEST = "a".repeat(64);
+    private static final String RULES_DIGEST = "e".repeat(64);
     private static final OffsetDateTime EPOCH = OffsetDateTime.parse("2026-01-01T00:00:00Z");
     private static final UUID GAME = ProjectionStates.GAME;
     private static final List<io.github.temporalrift.workbench.shared.game.Faction> FACTIONS = List.of(
@@ -95,7 +98,14 @@ class HttpGameSessionTest {
         }
         gateway = new HttpParticipantGateway(GAME, seats, () -> true, waits);
         context = new CaseLane.CaseContext(
-                new UUID(1, 1), new UUID(2, 2), CASE_KEY, "42", DIGEST, plans, Instant.parse("2026-01-01T00:00:00Z"));
+                new UUID(1, 1),
+                new UUID(2, 2),
+                CASE_KEY,
+                "42",
+                DIGEST,
+                new CaseRules(new TreeMap<>(), RULES_DIGEST),
+                plans,
+                Instant.parse("2026-01-01T00:00:00Z"));
         session = sessionWith(new LaneEndpoints.Barrier(Duration.ZERO, 2, 3));
         checkpoints(true, null);
     }
@@ -272,6 +282,18 @@ class HttpGameSessionTest {
                 .isInstanceOfSatisfying(
                         AttemptFailedException.class,
                         e -> assertThat(e.failure().code()).isEqualTo(FailureCode.CONFIGURATION_DRIFT));
+    }
+
+    @Test
+    void aCheckpointWithOtherRulesIsConfigurationDrift() {
+        when(timelineControl.getSimulationCheckpoint())
+                .thenReturn(ResponseEntity.ok(
+                        checkpoint(CASE_KEY, DIGEST, true, null, 0).rulesDigest("f".repeat(64))));
+
+        assertThatThrownBy(session::poll).isInstanceOfSatisfying(AttemptFailedException.class, e -> {
+            assertThat(e.failure().code()).isEqualTo(FailureCode.CONFIGURATION_DRIFT);
+            assertThat(e.failure().message()).contains("rules");
+        });
     }
 
     @Test
@@ -454,7 +476,7 @@ class HttpGameSessionTest {
         assertThat(session.poll()).isInstanceOf(GameProgress.Waiting.class);
 
         events.caughtUp(true);
-        assertThat(session.awaitSettled()).isTrue();
+        assertThat(session.isSettled()).isTrue();
     }
 
     @Test
@@ -555,6 +577,7 @@ class HttpGameSessionTest {
         return new ExecutionCheckpoint()
                 .caseKey(caseKey)
                 .manifestDigest(digest)
+                .rulesDigest(RULES_DIGEST)
                 .revision(revision)
                 .logicalTime(EPOCH)
                 .gameId(GAME)

@@ -17,6 +17,7 @@ import io.github.temporalrift.workbench.execution.domain.run.CaseCounts;
 import io.github.temporalrift.workbench.execution.domain.run.CaseResult;
 import io.github.temporalrift.workbench.execution.domain.run.Failure;
 import io.github.temporalrift.workbench.execution.domain.run.FinalScore;
+import io.github.temporalrift.workbench.execution.domain.run.LaneFit;
 import io.github.temporalrift.workbench.execution.domain.run.LogicalCase;
 import io.github.temporalrift.workbench.execution.domain.run.Run;
 import io.github.temporalrift.workbench.execution.domain.run.SeatPlan;
@@ -156,6 +157,7 @@ class RunApiMapperTest {
                 0,
                 "baseline",
                 new BundleDigests("a".repeat(64), "b".repeat(64)),
+                new LaneFit("f".repeat(64)),
                 "42",
                 3,
                 List.of(

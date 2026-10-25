@@ -14,9 +14,15 @@ import org.springframework.context.annotation.Primary;
 import io.github.temporalrift.workbench.execution.application.command.ExecutionSettings;
 import io.github.temporalrift.workbench.execution.domain.port.out.CommandLedger;
 import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
+import io.github.temporalrift.workbench.execution.domain.port.out.ExperimentSource;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
+import io.github.temporalrift.workbench.execution.domain.run.LaneFit;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.experiment.ExperimentSourceAdapter;
+import io.github.temporalrift.workbench.execution.support.DigestOnlyRulesSource;
+import io.github.temporalrift.workbench.execution.support.Provenances;
 import io.github.temporalrift.workbench.execution.support.ScriptedLanes;
 import io.github.temporalrift.workbench.experiment.BaselineRulesCatalog;
+import io.github.temporalrift.workbench.experiment.ExperimentCatalog;
 import io.github.temporalrift.workbench.experiment.VariantRulesFixtures;
 
 /** Replaces the real lanes with scripted in-process games so runs execute without any deployed service. */
@@ -29,10 +35,20 @@ public class ExecutionTestConfiguration {
     /** The bundle of the test manifests' second rules variant, served by the third scripted lane. */
     public static final BundleDigests CANDIDATE_BUNDLE = new BundleDigests("f".repeat(64), "b".repeat(64));
 
+    /** What a case of the default bundle needs of a lane; every test lane fits it. */
+    public static final LaneFit DEFAULT_FIT = Provenances.fitOf(DEFAULT_BUNDLE);
+
     @Bean
     @Primary
     ScriptedLanes scriptedLanes(CommandLedger ledger, EvidenceLedger evidence, Clock clock) {
         return new ScriptedLanes(ledger, evidence, clock, List.of(DEFAULT_BUNDLE, DEFAULT_BUNDLE, CANDIDATE_BUNDLE));
+    }
+
+    /** Reads the experiments for the runner, with rules for variants that name them by digest alone. */
+    @Bean
+    @Primary
+    ExperimentSource digestOnlyRulesSource(ExperimentCatalog catalog) {
+        return new DigestOnlyRulesSource(new ExperimentSourceAdapter(catalog));
     }
 
     /** The baseline document of the scripted lanes, named by {@link VariantRulesFixtures#ARTIFACT_DIGEST}. */

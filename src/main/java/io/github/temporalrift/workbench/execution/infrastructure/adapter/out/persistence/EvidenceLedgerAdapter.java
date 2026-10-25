@@ -89,6 +89,11 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
     }
 
     @Override
+    public void reportRulesDigests(UUID scopeId, String gameRulesDigest, String timelineRulesDigest) {
+        updates.reportRulesDigests(scopeId, gameRulesDigest, timelineRulesDigest);
+    }
+
+    @Override
     public void seal(UUID scopeId, String transcript, String resultDigest, Instant now) {
         updates.seal(scopeId, putArtifact(transcript.getBytes(StandardCharsets.UTF_8), TEXT, now), resultDigest, now);
     }

@@ -4,7 +4,6 @@ import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -36,14 +35,13 @@ import io.github.temporalrift.workbench.policy.domain.decision.Target;
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
 import io.github.temporalrift.workbench.policy.domain.port.out.ParticipantGateway;
 import io.github.temporalrift.workbench.shared.execution.FailureCode;
-import io.github.temporalrift.workbench.shared.window.WindowRef;
 
 /**
  * The participant operations of one game over the generated clients. Every call is made as the seat's own
  * authenticated bot, and every observation is built from that bot's own projection response. Execution
  * control is never reachable from here.
  */
-public class HttpParticipantGateway implements ParticipantGateway, SlotReconciler {
+public class HttpParticipantGateway implements ParticipantGateway {
 
     private final UUID gameId;
     private final Map<Integer, Participant> participants;
@@ -129,14 +127,6 @@ public class HttpParticipantGateway implements ParticipantGateway, SlotReconcile
         return AcceptedState.accepted(owed.observation().window(), owed.round(), participant.playerId(), state)
                 .<Reconciliation>map(Reconciliation.Accepted::new)
                 .orElseGet(Reconciliation.NotAccepted::new);
-    }
-
-    @Override
-    public Optional<Boolean> holds(int seatIndex, WindowRef window) {
-        if (!settled.getAsBoolean()) {
-            return Optional.empty();
-        }
-        return Optional.of(AcceptedState.holds(stateOf(seatIndex), window));
     }
 
     private void send(ActionApi action, ObservationMapper.Owed owed, Candidate candidate) {

@@ -30,6 +30,12 @@ class CaseEvidenceJpaEntity extends AssignedIdJpaEntity<UUID> {
     @Column(name = "result_digest", length = 64)
     private String resultDigest;
 
+    @Column(name = "game_rules_digest", length = 64)
+    private String gameRulesDigest;
+
+    @Column(name = "timeline_rules_digest", length = 64)
+    private String timelineRulesDigest;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -50,6 +56,11 @@ class CaseEvidenceJpaEntity extends AssignedIdJpaEntity<UUID> {
         return scopeId;
     }
 
+    void reportRules(String gameRulesDigest, String timelineRulesDigest) {
+        this.gameRulesDigest = gameRulesDigest;
+        this.timelineRulesDigest = timelineRulesDigest;
+    }
+
     void seal(String transcriptArtifact, String resultDigest, Instant sealedAt) {
         this.transcriptArtifact = transcriptArtifact;
         this.resultDigest = resultDigest;
@@ -66,6 +77,14 @@ class CaseEvidenceJpaEntity extends AssignedIdJpaEntity<UUID> {
 
     String transcriptArtifact() {
         return transcriptArtifact;
+    }
+
+    String gameRulesDigest() {
+        return gameRulesDigest;
+    }
+
+    String timelineRulesDigest() {
+        return timelineRulesDigest;
     }
 
     String resultDigest() {

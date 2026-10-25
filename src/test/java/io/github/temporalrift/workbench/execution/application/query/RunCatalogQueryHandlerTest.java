@@ -14,6 +14,7 @@ import io.github.temporalrift.workbench.execution.RunCase;
 import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
 import io.github.temporalrift.workbench.execution.domain.port.out.RunRepository;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
+import io.github.temporalrift.workbench.execution.domain.run.LaneFit;
 import io.github.temporalrift.workbench.execution.domain.run.LogicalCase;
 import io.github.temporalrift.workbench.execution.domain.run.SeatPlan;
 import io.github.temporalrift.workbench.shared.execution.CaseState;
@@ -51,6 +52,7 @@ class RunCatalogQueryHandlerTest {
                 0,
                 "base",
                 new BundleDigests(digest, digest),
+                new LaneFit("f".repeat(64)),
                 "1",
                 3,
                 List.of(

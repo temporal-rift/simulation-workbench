@@ -20,6 +20,7 @@ import io.github.temporalrift.workbench.execution.domain.reproduction.Transcript
 import io.github.temporalrift.workbench.execution.domain.run.Attempt;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
 import io.github.temporalrift.workbench.execution.domain.run.CaseResult;
+import io.github.temporalrift.workbench.execution.domain.run.CaseRules;
 import io.github.temporalrift.workbench.execution.domain.run.GameProgress;
 import io.github.temporalrift.workbench.execution.domain.run.LogicalCase;
 import io.github.temporalrift.workbench.policy.application.port.in.PlayDecisionWindowUseCase;
@@ -64,22 +65,22 @@ public final class CaseDriver {
     public record Replayed(UUID gameId, CaseResult result) {}
 
     /**
-     * Runs the attempt's game, attaching to the previous attempt's game when the lane still hosts it.
+     * Runs the attempt's game in a new execution context carrying {@code rules}.
      *
      * @throws AttemptFailedException when the attempt cannot reach an authoritative ending
      */
     public CaseResult play(
             LogicalCase logicalCase,
             Attempt attempt,
-            Attempt previous,
             ExperimentSource.Plan plan,
+            CaseRules rules,
             CaseLane lane,
             AttemptGuard guard) {
         var seats = seatPolicies(logicalCase);
         var deadline = clock.instant().plus(Duration.ofSeconds(plan.caseWallTimeoutSeconds()));
         evidence.pin(logicalCase.caseId(), plan.manifestDigest(), plan.manifestJson(), clock.instant());
-        var context = context(logicalCase, logicalCase.caseId(), attempt.attemptId(), plan);
-        var session = lane.open(context, previous == null ? null : previous.gameId());
+        var context = context(logicalCase, logicalCase.caseId(), attempt.attemptId(), plan, rules);
+        var session = lane.open(context);
         cases.recordGame(attempt.attemptId(), session.gameId(), lane.laneId());
         var player = decisions.windowPlayer(session.participants());
 
@@ -110,10 +111,11 @@ public final class CaseDriver {
             UUID attemptId,
             DecisionTranscript transcript,
             ExperimentSource.Plan plan,
+            CaseRules rules,
             CaseLane lane,
             AttemptGuard guard) {
         var deadline = clock.instant().plus(Duration.ofSeconds(plan.caseWallTimeoutSeconds()));
-        var session = lane.open(context(logicalCase, scopeId, attemptId, plan), null);
+        var session = lane.open(context(logicalCase, scopeId, attemptId, plan, rules));
         var player = decisions.windowPlayer(session.participants());
         var policy = new TranscriptPolicy(transcript);
         var policySeed = Long.parseUnsignedLong(logicalCase.seed());
@@ -132,13 +134,14 @@ public final class CaseDriver {
     }
 
     private CaseLane.CaseContext context(
-            LogicalCase logicalCase, UUID scopeId, UUID attemptId, ExperimentSource.Plan plan) {
+            LogicalCase logicalCase, UUID scopeId, UUID attemptId, ExperimentSource.Plan plan, CaseRules rules) {
         return new CaseLane.CaseContext(
                 scopeId,
                 attemptId,
                 logicalCase.caseKey(),
                 logicalCase.seed(),
                 plan.manifestDigest(),
+                rules,
                 logicalCase.seats(),
                 logicalEpoch);
     }

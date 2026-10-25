@@ -22,7 +22,9 @@ import io.github.temporalrift.workbench.execution.domain.reproduction.Reproducti
 import io.github.temporalrift.workbench.execution.domain.reproduction.ReproductionState;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.Failure;
+import io.github.temporalrift.workbench.execution.domain.run.LaneFit;
 import io.github.temporalrift.workbench.execution.domain.run.Run;
+import io.github.temporalrift.workbench.execution.support.Provenances;
 import io.github.temporalrift.workbench.experiment.ExperimentManifests;
 import io.github.temporalrift.workbench.experiment.application.port.in.CreateExperimentUseCase;
 import io.github.temporalrift.workbench.shared.execution.FailureCode;
@@ -32,8 +34,10 @@ class ReproductionRepositoryIT {
 
     private static final Instant NOW = Instant.parse("2026-01-01T00:00:00Z");
     private static final BundleDigests BUNDLE = new BundleDigests("a".repeat(64), "b".repeat(64));
-    private static final BundleDigests OTHER_BUNDLE = new BundleDigests("f".repeat(64), "b".repeat(64));
-    private static final Map<String, BundleDigests> LANES = Map.of("lane-1", BUNDLE);
+    private static final BundleDigests OTHER_BUNDLE = new BundleDigests("f".repeat(64), "c".repeat(64));
+    private static final LaneFit FIT = Provenances.fitOf(BUNDLE);
+    private static final LaneFit OTHER_FIT = Provenances.fitOf(OTHER_BUNDLE);
+    private static final Map<String, LaneFit> LANES = Map.of("lane-1", FIT);
 
     @Autowired
     private ReproductionRepository reproductions;
@@ -73,7 +77,7 @@ class ReproductionRepositoryIT {
                 "hash",
                 run,
                 1,
-                List.of(new RunRepository.NewCase(UUID.randomUUID(), 0, "baseline", BUNDLE, "42", 3, List.of())));
+                List.of(new RunRepository.NewCase(UUID.randomUUID(), 0, "baseline", BUNDLE, FIT, "42", 3, List.of())));
         caseId = jdbc.queryForObject("SELECT case_id FROM run_case WHERE run_id = ?", UUID.class, runId);
     }
 
@@ -120,14 +124,13 @@ class ReproductionRepositoryIT {
     void onlyItsOwnLaneStillServingTheCasesBundleClaimsAReproduction() {
         var queued = queue();
 
-        assertThat(reproductions.claimNext("worker", NOW.plusSeconds(30), Map.of("lane-1", OTHER_BUNDLE)))
+        assertThat(reproductions.claimNext("worker", NOW.plusSeconds(30), Map.of("lane-1", OTHER_FIT)))
                 .isEmpty();
-        assertThat(reproductions.claimNext("worker", NOW.plusSeconds(30), Map.of("lane-2", BUNDLE)))
+        assertThat(reproductions.claimNext("worker", NOW.plusSeconds(30), Map.of("lane-2", FIT)))
                 .isEmpty();
         assertThat(reproductions.find(queued.reproductionId()).orElseThrow().state())
                 .isEqualTo(ReproductionState.QUEUED);
-        assertThat(reproductions.claimNext(
-                        "worker", NOW.plusSeconds(30), Map.of("lane-1", BUNDLE, "lane-2", OTHER_BUNDLE)))
+        assertThat(reproductions.claimNext("worker", NOW.plusSeconds(30), Map.of("lane-1", FIT, "lane-2", OTHER_FIT)))
                 .map(Reproduction::reproductionId)
                 .contains(queued.reproductionId());
     }

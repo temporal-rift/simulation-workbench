@@ -20,6 +20,9 @@
       <column name="transcript_artifact" type="VARCHAR(64)">
         <constraints foreignKeyName="fk_evidence_transcript" references="evidence_artifact(digest)"/>
       </column>
+      <!-- The rules digests game-service and timeline-service reported for the scope's execution context. -->
+      <column name="game_rules_digest" type="VARCHAR(64)"/>
+      <column name="timeline_rules_digest" type="VARCHAR(64)"/>
       <column name="result_digest" type="VARCHAR(64)"/>
       <column name="created_at" type="TIMESTAMP WITH TIME ZONE">
         <constraints nullable="false"/>

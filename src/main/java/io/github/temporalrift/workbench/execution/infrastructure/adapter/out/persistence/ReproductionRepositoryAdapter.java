@@ -14,7 +14,7 @@ import io.github.temporalrift.workbench.execution.domain.reproduction.Reproducti
 import io.github.temporalrift.workbench.execution.domain.reproduction.ReproductionClaim;
 import io.github.temporalrift.workbench.execution.domain.reproduction.ReproductionCreation;
 import io.github.temporalrift.workbench.execution.domain.reproduction.ReproductionState;
-import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
+import io.github.temporalrift.workbench.execution.domain.run.LaneFit;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.InsertOnce;
 
 /** Reproductions, claimed under a lease so a stalled worker can never settle a re-run. */
@@ -69,7 +69,7 @@ public class ReproductionRepositoryAdapter implements ReproductionRepository {
 
     @Override
     @Transactional
-    public Optional<Reproduction> claimNext(String owner, Instant leaseUntil, Map<String, BundleDigests> freeLanes) {
+    public Optional<Reproduction> claimNext(String owner, Instant leaseUntil, Map<String, LaneFit> freeLanes) {
         return claims.lockOldestReproductionServedBy(QUEUED, freeLanes)
                 .flatMap(reproductions::findById)
                 .map(entity -> {

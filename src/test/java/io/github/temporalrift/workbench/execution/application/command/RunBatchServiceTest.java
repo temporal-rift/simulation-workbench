@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
@@ -36,11 +37,14 @@ import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedExcept
 import io.github.temporalrift.workbench.execution.domain.run.AttemptState;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.CaseCounts;
+import io.github.temporalrift.workbench.execution.domain.run.CaseRules;
+import io.github.temporalrift.workbench.execution.domain.run.LaneFit;
 import io.github.temporalrift.workbench.execution.domain.run.LeaseLostException;
 import io.github.temporalrift.workbench.execution.domain.run.LogicalCase;
 import io.github.temporalrift.workbench.execution.domain.run.Run;
 import io.github.temporalrift.workbench.execution.domain.run.RunCancelledException;
 import io.github.temporalrift.workbench.execution.domain.run.RunState;
+import io.github.temporalrift.workbench.execution.support.Provenances;
 import io.github.temporalrift.workbench.shared.execution.CaseState;
 import io.github.temporalrift.workbench.shared.execution.FailureCode;
 
@@ -49,7 +53,9 @@ class RunBatchServiceTest {
     private static final Instant NOW = Instant.parse("2026-01-01T00:00:00Z");
     private static final UUID RUN = new UUID(1, 1);
     private static final BundleDigests BASELINE = new BundleDigests("a".repeat(64), "b".repeat(64));
-    private static final BundleDigests CANDIDATE = new BundleDigests("f".repeat(64), "b".repeat(64));
+    private static final LaneFit FIT = Provenances.fitOf(BASELINE);
+    private static final LaneFit OTHER_FIT = Provenances.fitOf(new BundleDigests("a".repeat(64), "c".repeat(64)));
+    private static final CaseRules RULES = new CaseRules(new TreeMap<>(), "e".repeat(64));
 
     private final RunRepository runs = mock(RunRepository.class);
     private final CaseLedger cases = mock(CaseLedger.class);
@@ -70,10 +76,10 @@ class RunBatchServiceTest {
     @Test
     void aRunWhoseFrozenExperimentIsGoneFailsAndItsPendingCasesAreCancelled() {
         var running = Run.queued(RUN, new UUID(2, 2), NOW).begin(NOW);
-        var logicalCase = logicalCase(BASELINE);
+        var logicalCase = logicalCase(FIT);
         var attempt = attempt(logicalCase);
-        when(lanes.freeLanes()).thenReturn(Map.of("lane-a", BASELINE));
-        when(cases.claimNext(any(), any(), any(), any(), any()))
+        when(lanes.freeLanes()).thenReturn(Map.of("lane-a", FIT));
+        when(cases.claimNext(any(), any(), any(), any()))
                 .thenReturn(Optional.of(new CaseLedger.Claim(logicalCase, attempt, Optional.empty(), 1)));
         when(runs.find(RUN)).thenReturn(Optional.of(running));
         when(experiments.plan(running.experimentId())).thenReturn(Optional.empty());
@@ -87,83 +93,57 @@ class RunBatchServiceTest {
         assertThat(failed.getValue().failure().code()).isEqualTo(FailureCode.CONTRACT_MISMATCH);
         verify(cases).release(attempt.attemptId(), "worker");
         verify(runs).cancelPendingCases(RUN);
-        verify(lanes, never()).acquire(any(), any(), any());
+        verify(lanes, never()).acquire(any(), any());
     }
 
     @Test
     void nothingIsRunWhenTheLedgerHasNothingToClaim() {
         when(lanes.freeLanes()).thenReturn(Map.of());
-        when(cases.claimNext(any(), any(), any(), any(), any())).thenReturn(Optional.empty());
+        when(cases.claimNext(any(), any(), any(), any())).thenReturn(Optional.empty());
 
         assertThat(service.runNextCase("worker")).isFalse();
 
-        verify(cases).claimNext(eq("worker"), any(), any(), eq(Set.of()), eq(Set.of()));
+        verify(cases).claimNext(eq("worker"), any(), any(), eq(Set.of()));
     }
 
     @Test
-    void aCaseWhoseLaneIsHeldIsClaimableWhileNoLaneIsFree() {
-        var held = new UUID(7, 7);
-        when(lanes.freeLanes()).thenReturn(Map.of());
-        when(lanes.heldCases()).thenReturn(Set.of(held));
+    void onlyCasesTheFreeLanesFitAreClaimed() {
+        when(lanes.freeLanes()).thenReturn(Map.of("lane-a", FIT, "lane-b", FIT, "lane-c", OTHER_FIT));
 
         service.runNextCase("worker");
 
-        verify(cases).claimNext("worker", NOW, NOW.plusSeconds(30), Set.of(), Set.of(held));
+        verify(cases).claimNext("worker", NOW, NOW.plusSeconds(30), Set.of(FIT, OTHER_FIT));
     }
 
     @Test
-    void onlyCasesOfTheFreeLanesBundlesAreClaimed() {
-        when(lanes.freeLanes()).thenReturn(Map.of("lane-a", BASELINE, "lane-b", BASELINE, "lane-c", CANDIDATE));
-
-        service.runNextCase("worker");
-
-        verify(cases).claimNext("worker", NOW, NOW.plusSeconds(30), Set.of(BASELINE, CANDIDATE), Set.of());
-    }
-
-    @Test
-    void aClaimedCaseAcquiresALaneOfItsBundlePreferringItsPreviousLane() {
-        var logicalCase = logicalCase(CANDIDATE);
+    void aClaimedCaseAcquiresALaneThatFitsItPreferringItsPreviousLane() {
+        var logicalCase = logicalCase(OTHER_FIT);
         var attempt = attempt(logicalCase);
         var previous = new Attempt(
                 new UUID(6, 6), logicalCase.caseId(), 0, AttemptState.INTERRUPTED, null, "lane-c", NOW, NOW, null);
-        when(lanes.freeLanes()).thenReturn(Map.of("lane-c", CANDIDATE));
-        when(cases.claimNext(any(), any(), any(), any(), any()))
+        when(lanes.freeLanes()).thenReturn(Map.of("lane-c", OTHER_FIT));
+        when(cases.claimNext(any(), any(), any(), any()))
                 .thenReturn(Optional.of(new CaseLedger.Claim(logicalCase, attempt, Optional.of(previous), 1)));
         when(runs.find(RUN))
                 .thenReturn(Optional.of(Run.queued(RUN, new UUID(2, 2), NOW).begin(NOW)));
         when(experiments.plan(any()))
                 .thenReturn(Optional.of(new ExperimentSource.Plan("d", "{}", 1, 60, 1, List.of())));
-        when(lanes.acquire(logicalCase.caseId(), CANDIDATE, "lane-c")).thenReturn(Optional.empty());
+        when(experiments.rules(any(), any())).thenReturn(Optional.of(RULES));
+        when(lanes.acquire(OTHER_FIT, "lane-c")).thenReturn(Optional.empty());
 
         assertThat(service.runNextCase("worker")).isFalse();
 
-        verify(lanes).acquire(logicalCase.caseId(), CANDIDATE, "lane-c");
+        verify(lanes).acquire(OTHER_FIT, "lane-c");
         verify(cases).release(attempt.attemptId(), "worker");
     }
 
     @Test
-    void aRestartHoldsTheLanesOfInterruptedAttemptsAndPreparesTheOthers() {
-        var holds = List.of(new LaneProvider.Hold("lane-a", new UUID(3, 3), new UUID(4, 4)));
-        when(cases.interruptedLanes()).thenReturn(holds);
-
+    void aRestartInterruptsTheAttemptsThenPreparesTheLanes() {
         service.recoverAfterRestart();
 
         var order = inOrder(cases, lanes);
         order.verify(cases).interruptAllRunning(NOW);
-        order.verify(lanes).prepare(holds);
-    }
-
-    @Test
-    void maintenanceReleasesTheLanesOfHeldCasesThatReachedAFinalState() {
-        var finished = new UUID(7, 7);
-        var waiting = new UUID(8, 8);
-        when(lanes.heldCases()).thenReturn(Set.of(finished, waiting));
-        when(cases.finished(Set.of(finished, waiting))).thenReturn(Set.of(finished));
-
-        service.maintain();
-
-        verify(lanes).releaseHeld(finished);
-        verify(lanes, never()).releaseHeld(waiting);
+        order.verify(lanes).prepare();
     }
 
     @Test
@@ -225,18 +205,17 @@ class RunBatchServiceTest {
     }
 
     @Test
-    void aSucceededAttemptHandsItsLaneBackToBeCleaned() {
+    void aSucceededAttemptHandsItsLaneBack() {
         var lane = playing();
         when(cases.succeed(any(), any(), any(), any())).thenReturn(true);
 
         service.runNextCase("worker");
 
-        verify(lane, never()).retainForRecovery();
         verify(lane).close();
     }
 
     @Test
-    void aFailureThatReturnsTheCaseToPendingHandsItsLaneBackToBeCleaned() {
+    void aFailureThatReturnsTheCaseToPendingHandsItsLaneBack() {
         var lane = playing();
         when(driver.play(any(), any(), any(), any(), any(), any()))
                 .thenThrow(new AttemptFailedException(FailureCode.EXECUTION_FAILED, "lane fault"));
@@ -244,54 +223,60 @@ class RunBatchServiceTest {
 
         service.runNextCase("worker");
 
-        verify(lane, never()).retainForRecovery();
         verify(lane).close();
     }
 
     @Test
-    void aCancelledAttemptHandsItsLaneBackToBeCleaned() {
+    void aCancelledAttemptHandsItsLaneBack() {
         var lane = playing();
         when(driver.play(any(), any(), any(), any(), any(), any())).thenThrow(new RunCancelledException());
         when(cases.cancel(any(), any(), any())).thenReturn(true);
 
         service.runNextCase("worker");
 
-        verify(lane, never()).retainForRecovery();
         verify(lane).close();
     }
 
     @Test
-    void anAttemptThatLostItsLeaseKeepsItsLaneForTheRecoveringAttempt() {
+    void anAttemptThatLostItsLeaseStillHandsItsLaneBack() {
         var lane = playing();
         when(driver.play(any(), any(), any(), any(), any(), any())).thenThrow(new LeaseLostException());
 
         service.runNextCase("worker");
 
-        var order = inOrder(lane);
-        order.verify(lane).retainForRecovery();
-        order.verify(lane).close();
+        verify(lane).close();
     }
 
     @Test
-    void anAttemptWhoseResultWasFencedOutKeepsItsLane() {
+    void anAttemptWhoseResultWasFencedOutStillHandsItsLaneBack() {
         var lane = playing();
         when(cases.succeed(any(), any(), any(), any())).thenReturn(false);
 
         service.runNextCase("worker");
 
-        verify(lane).retainForRecovery();
+        verify(lane).close();
     }
 
     @Test
-    void anAttemptWhoseFailureWasFencedOutKeepsItsLane() {
-        var lane = playing();
-        when(driver.play(any(), any(), any(), any(), any(), any()))
-                .thenThrow(new AttemptFailedException(FailureCode.POLICY_EXHAUSTED, "exhausted"));
-        when(cases.fail(any(), any(), any(), anyBoolean(), any())).thenReturn(CaseLedger.FailOutcome.LOST);
+    void aRunWhoseVariantRulesAreGoneFailsAndNoLaneIsAcquired() {
+        var running = Run.queued(RUN, new UUID(2, 2), NOW).begin(NOW);
+        var logicalCase = logicalCase(FIT);
+        var attempt = attempt(logicalCase);
+        when(lanes.freeLanes()).thenReturn(Map.of("lane-a", FIT));
+        when(cases.claimNext(any(), any(), any(), any()))
+                .thenReturn(Optional.of(new CaseLedger.Claim(logicalCase, attempt, Optional.empty(), 1)));
+        when(runs.find(RUN)).thenReturn(Optional.of(running));
+        when(experiments.plan(any())).thenReturn(Optional.of(plan()));
+        when(experiments.rules(running.experimentId(), "v")).thenReturn(Optional.empty());
+        when(runs.update(eq(RunState.RUNNING), any())).thenReturn(true);
 
-        service.runNextCase("worker");
+        assertThat(service.runNextCase("worker")).isTrue();
 
-        verify(lane).retainForRecovery();
+        var failed = ArgumentCaptor.forClass(Run.class);
+        verify(runs).update(eq(RunState.RUNNING), failed.capture());
+        assertThat(failed.getValue().failure().message()).contains("v");
+        verify(cases).release(attempt.attemptId(), "worker");
+        verify(lanes, never()).acquire(any(), any());
     }
 
     @Test
@@ -348,23 +333,38 @@ class RunBatchServiceTest {
 
     /** A claimed case that acquired a lane and is about to play on it. */
     private CaseLane playing() {
-        var logicalCase = logicalCase(BASELINE);
+        var logicalCase = logicalCase(FIT);
         var lane = mock(CaseLane.class);
         when(lane.laneId()).thenReturn("lane-a");
-        when(lanes.freeLanes()).thenReturn(Map.of("lane-a", BASELINE));
-        when(cases.claimNext(any(), any(), any(), any(), any()))
+        when(lanes.freeLanes()).thenReturn(Map.of("lane-a", FIT));
+        when(cases.claimNext(any(), any(), any(), any()))
                 .thenReturn(Optional.of(new CaseLedger.Claim(logicalCase, attempt(logicalCase), Optional.empty(), 1)));
         when(runs.find(RUN))
                 .thenReturn(Optional.of(Run.queued(RUN, new UUID(2, 2), NOW).begin(NOW)));
-        when(experiments.plan(any()))
-                .thenReturn(Optional.of(new ExperimentSource.Plan("d", "{}", 1, 60, 1, List.of())));
-        when(lanes.acquire(logicalCase.caseId(), BASELINE, null)).thenReturn(Optional.of(lane));
+        when(experiments.plan(any())).thenReturn(Optional.of(plan()));
+        when(experiments.rules(any(), any())).thenReturn(Optional.of(RULES));
+        when(lanes.acquire(FIT, null)).thenReturn(Optional.of(lane));
         return lane;
     }
 
-    private static LogicalCase logicalCase(BundleDigests bundle) {
+    private static ExperimentSource.Plan plan() {
+        return new ExperimentSource.Plan("d", "{}", 1, 60, 1, List.of());
+    }
+
+    private static LogicalCase logicalCase(LaneFit fit) {
         return new LogicalCase(
-                new UUID(3, 3), RUN, new UUID(4, 4), 0, "v", bundle, "42", 3, List.of(), CaseState.RUNNING, null);
+                new UUID(3, 3),
+                RUN,
+                new UUID(4, 4),
+                0,
+                "v",
+                BASELINE,
+                fit,
+                "42",
+                3,
+                List.of(),
+                CaseState.RUNNING,
+                null);
     }
 
     private static Attempt attempt(LogicalCase logicalCase) {

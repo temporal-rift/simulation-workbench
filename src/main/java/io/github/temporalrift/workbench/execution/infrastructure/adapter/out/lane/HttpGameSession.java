@@ -236,11 +236,6 @@ public class HttpGameSession implements GameSession {
                 .isPresent();
     }
 
-    /** Waits a bounded number of checks for the services and projection to settle. */
-    public boolean awaitSettled() {
-        return settle().isPresent();
-    }
-
     /** Waits for the game to settle and keeps what the settling check read for the decisions that follow it. */
     private Optional<Settled> settle() {
         settled = null;
@@ -377,10 +372,11 @@ public class HttpGameSession implements GameSession {
                         FailureCode.CONTRACT_MISMATCH, service + " returned no execution checkpoint");
             }
             if (!checkpoint.getCaseKey().equals(context.caseKey())
-                    || !checkpoint.getManifestDigest().equals(context.manifestDigest())) {
+                    || !checkpoint.getManifestDigest().equals(context.manifestDigest())
+                    || !checkpoint.getRulesDigest().equals(context.rules().digest())) {
                 throw new AttemptFailedException(
                         FailureCode.CONFIGURATION_DRIFT,
-                        service + " executes a different case or manifest than the attempt configured");
+                        service + " executes a different case, manifest or rules than the attempt configured");
             }
             if (control == gameControl) {
                 knownLogicalTime = checkpoint.getLogicalTime().toInstant();

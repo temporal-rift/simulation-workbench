@@ -1,6 +1,7 @@
 package io.github.temporalrift.workbench.experiment.application.query;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 import java.time.Instant;
 import java.util.List;
@@ -15,6 +16,8 @@ import tools.jackson.databind.node.ObjectNode;
 
 import io.github.temporalrift.workbench.experiment.ExperimentManifests;
 import io.github.temporalrift.workbench.experiment.ExperimentVariant;
+import io.github.temporalrift.workbench.experiment.VariantRulesFixtures;
+import io.github.temporalrift.workbench.experiment.domain.ExperimentNotFoundException;
 import io.github.temporalrift.workbench.experiment.domain.ManifestDigest;
 import io.github.temporalrift.workbench.experiment.domain.MatrixPreviewService;
 import io.github.temporalrift.workbench.experiment.domain.port.out.ExperimentRepository;
@@ -103,52 +106,77 @@ class ExperimentCatalogQueryHandlerTest {
         assertThat(snapshot.cases()).hasSize(220);
     }
 
+    @Test
+    void aVariantsRulesAreThoseTheRulesUseCaseRebuildsForIt() {
+        var rules = VariantRulesFixtures.baseline();
+        var catalog = new ExperimentCatalogQueryHandler(mock(ExperimentRepository.class), (id, label) -> {
+            assertThat(id).isEqualTo(ID);
+            assertThat(label).isEqualTo("baseline");
+            return rules;
+        });
+
+        assertThat(catalog.variantRules(ID, "baseline")).contains(rules);
+    }
+
+    @Test
+    void aVariantWhoseRulesAreNotRetainedHasNoRules() {
+        var catalog = new ExperimentCatalogQueryHandler(mock(ExperimentRepository.class), (id, label) -> {
+            throw new ExperimentNotFoundException(id, label);
+        });
+
+        assertThat(catalog.variantRules(ID, "candidate")).isEmpty();
+    }
+
     private ExperimentCatalogQueryHandler catalogOf(JsonNode manifest) {
         return catalogOf(manifest, new AtomicInteger());
     }
 
     private ExperimentCatalogQueryHandler catalogOf(JsonNode manifest, AtomicInteger reads) {
-        return new ExperimentCatalogQueryHandler(new ExperimentRepository() {
-            @Override
-            public void save(
-                    UUID id,
-                    String digest,
-                    String json,
-                    String name,
-                    Instant createdAt,
-                    Map<String, String> baselineDocuments) {
-                throw new UnsupportedOperationException();
-            }
+        return new ExperimentCatalogQueryHandler(
+                new ExperimentRepository() {
+                    @Override
+                    public void save(
+                            UUID id,
+                            String digest,
+                            String json,
+                            String name,
+                            Instant createdAt,
+                            Map<String, String> baselineDocuments) {
+                        throw new UnsupportedOperationException();
+                    }
 
-            @Override
-            public Optional<String> findBaselineDocument(UUID experimentId, String rulesArtifactDigest) {
-                throw new UnsupportedOperationException();
-            }
+                    @Override
+                    public Optional<String> findBaselineDocument(UUID experimentId, String rulesArtifactDigest) {
+                        throw new UnsupportedOperationException();
+                    }
 
-            @Override
-            public Optional<StoredExperiment> findById(UUID experimentId) {
-                reads.incrementAndGet();
-                if (manifest == null || !experimentId.equals(ID)) {
-                    return Optional.empty();
-                }
-                return Optional.of(new StoredExperiment(
-                        ID, ManifestDigest.sha256Hex(manifest), manifest.toString(), "x", Instant.now()));
-            }
+                    @Override
+                    public Optional<StoredExperiment> findById(UUID experimentId) {
+                        reads.incrementAndGet();
+                        if (manifest == null || !experimentId.equals(ID)) {
+                            return Optional.empty();
+                        }
+                        return Optional.of(new StoredExperiment(
+                                ID, ManifestDigest.sha256Hex(manifest), manifest.toString(), "x", Instant.now()));
+                    }
 
-            @Override
-            public List<StoredExperiment> findNewest(int limit, int offset) {
-                throw new UnsupportedOperationException();
-            }
+                    @Override
+                    public List<StoredExperiment> findNewest(int limit, int offset) {
+                        throw new UnsupportedOperationException();
+                    }
 
-            @Override
-            public long count() {
-                throw new UnsupportedOperationException();
-            }
+                    @Override
+                    public long count() {
+                        throw new UnsupportedOperationException();
+                    }
 
-            @Override
-            public void delete(UUID experimentId) {
-                throw new UnsupportedOperationException();
-            }
-        });
+                    @Override
+                    public void delete(UUID experimentId) {
+                        throw new UnsupportedOperationException();
+                    }
+                },
+                (_, _) -> {
+                    throw new UnsupportedOperationException();
+                });
     }
 }

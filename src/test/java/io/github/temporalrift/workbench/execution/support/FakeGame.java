@@ -63,18 +63,12 @@ public class FakeGame implements GameSession {
         this.script = script;
         this.participants = new LedgerParticipantGateway(
                 new Seats(),
-                (seatIndex, window) -> Optional.of(state.accepted.containsKey(seatIndex)),
                 ledger,
                 new StepRecorder(
                         evidence, context.caseId(), gameId, context.attemptId(), context.seed(), context::logicalEpoch),
                 context.caseId(),
                 context.attemptId(),
                 clock);
-    }
-
-    /** Resolves what an interrupted attempt left in doubt, as attaching to a surviving game does. */
-    void recoverInDoubt() {
-        participants.recoverInDoubt();
     }
 
     /** The seats that have not decided yet. */

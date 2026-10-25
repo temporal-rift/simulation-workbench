@@ -31,14 +31,8 @@ final class SimulatorSlot {
         return id;
     }
 
-    /**
-     * The running services for a case. A case that resumes its own game keeps the services that hold it; every other
-     * case gets services started afresh, whatever an earlier case left in them.
-     */
-    synchronized SlotRuntime runtime(boolean resume) {
-        if (runtime != null && resume) {
-            return runtime;
-        }
+    /** Services started afresh for a case, whatever an earlier case left in them. */
+    synchronized SlotRuntime runtime() {
         stop();
         try {
             runtime = SlotRuntime.start(build, bots, clock);

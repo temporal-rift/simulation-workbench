@@ -20,6 +20,11 @@ public record ServedBundle(BundleDigests digests, BundleProvenance provenance, i
         }
     }
 
+    /** What a case needs of a lane for this bundle's lanes to take it. */
+    public LaneFit fit() {
+        return LaneFit.of(digests.contentDigest(), provenance);
+    }
+
     /** The bundle one lane serves. */
     public static ServedBundle ofLane(BundleDigests digests, BundleProvenance provenance) {
         return new ServedBundle(digests, provenance, 1);
