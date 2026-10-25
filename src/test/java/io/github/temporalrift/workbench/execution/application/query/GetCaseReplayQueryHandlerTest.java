@@ -85,7 +85,9 @@ class GetCaseReplayQueryHandlerTest {
 
         assertThat(first.entries()).hasSize(50);
         assertThat(first.nextStep()).isEqualTo(first.entries().getLast().step());
-        assertThat(middle.entries()).isNotEmpty().extracting(Entry::step).allMatch(step -> step > 120 && step % 3 == 1);
+        var middleSteps = middle.entries().stream().map(Entry::step).toList();
+        assertThat(middleSteps).isNotEmpty();
+        assertThat(middleSteps).allMatch(step -> step > 120 && step % 3 == 1);
         assertThat(last.entries()).hasSize(19);
         assertThat(last.nextStep()).isNull();
         assertThat(ledger.stepRowsRequested).containsExactly(51, 51, 51);
