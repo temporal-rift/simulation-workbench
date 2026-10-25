@@ -85,7 +85,7 @@ class GetCaseReplayQueryHandlerTest {
 
         assertThat(first.entries()).hasSize(50);
         assertThat(first.nextStep()).isEqualTo(first.entries().getLast().step());
-        assertThat(middle.entries()).extracting(Entry::step).allMatch(step -> step > 120 && step % 3 == 1);
+        assertThat(middle.entries()).isNotEmpty().extracting(Entry::step).allMatch(step -> step > 120 && step % 3 == 1);
         assertThat(last.entries()).hasSize(19);
         assertThat(last.nextStep()).isNull();
         assertThat(ledger.stepRowsRequested).containsExactly(51, 51, 51);
@@ -164,6 +164,14 @@ class GetCaseReplayQueryHandlerTest {
     }
 
     @Test
+    void aCursorBeyondTheLastEventYieldsAnEmptyLastPage() {
+        var page = handler.handle(observer(Integer.MAX_VALUE, 50));
+
+        assertThat(page.entries()).isEmpty();
+        assertThat(page.nextStep()).isNull();
+    }
+
+    @Test
     void aPinnedCaseNeverReadsTheExperiment() {
         var page = handler.handle(player(0, null, 5));
 
@@ -181,7 +189,8 @@ class GetCaseReplayQueryHandlerTest {
         assertThat(handler.handle(player(0, null, 5)).manifestDigest()).isEqualTo("b".repeat(64));
 
         when(experiments.plan(EXPERIMENT)).thenReturn(Optional.empty());
-        assertThatThrownBy(() -> handler.handle(player(0, null, 5))).isInstanceOf(RunNotFoundException.class);
+        var replay = player(0, null, 5);
+        assertThatThrownBy(() -> handler.handle(replay)).isInstanceOf(RunNotFoundException.class);
     }
 
     private static List<Integer> range(int from, int to) {
