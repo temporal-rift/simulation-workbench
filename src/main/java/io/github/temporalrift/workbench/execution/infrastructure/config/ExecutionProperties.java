@@ -18,6 +18,7 @@ import java.util.function.BiConsumer;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
+import io.github.temporalrift.workbench.execution.LaneService;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.BundleProvenance;
 import io.github.temporalrift.workbench.experiment.ManifestFormat;
@@ -152,8 +153,8 @@ public record ExecutionProperties(
             declaration.put("content-artifact-digest", contentArtifactDigest);
             declaration.put("content-artifact-name", contentArtifactName);
             services.forEach((name, service) -> {
-                declaration.put(SERVICES_PREFIX + name + ".image-digest", service.imageDigest());
-                declaration.put(SERVICES_PREFIX + name + ".source-revision", service.sourceRevision());
+                declaration.put(SERVICES_PREFIX + name.serviceName() + ".image-digest", service.imageDigest());
+                declaration.put(SERVICES_PREFIX + name.serviceName() + ".source-revision", service.sourceRevision());
             });
             contracts.forEach((module, version) -> declaration.put("contracts." + module, version));
             return declaration;
@@ -178,7 +179,7 @@ public record ExecutionProperties(
         private static void requireServices(String scope, Services services) {
             var declared = services == null ? new Services(null, null, null) : services;
             declared.forEach((name, service) -> {
-                var prefix = SERVICES_PREFIX + name + ".";
+                var prefix = SERVICES_PREFIX + name.serviceName() + ".";
                 var image = service == null ? null : service.imageDigest();
                 var revision = service == null ? null : service.sourceRevision();
                 BundleChecks.require(
@@ -210,10 +211,10 @@ public record ExecutionProperties(
     public record Services(Service gameService, Service timelineService, Service readService) {
 
         /** Visits each service under its property name in a stable order; an undeclared one is {@code null}. */
-        void forEach(BiConsumer<String, Service> visitor) {
-            visitor.accept("game-service", gameService);
-            visitor.accept("timeline-service", timelineService);
-            visitor.accept("read-service", readService);
+        void forEach(BiConsumer<LaneService, Service> visitor) {
+            visitor.accept(LaneService.GAME, gameService);
+            visitor.accept(LaneService.TIMELINE, timelineService);
+            visitor.accept(LaneService.READ, readService);
         }
     }
 

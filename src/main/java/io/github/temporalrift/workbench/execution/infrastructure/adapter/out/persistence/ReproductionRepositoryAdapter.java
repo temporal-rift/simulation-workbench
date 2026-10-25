@@ -42,14 +42,17 @@ public class ReproductionRepositoryAdapter implements ReproductionRepository {
 
     @Override
     public ReproductionCreation create(UUID idempotencyKey, String requestHash, Reproduction reproduction) {
-        if (reproductions.findByIdempotencyKey(idempotencyKey).isEmpty()) {
-            var stored = insertOnce.insert(() ->
-                    reproductions.saveAndFlush(new ReproductionJpaEntity(reproduction, idempotencyKey, requestHash)));
-            if (stored) {
-                return new ReproductionCreation.Created();
-            }
-        }
-        return new ReproductionCreation.Existing(findByKey(idempotencyKey).orElseThrow());
+        return findByKey(idempotencyKey)
+                .<ReproductionCreation>map(ReproductionCreation.Existing::new)
+                .orElseGet(() -> insertOrExisting(idempotencyKey, requestHash, reproduction));
+    }
+
+    private ReproductionCreation insertOrExisting(UUID idempotencyKey, String requestHash, Reproduction reproduction) {
+        var stored = insertOnce.insert(
+                () -> reproductions.saveAndFlush(new ReproductionJpaEntity(reproduction, idempotencyKey, requestHash)));
+        return stored
+                ? new ReproductionCreation.Created()
+                : new ReproductionCreation.Existing(findByKey(idempotencyKey).orElseThrow());
     }
 
     @Override
@@ -66,8 +69,7 @@ public class ReproductionRepositoryAdapter implements ReproductionRepository {
 
     @Override
     @Transactional
-    public Optional<Reproduction> claimNext(
-            String owner, Instant now, Instant leaseUntil, Map<String, BundleDigests> freeLanes) {
+    public Optional<Reproduction> claimNext(String owner, Instant leaseUntil, Map<String, BundleDigests> freeLanes) {
         return claims.lockOldestReproductionServedBy(QUEUED, freeLanes)
                 .flatMap(reproductions::findById)
                 .map(entity -> {

@@ -153,31 +153,19 @@ public class CaseLedgerAdapter implements CaseLedger {
     @Override
     @Transactional
     public int interruptExpired(Instant now) {
-        return interrupt(
-                attempts.findAllByStateAndLeaseExpiresAtBefore(RUNNING, now).stream()
-                        .map(CaseAttemptJpaEntity::attemptId)
-                        .toList(),
-                now);
+        return interrupt(attempts.findAllByStateAndLeaseExpiresAtBefore(RUNNING, now), now);
     }
 
     @Override
     @Transactional
     public int interruptOwnedBy(String owner, Instant now) {
-        return interrupt(
-                attempts.findAllByStateAndLeaseOwner(RUNNING, owner).stream()
-                        .map(CaseAttemptJpaEntity::attemptId)
-                        .toList(),
-                now);
+        return interrupt(attempts.findAllByStateAndLeaseOwner(RUNNING, owner), now);
     }
 
     @Override
     @Transactional
     public int interruptAllRunning(Instant now) {
-        var interrupted = interrupt(
-                attempts.findAllByState(RUNNING).stream()
-                        .map(CaseAttemptJpaEntity::attemptId)
-                        .toList(),
-                now);
+        var interrupted = interrupt(attempts.findAllByState(RUNNING), now);
         var idle = runs.findAllByStateOrderByCreatedAt(RUNNING);
         idle.forEach(run -> run.changeState(INTERRUPTED));
         return interrupted + idle.size();
@@ -207,9 +195,10 @@ public class CaseLedgerAdapter implements CaseLedger {
      * belong to. Each attempt is re-read under its lock as it is settled, so one that finished meanwhile is left
      * alone.
      */
-    private int interrupt(List<UUID> attemptIds, Instant now) {
+    private int interrupt(List<CaseAttemptJpaEntity> running, Instant now) {
         var interruptedRuns = new HashSet<UUID>();
-        for (var attemptId : attemptIds) {
+        for (var attemptId :
+                running.stream().map(CaseAttemptJpaEntity::attemptId).toList()) {
             attempts.findWithLockByAttemptIdAndState(attemptId, RUNNING).ifPresent(attempt -> {
                 attempt.settle(INTERRUPTED, now, null, null);
                 cases.findWithLockByCaseIdAndState(attempt.caseId(), RUNNING).ifPresent(logicalCase -> {

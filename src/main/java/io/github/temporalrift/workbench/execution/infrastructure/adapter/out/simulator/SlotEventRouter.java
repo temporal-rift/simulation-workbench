@@ -12,6 +12,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import io.github.temporalrift.workbench.execution.LaneService;
+
 /**
  * Carries the records the services of one slot publish to the services that consume them, as the broker would for one
  * game: a record reaches a consuming service once, after the one before it on the same topic returned from that
@@ -23,9 +25,9 @@ final class SlotEventRouter implements AutoCloseable {
     static final String GAME_EVENTS = "game.events";
     static final String TIMELINE_EVENTS = "timeline.events";
 
-    static final String GAME_SERVICE = "game-service";
-    static final String TIMELINE_SERVICE = "timeline-service";
-    static final String READ_SERVICE = "read-service";
+    static final String GAME_SERVICE = LaneService.GAME.serviceName();
+    static final String TIMELINE_SERVICE = LaneService.TIMELINE.serviceName();
+    static final String READ_SERVICE = LaneService.READ.serviceName();
 
     /** The services that consume each topic. */
     private static final Map<String, List<String>> CONSUMERS = Map.of(

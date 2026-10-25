@@ -432,10 +432,7 @@ class CaseEvidenceIT {
                 new ReproduceCaseUseCase.Command(saved.runId(), saved.caseId(), UUID.randomUUID()));
         // The process died holding the claim: nothing was settled and the lane was never released.
         reproductionRepository.claimNext(
-                "crashed-worker",
-                java.time.Instant.now(),
-                java.time.Instant.now().plusSeconds(60),
-                lanes.freeLanes());
+                "crashed-worker", java.time.Instant.now().plusSeconds(60), lanes.freeLanes());
         assertThat(reproductionRepository
                         .find(reproduction.reproductionId())
                         .orElseThrow()
