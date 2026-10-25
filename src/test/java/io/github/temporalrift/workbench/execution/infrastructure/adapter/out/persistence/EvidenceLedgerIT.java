@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -206,6 +207,61 @@ class EvidenceLedgerIT {
         jdbc.update("UPDATE evidence_artifact SET content = ? WHERE digest = ?", new byte[] {1}, digestOf(ended));
         assertThatThrownBy(() -> evidence.firstEventOfType(SCOPE, GAME, "GameEnded"))
                 .isInstanceOf(ManifestMismatchException.class);
+    }
+
+    @Test
+    void anEventsPageIsAWindowOfTheFullListingAndOnlyVerifiesItsOwnPayloads() {
+        var all = new ArrayList<ObservedEvent>();
+        for (var i = 0; i < 12; i++) {
+            all.add(event(
+                    i % 2 == 0 ? TIMELINE_TOPIC : GAME_TOPIC,
+                    i % 3,
+                    i,
+                    new UUID(9, 200L + i),
+                    "E",
+                    "{\"n\":" + i + "}"));
+        }
+        evidence.retainAll(SCOPE, ATTEMPT, all);
+        var listed = evidence.events(SCOPE, GAME);
+        var outside = listed.get(0);
+        jdbc.update("UPDATE evidence_artifact SET content = ? WHERE digest = ?", new byte[] {1}, digestOf(outside));
+
+        var page = evidence.eventsPage(SCOPE, GAME, 3, 4);
+
+        assertThat(page.events()).isEqualTo(listed.subList(3, 7));
+        assertThat(page.more()).isTrue();
+        assertThat(evidence.eventsPage(SCOPE, GAME, 8, 4).more()).isFalse();
+        assertThat(evidence.eventsPage(SCOPE, GAME, 8, 4).events()).isEqualTo(listed.subList(8, 12));
+        assertThat(evidence.eventsPage(SCOPE, GAME, 12, 4).events()).isEmpty();
+        assertThatThrownBy(() -> evidence.eventsPage(SCOPE, GAME, 0, 1)).isInstanceOf(ManifestMismatchException.class);
+    }
+
+    @Test
+    void aStepsPageIsFilteredBySeatAndCursorAndLimitedInTheQuery() {
+        for (var i = 0; i < 9; i++) {
+            evidence.append(SCOPE, GAME, ATTEMPT, step(i % 3, HAND, StepOutcome.ACCEPTED));
+        }
+
+        assertThat(evidence.stepsPage(SCOPE, GAME, null, 2, 4))
+                .extracting(StepRecord::step)
+                .containsExactly(3, 4, 5, 6);
+        assertThat(evidence.stepsPage(SCOPE, GAME, 1, 1, 2))
+                .extracting(StepRecord::step)
+                .containsExactly(4, 7);
+        assertThat(evidence.stepsPage(SCOPE, GAME, null, -1, 2))
+                .extracting(StepRecord::step)
+                .containsExactly(0, 1);
+        assertThat(evidence.lastStep(SCOPE, GAME)).hasValue(8);
+        assertThat(evidence.lastStep(SCOPE, new UUID(5, 5))).isEmpty();
+    }
+
+    @Test
+    void theManifestDigestIsReadFromThePinnedRowEvenBeforeItIsSealed() {
+        assertThat(evidence.manifestDigest(SCOPE)).isEmpty();
+
+        evidence.pin(SCOPE, "a".repeat(64), "{}", NOW);
+
+        assertThat(evidence.manifestDigest(SCOPE)).hasValue("a".repeat(64));
     }
 
     @Test

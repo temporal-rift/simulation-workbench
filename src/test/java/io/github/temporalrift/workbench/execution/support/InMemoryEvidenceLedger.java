@@ -11,9 +11,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Stream;
 
 import io.github.temporalrift.workbench.execution.domain.evidence.ObservedEvent;
 import io.github.temporalrift.workbench.execution.domain.evidence.PinnedEvidence;
@@ -93,6 +95,35 @@ public class InMemoryEvidenceLedger implements EvidenceLedger {
     }
 
     @Override
+    public synchronized List<StepRecord> stepsPage(
+            UUID scopeId, UUID gameId, Integer seatIndex, int afterStep, int limit) {
+        return List.copyOf(steps.getOrDefault(new Game(scopeId, gameId), List.of())).stream()
+                .filter(step -> step.step() > afterStep)
+                .filter(step -> seatIndex == null || step.seatIndex() == seatIndex)
+                .limit(limit)
+                .toList();
+    }
+
+    @Override
+    public synchronized OptionalInt lastStep(UUID scopeId, UUID gameId) {
+        var all = steps.getOrDefault(new Game(scopeId, gameId), List.of());
+        return all.isEmpty()
+                ? OptionalInt.empty()
+                : OptionalInt.of(all.getLast().step());
+    }
+
+    @Override
+    public synchronized Optional<String> manifestDigest(UUID scopeId) {
+        return Optional.ofNullable(headers.get(scopeId)).map(Header::manifestDigest);
+    }
+
+    @Override
+    public synchronized EventPage eventsPage(UUID scopeId, UUID gameId, int offset, int limit) {
+        var rest = ordered(scopeId, gameId).skip(offset).toList();
+        return new EventPage(rest.stream().limit(limit).toList(), rest.size() > limit);
+    }
+
+    @Override
     public synchronized boolean retain(UUID scopeId, UUID attemptId, ObservedEvent event) {
         var game = events.computeIfAbsent(new Game(scopeId, event.gameId()), key -> new LinkedHashMap<>());
         return game.putIfAbsent(event.source() + "|" + event.eventId(), event) == null;
@@ -123,11 +154,14 @@ public class InMemoryEvidenceLedger implements EvidenceLedger {
 
     @Override
     public synchronized List<ObservedEvent> events(UUID scopeId, UUID gameId) {
+        return ordered(scopeId, gameId).toList();
+    }
+
+    private Stream<ObservedEvent> ordered(UUID scopeId, UUID gameId) {
         return events.getOrDefault(new Game(scopeId, gameId), Map.of()).values().stream()
                 .sorted(Comparator.comparing(ObservedEvent::source)
                         .thenComparingInt(ObservedEvent::partition)
-                        .thenComparingLong(ObservedEvent::offset))
-                .toList();
+                        .thenComparingLong(ObservedEvent::offset));
     }
 
     @Override

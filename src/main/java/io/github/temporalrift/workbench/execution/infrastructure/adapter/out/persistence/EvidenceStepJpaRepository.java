@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
@@ -18,6 +19,12 @@ interface EvidenceStepJpaRepository extends JpaRepository<EvidenceStepJpaEntity,
     Optional<EvidenceStepJpaEntity> findFirstByScopeIdAndGameIdOrderByStepDesc(UUID scopeId, UUID gameId);
 
     List<EvidenceStepJpaEntity> findAllByScopeIdAndGameIdOrderByStep(UUID scopeId, UUID gameId);
+
+    List<EvidenceStepJpaEntity> findByScopeIdAndGameIdAndStepGreaterThanOrderByStep(
+            UUID scopeId, UUID gameId, int afterStep, Limit limit);
+
+    List<EvidenceStepJpaEntity> findByScopeIdAndGameIdAndSeatIndexAndStepGreaterThanOrderByStep(
+            UUID scopeId, UUID gameId, int seatIndex, int afterStep, Limit limit);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     List<EvidenceStepJpaEntity> findAllWithLockByScopeIdAndGameIdAndSeatIndexAndWindowKindAndEraAndRoundAndOutcome(

@@ -8,10 +8,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -127,6 +129,28 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
     }
 
     @Override
+    public List<StepRecord> stepsPage(UUID scopeId, UUID gameId, Integer seatIndex, int afterStep, int limit) {
+        var page = Limit.of(limit);
+        var rows = seatIndex == null
+                ? steps.findByScopeIdAndGameIdAndStepGreaterThanOrderByStep(scopeId, gameId, afterStep, page)
+                : steps.findByScopeIdAndGameIdAndSeatIndexAndStepGreaterThanOrderByStep(
+                        scopeId, gameId, seatIndex, afterStep, page);
+        return rows.stream().map(EvidenceLedgerAdapter::stepRecord).toList();
+    }
+
+    @Override
+    public OptionalInt lastStep(UUID scopeId, UUID gameId) {
+        return steps.findFirstByScopeIdAndGameIdOrderByStepDesc(scopeId, gameId)
+                .map(latest -> OptionalInt.of(latest.step()))
+                .orElseGet(OptionalInt::empty);
+    }
+
+    @Override
+    public Optional<String> manifestDigest(UUID scopeId) {
+        return evidence.findById(scopeId).map(CaseEvidenceJpaEntity::manifestDigest);
+    }
+
+    @Override
     public boolean retain(UUID scopeId, UUID attemptId, ObservedEvent event) {
         return batches.retain(scopeId, attemptId, List.of(event), clock.instant()) == 1;
     }
@@ -159,9 +183,18 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
 
     @Override
     public List<ObservedEvent> events(UUID scopeId, UUID gameId) {
-        var retained = events.findAllByScopeIdAndGameId(scopeId, gameId).stream()
+        return withPayloads(events.findAllByScopeIdAndGameId(scopeId, gameId).stream()
                 .sorted(EVENT_ORDER)
-                .toList();
+                .toList());
+    }
+
+    @Override
+    public EventPage eventsPage(UUID scopeId, UUID gameId, int offset, int limit) {
+        var rows = events.findPage(scopeId, gameId, offset, limit + 1);
+        return new EventPage(withPayloads(rows.stream().limit(limit).toList()), rows.size() > limit);
+    }
+
+    private List<ObservedEvent> withPayloads(List<EvidenceEventJpaEntity> retained) {
         var payloads = artifacts
                 .findAllById(retained.stream()
                         .map(EvidenceEventJpaEntity::payloadArtifact)
