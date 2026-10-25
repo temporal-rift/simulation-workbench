@@ -37,18 +37,12 @@ public class GetCaseReplayQueryHandler implements GetCaseReplayUseCase {
                 .orElseThrow(() -> new RunNotFoundException("Case", query.caseId()));
         requireFittingSeat(query, logicalCase.seats().size());
         var run = runs.find(query.runId()).orElseThrow(() -> new RunNotFoundException("Run", query.runId()));
-        var manifestDigest = experiments
-                .plan(run.experimentId())
-                .map(ExperimentSource.Plan::manifestDigest)
+        var manifestDigest = evidence.manifestDigest(query.caseId())
+                .or(() -> experiments.plan(run.experimentId()).map(ExperimentSource.Plan::manifestDigest))
                 .orElseThrow(() -> new RunNotFoundException("Experiment", run.experimentId()));
-        var entries = CountingGame.of(runs.attemptsOf(query.caseId()))
-                .map(gameId -> entries(query, gameId))
-                .orElse(List.of());
-        var after = query.afterStep() == null ? -1 : query.afterStep();
-        var remaining = entries.stream().filter(entry -> entry.step() > after).toList();
-        var page = remaining.stream().limit(query.limit()).toList();
-        var next = remaining.size() > page.size() ? page.getLast().step() : null;
-        return new ReplayPage(query.caseId(), manifestDigest, query.perspective(), page, next);
+        return CountingGame.of(runs.attemptsOf(query.caseId()))
+                .map(gameId -> page(query, gameId, manifestDigest))
+                .orElseGet(() -> new ReplayPage(query.caseId(), manifestDigest, query.perspective(), List.of(), null));
     }
 
     private static void requireFittingSeat(Query query, int seatCount) {
@@ -67,18 +61,25 @@ public class GetCaseReplayQueryHandler implements GetCaseReplayUseCase {
         }
     }
 
-    private List<Entry> entries(Query query, UUID gameId) {
+    private ReplayPage page(Query query, UUID gameId, String manifestDigest) {
+        var after = query.afterStep() == null ? -1 : query.afterStep();
+        var observer = query.perspective() == Perspective.OBSERVER;
+        var limit = query.limit();
+        var steps = evidence.stepsPage(query.caseId(), gameId, observer ? null : query.seatIndex(), after, limit + 1);
         var entries = new ArrayList<Entry>();
-        var steps = evidence.steps(query.caseId(), gameId);
-        steps.stream()
-                .filter(step -> query.perspective() == Perspective.OBSERVER || step.seatIndex() == query.seatIndex())
-                .forEach(step -> entries.add(new Entry.Command(step.step(), step)));
-        if (query.perspective() == Perspective.OBSERVER) {
-            var next = steps.isEmpty() ? 0 : steps.getLast().step() + 1;
-            for (var event : evidence.events(query.caseId(), gameId)) {
-                entries.add(new Entry.Event(next++, event));
+        steps.stream().limit(limit).forEach(step -> entries.add(new Entry.Command(step.step(), step)));
+        var more = steps.size() > limit;
+        if (observer && !more) {
+            var lastStep = evidence.lastStep(query.caseId(), gameId).orElse(-1);
+            var skipped = Math.max(0, after - lastStep);
+            var number = lastStep + 1 + skipped;
+            var events = evidence.eventsPage(query.caseId(), gameId, skipped, limit - entries.size());
+            for (var event : events.events()) {
+                entries.add(new Entry.Event(number++, event));
             }
+            more = events.more();
         }
-        return entries;
+        var next = more ? entries.getLast().step() : null;
+        return new ReplayPage(query.caseId(), manifestDigest, query.perspective(), entries, next);
     }
 }

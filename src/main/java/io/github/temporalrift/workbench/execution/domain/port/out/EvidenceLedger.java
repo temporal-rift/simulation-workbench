@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.execution.domain.evidence.ObservedEvent;
@@ -49,6 +50,24 @@ public interface EvidenceLedger {
     List<StepRecord> steps(UUID scopeId, UUID gameId);
 
     /**
+     * The game's steps after the given step number, in the order they were sent, at most {@code limit} of them.
+     *
+     * @param seatIndex the only seat whose steps are listed; null for every seat
+     * @param afterStep the last step number the reader already has; steps up to and including it are skipped
+     */
+    List<StepRecord> stepsPage(UUID scopeId, UUID gameId, Integer seatIndex, int afterStep, int limit);
+
+    /** The highest step number the game has, or empty when it has no step. */
+    OptionalInt lastStep(UUID scopeId, UUID gameId);
+
+    /**
+     * The manifest digest the scope was pinned under, whether or not its evidence is sealed yet.
+     *
+     * @return empty when the scope was never pinned
+     */
+    Optional<String> manifestDigest(UUID scopeId);
+
+    /**
      * Retains the raw event unless its source and event identifier were already retained.
      *
      * @return whether the event is new evidence
@@ -71,6 +90,12 @@ public interface EvidenceLedger {
     List<ObservedEvent> events(UUID scopeId, UUID gameId);
 
     /**
+     * A window of {@link #events}: skips {@code offset} events, then returns at most {@code limit} of them. Only the
+     * payloads of the returned events are read and verified; the lookahead is answered from the row alone.
+     */
+    EventPage eventsPage(UUID scopeId, UUID gameId, int offset, int limit);
+
+    /**
      * The first retained event of the type in {@link #events} order, with only its payload verified.
      *
      * @return empty when no event of the type was retained
@@ -82,6 +107,16 @@ public interface EvidenceLedger {
 
     /** Forgets everything retained for the scope; used before a reproduction runs again after an interruption. */
     void purge(UUID scopeId);
+
+    /**
+     * @param events the requested window of events, with their payloads
+     * @param more whether the game retains an event after the window
+     */
+    record EventPage(List<ObservedEvent> events, boolean more) {
+        public EventPage {
+            events = List.copyOf(events);
+        }
+    }
 
     record SourcePartition(String source, int partition) {}
 }

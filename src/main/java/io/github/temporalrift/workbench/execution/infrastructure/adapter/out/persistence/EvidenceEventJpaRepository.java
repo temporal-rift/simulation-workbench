@@ -14,6 +14,19 @@ interface EvidenceEventJpaRepository extends JpaRepository<EvidenceEventJpaEntit
 
     List<EvidenceEventJpaEntity> findAllByScopeIdAndGameIdAndEventType(UUID scopeId, UUID gameId, String eventType);
 
+    /** Byte-order collation keeps the page order identical to the Java order of {@code source}. */
+    @Query(value = """
+                    select * from evidence_event
+                    where scope_id = :scopeId and game_id = :gameId
+                    order by source collate "C", partition_no, offset_no
+                    limit :limit offset :offset
+                    """, nativeQuery = true)
+    List<EvidenceEventJpaEntity> findPage(
+            @Param("scopeId") UUID scopeId,
+            @Param("gameId") UUID gameId,
+            @Param("offset") int offset,
+            @Param("limit") int limit);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from EvidenceEventJpaEntity e where e.scopeId = :scopeId")
     int deleteAllByScopeId(@Param("scopeId") UUID scopeId);
