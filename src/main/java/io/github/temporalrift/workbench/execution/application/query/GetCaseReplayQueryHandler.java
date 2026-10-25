@@ -71,7 +71,7 @@ public class GetCaseReplayQueryHandler implements GetCaseReplayUseCase {
         var more = steps.size() > limit;
         if (observer && !more) {
             var lastStep = evidence.lastStep(query.caseId(), gameId).orElse(-1);
-            var skipped = (int) Math.clamp((long) after - lastStep, 0, Integer.MAX_VALUE);
+            var skipped = Math.clamp((long) after - lastStep, 0, Integer.MAX_VALUE);
             var number = lastStep + 1 + skipped;
             var events = evidence.eventsPage(query.caseId(), gameId, skipped, limit - entries.size());
             for (var event : events.events()) {
