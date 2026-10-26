@@ -87,7 +87,7 @@ class SimulatorCaseLaneTest {
                         new InMemoryEvidenceLedger(),
                         JsonMapper.builder().build(),
                         Clock.systemUTC(),
-                        new LaneEndpoints.Barrier(Duration.ofMillis(1), 1, 1),
+                        new LaneEndpoints.Barrier(Duration.ofMillis(1), Duration.ofSeconds(1)),
                         Sleeper.thread(),
                         new LaneWaits(new SimpleMeterRegistry()),
                         scheduler));

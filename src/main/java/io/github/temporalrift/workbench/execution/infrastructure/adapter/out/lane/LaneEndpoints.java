@@ -59,8 +59,7 @@ public record LaneEndpoints(
      * How the runner waits for the services and projection to settle.
      *
      * @param pollInterval pause between settle checks
-     * @param stablePolls consecutive checks with an unchanged projection revision that count as settled
-     * @param maxPolls checks made per wait before the game is reported as still waiting
+     * @param timeout how long one wait may last before the game is reported as still waiting
      */
-    public record Barrier(Duration pollInterval, int stablePolls, int maxPolls) {}
+    public record Barrier(Duration pollInterval, Duration timeout) {}
 }

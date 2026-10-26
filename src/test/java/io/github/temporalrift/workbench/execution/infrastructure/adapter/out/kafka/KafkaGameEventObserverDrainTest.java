@@ -16,6 +16,7 @@ import org.apache.kafka.common.TopicPartition;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;
 
+import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
 import io.github.temporalrift.workbench.execution.support.InMemoryEvidenceLedger;
 
@@ -38,8 +39,8 @@ class KafkaGameEventObserverDrainTest {
         var observer = new KafkaGameEventObserver(
                 consumer,
                 List.of(TOPIC),
-                evidence,
-                JsonMapper.builder().build(),
+                new KafkaGameEventObserver.Collaborators(
+                        evidence, JsonMapper.builder().build(), _ -> true),
                 new KafkaGameEventObserver.Target(SCOPE, UUID.randomUUID(), GAME),
                 new KafkaGameEventObserver.Polling(Duration.ofMillis(1), 3),
                 null);
@@ -48,6 +49,40 @@ class KafkaGameEventObserverDrainTest {
 
         assertThat(evidence.events(SCOPE, GAME)).hasSize(1);
         assertThat(evidence.offsets(SCOPE, GAME)).isEmpty();
+    }
+
+    @Test
+    void aDrainReportsTheEndOffsetsItReachedAndAsksTheReadSideAboutThem() {
+        var partition = new TopicPartition(TOPIC, 0);
+        var consumer = new MockConsumer<String, byte[]>(AutoOffsetResetStrategy.EARLIEST.name());
+        consumer.updatePartitions(TOPIC, List.of(new PartitionInfo(TOPIC, 0, null, null, null)));
+        consumer.updateBeginningOffsets(java.util.Map.of(partition, 0L));
+        consumer.updateEndOffsets(java.util.Map.of(partition, 2L));
+        consumer.schedulePollTask(() -> {
+            consumer.addRecord(message(0, true));
+            consumer.addRecord(message(1, true));
+        });
+        var asked = new java.util.concurrent.atomic.AtomicReference<java.util.Map<TopicPartition, Long>>();
+        var observer = new KafkaGameEventObserver(
+                consumer,
+                List.of(TOPIC),
+                new KafkaGameEventObserver.Collaborators(
+                        new InMemoryEvidenceLedger(), JsonMapper.builder().build(), ends -> {
+                            asked.set(ends);
+                            return false;
+                        }),
+                new KafkaGameEventObserver.Target(SCOPE, UUID.randomUUID(), GAME),
+                new KafkaGameEventObserver.Polling(Duration.ofMillis(1), 3),
+                null);
+
+        assertThat(observer.drain()).isTrue();
+
+        assertThat(observer.endOffsets())
+                .containsExactly(java.util.Map.entry(new EvidenceLedger.SourcePartition(TOPIC, 0), 2L));
+        assertThat(observer.readSideApplied()).isFalse();
+        assertThat(asked.get()).containsExactly(java.util.Map.entry(partition, 2L));
+        observer.close();
+        assertThat(consumer.closed()).isTrue();
     }
 
     private static ConsumerRecord<String, byte[]> message(long offset, boolean identified) {

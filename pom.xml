@@ -435,7 +435,7 @@
                             <arguments>run ensure-deps</arguments>
                         </configuration>
                     </execution>
-                    <!-- The typed client is generated from the contract pinned above; drift fails the build. -->
+                    <!-- The typed client is generated from the contract pinned above and is not versioned. -->
                     <execution>
                         <id>ui-contract</id>
                         <goals>
@@ -443,7 +443,7 @@
                         </goals>
                         <phase>generate-resources</phase>
                         <configuration>
-                            <arguments>run check:api</arguments>
+                            <arguments>run generate:api</arguments>
                         </configuration>
                     </execution>
                     <execution>

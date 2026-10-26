@@ -8,6 +8,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.Supplier;
 
+import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
@@ -51,13 +53,36 @@ public class KafkaGameEventObservers implements GameEventObservers {
         properties.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         properties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ByteArrayDeserializer.class);
         var consumer = new KafkaConsumer<String, byte[]>(properties);
-        return new KafkaGameEventObserver(
-                consumer,
-                List.of(lane.gameEventsTopic(), lane.timelineEventsTopic()),
-                evidence,
-                objectMapper,
-                new KafkaGameEventObserver.Target(scopeId, attemptId, gameId),
-                new KafkaGameEventObserver.Polling(POLL_TIMEOUT, MAX_IDLE_POLLS),
-                since);
+        Admin admin = null;
+        try {
+            admin = Admin.create(adminProperties(properties));
+            return new KafkaGameEventObserver(
+                    consumer,
+                    List.of(lane.gameEventsTopic(), lane.timelineEventsTopic()),
+                    new KafkaGameEventObserver.Collaborators(evidence, objectMapper, new KafkaReadSideOffsets(admin)),
+                    new KafkaGameEventObserver.Target(scopeId, attemptId, gameId),
+                    new KafkaGameEventObserver.Polling(POLL_TIMEOUT, MAX_IDLE_POLLS),
+                    since);
+        } catch (RuntimeException e) {
+            consumer.close();
+            if (admin != null) {
+                admin.close();
+            }
+            throw e;
+        }
+    }
+
+    /** The broker address and security settings of the consumer, without its consumer-only settings. */
+    private static Map<String, Object> adminProperties(Map<String, Object> consumer) {
+        var admin = new HashMap<String, Object>();
+        consumer.forEach((key, value) -> {
+            if (key.equals(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG)
+                    || key.startsWith("security.")
+                    || key.startsWith("sasl.")
+                    || key.startsWith("ssl.")) {
+                admin.put(key, value);
+            }
+        });
+        return admin;
     }
 }
