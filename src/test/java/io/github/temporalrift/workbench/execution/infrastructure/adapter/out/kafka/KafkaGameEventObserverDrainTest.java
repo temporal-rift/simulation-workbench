@@ -39,11 +39,10 @@ class KafkaGameEventObserverDrainTest {
         var observer = new KafkaGameEventObserver(
                 consumer,
                 List.of(TOPIC),
-                evidence,
-                JsonMapper.builder().build(),
+                new KafkaGameEventObserver.Collaborators(
+                        evidence, JsonMapper.builder().build(), _ -> true),
                 new KafkaGameEventObserver.Target(SCOPE, UUID.randomUUID(), GAME),
                 new KafkaGameEventObserver.Polling(Duration.ofMillis(1), 3),
-                _ -> true,
                 null);
 
         assertThatThrownBy(observer::drain).isInstanceOf(AttemptFailedException.class);
@@ -67,14 +66,13 @@ class KafkaGameEventObserverDrainTest {
         var observer = new KafkaGameEventObserver(
                 consumer,
                 List.of(TOPIC),
-                new InMemoryEvidenceLedger(),
-                JsonMapper.builder().build(),
+                new KafkaGameEventObserver.Collaborators(
+                        new InMemoryEvidenceLedger(), JsonMapper.builder().build(), ends -> {
+                            asked.set(ends);
+                            return false;
+                        }),
                 new KafkaGameEventObserver.Target(SCOPE, UUID.randomUUID(), GAME),
                 new KafkaGameEventObserver.Polling(Duration.ofMillis(1), 3),
-                ends -> {
-                    asked.set(ends);
-                    return false;
-                },
                 null);
 
         assertThat(observer.drain()).isTrue();
@@ -83,6 +81,8 @@ class KafkaGameEventObserverDrainTest {
                 .containsExactly(java.util.Map.entry(new EvidenceLedger.SourcePartition(TOPIC, 0), 2L));
         assertThat(observer.readSideApplied()).isFalse();
         assertThat(asked.get()).containsExactly(java.util.Map.entry(partition, 2L));
+        observer.close();
+        assertThat(consumer.closed()).isTrue();
     }
 
     private static ConsumerRecord<String, byte[]> message(long offset, boolean identified) {

@@ -53,15 +53,23 @@ public class KafkaGameEventObservers implements GameEventObservers {
         properties.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         properties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ByteArrayDeserializer.class);
         var consumer = new KafkaConsumer<String, byte[]>(properties);
-        return new KafkaGameEventObserver(
-                consumer,
-                List.of(lane.gameEventsTopic(), lane.timelineEventsTopic()),
-                evidence,
-                objectMapper,
-                new KafkaGameEventObserver.Target(scopeId, attemptId, gameId),
-                new KafkaGameEventObserver.Polling(POLL_TIMEOUT, MAX_IDLE_POLLS),
-                new KafkaReadSideOffsets(Admin.create(adminProperties(properties))),
-                since);
+        Admin admin = null;
+        try {
+            admin = Admin.create(adminProperties(properties));
+            return new KafkaGameEventObserver(
+                    consumer,
+                    List.of(lane.gameEventsTopic(), lane.timelineEventsTopic()),
+                    new KafkaGameEventObserver.Collaborators(evidence, objectMapper, new KafkaReadSideOffsets(admin)),
+                    new KafkaGameEventObserver.Target(scopeId, attemptId, gameId),
+                    new KafkaGameEventObserver.Polling(POLL_TIMEOUT, MAX_IDLE_POLLS),
+                    since);
+        } catch (RuntimeException e) {
+            consumer.close();
+            if (admin != null) {
+                admin.close();
+            }
+            throw e;
+        }
     }
 
     /** The broker address and security settings of the consumer, without its consumer-only settings. */
