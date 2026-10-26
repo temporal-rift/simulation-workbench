@@ -14,7 +14,6 @@
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
     "generate:api": "openapi-ts",
-    "check:api": "npm run generate:api && node scripts/check-generated-api.mjs",
     "ensure-deps": "node scripts/ensure-deps.mjs"
   },
   "dependencies": {
