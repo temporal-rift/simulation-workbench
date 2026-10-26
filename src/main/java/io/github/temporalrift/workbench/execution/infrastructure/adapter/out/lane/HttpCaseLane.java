@@ -44,7 +44,7 @@ import io.github.temporalrift.workbench.shared.execution.FailureCode;
  */
 public class HttpCaseLane implements CaseLane {
 
-    private static final int START_RECONCILE_POLLS = 5;
+    private static final Duration START_RECONCILE_BUDGET = Duration.ofMillis(2500);
     /** Allowance for the difference between this clock and the producers' record timestamps. */
     private static final Duration CLOCK_SKEW = Duration.ofMinutes(1);
 
@@ -291,7 +291,8 @@ public class HttpCaseLane implements CaseLane {
         } catch (RestClientException _) {
             // The response was lost; the lobby tells whether the start was accepted.
         }
-        for (var poll = 0; poll < START_RECONCILE_POLLS; poll++) {
+        var reconciling = pacing.waits().now();
+        while (pacing.waits().now() - reconciling < START_RECONCILE_BUDGET.toNanos()) {
             try {
                 var lobby = hostSession.getLobby(lobbyId).getBody();
                 if (lobby != null && lobby.getStatus() == LobbyStatus.STARTED) {

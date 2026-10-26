@@ -20,8 +20,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import io.micrometer.core.instrument.MockClock;
+import io.micrometer.core.instrument.simple.SimpleConfig;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,6 +37,7 @@ import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientException;
 
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
+import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
 import io.github.temporalrift.workbench.execution.domain.port.out.GameEventObserver;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
 import io.github.temporalrift.workbench.execution.domain.run.CaseRules;
@@ -46,6 +50,7 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.model.ClockAdvance;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.model.ExecutionCheckpoint;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.model.ExecutionState;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.model.SourceWatermark;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.ProjectionApi;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.Faction;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.FinalScore;
@@ -67,6 +72,11 @@ class HttpGameSessionTest {
     private static final String RULES_DIGEST = "e".repeat(64);
     private static final OffsetDateTime EPOCH = OffsetDateTime.parse("2026-01-01T00:00:00Z");
     private static final UUID GAME = ProjectionStates.GAME;
+    private static final Duration POLL = Duration.ofMillis(50);
+    private static final EvidenceLedger.SourcePartition GAME_EVENTS =
+            new EvidenceLedger.SourcePartition("game.events", 0);
+    private static final EvidenceLedger.SourcePartition TIMELINE_EVENTS =
+            new EvidenceLedger.SourcePartition("timeline.events", 0);
     private static final List<io.github.temporalrift.workbench.shared.game.Faction> FACTIONS = List.of(
             io.github.temporalrift.workbench.shared.game.Faction.ERASERS,
             io.github.temporalrift.workbench.shared.game.Faction.PROPHETS,
@@ -77,9 +87,11 @@ class HttpGameSessionTest {
     private final SimulationExecutionApi gameControl = mock(SimulationExecutionApi.class);
     private final SimulationExecutionApi timelineControl = mock(SimulationExecutionApi.class);
     private final ScoringApi scoring = mock(ScoringApi.class);
-    private final SimpleMeterRegistry registry = new SimpleMeterRegistry();
+    private final MockClock clock = new MockClock();
+    private final SimpleMeterRegistry registry = new SimpleMeterRegistry(SimpleConfig.DEFAULT, clock);
     private final LaneWaits waits = new LaneWaits(registry);
     private final AtomicInteger sleeps = new AtomicInteger();
+    private Runnable onSleep = () -> {};
     private final StubEventObserver events = new StubEventObserver();
     private HttpGameSession session;
     private HttpParticipantGateway gateway;
@@ -106,7 +118,7 @@ class HttpGameSessionTest {
                 new CaseRules(new TreeMap<>(), RULES_DIGEST),
                 plans,
                 Instant.parse("2026-01-01T00:00:00Z"));
-        session = sessionWith(new LaneEndpoints.Barrier(Duration.ZERO, 2, 3));
+        session = sessionWith(new LaneEndpoints.Barrier(POLL, Duration.ofMillis(150)));
         checkpoints(true, null);
     }
 
@@ -117,13 +129,13 @@ class HttpGameSessionTest {
                 gateway,
                 gateway,
                 scoring,
-                new HttpGameSession.Pacing(barrier, _ -> sleeps.incrementAndGet(), waits),
+                new HttpGameSession.Pacing(barrier, this::sleep, waits),
                 events);
     }
 
     @Test
     void anIterationThatSettlesReadsEachCheckpointAndEachSeatOnce() {
-        var once = sessionWith(new LaneEndpoints.Barrier(Duration.ZERO, 0, 3));
+        var once = session;
 
         assertThat(once.poll()).isEqualTo(new GameProgress.Open(List.of(0, 1, 2)));
 
@@ -134,7 +146,7 @@ class HttpGameSessionTest {
 
     @Test
     void anEndingReusesTheStatesAndCheckpointsOfTheIterationThatSettled() {
-        var once = sessionWith(new LaneEndpoints.Barrier(Duration.ZERO, 0, 3));
+        var once = session;
         endGame(GameResult.EndReasonEnum.WIN_CONDITION_MET, List.of(0), 3, 30, 20, 10);
         when(scoring.getScores(GAME)).thenReturn(ResponseEntity.ok(scores(30, 20, 10)));
 
@@ -147,7 +159,7 @@ class HttpGameSessionTest {
 
     @Test
     void theClockAdvancesFromTheCheckpointsThePollJustSettledOn() {
-        var once = sessionWith(new LaneEndpoints.Barrier(Duration.ZERO, 0, 3));
+        var once = session;
         var deadline = EPOCH.plusSeconds(30);
         for (var seat = 0; seat < 3; seat++) {
             setState(seat, ProjectionStates.base(Phase.RESOLUTION, 1));
@@ -171,7 +183,7 @@ class HttpGameSessionTest {
 
     @Test
     void theLogicalTimeIsReadAgainOnlyAfterTheClockMoved() {
-        var once = sessionWith(new LaneEndpoints.Barrier(Duration.ZERO, 0, 3));
+        var once = session;
         var deadline = EPOCH.plusSeconds(30);
         when(gameControl.getSimulationCheckpoint())
                 .thenReturn(ResponseEntity.ok(checkpoint(CASE_KEY, DIGEST, true, deadline, 4)));
@@ -233,19 +245,116 @@ class HttpGameSessionTest {
     }
 
     @Test
-    void aProjectionThatKeepsChangingIsNotSettled() {
-        var revision = new AtomicInteger();
-        for (var seat = 0; seat < 3; seat++) {
-            var current = seat;
-            when(projections.get(seat).getGameState(GAME)).thenAnswer(_ -> {
-                var state = handSelection();
-                state.setRevision(revision.incrementAndGet());
-                return ResponseEntity.ok(state);
-            });
-            states.remove(current);
-        }
+    void aGameWhoseConsumersAreAtTheEndOffsetsSettlesOnTheFirstPollWithoutPausing() {
+        events.endOffsets(Map.of(GAME_EVENTS, 5L, TIMELINE_EVENTS, 3L));
+        watermarks(5, 3, 5, 3);
+
+        assertThat(session.poll()).isEqualTo(new GameProgress.Open(List.of(0, 1, 2)));
+
+        assertThat(sleeps.get()).isZero();
+    }
+
+    @Test
+    void aConsumerGroupOneRecordBehindIsNotSettledHoweverLongTheProjectionHasBeenUnchanged() {
+        events.endOffsets(Map.of(GAME_EVENTS, 5L));
+        watermarks(5, 0, 4, 0);
 
         assertThat(session.poll()).isInstanceOf(GameProgress.Waiting.class);
+        assertThat(sleeps.get()).isEqualTo(3);
+
+        watermarks(5, 0, 5, 0);
+        sleeps.set(0);
+        assertThat(session.poll()).isEqualTo(new GameProgress.Open(List.of(0, 1, 2)));
+        assertThat(sleeps.get()).isZero();
+    }
+
+    @Test
+    void aGroupSettlesOnTheFirstPollAfterItCommitsTheRecord() {
+        events.endOffsets(Map.of(GAME_EVENTS, 5L));
+        watermarks(5, 0, 4, 0);
+        onSleep = () -> watermarks(5, 0, 5, 0);
+
+        assertThat(session.poll()).isEqualTo(new GameProgress.Open(List.of(0, 1, 2)));
+
+        assertThat(sleeps.get()).isEqualTo(1);
+    }
+
+    @Test
+    void aGameServiceGroupBehindOnTheTimelineTopicIsNotSettled() {
+        events.endOffsets(Map.of(TIMELINE_EVENTS, 7L));
+        watermarks(0, 6, 0, 7);
+
+        assertThat(session.poll()).isInstanceOf(GameProgress.Waiting.class);
+    }
+
+    @Test
+    void aReadServiceGroupBehindIsNotSettled() {
+        events.endOffsets(Map.of(GAME_EVENTS, 5L)).readSideApplied(false);
+        watermarks(5, 0, 5, 0);
+
+        assertThat(session.poll()).isInstanceOf(GameProgress.Waiting.class);
+        projections.values().forEach(projection -> verify(projection, never()).getGameState(GAME));
+    }
+
+    @Test
+    void anObserverBehindTheEndOfASourceIsNotSettled() {
+        events.caughtUp(false);
+
+        assertThat(session.poll()).isInstanceOf(GameProgress.Waiting.class);
+    }
+
+    @Test
+    void theTimeBudgetDoesNotShrinkWhenThePollIntervalDoes() {
+        events.readSideApplied(false);
+        var fast = sessionWith(new LaneEndpoints.Barrier(Duration.ofMillis(5), Duration.ofMillis(150)));
+
+        assertThat(fast.poll()).isInstanceOf(GameProgress.Waiting.class);
+
+        assertThat(sleeps.get()).isEqualTo(30);
+    }
+
+    @Test
+    void aProjectionThatLagsACommandByOnePollIsNotSettledOnItsPreCommandState() {
+        assertThat(session.poll()).isEqualTo(new GameProgress.Open(List.of(0, 1, 2)));
+        var afterCommand = ProjectionStates.base(Phase.RESOLUTION, 1);
+        afterCommand.setRevision(2);
+        var applied = new AtomicBoolean();
+        for (var seat = 0; seat < 3; seat++) {
+            when(projections.get(seat).getGameState(GAME))
+                    .thenAnswer(_ -> ResponseEntity.ok(applied.get() ? afterCommand : handSelection()));
+        }
+        events.endOffsets(Map.of(GAME_EVENTS, 6L));
+        watermarks(6, 0, 5, 0);
+        onSleep = () -> {
+            watermarks(6, 0, 6, 0);
+            applied.set(true);
+        };
+
+        assertThat(session.poll()).isInstanceOf(GameProgress.Waiting.class);
+    }
+
+    /** The game service's groups on the two topics, then the timeline service's. */
+    private void watermarks(long gameOnGame, long gameOnTimeline, long timelineOnGame, long timelineOnTimeline) {
+        var game = checkpoint(CASE_KEY, DIGEST, true, null, 0)
+                .sourceWatermarks(List.of(
+                        watermark("game-service.a", "game.events", gameOnGame),
+                        watermark("game-service.b", "timeline.events", gameOnTimeline)));
+        var timeline = checkpoint(CASE_KEY, DIGEST, true, null, 0)
+                .sourceWatermarks(List.of(
+                        watermark("timeline-service.a", "game.events", timelineOnGame),
+                        watermark("timeline-service.b", "timeline.events", timelineOnTimeline)));
+        when(gameControl.getSimulationCheckpoint()).thenReturn(ResponseEntity.ok(game));
+        when(timelineControl.getSimulationCheckpoint()).thenReturn(ResponseEntity.ok(timeline));
+    }
+
+    private static SourceWatermark watermark(String group, String topic, long next) {
+        return new SourceWatermark().groupId(group).topic(topic).partition(0).nextOffset(next);
+    }
+
+    private void sleep(Duration duration) {
+        sleeps.incrementAndGet();
+        clock.add(duration);
+        onSleep.run();
     }
 
     @Test

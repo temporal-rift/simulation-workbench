@@ -19,6 +19,15 @@ public interface GameEventObserver extends AutoCloseable {
      */
     boolean drain();
 
+    /** The end offset of every source partition as the last drain read it; empty for sources without offsets. */
+    Map<EvidenceLedger.SourcePartition, Long> endOffsets();
+
+    /**
+     * Whether the read side has applied every record up to {@link #endOffsets()}; true when the observer has no
+     * broker to ask.
+     */
+    boolean readSideApplied();
+
     /** The terminal fact observed so far, if the game's end was published. */
     Optional<GameEnded> gameEnded();
 

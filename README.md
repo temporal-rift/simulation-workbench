@@ -512,6 +512,14 @@ configuration as the worker. Logical time starts at
 `workbench.execution.logical-epoch` for every attempt and is advanced only to the earliest deadline reported by the
 services' checkpoints, on both services, followed by their drain barrier. A slow projection never moves time.
 
+A game is settled when both services report their work drained and every consumer group has committed the end
+offsets the event observer read from each source partition: the groups of game-service and timeline-service report
+theirs in their checkpoints, and the runner reads those of read-service from the broker. The seats' states are read
+only after that, so accepted state read before it is never treated as current. The runner polls every
+`workbench.execution.barrier.poll-interval` (default `50ms`) for at most `workbench.execution.barrier.timeout`
+(default `10s`); a wait that exceeds the timeout reports the game as still waiting, however short the poll interval is.
+The simulator has no broker, so its observer reports the slot router's idle check in place of offsets.
+
 A lane's services play one game per execution context. Whatever the outcome of an attempt or reproduction (succeeded,
 failed, cancelled, timed out or interrupted), the runner closes the case's context on the game and timeline services
 with `closeSimulationExecution` before the lane is offered again; the lane is never restarted between cases. A `204`
@@ -613,9 +621,9 @@ time. None carries a case key, seed, game id, player id or credential as a tag.
 
 `workbench.lane.wait` has three kinds. `ACKNOWLEDGEMENT` is one sample per command sent, from the request until the
 service answers (terminal readiness sends nothing and adds none). `CAUSAL_BARRIER` and `PROJECTION_BARRIER` are one
-sample each per settle wait: the time until both services report their work drained, and the time until every seat's
-projection has stopped changing and the event observer has caught up. Each poll's pause is attributed to the barrier
-that was still unmet. An attempt whose lane lost its lease or was fenced out is recorded as `INTERRUPTED`.
+sample each per settle wait: the time until both services report their work drained, and the time until every consumer
+group has applied the records the event observer has read and every seat's state has been read after that. Each poll's
+pause is attributed to the barrier that was still unmet. An attempt whose lane lost its lease or was fenced out is recorded as `INTERRUPTED`.
 Slots of the simulator stop their services instead of closing a context or calling a hook, and record neither
 `workbench.lane.context.close` nor `workbench.lane.reset`. A case whose context closes cleanly adds no
 `workbench.lane.reset` sample.

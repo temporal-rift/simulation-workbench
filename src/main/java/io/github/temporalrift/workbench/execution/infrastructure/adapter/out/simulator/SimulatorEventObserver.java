@@ -79,6 +79,17 @@ final class SimulatorEventObserver implements GameEventObserver {
         return delivered;
     }
 
+    // The router has no broker: a drain that found it idle already means every service applied every record.
+    @Override
+    public Map<EvidenceLedger.SourcePartition, Long> endOffsets() {
+        return Map.of();
+    }
+
+    @Override
+    public boolean readSideApplied() {
+        return true;
+    }
+
     @Override
     public synchronized Optional<GameEnded> gameEnded() {
         return Optional.ofNullable(gameEnded);

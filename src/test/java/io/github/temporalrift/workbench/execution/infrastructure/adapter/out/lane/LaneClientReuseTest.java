@@ -75,7 +75,7 @@ class LaneClientReuseTest {
                         (_, _, _, _, _) -> new StubEventObserver()),
                 Clock.systemUTC(),
                 new HttpGameSession.Pacing(
-                        new LaneEndpoints.Barrier(Duration.ZERO, 1, 1),
+                        new LaneEndpoints.Barrier(Duration.ZERO, Duration.ofSeconds(1)),
                         _ -> {},
                         new LaneWaits(new SimpleMeterRegistry())));
 

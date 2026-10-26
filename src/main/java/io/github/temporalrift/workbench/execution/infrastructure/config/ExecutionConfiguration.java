@@ -171,9 +171,7 @@ public class ExecutionConfiguration {
             ScheduledExecutorService laneResetExecutor,
             MeterRegistry registry) {
         var barrier = new LaneEndpoints.Barrier(
-                properties.barrier().pollInterval(),
-                properties.barrier().stablePolls(),
-                properties.barrier().maxPolls());
+                properties.barrier().pollInterval(), properties.barrier().timeout());
         var providers = new ArrayList<LaneProvider>();
         var waits = new LaneWaits(registry);
         var pacing = new HttpGameSession.Pacing(barrier, Sleeper.thread(), waits);

@@ -19,6 +19,7 @@ import org.springframework.web.client.RestClientResponseException;
 
 import io.github.temporalrift.workbench.execution.LaneService;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
+import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
 import io.github.temporalrift.workbench.execution.domain.port.out.GameEventObserver;
 import io.github.temporalrift.workbench.execution.domain.port.out.GameSession;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
@@ -40,8 +41,9 @@ import io.github.temporalrift.workbench.shared.game.Faction;
 
 /**
  * A real game observed and driven through participant operations and the services' execution barriers.
- * The game is settled only when both services report a drained checkpoint for this case and every seat's
- * projection has stopped changing; accepted state read before that point is never treated as current.
+ * The game is settled only when both services report a drained checkpoint for this case, every consumer of the
+ * published records has applied the end offsets the event observer read, and the seats' states were read after that;
+ * accepted state read before that point is never treated as current.
  */
 public class HttpGameSession implements GameSession {
 
@@ -62,8 +64,6 @@ public class HttpGameSession implements GameSession {
     private final LaneWaits waits;
     private final GameEventObserver events;
 
-    private Map<Integer, Integer> lastRevisions = Map.of();
-    private int stableReads;
     /** What the last settle wait read; the decisions of the same iteration reuse it instead of reading again. */
     private Settled settled;
     /** The game service's logical time as last read; it moves only when this session advances the clock. */
@@ -113,8 +113,8 @@ public class HttpGameSession implements GameSession {
     /** Whether the services and projection have settled; the gateway uses it to judge accepted state current. */
     public boolean isSettled() {
         settled = null;
-        var drained = readCheckpoints().drained();
-        return projectionSettled().settled() && drained;
+        var checkpoints = readCheckpoints();
+        return checkpoints.drained() && projectionSettled(checkpoints).settled();
     }
 
     /** Both services' checkpoints for the case. */
@@ -136,26 +136,33 @@ public class HttpGameSession implements GameSession {
         return new Checkpoints(checkpoint(gameControl, GAME_SERVICE), checkpoint(timelineControl, TIMELINE_SERVICE));
     }
 
-    /** Whether every seat's projection has stopped changing and the observer has seen all events. */
-    private Projection projectionSettled() {
-        var revisions = new HashMap<Integer, Integer>();
+    /** Whether every consumer has applied what the observer read, and then every seat's state as projected. */
+    private Projection projectionSettled(Checkpoints checkpoints) {
+        if (!events.drain() || !consumersApplied(checkpoints)) {
+            return new Projection(false, List.of());
+        }
         var states = new ArrayList<PlayerGameStateResponse>();
-        var complete = true;
         for (var seat : seats) {
             var projected = gateway.stateOnceProjected(seat.seatIndex());
             if (projected.isEmpty()) {
-                stableReads = 0;
-                lastRevisions = Map.of();
                 return new Projection(false, List.of());
             }
-            var state = projected.get();
-            states.add(state);
-            complete &= state.getRevision() != null;
-            revisions.put(seat.seatIndex(), state.getRevision());
+            states.add(projected.get());
         }
-        stableReads = complete && revisions.equals(lastRevisions) ? stableReads + 1 : 0;
-        lastRevisions = revisions;
-        return new Projection(stableReads >= barrier.stablePolls() && events.drain(), states);
+        return new Projection(true, states);
+    }
+
+    /** Whether every consumer group has committed past the end offsets the observer just read. */
+    private boolean consumersApplied(Checkpoints checkpoints) {
+        var ends = events.endOffsets();
+        return reached(ends, checkpoints.game()) && reached(ends, checkpoints.timeline()) && events.readSideApplied();
+    }
+
+    private static boolean reached(Map<EvidenceLedger.SourcePartition, Long> ends, ExecutionCheckpoint checkpoint) {
+        return checkpoint.getSourceWatermarks().stream().allMatch(watermark -> {
+            var end = ends.get(new EvidenceLedger.SourcePartition(watermark.getTopic(), watermark.getPartition()));
+            return end == null || watermark.getNextOffset() >= end;
+        });
     }
 
     @Override
@@ -246,14 +253,21 @@ public class HttpGameSession implements GameSession {
     private Optional<Settled> settle() {
         settled = null;
         var spent = new Spent();
+        var started = waits.now();
         try {
-            for (var poll = 0; poll < barrier.maxPolls(); poll++) {
+            while (true) {
                 var checkpoints = timed(LaneWaits.Kind.CAUSAL_BARRIER, this::readCheckpoints, spent);
-                var projection = timed(LaneWaits.Kind.PROJECTION_BARRIER, this::projectionSettled, spent);
                 var drained = checkpoints.drained();
+                var projection = timed(
+                        LaneWaits.Kind.PROJECTION_BARRIER,
+                        () -> drained ? projectionSettled(checkpoints) : new Projection(false, List.of()),
+                        spent);
                 if (drained && projection.settled()) {
                     settled = new Settled(checkpoints, projection.states());
                     return Optional.of(settled);
+                }
+                if (waits.now() - started >= barrier.timeout().toNanos()) {
+                    return Optional.empty();
                 }
                 // The pause is spent on whichever barrier was still unmet.
                 var pausing = waits.now();
@@ -262,7 +276,6 @@ public class HttpGameSession implements GameSession {
                         drained ? LaneWaits.Kind.PROJECTION_BARRIER : LaneWaits.Kind.CAUSAL_BARRIER,
                         waits.now() - pausing);
             }
-            return Optional.empty();
         } finally {
             waits.waited(LaneWaits.Kind.CAUSAL_BARRIER, spent.causal);
             waits.waited(LaneWaits.Kind.PROJECTION_BARRIER, spent.projection);

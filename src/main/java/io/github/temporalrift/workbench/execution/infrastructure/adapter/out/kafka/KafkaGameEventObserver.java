@@ -41,6 +41,8 @@ public final class KafkaGameEventObserver implements GameEventObserver {
     private final ObjectMapper objectMapper;
     private final Target target;
     private final Polling polling;
+    private final ReadSideOffsets readSide;
+    private volatile Map<TopicPartition, Long> lastEnds = Map.of();
     private GameEnded gameEnded;
 
     /**
@@ -59,12 +61,14 @@ public final class KafkaGameEventObserver implements GameEventObserver {
             ObjectMapper objectMapper,
             Target target,
             Polling polling,
+            ReadSideOffsets readSide,
             Instant since) {
         this.consumer = consumer;
         this.evidence = evidence;
         this.objectMapper = objectMapper;
         this.target = target;
         this.polling = polling;
+        this.readSide = readSide;
         var assigned = new ArrayList<TopicPartition>();
         for (var topic : topics) {
             consumer.partitionsFor(topic)
@@ -106,6 +110,7 @@ public final class KafkaGameEventObserver implements GameEventObserver {
     @Override
     public boolean drain() {
         var ends = consumer.endOffsets(partitions);
+        lastEnds = ends;
         var next = new HashMap<TopicPartition, Long>();
         try {
             var idle = 0;
@@ -140,8 +145,24 @@ public final class KafkaGameEventObserver implements GameEventObserver {
     }
 
     @Override
+    public Map<EvidenceLedger.SourcePartition, Long> endOffsets() {
+        var offsets = new HashMap<EvidenceLedger.SourcePartition, Long>();
+        lastEnds.forEach((partition, end) -> offsets.put(source(partition), end));
+        return offsets;
+    }
+
+    @Override
+    public boolean readSideApplied() {
+        return readSide.reached(lastEnds);
+    }
+
+    @Override
     public void close() {
-        consumer.close();
+        try {
+            consumer.close();
+        } finally {
+            readSide.close();
+        }
     }
 
     private boolean reached(Map<TopicPartition, Long> ends) {

@@ -73,9 +73,8 @@ public record ExecutionProperties(
 
     /** How long the runner waits for the services and projection to settle. */
     public record Barrier(
-            @DefaultValue("500ms") Duration pollInterval,
-            @DefaultValue("2") int stablePolls,
-            @DefaultValue("20") int maxPolls) {}
+            @DefaultValue("50ms") Duration pollInterval,
+            @DefaultValue("10s") Duration timeout) {}
 
     /** Timeouts of the generated HTTP clients. */
     public record Client(

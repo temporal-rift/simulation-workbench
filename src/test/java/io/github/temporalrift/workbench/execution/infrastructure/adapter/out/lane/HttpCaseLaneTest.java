@@ -25,6 +25,8 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
 
+import io.micrometer.core.instrument.MockClock;
+import io.micrometer.core.instrument.simple.SimpleConfig;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -80,7 +82,8 @@ class HttpCaseLaneTest {
     private static final LaneFit FIT = Provenances.fitOf(new BundleDigests("a".repeat(64), "b".repeat(64)));
     private static final Instant EPOCH = Instant.parse("2026-01-01T00:00:00Z");
 
-    private final SimpleMeterRegistry registry = new SimpleMeterRegistry();
+    private final MockClock clock = new MockClock();
+    private final SimpleMeterRegistry registry = new SimpleMeterRegistry(SimpleConfig.DEFAULT, clock);
     private final FakeClients clients = new FakeClients();
     private final InMemoryCommandLedger ledger = new InMemoryCommandLedger();
     private final InMemoryEvidenceLedger evidence = new InMemoryEvidenceLedger();
@@ -424,7 +427,9 @@ class HttpCaseLaneTest {
                 new LaneServices(ledger, evidence, (_, _, _, _, _) -> events),
                 Clock.fixed(EPOCH, ZoneOffset.UTC),
                 new HttpGameSession.Pacing(
-                        new LaneEndpoints.Barrier(Duration.ZERO, 1, 2), _ -> {}, new LaneWaits(registry)),
+                        new LaneEndpoints.Barrier(Duration.ZERO, Duration.ofSeconds(2)),
+                        _ -> clock.add(Duration.ofMillis(500)),
+                        new LaneWaits(registry)),
                 roster.takeExactly(endpoints.id(), endpoints.fit()).orElseThrow());
     }
 
