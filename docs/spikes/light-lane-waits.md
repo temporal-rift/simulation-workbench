@@ -159,13 +159,13 @@ None of these changes the recommendation: the floor exists in the code regardles
 
 ## 9. Follow-up issues
 
-1. **Report the wait split and the settle count** (workbench). `capacity-report.sh` prints `workbench.lane.wait` per
+1. **Report the wait split and the settle count** ([#99](https://github.com/temporal-rift/simulation-workbench/issues/99)). `capacity-report.sh` prints `workbench.lane.wait` per
    kind with its sample count, and the report states settle waits per game. Needed to confirm section 2 and to
    measure the effect of 2. Small, and should land first.
-2. **Settle on offsets instead of quiet** (workbench, change 1 above). Includes the time budget in place of `max-polls`
+2. **Settle on offsets instead of quiet** ([#100](https://github.com/temporal-rift/simulation-workbench/issues/100), change 1 above). Includes the time budget in place of `max-polls`
    and the old-versus-new digest comparison.
-3. **Test the early-settle gap** (workbench). A unit test in which the projection lags a command by one poll while both
+3. **Test the early-settle gap** ([#101](https://github.com/temporal-rift/simulation-workbench/issues/101)). A unit test in which the projection lags a command by one poll while both
    services report drained; it should fail today and pass after 2. If it does not fail, say so in the issue and close it.
-4. **Expose applied offsets from read-service** (read-service), only if 2 shows committed offsets are not enough.
-5. **Do not issue a broker round trip per checkpoint** (game-service and timeline-service, change 3), after 2 shows
+4. **Expose applied offsets from read-service** (read-service, not yet filed), only if 2 shows committed offsets are not enough.
+5. **Do not issue a broker round trip per checkpoint** (game-service and timeline-service, change 3, not yet filed), after 2 shows
    the cost.
