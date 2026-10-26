@@ -88,6 +88,22 @@ class KafkaReadSideOffsetsTest {
     }
 
     @Test
+    void aGroupWhoseMembersHoldNoAssignmentIsRebalancingAndHoldsBack() {
+        groups(GROUP);
+        describe(GROUP, List.of(member()));
+
+        assertThat(offsets.reached(Map.of(GAME_EVENTS, 5L))).isFalse();
+    }
+
+    @Test
+    void aGroupAssignedOnlyOtherTopicsDoesNotHoldBack() {
+        groups(GROUP);
+        assigned(GROUP, new TopicPartition("other.topic", 0));
+
+        assertThat(offsets.reached(Map.of(GAME_EVENTS, 5L))).isTrue();
+    }
+
+    @Test
     void noReadSideGroupAtAllHasNotReachedAnything() {
         groups("game-service.other");
 
@@ -136,7 +152,10 @@ class KafkaReadSideOffsetsTest {
     }
 
     private void assigned(String group, TopicPartition... partitions) {
-        var members = partitions.length == 0 ? List.<MemberDescription>of() : List.of(member(partitions));
+        describe(group, partitions.length == 0 ? List.<MemberDescription>of() : List.of(member(partitions)));
+    }
+
+    private void describe(String group, List<MemberDescription> members) {
         var description = mock(ConsumerGroupDescription.class);
         when(description.groupId()).thenReturn(group);
         when(description.members()).thenReturn(members);

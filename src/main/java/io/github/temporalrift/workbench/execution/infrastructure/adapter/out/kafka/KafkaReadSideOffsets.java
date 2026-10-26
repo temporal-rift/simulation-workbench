@@ -69,17 +69,19 @@ final class KafkaReadSideOffsets implements ReadSideOffsets {
     /** Whether the group has committed past the end of every observed partition it is assigned. */
     private boolean applied(ConsumerGroupDescription group, Map<TopicPartition, Long> ends)
             throws InterruptedException, ExecutionException, TimeoutException {
-        var assigned = group.members().stream()
+        var allAssigned = group.members().stream()
                 .flatMap(member -> member.assignment().topicPartitions().stream())
-                .filter(ends::containsKey)
                 .toList();
-        if (assigned.isEmpty()) {
-            return !group.members().isEmpty();
+        var observedAssigned = allAssigned.stream().filter(ends::containsKey).toList();
+        if (observedAssigned.isEmpty()) {
+            // An empty assignment means the group is rebalancing; one assigned only unobserved topics has nothing to
+            // catch up on.
+            return !allAssigned.isEmpty();
         }
         var committed = admin.listConsumerGroupOffsets(group.groupId())
                 .partitionsToOffsetAndMetadata(group.groupId())
                 .get(BROKER_TIMEOUT.toSeconds(), TimeUnit.SECONDS);
-        return assigned.stream().allMatch(partition -> {
+        return observedAssigned.stream().allMatch(partition -> {
             var offset = committed.get(partition);
             return (offset == null ? 0L : offset.offset()) >= ends.get(partition);
         });
