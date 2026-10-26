@@ -40,11 +40,6 @@ final class AcceptedState {
         };
     }
 
-    /** Whether the state records an accepted submission in the window, whatever it was. */
-    static boolean holds(PlayerGameStateResponse state, WindowRef window) {
-        return Submissions.exists(state.getMySubmissions(), window);
-    }
-
     private static Optional<Candidate> hand(PlayerGameStateResponse state, int era) {
         return submission(state, WindowRef.of(WindowKind.HAND_SELECTION, era)).map(_ -> {
             List<UUID> kept = state.getMyHand().stream()

@@ -1,6 +1,6 @@
 package io.github.temporalrift.workbench.proof;
 
-import static io.github.temporalrift.workbench.ExecutionTestConfiguration.DEFAULT_BUNDLE;
+import static io.github.temporalrift.workbench.ExecutionTestConfiguration.DEFAULT_FIT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -43,7 +43,7 @@ class RecoveryProofIT extends ProofSupport {
         // A worker that crashed mid-case leaves an attempt running and holding a lease.
         var now = clock.instant();
         caseLedger
-                .claimNext("crashed-worker", now, now.plusSeconds(30), Set.of(DEFAULT_BUNDLE), Set.of())
+                .claimNext("crashed-worker", now, now.plusSeconds(30), Set.of(DEFAULT_FIT))
                 .orElseThrow();
 
         batch.recoverAfterRestart();

@@ -23,6 +23,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 import io.github.temporalrift.workbench.WorkbenchIntegrationTest;
 import io.github.temporalrift.workbench.execution.application.port.in.RunBatchUseCase;
@@ -108,7 +109,9 @@ class RunLifecycleIT {
     @Test
     void anExperimentWithAnUnservedVariantDoesNotStart() throws Exception {
         lanes.serve(DEFAULT_BUNDLE);
-        var experimentId = experiment(ExperimentManifests.threePlayerTwoVariants());
+        var manifest = (ObjectNode) ExperimentManifests.threePlayerTwoVariants().deepCopy();
+        ((ObjectNode) manifest.withArray("variants").get(1)).put("effectiveContentDigest", "e".repeat(64));
+        var experimentId = experiment(manifest);
 
         mockMvc.perform(startRun(experimentId, UUID.randomUUID()))
                 .andExpect(status().isConflict())

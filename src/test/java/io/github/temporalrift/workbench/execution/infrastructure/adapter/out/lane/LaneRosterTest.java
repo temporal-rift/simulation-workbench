@@ -11,72 +11,123 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.jupiter.api.Test;
 
+import io.github.temporalrift.workbench.execution.LaneService;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
-import io.github.temporalrift.workbench.execution.domain.port.out.LaneProvider;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
+import io.github.temporalrift.workbench.execution.domain.run.CaseRules;
+import io.github.temporalrift.workbench.execution.domain.run.LaneFit;
 import io.github.temporalrift.workbench.execution.support.ManualResetScheduler;
+import io.github.temporalrift.workbench.execution.support.Provenances;
+import io.github.temporalrift.workbench.execution.support.RecordingContexts;
 import io.github.temporalrift.workbench.execution.support.RecordingResets;
 
 class LaneRosterTest {
 
     private static final BundleDigests BASELINE = new BundleDigests("a".repeat(64), "b".repeat(64));
+    private static final LaneFit FIT = Provenances.fitOf(BASELINE);
+    private static final LaneFit OTHER_FIT = Provenances.fitOf(new BundleDigests("a".repeat(64), "c".repeat(64)));
     private static final UUID CASE = new UUID(1, 1);
     private static final UUID CASE_KEY = new UUID(2, 2);
-    private static final UUID OTHER_CASE = new UUID(3, 3);
 
+    private final RecordingContexts contexts = new RecordingContexts();
     private final RecordingResets resets = new RecordingResets();
     private final ManualResetScheduler scheduler = new ManualResetScheduler();
 
     @Test
-    void aLaneWithoutAResetHookIsOfferedAgainImmediatelyAfterItsCase() {
+    void aLaneIsOfferedOnlyOncePrepared() {
         var roster = roster(false);
-        var lane = roster.take(CASE, BASELINE, null).orElseThrow();
-        lane.host(context());
 
-        lane.giveBack();
+        assertThat(roster.free()).isEmpty();
+        roster.prepare();
 
         assertThat(roster.free()).containsOnlyKeys("a");
+    }
+
+    @Test
+    void preparationClosesWhateverContextIsOpenOnTheLane() {
+        var roster = roster(false);
+
+        roster.prepare();
+
+        assertThat(contexts.calls()).singleElement().satisfies(call -> {
+            assertThat(call.laneId()).isEqualTo("a");
+            assertThat(call.caseKey()).isNull();
+        });
         assertThat(resets.calls()).isEmpty();
     }
 
     @Test
-    void aLaneWithoutAResetHookKeepsNoGameForAnInterruptedAttempt() {
-        var roster = roster(false);
-        var lane = roster.take(CASE, BASELINE, null).orElseThrow();
-        lane.host(context());
-        lane.retainForRecovery();
+    void aLaneIsMatchedByWhatItFitsNotByItsRules() {
+        var roster = prepared(false);
+
+        assertThat(roster.take(OTHER_FIT, null)).isEmpty();
+        assertThat(roster.takeExactly("a", OTHER_FIT)).isEmpty();
+        assertThat(roster.take(FIT, null)).isPresent();
+    }
+
+    @Test
+    void theContextOfACaseIsClosedOnBothServicesBeforeItsLaneIsOfferedAgain() {
+        var roster = prepared(false);
+        var lane = hosted(roster);
 
         lane.giveBack();
 
         assertThat(roster.free()).containsOnlyKeys("a");
-        assertThat(roster.heldCases()).isEmpty();
+        assertThat(contexts.calls()).singleElement().satisfies(call -> {
+            assertThat(call.laneId()).isEqualTo("a");
+            assertThat(call.caseKey()).isEqualTo(CASE_KEY);
+            assertThat(call.services()).containsExactlyInAnyOrder(LaneService.GAME, LaneService.TIMELINE);
+        });
+        assertThat(resets.calls()).isEmpty();
     }
 
     @Test
-    void aResettableLaneIsResetBeforeItIsFirstOffered() {
-        var roster = roster(true);
+    void aServiceThatRefusedTheContextIsNotAskedToCloseIt() {
+        var roster = prepared(false);
+        var lane = roster.take(FIT, null).orElseThrow();
+        lane.host(context());
+        lane.opened(LaneService.GAME);
+        lane.opened(LaneService.TIMELINE);
+        lane.refused(LaneService.TIMELINE);
 
-        assertThat(roster.free()).isEmpty();
-        roster.prepare(List.of());
-        assertThat(roster.free()).isEmpty();
-        scheduler.runAll();
+        lane.giveBack();
 
-        assertThat(roster.free()).containsOnlyKeys("a");
-        assertThat(resets.calls())
+        assertThat(contexts.calls())
                 .singleElement()
-                .satisfies(call -> assertThat(call.caseKey()).isNull());
+                .satisfies(call -> assertThat(call.services()).containsExactly(LaneService.GAME));
     }
 
     @Test
-    void aResettableLaneIsResetAfterItsCaseBeforeItIsOfferedAgain() {
-        var roster = prepared();
-        var lane = roster.take(CASE, BASELINE, null).orElseThrow();
-        lane.host(context());
+    void aLaneThatHostedNoContextNeedsNoClose() {
+        var roster = prepared(false);
+
+        roster.take(FIT, null).orElseThrow().giveBack();
+
+        assertThat(roster.free()).containsOnlyKeys("a");
+        assertThat(contexts.calls()).isEmpty();
+    }
+
+    @Test
+    void returningALaneTwiceClosesItOnce() {
+        var roster = prepared(false);
+        var lane = hosted(roster);
+
+        lane.giveBack();
+        lane.giveBack();
+
+        assertThat(contexts.calls()).hasSize(1);
+    }
+
+    @Test
+    void aFailedCloseFallsBackToTheResetHookBeforeTheLaneIsOfferedAgain() {
+        var roster = prepared(true);
+        var lane = hosted(roster);
+        contexts.refuseNext(1);
 
         lane.giveBack();
 
         assertThat(roster.free()).isEmpty();
-        assertThat(roster.take(OTHER_CASE, BASELINE, null)).isEmpty();
+        assertThat(roster.take(FIT, null)).isEmpty();
         scheduler.runAll();
         assertThat(roster.free()).containsOnlyKeys("a");
         assertThat(resets.calls()).singleElement().satisfies(call -> {
@@ -87,9 +138,9 @@ class LaneRosterTest {
 
     @Test
     void aFailingResetKeepsTheLaneUnavailableAndIsRetriedWithTheSameIdempotencyKey() {
-        var roster = prepared();
-        var lane = roster.take(CASE, BASELINE, null).orElseThrow();
-        lane.host(context());
+        var roster = prepared(true);
+        var lane = hosted(roster);
+        contexts.refuseNext(1);
         resets.refuseNext(2);
 
         lane.giveBack();
@@ -108,17 +159,38 @@ class LaneRosterTest {
     }
 
     @Test
+    void aLaneWithoutAResetHookRetriesTheCloseUntilItSucceeds() {
+        var roster = prepared(false);
+        var lane = hosted(roster);
+        contexts.refuseNext(2);
+
+        lane.giveBack();
+        assertThat(roster.free()).isEmpty();
+        scheduler.runAll();
+
+        assertThat(roster.free()).containsOnlyKeys("a");
+        assertThat(contexts.calls())
+                .extracting(RecordingContexts.Call::succeeded)
+                .containsExactly(false, false, true);
+        assertThat(resets.calls()).isEmpty();
+    }
+
+    @Test
     void aResetEndingInAnErrorIsRetried() {
         var broken = new AtomicBoolean(true);
         var roster = new LaneRoster(
-                List.of(new LaneRoster.Member("a", BASELINE, true)),
+                List.of(new LaneRoster.Member("a", FIT, true)),
+                contexts,
                 (_, _, _) -> {
                     if (broken.getAndSet(false)) {
                         throw new LinkageError("broken hook client");
                     }
                 },
                 scheduler);
-        roster.prepare(List.of());
+        roster.prepare();
+        var lane = hosted(roster);
+        contexts.refuseNext(1);
+        lane.giveBack();
 
         assertThatThrownBy(scheduler::runPending).isInstanceOf(LinkageError.class);
         assertThat(roster.free()).isEmpty();
@@ -129,9 +201,9 @@ class LaneRosterTest {
 
     @Test
     void retriesBackOffUpToOneMinute() {
-        var roster = prepared();
-        var lane = roster.take(CASE, BASELINE, null).orElseThrow();
-        lane.host(context());
+        var roster = prepared(true);
+        var lane = hosted(roster);
+        contexts.refuseNext(1);
         resets.refuseNext(9);
 
         lane.giveBack();
@@ -153,11 +225,11 @@ class LaneRosterTest {
     }
 
     @Test
-    void everyReleaseUsesAFreshIdempotencyKey() {
-        var roster = prepared();
+    void everyRecoveryUsesAFreshIdempotencyKey() {
+        var roster = prepared(true);
         for (var round = 0; round < 2; round++) {
-            var lane = roster.take(CASE, BASELINE, null).orElseThrow();
-            lane.host(context());
+            var lane = hosted(roster);
+            contexts.refuseNext(1);
             lane.giveBack();
             scheduler.runAll();
         }
@@ -168,130 +240,65 @@ class LaneRosterTest {
     }
 
     @Test
-    void aLaneThatHostedNoCaseNeedsNoReset() {
-        var roster = prepared();
+    void aFailedCloseOnPreparationFallsBackToTheResetHook() {
+        var roster = roster(true);
+        contexts.refuseNext(1);
 
-        roster.take(CASE, BASELINE, null).orElseThrow().giveBack();
-
-        assertThat(roster.free()).containsOnlyKeys("a");
-        assertThat(resets.calls()).isEmpty();
-    }
-
-    @Test
-    void returningALaneTwiceReturnsItOnce() {
-        var roster = prepared();
-        var lane = roster.take(CASE, BASELINE, null).orElseThrow();
-        lane.host(context());
-
-        lane.giveBack();
-        lane.giveBack();
-        scheduler.runAll();
-
-        assertThat(resets.calls()).hasSize(1);
-    }
-
-    @Test
-    void anInterruptedAttemptKeepsItsLaneForItsCaseAlone() {
-        var roster = prepared();
-        var lane = roster.take(CASE, BASELINE, null).orElseThrow();
-        lane.host(context());
-        lane.retainForRecovery();
-
-        lane.giveBack();
-
-        assertThat(resets.calls()).isEmpty();
+        roster.prepare();
         assertThat(roster.free()).isEmpty();
-        assertThat(roster.heldCases()).containsExactly(CASE);
-        assertThat(roster.take(OTHER_CASE, BASELINE, null)).isEmpty();
-        assertThat(roster.takeExactly("a", BASELINE)).isEmpty();
-        var recovering = roster.take(CASE, BASELINE, null).orElseThrow();
-        assertThat(recovering.laneId()).isEqualTo("a");
-        assertThat(roster.heldCases()).isEmpty();
-
-        recovering.host(context());
-        recovering.giveBack();
         scheduler.runAll();
 
-        assertThat(resets.calls()).hasSize(1);
-        assertThat(roster.free()).containsOnlyKeys("a");
-    }
-
-    @Test
-    void aHeldLaneIsResetWhenItsCaseNoLongerNeedsIt() {
-        var roster = prepared();
-        var lane = roster.take(CASE, BASELINE, null).orElseThrow();
-        lane.host(context());
-        lane.retainForRecovery();
-        lane.giveBack();
-
-        roster.releaseHeld(OTHER_CASE);
-        assertThat(roster.heldCases()).containsExactly(CASE);
-        roster.releaseHeld(CASE);
-        scheduler.runAll();
-
-        assertThat(roster.heldCases()).isEmpty();
         assertThat(roster.free()).containsOnlyKeys("a");
         assertThat(resets.calls())
                 .singleElement()
-                .satisfies(call -> assertThat(call.caseKey()).isEqualTo(CASE_KEY));
-    }
-
-    @Test
-    void preparationHoldsTheLanesOfInterruptedAttemptsAndResetsTheOthers() {
-        var roster = new LaneRoster(
-                List.of(new LaneRoster.Member("a", BASELINE, true), new LaneRoster.Member("b", BASELINE, true)),
-                resets,
-                scheduler);
-
-        roster.prepare(List.of(new LaneProvider.Hold("a", CASE, CASE_KEY)));
-        scheduler.runAll();
-
-        assertThat(roster.heldCases()).containsExactly(CASE);
-        assertThat(roster.free()).containsOnlyKeys("b");
-        assertThat(resets.calls()).extracting(RecordingResets.Call::laneId).containsExactly("b");
-    }
-
-    @Test
-    void aCaseWithAHeldLaneIsGivenThatLaneBeforeAFreeOne() {
-        var roster = new LaneRoster(
-                List.of(new LaneRoster.Member("a", BASELINE, true), new LaneRoster.Member("b", BASELINE, true)),
-                resets,
-                scheduler);
-        roster.prepare(List.of(new LaneProvider.Hold("b", CASE, CASE_KEY)));
-        scheduler.runAll();
-
-        assertThat(roster.take(CASE, BASELINE, null).orElseThrow().laneId()).isEqualTo("b");
+                .satisfies(call -> assertThat(call.caseKey()).isNull());
     }
 
     @Test
     void preparationLeavesLanesThatAreAlreadyInServiceAlone() {
-        var roster = prepared();
-        var lane = roster.take(CASE, BASELINE, null).orElseThrow();
+        var roster = prepared(false);
+        var lane = roster.take(FIT, null).orElseThrow();
 
-        roster.prepare(List.of());
+        roster.prepare();
 
         assertThat(roster.free()).isEmpty();
-        assertThat(resets.calls()).isEmpty();
+        assertThat(contexts.calls()).isEmpty();
         lane.giveBack();
         assertThat(roster.free()).containsOnlyKeys("a");
     }
 
     private LaneRoster roster(boolean resettable) {
-        return new LaneRoster(List.of(new LaneRoster.Member("a", BASELINE, resettable)), resets, scheduler);
+        return new LaneRoster(List.of(new LaneRoster.Member("a", FIT, resettable)), contexts, resets, scheduler);
     }
 
-    /** A resettable lane past its start reset, which the recorded calls and delays leave out. */
-    private LaneRoster prepared() {
-        var roster = roster(true);
-        roster.prepare(List.of());
+    /** A lane past its start preparation, which the recorded calls and delays leave out. */
+    private LaneRoster prepared(boolean resettable) {
+        var roster = roster(resettable);
+        roster.prepare();
         scheduler.runAll();
+        contexts.clear();
         resets.clear();
         scheduler.clear();
         return roster;
     }
 
+    private static LaneRoster.Tenancy hosted(LaneRoster roster) {
+        var lane = roster.take(FIT, null).orElseThrow();
+        lane.host(context());
+        lane.opened(LaneService.GAME);
+        lane.opened(LaneService.TIMELINE);
+        return lane;
+    }
+
     private static CaseLane.CaseContext context() {
         return new CaseLane.CaseContext(
-                CASE, new UUID(4, 4), CASE_KEY, "42", "d", List.of(), Instant.parse("2026-01-01T00:00:00Z"));
+                CASE,
+                new UUID(4, 4),
+                CASE_KEY,
+                "42",
+                "d",
+                new CaseRules(new java.util.TreeMap<>(), "e".repeat(64)),
+                List.of(),
+                Instant.parse("2026-01-01T00:00:00Z"));
     }
 }

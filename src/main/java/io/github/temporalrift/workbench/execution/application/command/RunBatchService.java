@@ -19,6 +19,7 @@ import io.github.temporalrift.workbench.execution.domain.run.Attempt;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptState;
 import io.github.temporalrift.workbench.execution.domain.run.CaseCounts;
+import io.github.temporalrift.workbench.execution.domain.run.CaseRules;
 import io.github.temporalrift.workbench.execution.domain.run.Failure;
 import io.github.temporalrift.workbench.execution.domain.run.LeaseLostException;
 import io.github.temporalrift.workbench.execution.domain.run.Run;
@@ -27,11 +28,11 @@ import io.github.temporalrift.workbench.execution.domain.run.RunState;
 import io.github.temporalrift.workbench.shared.execution.FailureCode;
 
 /**
- * Executes the pending cases of running runs, each only on a lane serving its variant's bundle. A claim opens a new
- * attempt that owns the case through a renewable lease; every outcome is fenced by that lease, so an interrupted or
- * stalled worker can never overwrite a case another attempt recovered, and a logical case is recorded as succeeded at
- * most once. An interrupted attempt leaves its lane holding the game for the case's recovering attempt; every other
- * outcome hands the lane back to be made clean.
+ * Executes the pending cases of running runs, each on a lane that fits its experiment, in an execution context of its
+ * own. A claim opens a new attempt that owns the case through a renewable lease; every outcome is fenced by that
+ * lease, so an interrupted or stalled worker can never overwrite a case another attempt recovered, and a logical case
+ * is recorded as succeeded at most once. Every outcome hands the lane back, which closes the case's execution context
+ * before another case gets it.
  */
 public class RunBatchService implements RunBatchUseCase {
 
@@ -63,7 +64,7 @@ public class RunBatchService implements RunBatchUseCase {
     @Override
     public void recoverAfterRestart() {
         cases.interruptAllRunning(clock.instant());
-        playing.lanes().prepare(cases.interruptedLanes());
+        playing.lanes().prepare();
     }
 
     @Override
@@ -72,15 +73,13 @@ public class RunBatchService implements RunBatchUseCase {
         runs.findByState(RunState.QUEUED).forEach(this::begin);
         settleRunning(runs.findByState(RunState.RUNNING));
         settleCancelling(runs.findByState(RunState.CANCELLING));
-        cases.finished(playing.lanes().heldCases()).forEach(playing.lanes()::releaseHeld);
     }
 
     @Override
     public boolean runNextCase(String owner) {
-        var freeBundles = Set.copyOf(playing.lanes().freeLanes().values());
-        var heldCases = playing.lanes().heldCases();
+        var freeFits = Set.copyOf(playing.lanes().freeLanes().values());
         var now = clock.instant();
-        var claim = cases.claimNext(owner, now, now.plus(settings.lease()), freeBundles, heldCases);
+        var claim = cases.claimNext(owner, now, now.plus(settings.lease()), freeFits);
         if (claim.isEmpty()) {
             return false;
         }
@@ -89,17 +88,26 @@ public class RunBatchService implements RunBatchUseCase {
         var run = runs.find(claim.get().logicalCase().runId()).orElseThrow();
         var plan = experiments.plan(run.experimentId());
         if (plan.isEmpty()) {
-            failRun(run, attempt, owner, now);
+            failRun(run, attempt, owner, now, "The frozen experiment is unavailable");
             return true;
         }
         var logicalCase = claim.get().logicalCase();
-        var lane = playing.lanes()
-                .acquire(logicalCase.caseId(), logicalCase.bundle(), previous == null ? null : previous.laneId());
+        var rules = experiments.rules(run.experimentId(), logicalCase.variantLabel());
+        if (rules.isEmpty()) {
+            failRun(
+                    run,
+                    attempt,
+                    owner,
+                    now,
+                    "The frozen rules of variant " + logicalCase.variantLabel() + " are unavailable");
+            return true;
+        }
+        var lane = playing.lanes().acquire(logicalCase.fit(), previous == null ? null : previous.laneId());
         if (lane.isEmpty()) {
             cases.release(attempt.attemptId(), owner);
             return false;
         }
-        execute(claim.get(), previous, plan.get(), lane.get(), owner);
+        execute(claim.get(), plan.get(), rules.get(), lane.get(), owner);
         return true;
     }
 
@@ -109,23 +117,21 @@ public class RunBatchService implements RunBatchUseCase {
     }
 
     private void execute(
-            CaseLedger.Claim claim, Attempt previous, ExperimentSource.Plan plan, CaseLane lane, String owner) {
+            CaseLedger.Claim claim, ExperimentSource.Plan plan, CaseRules rules, CaseLane lane, String owner) {
         try (lane) {
-            if (!playToOutcome(claim, previous, plan, lane, owner)) {
-                lane.retainForRecovery();
-            }
+            playToOutcome(claim, plan, rules, lane, owner);
         }
     }
 
-    /** Plays the attempt and records its outcome; false when the attempt was interrupted instead. */
-    private boolean playToOutcome(
-            CaseLedger.Claim claim, Attempt previous, ExperimentSource.Plan plan, CaseLane lane, String owner) {
+    /** Plays the attempt and records its outcome. */
+    private void playToOutcome(
+            CaseLedger.Claim claim, ExperimentSource.Plan plan, CaseRules rules, CaseLane lane, String owner) {
         var attempt = claim.attempt();
         var started = clock.instant();
         try {
             var result = playing.driver()
-                    .play(claim.logicalCase(), attempt, previous, plan, lane, guard(attempt.attemptId(), claim, owner));
-            return ended(
+                    .play(claim.logicalCase(), attempt, plan, rules, lane, guard(attempt.attemptId(), claim, owner));
+            ended(
                     claim,
                     lane,
                     started,
@@ -133,7 +139,7 @@ public class RunBatchService implements RunBatchUseCase {
                     AttemptState.SUCCEEDED,
                     null);
         } catch (AttemptFailedException e) {
-            return ended(
+            ended(
                     claim,
                     lane,
                     started,
@@ -141,7 +147,7 @@ public class RunBatchService implements RunBatchUseCase {
                     AttemptState.FAILED,
                     e.failure().code());
         } catch (RunCancelledException _) {
-            return ended(
+            ended(
                     claim,
                     lane,
                     started,
@@ -150,15 +156,15 @@ public class RunBatchService implements RunBatchUseCase {
                     null);
         } catch (LeaseLostException _) {
             // Another attempt owns the case now; nothing this worker holds is left to settle.
-            return ended(claim, lane, started, false, AttemptState.INTERRUPTED, null);
+            ended(claim, lane, started, false, AttemptState.INTERRUPTED, null);
         } catch (RuntimeException e) {
             var failure = new Failure(FailureCode.EXECUTION_FAILED, describe(e));
-            return ended(claim, lane, started, fail(attempt, owner, failure), AttemptState.FAILED, failure.code());
+            ended(claim, lane, started, fail(attempt, owner, failure), AttemptState.FAILED, failure.code());
         }
     }
 
     /** Reports the attempt's wall time; an attempt that no longer owns its case ended interrupted, whatever it saw. */
-    private boolean ended(
+    private void ended(
             CaseLedger.Claim claim,
             CaseLane lane,
             Instant started,
@@ -172,13 +178,12 @@ public class RunBatchService implements RunBatchUseCase {
                         owned ? state : AttemptState.INTERRUPTED,
                         owned ? failure : null,
                         Duration.between(started, clock.instant()));
-        return owned;
     }
 
     /** The frozen experiment is gone, so no case of the run can ever execute: the run itself fails. */
-    private void failRun(Run run, Attempt attempt, String owner, Instant now) {
+    private void failRun(Run run, Attempt attempt, String owner, Instant now, String message) {
         cases.release(attempt.attemptId(), owner);
-        var reason = new Failure(FailureCode.CONTRACT_MISMATCH, "The frozen experiment is unavailable");
+        var reason = new Failure(FailureCode.CONTRACT_MISMATCH, message);
         if (runs.update(RunState.RUNNING, run.fail(now, reason))) {
             runs.cancelPendingCases(run.runId());
         }

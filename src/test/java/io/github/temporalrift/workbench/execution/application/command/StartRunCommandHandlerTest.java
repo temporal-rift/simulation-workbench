@@ -9,7 +9,6 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
@@ -17,6 +16,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.stream.Stream;
 
@@ -29,6 +29,7 @@ import io.github.temporalrift.workbench.execution.domain.port.out.LaneProvider;
 import io.github.temporalrift.workbench.execution.domain.port.out.RunRepository;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.CaseCounts;
+import io.github.temporalrift.workbench.execution.domain.run.CaseRules;
 import io.github.temporalrift.workbench.execution.domain.run.Run;
 import io.github.temporalrift.workbench.execution.domain.run.RunCreation;
 import io.github.temporalrift.workbench.execution.domain.run.ServedBundle;
@@ -40,8 +41,11 @@ class StartRunCommandHandlerTest {
     private static final Instant NOW = Instant.parse("2026-01-01T00:00:00Z");
     private static final UUID EXPERIMENT = new UUID(1, 1);
     private static final BundleDigests BASELINE = new BundleDigests("a".repeat(64), "b".repeat(64));
+    /** The same content under other rules: a lane serving it fits the same cases. */
     private static final BundleDigests CANDIDATE = new BundleDigests("f".repeat(64), "b".repeat(64));
-    private static final BundleDigests OTHER = new BundleDigests("e".repeat(64), "b".repeat(64));
+
+    /** Other content: no lane serving the baseline fits it. */
+    private static final BundleDigests OTHER = new BundleDigests("e".repeat(64), "d".repeat(64));
 
     private final ExperimentSource experiments = mock(ExperimentSource.class);
     private final RunRepository runs = mock(RunRepository.class);
@@ -50,10 +54,10 @@ class StartRunCommandHandlerTest {
             new StartRunCommandHandler(experiments, runs, lanes, Clock.fixed(NOW, ZoneOffset.UTC));
 
     @Test
-    void everyCaseIsBoundToItsVariantsBundle() {
+    void everyCaseIsBoundToItsVariantsBundleAndFit() {
         givenExperiment(
                 List.of(variant("baseline", BASELINE), variant("candidate", CANDIDATE), variant("third", OTHER)));
-        when(lanes.servedBundles()).thenReturn(served(BASELINE, CANDIDATE, OTHER));
+        when(lanes.servedBundles()).thenReturn(served(BASELINE, OTHER));
         when(runs.create(any(), anyString(), any(), anyInt(), any())).thenReturn(new RunCreation.Created());
         when(runs.find(any())).thenAnswer(call -> Optional.of(Run.queued(call.getArgument(0), EXPERIMENT, NOW)));
         when(runs.counts(any())).thenReturn(new CaseCounts(2, 2, 0, 0, 0, 0));
@@ -64,8 +68,11 @@ class StartRunCommandHandlerTest {
         ArgumentCaptor<List<RunRepository.NewCase>> cases = ArgumentCaptor.forClass(List.class);
         verify(runs).create(any(), anyString(), any(), anyInt(), cases.capture());
         assertThat(cases.getValue())
-                .extracting(RunRepository.NewCase::variantLabel, RunRepository.NewCase::bundle)
-                .containsExactly(tuple("baseline", BASELINE), tuple("candidate", CANDIDATE));
+                .extracting(
+                        RunRepository.NewCase::variantLabel, RunRepository.NewCase::bundle, RunRepository.NewCase::fit)
+                .containsExactly(
+                        tuple("baseline", BASELINE, Provenances.fitOf(BASELINE)),
+                        tuple("candidate", CANDIDATE, Provenances.fitOf(CANDIDATE)));
     }
 
     @Test
@@ -79,25 +86,38 @@ class StartRunCommandHandlerTest {
         handler.handle(new StartRunUseCase.Command(EXPERIMENT, UUID.randomUUID()));
 
         verify(experiments).snapshot(EXPERIMENT);
-        verifyNoMoreInteractions(experiments);
+        verify(experiments, never()).plan(any());
     }
 
     @Test
     void anExperimentWithUnservedVariantsCreatesNothingAndNamesThem() {
-        givenExperiment(
-                List.of(variant("baseline", BASELINE), variant("candidate", CANDIDATE), variant("third", OTHER)));
+        givenExperiment(List.of(variant("baseline", BASELINE), variant("third", OTHER)));
         when(lanes.servedBundles()).thenReturn(served(BASELINE));
 
         assertThatThrownBy(() -> handler.handle(new StartRunUseCase.Command(EXPERIMENT, UUID.randomUUID())))
                 .isInstanceOfSatisfying(
                         UnservedVariantsException.class,
-                        e -> assertThat(e.labels()).containsExactly("candidate", "third"))
-                .hasMessageContaining("candidate, third");
+                        e -> assertThat(e.labels()).containsExactly("third"))
+                .hasMessageContaining("third");
+        verify(runs, never()).create(any(), anyString(), any(), anyInt(), any());
+    }
+
+    @Test
+    void aVariantWhoseRulesAreNotRetainedIsUnserved() {
+        givenExperiment(List.of(variant("baseline", BASELINE), variant("candidate", CANDIDATE)));
+        when(lanes.servedBundles()).thenReturn(served(BASELINE));
+        when(experiments.rules(EXPERIMENT, "candidate")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> handler.handle(new StartRunUseCase.Command(EXPERIMENT, UUID.randomUUID())))
+                .isInstanceOfSatisfying(
+                        UnservedVariantsException.class,
+                        e -> assertThat(e.labels()).containsExactly("candidate"));
         verify(runs, never()).create(any(), anyString(), any(), anyInt(), any());
     }
 
     private void givenExperiment(List<ExperimentSource.Variant> variants) {
         when(runs.findCommand(any())).thenReturn(Optional.empty());
+        when(experiments.rules(any(), any())).thenReturn(Optional.of(new CaseRules(new TreeMap<>(), "e".repeat(64))));
         when(experiments.snapshot(EXPERIMENT))
                 .thenReturn(Optional.of(new ExperimentSource.Snapshot(
                         new ExperimentSource.Plan("digest", "{}", 1, 60, 1, variants),
@@ -107,12 +127,12 @@ class StartRunCommandHandlerTest {
     }
 
     private static ExperimentSource.Variant variant(String label, BundleDigests bundle) {
-        return new ExperimentSource.Variant(label, bundle);
+        return new ExperimentSource.Variant(label, bundle, Provenances.fitOf(bundle));
     }
 
     private static List<ServedBundle> served(BundleDigests... bundles) {
         return ServedBundle.counted(Stream.of(bundles)
-                .map(bundle -> ServedBundle.ofLane(bundle, Provenances.sample()))
+                .map(bundle -> ServedBundle.ofLane(bundle, Provenances.of(bundle)))
                 .toList());
     }
 }

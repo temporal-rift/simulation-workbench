@@ -22,6 +22,7 @@ import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.BundleProvenance;
+import io.github.temporalrift.workbench.execution.domain.run.CaseRules;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneEndpoints;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneWaits;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.RestApiClients;
@@ -45,11 +46,11 @@ class SimulatorCaseLaneTest {
     @Test
     void openingStartsTheSlotsServicesAndTheCaseIsRefusedByThem() {
         var pool = pool();
-        pool.prepare(List.of());
+        pool.prepare();
         scheduler.runAll();
-        var lane = pool.acquire(CASE, BUNDLE, null).orElseThrow();
+        var lane = pool.acquire(pool.freeLanes().get("simulator-1"), null).orElseThrow();
 
-        assertThatThrownBy(() -> lane.open(context(), null)).isInstanceOfSatisfying(AttemptFailedException.class, e -> {
+        assertThatThrownBy(() -> lane.open(context())).isInstanceOfSatisfying(AttemptFailedException.class, e -> {
             assertThat(e.failure().code()).isEqualTo(FailureCode.EXECUTION_FAILED);
             assertThat(e.getMessage()).contains("game-service refused the execution context");
         });
@@ -104,6 +105,7 @@ class SimulatorCaseLaneTest {
                 new UUID(6, 6),
                 "42",
                 "f".repeat(64),
+                new CaseRules(new TreeMap<>(), "e".repeat(64)),
                 List.of(),
                 Instant.parse("2026-01-01T00:00:00Z"));
     }

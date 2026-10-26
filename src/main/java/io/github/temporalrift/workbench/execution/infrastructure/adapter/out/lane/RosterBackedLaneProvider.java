@@ -1,15 +1,12 @@
 package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
 
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.port.out.LaneProvider;
-import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
+import io.github.temporalrift.workbench.execution.domain.run.LaneFit;
 import io.github.temporalrift.workbench.execution.domain.run.ServedBundle;
 
 /** Lanes whose availability a {@link LaneRoster} tracks; only the lane handed out for a tenancy differs. */
@@ -27,13 +24,13 @@ public abstract class RosterBackedLaneProvider implements LaneProvider {
     protected abstract CaseLane lane(LaneRoster.Tenancy tenancy);
 
     @Override
-    public Optional<CaseLane> acquire(UUID caseId, BundleDigests bundle, String preferredLaneId) {
-        return roster.take(caseId, bundle, preferredLaneId).map(this::lane);
+    public Optional<CaseLane> acquire(LaneFit fit, String preferredLaneId) {
+        return roster.take(fit, preferredLaneId).map(this::lane);
     }
 
     @Override
-    public Optional<CaseLane> acquireExactly(String laneId, BundleDigests bundle) {
-        return roster.takeExactly(laneId, bundle).map(this::lane);
+    public Optional<CaseLane> acquireExactly(String laneId, LaneFit fit) {
+        return roster.takeExactly(laneId, fit).map(this::lane);
     }
 
     @Override
@@ -42,22 +39,12 @@ public abstract class RosterBackedLaneProvider implements LaneProvider {
     }
 
     @Override
-    public Map<String, BundleDigests> freeLanes() {
+    public Map<String, LaneFit> freeLanes() {
         return roster.free();
     }
 
     @Override
-    public Set<UUID> heldCases() {
-        return roster.heldCases();
-    }
-
-    @Override
-    public void prepare(Collection<Hold> interrupted) {
-        roster.prepare(interrupted);
-    }
-
-    @Override
-    public void releaseHeld(UUID caseId) {
-        roster.releaseHeld(caseId);
+    public void prepare() {
+        roster.prepare();
     }
 }

@@ -10,6 +10,7 @@ import java.util.UUID;
 import io.github.temporalrift.workbench.execution.domain.run.Attempt;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.CaseCounts;
+import io.github.temporalrift.workbench.execution.domain.run.LaneFit;
 import io.github.temporalrift.workbench.execution.domain.run.LogicalCase;
 import io.github.temporalrift.workbench.execution.domain.run.Run;
 import io.github.temporalrift.workbench.execution.domain.run.RunCommand;
@@ -79,6 +80,7 @@ public interface RunRepository {
             int ordinal,
             String variantLabel,
             BundleDigests bundle,
+            LaneFit fit,
             String seed,
             int playerCount,
             List<SeatPlan> seats) {

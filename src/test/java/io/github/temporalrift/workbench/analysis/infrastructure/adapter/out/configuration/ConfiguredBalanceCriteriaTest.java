@@ -117,7 +117,7 @@ class ConfiguredBalanceCriteriaTest {
 
     @Test
     void evidenceTheEvaluatorCannotApplyFailsAtLoadInsteadOfBeingServedWithOtherBehaviour() {
-        var source = TestCriteria.source();
+        var source = TestCriteria.source().replace("\r\n", "\n");
 
         for (var change : List.of(
                 new String[] {"\"confidenceLevel\": 0.95", "\"confidenceLevel\": 0.9"},

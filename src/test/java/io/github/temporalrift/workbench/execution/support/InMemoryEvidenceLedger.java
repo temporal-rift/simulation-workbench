@@ -38,11 +38,24 @@ public class InMemoryEvidenceLedger implements EvidenceLedger {
     private final Map<Game, List<StepRecord>> steps = new ConcurrentHashMap<>();
     private final Map<Game, Map<String, ObservedEvent>> events = new ConcurrentHashMap<>();
     private final Map<Game, Map<SourcePartition, Long>> offsets = new ConcurrentHashMap<>();
+    private final Map<UUID, List<String>> reported = new ConcurrentHashMap<>();
 
     @Override
     public synchronized void pin(UUID scopeId, String manifestDigest, String manifestJson, Instant now) {
         var artifact = put(manifestJson);
         headers.putIfAbsent(scopeId, new Header(manifestDigest, artifact, null, null));
+    }
+
+    @Override
+    public synchronized void reportRulesDigests(UUID scopeId, String gameRulesDigest, String timelineRulesDigest) {
+        if (headers.containsKey(scopeId)) {
+            reported.put(scopeId, List.of(gameRulesDigest, timelineRulesDigest));
+        }
+    }
+
+    /** The rules digests game-service and timeline-service reported for the scope, in that order. */
+    public List<String> reportedRules(UUID scopeId) {
+        return reported.getOrDefault(scopeId, List.of());
     }
 
     @Override

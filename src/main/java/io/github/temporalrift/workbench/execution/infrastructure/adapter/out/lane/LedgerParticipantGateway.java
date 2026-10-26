@@ -28,7 +28,6 @@ import io.github.temporalrift.workbench.policy.domain.port.out.ParticipantGatewa
 public class LedgerParticipantGateway implements ParticipantGateway {
 
     private final ParticipantGateway delegate;
-    private final SlotReconciler reconciler;
     private final CommandLedger ledger;
     private final StepRecorder recorder;
     private final UUID caseId;
@@ -38,36 +37,17 @@ public class LedgerParticipantGateway implements ParticipantGateway {
 
     public LedgerParticipantGateway(
             ParticipantGateway delegate,
-            SlotReconciler reconciler,
             CommandLedger ledger,
             StepRecorder recorder,
             UUID caseId,
             UUID attemptId,
             Clock clock) {
         this.delegate = delegate;
-        this.reconciler = reconciler;
         this.ledger = ledger;
         this.recorder = recorder;
         this.caseId = caseId;
         this.attemptId = attemptId;
         this.clock = clock;
-    }
-
-    /**
-     * Resolves the slots a previous attempt sent without learning the answer, from the service's accepted
-     * state. A slot whose answer cannot be read yet stays in doubt and blocks a resend.
-     */
-    public void recoverInDoubt() {
-        for (var slot : ledger.inDoubt(caseId)) {
-            reconciler.holds(slot.id().seatIndex(), slot.id().window()).ifPresent(held -> {
-                ledger.resolve(
-                        slot.id(),
-                        held ? new SlotResolution.Recovered() : new SlotResolution.AbsentFromAcceptedState(),
-                        clock.instant());
-                recorder.resolved(
-                        slot.id().seatIndex(), slot.id().window(), held ? StepOutcome.ACCEPTED : StepOutcome.NOT_SPENT);
-            });
-        }
     }
 
     @Override

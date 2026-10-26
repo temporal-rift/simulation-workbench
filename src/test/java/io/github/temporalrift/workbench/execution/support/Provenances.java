@@ -5,6 +5,7 @@ import java.util.TreeMap;
 
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.BundleProvenance;
+import io.github.temporalrift.workbench.execution.domain.run.LaneFit;
 import io.github.temporalrift.workbench.experiment.VariantRulesFixtures;
 
 /** The provenance test lanes declare for whichever bundle they serve: exactly what the test manifests pin. */
@@ -28,6 +29,11 @@ public final class Provenances {
                 bundle.rulesDigest().equals(VariantRulesFixtures.baseline().digest())
                         ? VariantRulesFixtures.ARTIFACT_DIGEST
                         : "c".repeat(64));
+    }
+
+    /** What a case of {@code bundle} needs of a lane: its content on the services the test manifests pin. */
+    public static LaneFit fitOf(BundleDigests bundle) {
+        return LaneFit.of(bundle.contentDigest(), of(bundle));
     }
 
     private static BundleProvenance sample(String rulesArtifactDigest) {

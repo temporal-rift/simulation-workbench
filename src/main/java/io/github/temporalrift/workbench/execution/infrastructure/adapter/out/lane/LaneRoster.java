@@ -1,7 +1,7 @@
 package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane;
 
 import java.time.Duration;
-import java.util.Collection;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -9,21 +9,20 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.github.temporalrift.workbench.execution.LaneService;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
-import io.github.temporalrift.workbench.execution.domain.port.out.LaneProvider;
-import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
+import io.github.temporalrift.workbench.execution.domain.run.LaneFit;
 
 /**
- * Which lanes may be offered right now. A lane hosts one case at a time; a resettable lane that hosted a case is reset
- * through its deployment before it is offered again, unless its attempt was interrupted: then it keeps its game for
- * that case's recovering attempt. Resettable lanes are unavailable until {@link #prepare prepared} on start.
+ * Which lanes may be offered right now. A lane hosts one case at a time; when the case ends, its execution context is
+ * closed on the lane's services before the lane is offered again. A lane whose close failed is recovered through its
+ * deployment's reset hook when it has one, otherwise the close is retried. Every lane is unavailable until
+ * {@link #prepare prepared} on start.
  */
 public class LaneRoster {
 
@@ -32,145 +31,133 @@ public class LaneRoster {
     private static final Duration LAST_RETRY = Duration.ofMinutes(1);
 
     private final Map<String, Seat> seats;
+    private final LaneContexts contexts;
     private final LaneResets resets;
     private final ResetScheduler scheduler;
 
-    /** A lane, the bundle it serves, and whether its deployment can reset it. */
-    public record Member(String id, BundleDigests bundle, boolean resettable) {}
+    /** A lane, what it fits, and whether its deployment can reset it after a failed close. */
+    public record Member(String id, LaneFit fit, boolean resettable) {}
 
     private enum Availability {
         FREE,
         BUSY,
-        RESETTING,
-        HELD,
+        RELEASING,
         UNPREPARED
     }
 
     private static final class Seat {
         private final Member member;
-        private Availability availability;
-        private LaneProvider.Hold hold;
+        private Availability availability = Availability.UNPREPARED;
 
         private Seat(Member member) {
             this.member = member;
-            this.availability = member.resettable() ? Availability.UNPREPARED : Availability.FREE;
         }
     }
 
-    public LaneRoster(List<Member> members, LaneResets resets, ResetScheduler scheduler) {
+    /** What has to be undone before a lane is offered again; no case key means whichever context is open. */
+    private record Release(Member lane, UUID caseKey, Set<LaneService> services, UUID idempotencyKey) {}
+
+    public LaneRoster(List<Member> members, LaneContexts contexts, LaneResets resets, ResetScheduler scheduler) {
         this.seats = members.stream()
                 .collect(Collectors.toMap(Member::id, Seat::new, (first, _) -> first, LinkedHashMap::new));
+        this.contexts = contexts;
         this.resets = resets;
         this.scheduler = scheduler;
     }
 
-    /**
-     * Takes a free lane serving {@code bundle}, or one holding the game of {@code caseId}, preferring
-     * {@code preferredLaneId}, then a lane held for the case.
-     */
-    public synchronized Optional<Tenancy> take(UUID caseId, BundleDigests bundle, String preferredLaneId) {
+    /** Takes a free lane that fits, preferring {@code preferredLaneId}. */
+    public synchronized Optional<Tenancy> take(LaneFit fit, String preferredLaneId) {
         var offered = seats.values().stream()
-                .filter(seat -> seat.member.bundle().equals(bundle))
-                .filter(seat -> seat.availability == Availability.FREE || heldFor(seat, caseId))
+                .filter(seat -> seat.availability == Availability.FREE)
+                .filter(seat -> seat.member.fit().equals(fit))
                 .toList();
         return offered.stream()
                 .filter(seat -> seat.member.id().equals(preferredLaneId))
                 .findFirst()
-                .or(() -> offered.stream().filter(seat -> heldFor(seat, caseId)).findFirst())
                 .or(() -> offered.stream().findFirst())
                 .map(this::occupy);
     }
 
-    /** Takes exactly this lane when it is free and serves {@code bundle}. */
-    public synchronized Optional<Tenancy> takeExactly(String laneId, BundleDigests bundle) {
+    /** Takes exactly this lane when it is free and fits. */
+    public synchronized Optional<Tenancy> takeExactly(String laneId, LaneFit fit) {
         return Optional.ofNullable(seats.get(laneId))
                 .filter(seat -> seat.availability == Availability.FREE)
-                .filter(seat -> seat.member.bundle().equals(bundle))
+                .filter(seat -> seat.member.fit().equals(fit))
                 .map(this::occupy);
     }
 
-    public synchronized Map<String, BundleDigests> free() {
+    public synchronized Map<String, LaneFit> free() {
         return seats.values().stream()
                 .filter(seat -> seat.availability == Availability.FREE)
-                .collect(Collectors.toUnmodifiableMap(seat -> seat.member.id(), seat -> seat.member.bundle()));
+                .collect(Collectors.toUnmodifiableMap(seat -> seat.member.id(), seat -> seat.member.fit()));
     }
 
-    public synchronized Set<UUID> heldCases() {
-        return seats.values().stream()
-                .filter(seat -> seat.availability == Availability.HELD)
-                .map(seat -> seat.hold.caseId())
-                .collect(Collectors.toUnmodifiableSet());
-    }
-
-    /** Holds every unprepared lane an interrupted attempt left its game on, and resets the other unprepared ones. */
-    public void prepare(Collection<LaneProvider.Hold> interrupted) {
-        var holds = interrupted.stream()
-                .collect(Collectors.toMap(LaneProvider.Hold::laneId, Function.identity(), (first, _) -> first));
-        List<Seat> toReset;
+    /** Closes whatever context a previous process left open on each unprepared lane, then offers the lane. */
+    public void prepare() {
+        List<Seat> unprepared;
         synchronized (this) {
-            var unprepared = seats.values().stream()
+            unprepared = seats.values().stream()
                     .filter(seat -> seat.availability == Availability.UNPREPARED)
                     .toList();
-            unprepared.stream()
-                    .filter(seat -> holds.containsKey(seat.member.id()))
-                    .forEach(seat -> hold(seat, holds.get(seat.member.id())));
-            toReset = unprepared.stream()
-                    .filter(seat -> !holds.containsKey(seat.member.id()))
-                    .toList();
-            toReset.forEach(seat -> seat.availability = Availability.RESETTING);
+            unprepared.forEach(seat -> seat.availability = Availability.RELEASING);
         }
-        toReset.forEach(seat -> reset(seat.member, null));
+        unprepared.forEach(seat -> release(new Release(seat.member, null, controlled(), UUID.randomUUID())));
     }
 
-    /** Resets the lanes held for a case that no longer needs its game. */
-    public void releaseHeld(UUID caseId) {
-        List<LaneProvider.Hold> released;
-        synchronized (this) {
-            var held = seats.values().stream()
-                    .filter(seat -> heldFor(seat, caseId))
-                    .toList();
-            held.forEach(seat -> seat.availability = Availability.RESETTING);
-            released = held.stream().map(seat -> seat.hold).toList();
-        }
-        released.forEach(hold -> reset(seats.get(hold.laneId()).member, hold.caseKey()));
+    private static Set<LaneService> controlled() {
+        return EnumSet.of(LaneService.GAME, LaneService.TIMELINE);
     }
 
     private Tenancy occupy(Seat seat) {
         seat.availability = Availability.BUSY;
-        seat.hold = null;
         return new Tenancy(seat);
     }
 
-    private static boolean heldFor(Seat seat, UUID caseId) {
-        return seat.availability == Availability.HELD && seat.hold.caseId().equals(caseId);
+    /** Closes the contexts; a failure hands the lane to the retrying recovery. */
+    private void release(Release release) {
+        try {
+            closeContexts(release);
+            markFree(release.lane());
+        } catch (RuntimeException e) {
+            LOG.warn("Closing the context of lane {} failed: {}", release.lane().id(), describe(e));
+            scheduler.schedule(() -> recover(release, 0), Duration.ZERO);
+        }
     }
 
-    private static void hold(Seat seat, LaneProvider.Hold hold) {
-        seat.availability = Availability.HELD;
-        seat.hold = hold;
-    }
-
-    private void reset(Member lane, UUID caseKey) {
-        var idempotencyKey = UUID.randomUUID();
-        scheduler.schedule(() -> tryReset(lane, caseKey, idempotencyKey, 0), Duration.ZERO);
-    }
-
-    /** One try of a release; whatever ends it short of a clean lane, an error included, schedules the next. */
-    private void tryReset(Member lane, UUID caseKey, UUID idempotencyKey, int failures) {
+    /**
+     * One try to make the lane clean after a failed close: the deployment's reset hook, or the close again when the
+     * lane has none. Whatever ends it short of a clean lane, an error included, schedules the next.
+     */
+    private void recover(Release release, int failures) {
         var cleaned = false;
         try {
-            resets.reset(lane.id(), caseKey, idempotencyKey);
+            if (release.lane().resettable()) {
+                resets.reset(release.lane().id(), release.caseKey(), release.idempotencyKey());
+            } else {
+                closeContexts(release);
+            }
             cleaned = true;
         } catch (RuntimeException e) {
-            LOG.warn("Reset of lane {} failed: {}", lane.id(), describe(e));
+            LOG.warn("Recovery of lane {} failed: {}", release.lane().id(), describe(e));
         } finally {
             if (cleaned) {
-                markFree(lane);
+                markFree(release.lane());
             } else {
                 var delay = retryDelay(failures);
-                LOG.warn("Reset of lane {} did not complete; retrying in {}", lane.id(), delay);
-                scheduler.schedule(() -> tryReset(lane, caseKey, idempotencyKey, failures + 1), delay);
+                LOG.warn(
+                        "Lane {} is not clean yet; retrying in {}",
+                        release.lane().id(),
+                        delay);
+                scheduler.schedule(() -> recover(release, failures + 1), delay);
             }
+        }
+    }
+
+    private void closeContexts(Release release) {
+        if (release.caseKey() == null) {
+            contexts.closeAnyOpen(release.lane().id());
+        } else {
+            contexts.close(release.lane().id(), release.caseKey(), release.services());
         }
     }
 
@@ -188,13 +175,13 @@ public class LaneRoster {
         return message != null && !message.isBlank() ? message : e.getClass().getSimpleName();
     }
 
-    /** One acquisition of a lane: what it hosted and whether its game must be kept, reported once on return. */
+    /** One acquisition of a lane: the case it hosted and the services it was opened on, released once on return. */
     public final class Tenancy {
 
         private final Seat seat;
         private final AtomicBoolean returned = new AtomicBoolean();
-        private final AtomicReference<CaseLane.CaseContext> hosted = new AtomicReference<>();
-        private final AtomicBoolean retained = new AtomicBoolean();
+        private final Set<LaneService> opened = EnumSet.noneOf(LaneService.class);
+        private volatile UUID caseKey;
 
         private Tenancy(Seat seat) {
             this.seat = seat;
@@ -204,34 +191,38 @@ public class LaneRoster {
             return seat.member.id();
         }
 
-        /** Records the case the lane is about to be configured for; from here on it needs a reset to be clean. */
+        /** Records the case the lane is about to host; a context sent from here on has to be closed on return. */
         public void host(CaseLane.CaseContext context) {
-            hosted.set(context);
+            caseKey = context.caseKey();
         }
 
-        /** Keeps the hosted game on return, for the case's recovering attempt. */
-        public void retainForRecovery() {
-            retained.set(true);
+        /** Records that a service may hold the hosted case's context. */
+        public synchronized void opened(LaneService service) {
+            opened.add(service);
         }
 
-        /** Returns the lane; later calls do nothing. */
+        /** Records that a service definitely refused the hosted case's context. */
+        public synchronized void refused(LaneService service) {
+            opened.remove(service);
+        }
+
+        /** Returns the lane, closing the contexts it opened; later calls do nothing. */
         public void giveBack() {
             if (!returned.compareAndSet(false, true)) {
                 return;
             }
-            var context = hosted.get();
-            synchronized (LaneRoster.this) {
-                if (!seat.member.resettable() || context == null) {
-                    seat.availability = Availability.FREE;
-                    return;
-                }
-                if (retained.get()) {
-                    hold(seat, new LaneProvider.Hold(seat.member.id(), context.caseId(), context.caseKey()));
-                    return;
-                }
-                seat.availability = Availability.RESETTING;
+            Set<LaneService> services;
+            synchronized (this) {
+                services = Set.copyOf(opened);
             }
-            reset(seat.member, context.caseKey());
+            if (caseKey == null || services.isEmpty()) {
+                markFree(seat.member);
+                return;
+            }
+            synchronized (LaneRoster.this) {
+                seat.availability = Availability.RELEASING;
+            }
+            release(new Release(seat.member, caseKey, services, UUID.randomUUID()));
         }
     }
 }

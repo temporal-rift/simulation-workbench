@@ -24,6 +24,12 @@ public interface EvidenceLedger {
     /** Retains the exact manifest the scope runs under. Repeating it for the same scope changes nothing. */
     void pin(UUID scopeId, String manifestDigest, String manifestJson, Instant now);
 
+    /**
+     * Retains the rules digests game-service and timeline-service reported for the scope's execution context. A scope
+     * without pinned evidence keeps nothing.
+     */
+    void reportRulesDigests(UUID scopeId, String gameRulesDigest, String timelineRulesDigest);
+
     /** Retains the accepted decision transcript and the semantic digest of the scope's finished game. */
     void seal(UUID scopeId, String transcript, String resultDigest, Instant now);
 

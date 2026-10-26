@@ -19,11 +19,11 @@ import io.github.temporalrift.workbench.execution.domain.run.RunNotFoundExceptio
 import io.github.temporalrift.workbench.shared.execution.FailureCode;
 
 /**
- * Executes queued reproductions on the clean lane that played the case, while it still serves the case's bundle.
+ * Executes queued reproductions on the lane that played the case, while it still fits the case.
  * Like a research case, a reproduction runs under a renewable lease and only the lease owner settles it. It reports
  * {@code MATCH} when the semantic setup, decisions, outcomes, scoring and result equal the saved case, otherwise
  * {@code DIVERGED} with the first difference, and {@code FAILED} when it could not run to an ending at all. Its lane is
- * handed back to be made clean whatever happened, interruption included, since a reproduction never resumes a game.
+ * handed back whatever happened, which closes the reproduction's execution context.
  */
 public class ReproductionRunner implements RunReproductionUseCase {
 
@@ -82,7 +82,7 @@ public class ReproductionRunner implements RunReproductionUseCase {
             return true;
         }
         var lane =
-                lanes.acquireExactly(reproduction.laneId(), inputs.logicalCase().bundle());
+                lanes.acquireExactly(reproduction.laneId(), inputs.logicalCase().fit());
         if (lane.isEmpty()) {
             reproductions.release(reproduction.reproductionId(), owner);
             return false;
@@ -102,10 +102,9 @@ public class ReproductionRunner implements RunReproductionUseCase {
             evidence.purge(scope);
             var replayed = driver.replay(
                     inputs.logicalCase(),
-                    scope,
-                    reproduction.attemptId(),
-                    inputs.transcript(),
+                    new CaseDriver.Reproduction(scope, reproduction.attemptId(), inputs.transcript()),
                     inputs.plan(),
+                    inputs.rules(),
                     lane,
                     guard(scope, owner));
             var divergence = DivergenceFinder.first(

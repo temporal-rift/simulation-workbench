@@ -3,11 +3,14 @@ package io.github.temporalrift.workbench.experiment.application.query;
 import java.util.Optional;
 import java.util.UUID;
 
+import io.github.temporalrift.workbench.experiment.EffectiveRules;
 import io.github.temporalrift.workbench.experiment.ExperimentBounds;
 import io.github.temporalrift.workbench.experiment.ExperimentCase;
 import io.github.temporalrift.workbench.experiment.ExperimentCatalog;
 import io.github.temporalrift.workbench.experiment.ExperimentSeat;
 import io.github.temporalrift.workbench.experiment.ExperimentSnapshot;
+import io.github.temporalrift.workbench.experiment.application.port.in.GetVariantRulesUseCase;
+import io.github.temporalrift.workbench.experiment.domain.ExperimentNotFoundException;
 import io.github.temporalrift.workbench.experiment.domain.MatrixPreviewService;
 import io.github.temporalrift.workbench.experiment.domain.StoredManifests;
 import io.github.temporalrift.workbench.experiment.domain.port.out.ExperimentRepository;
@@ -16,9 +19,11 @@ import io.github.temporalrift.workbench.experiment.domain.port.out.ExperimentRep
 public class ExperimentCatalogQueryHandler implements ExperimentCatalog {
 
     private final ExperimentRepository experiments;
+    private final GetVariantRulesUseCase variantRules;
 
-    public ExperimentCatalogQueryHandler(ExperimentRepository experiments) {
+    public ExperimentCatalogQueryHandler(ExperimentRepository experiments, GetVariantRulesUseCase variantRules) {
         this.experiments = experiments;
+        this.variantRules = variantRules;
     }
 
     @Override
@@ -35,6 +40,15 @@ public class ExperimentCatalogQueryHandler implements ExperimentCatalog {
                     .toList();
             return new ExperimentSnapshot(StoredManifests.bounds(stored, tree), cases);
         });
+    }
+
+    @Override
+    public Optional<EffectiveRules> variantRules(UUID experimentId, String variantLabel) {
+        try {
+            return Optional.of(variantRules.handle(experimentId, variantLabel));
+        } catch (ExperimentNotFoundException _) {
+            return Optional.empty();
+        }
     }
 
     private static ExperimentCase toCase(MatrixPreviewService.CaseCoordinate coordinate) {

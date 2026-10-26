@@ -6,6 +6,7 @@ import io.github.temporalrift.workbench.execution.domain.evidence.DecisionTransc
 import io.github.temporalrift.workbench.execution.domain.port.out.ExperimentSource;
 import io.github.temporalrift.workbench.execution.domain.reproduction.ManifestMismatchException;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptState;
+import io.github.temporalrift.workbench.execution.domain.run.CaseRules;
 import io.github.temporalrift.workbench.execution.domain.run.LogicalCase;
 import io.github.temporalrift.workbench.execution.domain.run.RunNotFoundException;
 
@@ -17,6 +18,7 @@ import io.github.temporalrift.workbench.execution.domain.run.RunNotFoundExceptio
 record ReproductionInputs(
         LogicalCase logicalCase,
         ExperimentSource.Plan plan,
+        CaseRules rules,
         DecisionTranscript transcript,
         UUID originalGameId,
         String originalLaneId) {
@@ -36,6 +38,10 @@ record ReproductionInputs(
         var plan = experiments
                 .plan(run.experimentId())
                 .orElseThrow(() -> new ManifestMismatchException("The frozen experiment is unavailable"));
+        var rules = experiments
+                .rules(run.experimentId(), logicalCase.variantLabel())
+                .orElseThrow(
+                        () -> new ManifestMismatchException("The frozen rules of the case's variant are unavailable"));
         if (!pinned.manifestDigest().equals(plan.manifestDigest())) {
             throw new ManifestMismatchException("The frozen manifest differs from the one the case ran under");
         }
@@ -51,7 +57,12 @@ record ReproductionInputs(
         }
         try {
             return new ReproductionInputs(
-                    logicalCase, plan, DecisionTranscript.parse(pinned.transcript()), played.gameId(), played.laneId());
+                    logicalCase,
+                    plan,
+                    rules,
+                    DecisionTranscript.parse(pinned.transcript()),
+                    played.gameId(),
+                    played.laneId());
         } catch (IllegalArgumentException e) {
             throw new ManifestMismatchException("The retained transcript cannot be read: " + e.getMessage());
         }

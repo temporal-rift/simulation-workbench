@@ -24,20 +24,21 @@ import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.BundleProvenance;
+import io.github.temporalrift.workbench.execution.domain.run.CaseRules;
+import io.github.temporalrift.workbench.execution.domain.run.LaneFit;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneEndpoints;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneWaits;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.Sleeper;
 import io.github.temporalrift.workbench.execution.support.InMemoryCommandLedger;
 import io.github.temporalrift.workbench.execution.support.InMemoryEvidenceLedger;
 import io.github.temporalrift.workbench.execution.support.ManualResetScheduler;
+import io.github.temporalrift.workbench.execution.support.Provenances;
 import io.github.temporalrift.workbench.shared.execution.FailureCode;
 
 class SimulatorLanePoolTest {
 
     private static final BundleDigests BUNDLE = new BundleDigests("a".repeat(64), "b".repeat(64));
     private static final UUID CASE = new UUID(1, 1);
-    private static final UUID OTHER_CASE = new UUID(2, 2);
-    private static final UUID THIRD_CASE = new UUID(3, 3);
 
     @TempDir
     Path directory;
@@ -62,10 +63,11 @@ class SimulatorLanePoolTest {
         var pool = pool(2);
 
         assertThat(pool.freeLanes()).isEmpty();
-        pool.prepare(List.of());
+        pool.prepare();
         scheduler.runAll();
 
-        assertThat(pool.freeLanes()).isEqualTo(Map.of("simulator-1", BUNDLE, "simulator-2", BUNDLE));
+        assertThat(pool.freeLanes()).containsOnlyKeys("simulator-1", "simulator-2");
+        assertThat(pool.freeLanes().values()).containsOnly(fit(pool));
         assertThat(pool.servedBundles()).singleElement().satisfies(served -> {
             assertThat(served.digests()).isEqualTo(BUNDLE);
             assertThat(served.laneCount()).isEqualTo(2);
@@ -89,29 +91,28 @@ class SimulatorLanePoolTest {
     @Test
     void eachSlotHostsOneCaseAtATimeAndIsFreeAgainWhenItsLaneIsClosed() {
         var pool = pool(2);
-        pool.prepare(List.of());
+        pool.prepare();
         scheduler.runAll();
 
-        var first = pool.acquire(CASE, BUNDLE, null).orElseThrow();
-        var second = pool.acquire(OTHER_CASE, BUNDLE, null).orElseThrow();
+        var first = pool.acquire(fit(pool), null).orElseThrow();
+        var second = pool.acquire(fit(pool), null).orElseThrow();
 
         assertThat(first.laneId()).isNotEqualTo(second.laneId());
-        assertThat(pool.acquire(THIRD_CASE, BUNDLE, null)).isEmpty();
+        assertThat(pool.acquire(fit(pool), null)).isEmpty();
 
         first.close();
 
-        assertThat(pool.acquire(THIRD_CASE, BUNDLE, null).orElseThrow().laneId())
-                .isEqualTo(first.laneId());
+        assertThat(pool.acquire(fit(pool), null).orElseThrow().laneId()).isEqualTo(first.laneId());
     }
 
     @Test
     void aSlotWhoseServicesCannotStartFailsTheAttemptAndIsFreeAgainOnceReturned() {
         var pool = pool(1);
-        pool.prepare(List.of());
+        pool.prepare();
         scheduler.runAll();
-        var lane = pool.acquire(CASE, BUNDLE, null).orElseThrow();
+        var lane = pool.acquire(fit(pool), null).orElseThrow();
 
-        assertThatThrownBy(() -> lane.open(context(), null)).isInstanceOfSatisfying(AttemptFailedException.class, e -> {
+        assertThatThrownBy(() -> lane.open(context())).isInstanceOfSatisfying(AttemptFailedException.class, e -> {
             assertThat(e.failure().code()).isEqualTo(FailureCode.EXECUTION_FAILED);
             assertThat(e.getMessage()).contains("simulator-1").contains("could not start");
         });
@@ -122,41 +123,23 @@ class SimulatorLanePoolTest {
     }
 
     @Test
-    void aSlotWhoseAttemptWasInterruptedIsHeldForThatCase() {
-        var pool = pool(1);
-        pool.prepare(List.of());
-        scheduler.runAll();
-        var lane = pool.acquire(CASE, BUNDLE, null).orElseThrow();
-        var context = context();
-        assertThatThrownBy(() -> lane.open(context, null)).isInstanceOf(AttemptFailedException.class);
-
-        lane.retainForRecovery();
-        lane.close();
-
-        assertThat(pool.heldCases()).containsExactly(CASE);
-        pool.releaseHeld(CASE);
-        scheduler.runAll();
-        assertThat(pool.freeLanes()).containsOnlyKeys("simulator-1");
-    }
-
-    @Test
     void aLaneClosedBeforeItWasOpenedIsFreeAtOnce() {
         var pool = pool(1);
-        pool.prepare(List.of());
+        pool.prepare();
         scheduler.runAll();
 
-        pool.acquire(CASE, BUNDLE, null).orElseThrow().close();
+        pool.acquire(fit(pool), null).orElseThrow().close();
 
         assertThat(pool.freeLanes()).containsOnlyKeys("simulator-1");
     }
 
     @Test
-    void aCaseOfAnotherBundleGetsNoSlot() {
+    void aCaseOfAnotherContentGetsNoSlot() {
         var pool = pool(1);
-        pool.prepare(List.of());
+        pool.prepare();
         scheduler.runAll();
 
-        assertThat(pool.acquire(CASE, new BundleDigests("e".repeat(64), "b".repeat(64)), null))
+        assertThat(pool.acquire(Provenances.fitOf(new BundleDigests("a".repeat(64), "e".repeat(64))), null))
                 .isEmpty();
     }
 
@@ -199,6 +182,10 @@ class SimulatorLanePoolTest {
                 .hasMessageContaining("Start-Class");
     }
 
+    private static LaneFit fit(SimulatorLanePool pool) {
+        return pool.servedBundles().getFirst().fit();
+    }
+
     private static CaseLane.CaseContext context() {
         return new CaseLane.CaseContext(
                 CASE,
@@ -206,6 +193,7 @@ class SimulatorLanePoolTest {
                 new UUID(6, 6),
                 "42",
                 "f".repeat(64),
+                new CaseRules(new TreeMap<>(), "e".repeat(64)),
                 List.of(),
                 Instant.parse("2026-01-01T00:00:00Z"));
     }

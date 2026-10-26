@@ -2,15 +2,13 @@ package io.github.temporalrift.workbench.execution.domain.port.out;
 
 import java.time.Instant;
 import java.util.Collection;
-import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.execution.domain.run.Attempt;
-import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.CaseResult;
 import io.github.temporalrift.workbench.execution.domain.run.Failure;
+import io.github.temporalrift.workbench.execution.domain.run.LaneFit;
 import io.github.temporalrift.workbench.execution.domain.run.LogicalCase;
 
 /**
@@ -21,15 +19,10 @@ public interface CaseLedger {
 
     /**
      * Atomically claims the next pending case, in matrix order, of a running run that is within its concurrency bound
-     * and whose bundle is among {@code freeBundles} or which is among {@code heldCases}, and opens a new attempt for
-     * it, or returns empty when there is nothing to do.
+     * and whose fit is among {@code freeFits}, and opens a new attempt for it, or returns empty when there is nothing
+     * to do.
      */
-    Optional<Claim> claimNext(
-            String owner,
-            Instant now,
-            Instant leaseUntil,
-            Collection<BundleDigests> freeBundles,
-            Collection<UUID> heldCases);
+    Optional<Claim> claimNext(String owner, Instant now, Instant leaseUntil, Collection<LaneFit> freeFits);
 
     /** Extends the lease; false means the attempt is no longer this owner's to run. */
     boolean extendLease(UUID attemptId, String owner, Instant leaseUntil);
@@ -59,12 +52,6 @@ public interface CaseLedger {
 
     /** Interrupts every running run and attempt left by a previous process. */
     int interruptAllRunning(Instant now);
-
-    /** The lanes whose most recent attempt was interrupted while its case is unfinished, each with that case. */
-    List<LaneProvider.Hold> interruptedLanes();
-
-    /** The cases among {@code caseIds} that reached a final state. */
-    Set<UUID> finished(Collection<UUID> caseIds);
 
     /** A claimed case with its new attempt and the attempt it recovers, if any. */
     record Claim(LogicalCase logicalCase, Attempt attempt, Optional<Attempt> previous, int concurrency) {}

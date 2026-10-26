@@ -142,7 +142,13 @@ public class HttpGameSession implements GameSession {
         var states = new ArrayList<PlayerGameStateResponse>();
         var complete = true;
         for (var seat : seats) {
-            var state = gateway.stateOf(seat.seatIndex());
+            var projected = gateway.stateOnceProjected(seat.seatIndex());
+            if (projected.isEmpty()) {
+                stableReads = 0;
+                lastRevisions = Map.of();
+                return new Projection(false, List.of());
+            }
+            var state = projected.get();
             states.add(state);
             complete &= state.getRevision() != null;
             revisions.put(seat.seatIndex(), state.getRevision());
@@ -234,11 +240,6 @@ public class HttpGameSession implements GameSession {
                         == EndReason.valueOf(result.getEndReason().name()))
                 .filter(fact -> fact.finalScores().equals(scoresByPlayer(result)))
                 .isPresent();
-    }
-
-    /** Waits a bounded number of checks for the services and projection to settle. */
-    public boolean awaitSettled() {
-        return settle().isPresent();
     }
 
     /** Waits for the game to settle and keeps what the settling check read for the decisions that follow it. */
@@ -377,10 +378,11 @@ public class HttpGameSession implements GameSession {
                         FailureCode.CONTRACT_MISMATCH, service + " returned no execution checkpoint");
             }
             if (!checkpoint.getCaseKey().equals(context.caseKey())
-                    || !checkpoint.getManifestDigest().equals(context.manifestDigest())) {
+                    || !checkpoint.getManifestDigest().equals(context.manifestDigest())
+                    || !checkpoint.getRulesDigest().equals(context.rules().digest())) {
                 throw new AttemptFailedException(
                         FailureCode.CONFIGURATION_DRIFT,
-                        service + " executes a different case or manifest than the attempt configured");
+                        service + " executes a different case, manifest or rules than the attempt configured");
             }
             if (control == gameControl) {
                 knownLogicalTime = checkpoint.getLogicalTime().toInstant();

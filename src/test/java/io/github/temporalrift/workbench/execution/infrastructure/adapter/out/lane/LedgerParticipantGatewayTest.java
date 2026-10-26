@@ -9,7 +9,6 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.Optional;
 import java.util.Queue;
 import java.util.UUID;
 
@@ -48,19 +47,11 @@ class LedgerParticipantGatewayTest {
     private final InMemoryCommandLedger ledger = new InMemoryCommandLedger();
     private final InMemoryEvidenceLedger evidence = new InMemoryEvidenceLedger();
     private final ScriptedDelegate delegate = new ScriptedDelegate();
-    private final List<Optional<Boolean>> held = new ArrayList<>();
     private LedgerParticipantGateway gateway;
 
     @BeforeEach
     void setUp() {
-        gateway = new LedgerParticipantGateway(
-                delegate,
-                (seat, window) -> held.isEmpty() ? Optional.empty() : held.getFirst(),
-                ledger,
-                recorder(),
-                CASE,
-                ATTEMPT,
-                Clock.systemUTC());
+        gateway = new LedgerParticipantGateway(delegate, ledger, recorder(), CASE, ATTEMPT, Clock.systemUTC());
         gateway.observe(0);
     }
 
@@ -162,36 +153,6 @@ class LedgerParticipantGatewayTest {
     }
 
     @Test
-    void recoveryResolvesInDoubtSlotsFromTheServiceAcceptedState() {
-        ledger.put(new SlotId(CASE, 0, WINDOW), ATTEMPT, "kept", SlotStatus.SENT);
-        ledger.put(new SlotId(CASE, 1, WINDOW), ATTEMPT, "absent", SlotStatus.SENT);
-        var recovering = new LedgerParticipantGateway(
-                delegate,
-                (seat, window) -> Optional.of(seat == 0),
-                ledger,
-                recorder(),
-                CASE,
-                ATTEMPT,
-                Clock.systemUTC());
-
-        recovering.recoverInDoubt();
-
-        assertThat(ledger.find(new SlotId(CASE, 0, WINDOW)).orElseThrow().status())
-                .isEqualTo(SlotStatus.ACCEPTED);
-        assertThat(ledger.find(new SlotId(CASE, 1, WINDOW)).orElseThrow().status())
-                .isEqualTo(SlotStatus.NOT_SPENT);
-    }
-
-    @Test
-    void recoveryLeavesTheSlotInDoubtWhileAcceptedStateIsNotCurrent() {
-        ledger.put(new SlotId(CASE, 0, WINDOW), ATTEMPT, "kept", SlotStatus.SENT);
-
-        gateway.recoverInDoubt();
-
-        assertThat(ledger.inDoubt(CASE)).hasSize(1);
-    }
-
-    @Test
     void terminalReadinessIsNotADecisionSlot() {
         delegate.outcomes.add(new SubmissionOutcome.Accepted());
 
@@ -262,19 +223,6 @@ class LedgerParticipantGatewayTest {
     }
 
     @Test
-    void recoveringInDoubtSlotsResolvesTheirRetainedSteps() {
-        delegate.outcomes.add(new SubmissionOutcome.Unacknowledged());
-        gateway.submit(0, keep());
-        held.add(Optional.of(true));
-
-        gateway.recoverInDoubt();
-
-        assertThat(evidence.steps(CASE, GAME))
-                .singleElement()
-                .satisfies(step -> assertThat(step.outcome()).isEqualTo(StepOutcome.ACCEPTED));
-    }
-
-    @Test
     void aCommandThatReachedTheServiceIsRetainedEvenIfTheProcessEndsDuringTheSend() {
         // The scripted delegate has no answer queued, so sending fails as a crash would.
         var candidate = keep();
@@ -283,13 +231,6 @@ class LedgerParticipantGatewayTest {
             assertThat(step.outcome()).isEqualTo(StepOutcome.UNACKNOWLEDGED);
             assertThat(step.decision()).isEqualTo(keep());
         });
-
-        held.add(Optional.of(true));
-        gateway.recoverInDoubt();
-
-        assertThat(evidence.steps(CASE, GAME))
-                .singleElement()
-                .satisfies(step -> assertThat(step.outcome()).isEqualTo(StepOutcome.ACCEPTED));
     }
 
     @Test

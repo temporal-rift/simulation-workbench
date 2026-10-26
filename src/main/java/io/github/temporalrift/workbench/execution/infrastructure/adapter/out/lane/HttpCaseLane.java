@@ -4,11 +4,13 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.fasterxml.jackson.annotation.JsonValue;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
@@ -21,6 +23,8 @@ import io.github.temporalrift.workbench.execution.domain.port.out.GameSession;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.action.ActionApi;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.SimulationExecutionApi;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.model.EffectiveRules;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.model.EffectiveRulesPropertiesValue;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.model.ExecutionCheckpoint;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.model.ExecutionContext;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.model.Faction;
@@ -34,9 +38,9 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 import io.github.temporalrift.workbench.shared.execution.FailureCode;
 
 /**
- * One isolated lane hosting one case at a time. Opening configures the case's execution context on both
- * services, then plays the lobby and start through the bots' own session operations; a recovering attempt
- * attaches to the game its predecessor started when the lane still hosts it.
+ * One isolated lane hosting one case at a time. Opening configures the case's execution context, with the rules it
+ * plays under, on both services, then plays the lobby and start through the bots' own session operations. Closing the
+ * lane closes the context on every service it was sent to.
  */
 public class HttpCaseLane implements CaseLane {
 
@@ -77,7 +81,7 @@ public class HttpCaseLane implements CaseLane {
     }
 
     @Override
-    public GameSession open(CaseContext context, UUID resumeGameId) {
+    public GameSession open(CaseContext context) {
         if (lane.bots().size() < context.seats().size()) {
             throw new AttemptFailedException(
                     FailureCode.CONTRACT_MISMATCH,
@@ -89,22 +93,11 @@ public class HttpCaseLane implements CaseLane {
         var timelineControl =
                 clients.create(SimulationExecutionApi.class, lane.timelineServiceUrl(), lane.operatorToken());
         var participants = participants(context);
-        if (resumeGameId != null && hostsGame(gameControl, context, resumeGameId)) {
-            var attached = session(context, resumeGameId, gameControl, timelineControl, participants, null);
-            attached.recoverInDoubt();
-            return attached.session();
-        }
-        // A new game: the slots of any abandoned game must neither block nor appear in this transcript.
+        // The slots of an abandoned game must neither block nor appear in this transcript.
         ledger.reset(context.caseId());
         var since = clock.instant().minus(CLOCK_SKEW);
         var gameId = startGame(context, gameControl, timelineControl);
-        return session(context, gameId, gameControl, timelineControl, participants, since)
-                .session();
-    }
-
-    @Override
-    public void retainForRecovery() {
-        tenancy.retainForRecovery();
+        return session(context, gameId, gameControl, timelineControl, participants, since);
     }
 
     @Override
@@ -117,18 +110,7 @@ public class HttpCaseLane implements CaseLane {
         }
     }
 
-    /** A game session with its durable gateway; recovery of in-doubt slots needs both. */
-    private record Attached(HttpGameSession session, LedgerParticipantGateway gateway) {
-
-        /** Resolves what a previous attempt left in doubt once the game has settled. */
-        void recoverInDoubt() {
-            if (session.awaitSettled()) {
-                gateway.recoverInDoubt();
-            }
-        }
-    }
-
-    private Attached session(
+    private HttpGameSession session(
             CaseContext context,
             UUID gameId,
             SimulationExecutionApi gameControl,
@@ -147,8 +129,7 @@ public class HttpCaseLane implements CaseLane {
                 context.attemptId(),
                 context.seed(),
                 () -> sessionRef.get().logicalTime());
-        var durable =
-                new LedgerParticipantGateway(raw, raw, ledger, recorder, context.caseId(), context.attemptId(), clock);
+        var durable = new LedgerParticipantGateway(raw, ledger, recorder, context.caseId(), context.attemptId(), clock);
         var events = observers.open(lane, context.caseId(), context.attemptId(), gameId, since);
         opened.add(events);
         var session = new HttpGameSession(
@@ -160,7 +141,7 @@ public class HttpCaseLane implements CaseLane {
                 pacing,
                 events);
         sessionRef.set(session);
-        return new Attached(session, durable);
+        return session;
     }
 
     private List<HttpParticipantGateway.Participant> participants(CaseContext context) {
@@ -176,23 +157,11 @@ public class HttpCaseLane implements CaseLane {
         return participants;
     }
 
-    /** Whether the lane still holds exactly this case's game, so the attempt can continue it. */
-    private boolean hostsGame(SimulationExecutionApi gameControl, CaseContext context, UUID gameId) {
-        try {
-            var checkpoint = gameControl.getSimulationCheckpoint().getBody();
-            return checkpoint != null
-                    && context.caseKey().equals(checkpoint.getCaseKey())
-                    && context.manifestDigest().equals(checkpoint.getManifestDigest())
-                    && gameId.equals(checkpoint.getGameId());
-        } catch (RestClientException _) {
-            return false;
-        }
-    }
-
     private UUID startGame(
             CaseContext context, SimulationExecutionApi gameControl, SimulationExecutionApi timelineControl) {
-        configure(gameControl, LaneService.GAME.serviceName(), context);
-        configure(timelineControl, LaneService.TIMELINE.serviceName(), context);
+        var game = configure(gameControl, LaneService.GAME, context);
+        var timeline = configure(timelineControl, LaneService.TIMELINE, context);
+        evidence.reportRulesDigests(context.caseId(), game.getRulesDigest(), timeline.getRulesDigest());
         var host = lane.bots().getFirst();
         var hostSession = clients.create(SessionApi.class, lane.gameServiceUrl(), host.token());
         var lobbyId = createLobby(hostSession, host);
@@ -203,7 +172,8 @@ public class HttpCaseLane implements CaseLane {
         return start(hostSession, lobbyId);
     }
 
-    private void configure(SimulationExecutionApi control, String service, CaseContext context) {
+    /** Opens the context on one service; the service reports the rules it adopted, which must be the case's. */
+    private ExecutionCheckpoint configure(SimulationExecutionApi control, LaneService service, CaseContext context) {
         var seats = context.seats().stream()
                 .map(seat -> new SimulationSeat(
                         seat.seatIndex(),
@@ -216,30 +186,49 @@ public class HttpCaseLane implements CaseLane {
                 .seed(context.seed())
                 .entropyVersion(ExecutionContext.EntropyVersionEnum.SHA256_V1)
                 .manifestDigest(context.manifestDigest())
+                .rules(rules(context))
+                .rulesDigest(context.rules().digest())
                 .logicalTime(context.logicalEpoch().atOffset(java.time.ZoneOffset.UTC))
                 .seats(seats);
+        // From the first byte sent the service may hold the context, so it has to be closed even if no answer arrives.
+        tenancy.opened(service);
         try {
             ExecutionCheckpoint checkpoint =
                     control.configureSimulationExecution(request).getBody();
             if (checkpoint == null
                     || !context.caseKey().equals(checkpoint.getCaseKey())
-                    || !context.manifestDigest().equals(checkpoint.getManifestDigest())) {
+                    || !context.manifestDigest().equals(checkpoint.getManifestDigest())
+                    || !context.rules().digest().equals(checkpoint.getRulesDigest())) {
                 throw new AttemptFailedException(
-                        FailureCode.CONFIGURATION_DRIFT, service + " did not adopt the case's execution context");
+                        FailureCode.CONFIGURATION_DRIFT,
+                        service.serviceName() + " did not adopt the case's execution context");
             }
+            return checkpoint;
         } catch (RestClientResponseException e) {
+            if (e.getStatusCode().is4xxClientError()) {
+                tenancy.refused(service);
+            }
             throw new AttemptFailedException(
                     FailureCode.EXECUTION_FAILED,
-                    service + " refused the execution context: " + ProblemCodes.codeOf(e) + " "
+                    service.serviceName() + " refused the execution context: " + ProblemCodes.codeOf(e) + " "
                             + ProblemCodes.describe(e),
                     e);
         } catch (RestClientException e) {
             throw new AttemptFailedException(
                     FailureCode.EXECUTION_FAILED,
-                    service + " could not be configured for the case: " + e.getMessage(),
+                    service.serviceName() + " could not be configured for the case: " + e.getMessage(),
                     e);
         }
     }
+
+    private static EffectiveRules rules(CaseContext context) {
+        var properties = new LinkedHashMap<String, EffectiveRulesPropertiesValue>();
+        context.rules().properties().forEach((key, value) -> properties.put(key, new RulesValue(value)));
+        return new EffectiveRules(EffectiveRules.SchemaVersionEnum.NUMBER_1, properties);
+    }
+
+    /** A rules value as the JSON number, boolean, string or array it is; the generated union names none of them. */
+    private record RulesValue(@JsonValue Object value) implements EffectiveRulesPropertiesValue {}
 
     private UUID createLobby(SessionApi hostSession, LaneEndpoints.BotIdentity host) {
         try {

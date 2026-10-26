@@ -1,7 +1,5 @@
 package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.simulator;
 
-import java.util.UUID;
-
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.port.out.GameSession;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.HttpCaseLane;
@@ -34,10 +32,10 @@ final class SimulatorCaseLane implements CaseLane {
     }
 
     @Override
-    public GameSession open(CaseContext context, UUID resumeGameId) {
+    public GameSession open(CaseContext context) {
         // From here the slot holds running services, so returning it must stop them even if the case never starts.
         tenancy.host(context);
-        var runtime = slot.runtime(resumeGameId != null);
+        var runtime = slot.runtime();
         var endpoints = new LaneEndpoints(
                 slot.id(),
                 runtime.gameServiceUrl(),
@@ -66,12 +64,7 @@ final class SimulatorCaseLane implements CaseLane {
                 hosting.clock(),
                 new HttpGameSession.Pacing(hosting.barrier(), hosting.sleeper(), hosting.waits()),
                 tenancy);
-        return hosted.open(context, resumeGameId);
-    }
-
-    @Override
-    public void retainForRecovery() {
-        tenancy.retainForRecovery();
+        return hosted.open(context);
     }
 
     @Override
@@ -79,6 +72,8 @@ final class SimulatorCaseLane implements CaseLane {
         if (hosted != null) {
             hosted.close();
         } else {
+            // The slot's services may be running although no context reached them.
+            slot.stop();
             tenancy.giveBack();
         }
     }

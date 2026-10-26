@@ -8,7 +8,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedMap;
+import java.util.UUID;
 import java.util.stream.IntStream;
 
 import org.springframework.boot.env.PropertiesPropertySourceLoader;
@@ -18,13 +20,16 @@ import org.springframework.core.env.PropertySource;
 import org.springframework.core.io.FileSystemResource;
 import tools.jackson.databind.ObjectMapper;
 
+import io.github.temporalrift.workbench.execution.LaneService;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.port.out.CommandLedger;
 import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.BundleProvenance;
+import io.github.temporalrift.workbench.execution.domain.run.LaneFit;
 import io.github.temporalrift.workbench.execution.domain.run.ServedBundle;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.ApiClients;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneContexts;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneEndpoints;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneRoster;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneWaits;
@@ -34,7 +39,7 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 
 /**
  * The simulator lane: slots that each host the three services in this JVM under profile {@code in-memory}. A slot
- * plays one case at a time and is made clean between cases by stopping its services, so slots are the unit of
+ * plays one case at a time and is made clean after each case by stopping its services, so slots are the unit of
  * parallelism. All slots host the same builds under the same rules and so serve one bundle.
  */
 public final class SimulatorLanePool extends RosterBackedLaneProvider {
@@ -128,10 +133,10 @@ public final class SimulatorLanePool extends RosterBackedLaneProvider {
                 declared.contracts());
         var slots = new LinkedHashMap<String, SimulatorSlot>();
         slotIds.forEach(id -> slots.put(id, new SimulatorSlot(id, build, deployment.bots(), with.clock())));
+        var fit = LaneFit.of(deployment.bundle().contentDigest(), provenance);
         var roster = new LaneRoster(
-                slotIds.stream()
-                        .map(id -> new LaneRoster.Member(id, deployment.bundle(), true))
-                        .toList(),
+                slotIds.stream().map(id -> new LaneRoster.Member(id, fit, true)).toList(),
+                new StoppingContexts(slots),
                 (laneId, _, _) -> slots.get(laneId).stop(),
                 with.scheduler());
         var hosting = new Hosting(
@@ -149,6 +154,20 @@ public final class SimulatorLanePool extends RosterBackedLaneProvider {
                 .map(_ -> ServedBundle.ofLane(deployment.bundle(), provenance))
                 .toList());
         return new SimulatorLanePool(roster, slots, hosting, served);
+    }
+
+    /** A slot holds its games in memory, so closing a context means stopping the services that hold it. */
+    private record StoppingContexts(Map<String, SimulatorSlot> slots) implements LaneContexts {
+
+        @Override
+        public void close(String laneId, UUID caseKey, Set<LaneService> services) {
+            slots.get(laneId).stop();
+        }
+
+        @Override
+        public void closeAnyOpen(String laneId) {
+            slots.get(laneId).stop();
+        }
     }
 
     @Override

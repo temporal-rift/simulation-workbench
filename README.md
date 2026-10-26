@@ -371,8 +371,9 @@ and the designer's edits. A list `limit` or `offset` outside its bounds is `400 
 frozen experiment and returns `202` in state `QUEUED` with its counts. One logical case exists per matrix
 coordinate and is persisted up front, so the totals are known before anything executes. A manifest may expand to at most 100,000 cases, with `concurrency` up to 64, `caseWallTimeoutSeconds` up to 86,400 and `maxRejectedCandidatesPerWindow` up to 1,000; larger ones are `INVALID_EXPERIMENT`. The same key returns the
 original run; the same key for another experiment returns `409 IDEMPOTENCY_CONFLICT`. When any variant of the
-experiment has no configured lane serving its `effectiveRulesDigest` and `effectiveContentDigest`, the request returns
-`409 MANIFEST_MISMATCH`, names every unserved variant label, and creates nothing.
+experiment cannot be played, because no configured lane declares its `effectiveContentDigest` with the services and
+contracts the experiment pins or because the variant's frozen rules are not retained with the experiment, the request
+returns `409 MANIFEST_MISMATCH`, names every unserved variant label, and creates nothing.
 
 | Operation | Behavior |
 |---|---|
@@ -417,7 +418,7 @@ Attempt failures are recorded, never turned into game samples:
 | `RUNNER_TIMEOUT` | The case did not reach an authoritative ending within `caseWallTimeoutSeconds` | yes, up to `max-attempts-per-case` |
 | `EXECUTION_FAILED` | A lane or service call failed in a way no reconciliation resolved | yes |
 | `CONTRACT_MISMATCH` | A response or policy reference does not match the pinned contracts | no |
-| `CONFIGURATION_DRIFT` | A service reports another case or manifest than the one configured, or reveals another faction than planned | no |
+| `CONFIGURATION_DRIFT` | A service reports another case, manifest or rules digest than the one configured, or reveals another faction than planned | no |
 | `POLICY_EXHAUSTED` | A seat had no candidate, pass, or decline left | no |
 
 ### Leases, recovery, and reconciliation
@@ -429,10 +430,9 @@ workers because claims on one run are serialized.
 
 On start, the process interrupts every run a previous process left running; a graceful stop does the same for its
 own attempts; a lease that expires without renewal interrupts its run. Completed results are never touched.
-`resumeRun` re-queues the run, and only the unfinished cases are scheduled. A new attempt attaches to the game its
-predecessor started when the lane still hosts that case, resolves whatever the predecessor left in doubt from the
-service's accepted state, and plays on; otherwise it starts a new game on the lane, which must be clean, and the abandoned game's
-decisions are forgotten.
+`resumeRun` re-queues the run, and only the unfinished cases are scheduled. A recovering attempt starts a new game in a
+new execution context on a lane whose context of the interrupted attempt is closed, and the abandoned game's decisions
+are forgotten.
 
 Every decision a seat sends is recorded in the command ledger before it is sent, one slot per case, seat, and
 window. A slot that was sent and never acknowledged is in doubt: it is reconciled against the seat's own accepted
@@ -450,8 +450,10 @@ terminal run.
 The runner needs isolated lanes. A lane is an independent deployment of `game-service`, `timeline-service`, and
 `read-service` with the simulation controls enabled, one operator credential holding `simulation:control`, and
 one bot identity per seat (at least five for the largest case). It hosts one case at a time and must be clean when
-a case starts; a lane that declares a reset hook is made clean through it between cases. Lanes and credentials are runtime configuration only; they are never stored with experiments, runs,
-or evidence:
+a case starts. Each case plays in an execution context of its own, opened on the lane's game and timeline services and
+closed when the case ends, so a lane plays any number of cases in sequence without restarting; a lane that declares a
+reset hook is recovered through it only when a context cannot be closed. Lanes and credentials are runtime
+configuration only; they are never stored with experiments, runs, or evidence:
 
 ```yaml
 workbench:
@@ -461,7 +463,7 @@ workbench:
     lease: 60s
     heartbeat: 10s
     max-attempts-per-case: 2
-    reset-timeout: 5m           # bounds one call of a lane's reset hook
+    reset-timeout: 5m           # bounds one context close and one call of a lane's reset hook
     lanes:
       - id: lane-1
         game-service-url: https://lane-1.game.internal
@@ -496,20 +498,28 @@ semantic versions. The workbench refuses to start, naming the lane and the key (
 `services.game-service.image-digest` or `contracts.session-api`), when a required key is missing or malformed, and
 names both lanes and the first differing key when two lanes serving the same effective digests declare anything else
 differently: one bundle has one provenance. The designer application offers exactly these bundles for selection (see
-"Guided setup"); it never shows a lane's identifier, endpoints or credentials. A case executes only on a free lane whose digests
-equal its variant's `effectiveRulesDigest` and `effectiveContentDigest`, so a variant's results always come from its own
-bundle and each attempt records the lane that played it. Cases are taken in matrix order among those some free lane can
-serve: a case whose variant has no free lane stays pending without holding back the cases of other variants. A
-recovering attempt goes back to its previous lane when that lane is free and still serves the case's bundle.
+"Guided setup"); it never shows a lane's identifier, endpoints or credentials. A case executes only on a free lane whose
+content digest, service provenance and contract versions equal the variant's `effectiveContentDigest` and the services
+and contracts its experiment pins. The lane's own rules digest takes no part in the match, because every case opens its
+context with the variant's frozen effective rules and their digest; the lane's rules are the baseline variants are
+built from. Each service must report that digest in its checkpoint, otherwise the attempt fails with
+`CONFIGURATION_DRIFT` and never counts as a result, and the case's evidence records the digest each service reported.
+Each attempt records the lane that played it. Cases are taken in matrix order among those some free lane can serve: a
+case no free lane fits stays pending without holding back the cases behind it. A recovering attempt goes back to its
+previous lane when that lane is free and still fits the case.
 `startRun` checks the configured lanes, busy or free, so every instance serving the API needs the same lane
 configuration as the worker. Logical time starts at
 `workbench.execution.logical-epoch` for every attempt and is advanced only to the earliest deadline reported by the
 services' checkpoints, on both services, followed by their drain barrier. A slow projection never moves time.
 
-A lane's services accept one case's execution context for the lifetime of the lane, so a lane without a
-`reset-url` can play one case only, unless its deployment recycles it some other way. With a `reset-url`
-(an absolute http or https URL; the workbench refuses to start otherwise), the runner resets the lane whenever an
-attempt or a reproduction on it ends:
+A lane's services play one game per execution context. Whatever the outcome of an attempt or reproduction (succeeded,
+failed, cancelled, timed out or interrupted), the runner closes the case's context on the game and timeline services
+with `closeSimulationExecution` before the lane is offered again; the lane is never restarted between cases. A `204`
+answer, or a `409 EXECUTION_NOT_CONFIGURED` answer (nothing was open), means the service holds no context of the case.
+Any other answer, a connection failure or no answer within `reset-timeout` is a failed close. The close of each case is
+timed as `workbench.lane.context.close`. After a failed close the lane is recovered through its deployment: a lane with a
+`reset-url` (an absolute http or https URL; the workbench refuses to start otherwise) has the hook called, and a lane
+without one has the close retried:
 
 ```http
 POST {reset-url}
@@ -523,14 +533,12 @@ Idempotency-Key: <a UUID, fresh for each release and repeated by its retries>
 Any `2xx` answer means the lane is clean. Until then the lane is offered to no case or reproduction. A non-`2xx`
 answer, a call exceeding `reset-timeout`, or a connection failure is logged with the lane id and the status or error
 and retried with a backoff growing from one second to one minute, for as long as the workbench runs; no case fails
-because its lane is being reset. A lane that was acquired but never configured for its case needs no reset.
+because its lane is being recovered. A lane that was acquired but never sent a context needs no close.
 
-An attempt interrupted by a lost lease, a stop, or a crash leaves its lane holding its game: the lane is offered only
-to that case's recovering attempt, which attaches to the game, and is reset after that attempt ends, or once the case
-reaches a final state without it (for example when its run is cancelled). A case whose lane is held is taken even
-when no other lane is free. A reproduction always starts a new game, so its lane is reset after it whatever its
-outcome. On start, a lane whose most recent attempt was interrupted while its case is unfinished keeps its game;
-every other lane with a reset hook is reset before it is first offered, with `caseKey` omitted.
+An attempt interrupted by a lost lease or a stop closes its context like any other outcome. After a crash the context is
+still open: on start every lane is unavailable until the runner has read each service's checkpoint and closed the
+context it reports open, whichever case opened it. A recovering attempt then starts a new game; it never attaches to
+the abandoned one.
 
 An interrupted run is resumed with `resumeRun`; there is nothing to repair by hand. Only one runner instance should
 execute against a database.
@@ -580,10 +588,9 @@ service, records arrive in publication order and one at a time, as a partition w
 settlement barrier waits until every routed record has been delivered. The observer retains each routed record as
 delivered, the same raw evidence a real lane's observer retains.
 
-A service keeps one case's execution context for its lifetime, so a slot starts fresh services for each case and stops
-them when the case ends; stopping them is what makes the slot clean. A case that resumes its own game after an
-interruption keeps the running services. State lives only in memory, so a workbench restart cannot resume a game on a
-slot.
+A slot stops its services when its case ends and starts fresh ones for the next case: the services keep every game in
+memory, so stopping them is what releases it. State lives only in memory, so a workbench restart cannot resume a game on
+a slot.
 
 The slots' behavior on the real service jars is covered by integration tests that run only when
 `-Dsimulator.builds=<directory>` names a directory holding `game-service.jar`, `timeline-service.jar` and
@@ -601,14 +608,51 @@ time. None carries a case key, seed, game id, player id or credential as a tag.
 | `workbench.case.attempt` | Wall time of one attempt, from its start to its final state | `lane`, `players`, `state` (`SUCCEEDED`, `FAILED`, `CANCELLED`, `INTERRUPTED`), `failure` (failure code, or `none`) |
 | `workbench.policy.decision` | Time a policy takes to produce one decision | `policy` (policy id; reproductions use `transcript`) |
 | `workbench.lane.wait` | Time spent waiting for the services after a command | `kind` |
-| `workbench.lane.reset` | Duration of one reset-hook call | `lane`, `outcome` (`CLEAN`, `FAILED`, `TIMEOUT`) |
+| `workbench.lane.context.close` | Duration of closing one case's execution context on both services | `lane`, `outcome` (`CLEAN`, `FAILED`, `TIMEOUT`) |
+| `workbench.lane.reset` | Duration of one reset-hook call, which follows a failed close only | `lane`, `outcome` (`CLEAN`, `FAILED`, `TIMEOUT`) |
 
 `workbench.lane.wait` has three kinds. `ACKNOWLEDGEMENT` is one sample per command sent, from the request until the
 service answers (terminal readiness sends nothing and adds none). `CAUSAL_BARRIER` and `PROJECTION_BARRIER` are one
 sample each per settle wait: the time until both services report their work drained, and the time until every seat's
 projection has stopped changing and the event observer has caught up. Each poll's pause is attributed to the barrier
 that was still unmet. An attempt whose lane lost its lease or was fenced out is recorded as `INTERRUPTED`.
-Slots of the simulator have no reset hook and record no `workbench.lane.reset`.
+Slots of the simulator stop their services instead of closing a context or calling a hook, and record neither
+`workbench.lane.context.close` nor `workbench.lane.reset`. A case whose context closes cleanly adds no
+`workbench.lane.reset` sample.
+
+## Measuring capacity
+
+`scripts/measure-capacity.sh` measures what one light simulation lane plays when every case opens and closes its own
+execution context, and writes the report [docs/capacity/per-game-context.md](docs/capacity/per-game-context.md). The
+procedure is re-runnable on any machine at least as large as the reference spec:
+
+1. **Reference spec.** It is a setting: `CAPACITY_REFERENCE_THREADS` (default `8`, which is 4 cores / 8 threads) and
+   `CAPACITY_REFERENCE_MEMORY_MB` (default `16384`, 16 GB). The script caps the lane's containers to the first
+   `CAPACITY_REFERENCE_THREADS` logical processors (`docker update --cpuset-cpus`) and refuses to run when their memory
+   limits add up to more than the memory cap or when Docker has fewer logical processors than the spec.
+2. **Light lane.** It provisions the lane with the baseline bundle through the infrastructure repository's workbench
+   E2E harness with `WORKBENCH_E2E_LANES=1`, which builds the services and this workbench from the checkouts that sit
+   next to the infrastructure checkout.
+3. **Experiment.** It freezes an experiment from the `baseline-policy-comparison` template with its defaults and the
+   bundle the workbench lists.
+4. **One lane.** It runs the experiment on that lane, `CAPACITY_REPETITIONS` times (default and minimum 2), and never
+   starts a second lane: it stops when anything but the one lane project exists, and checks again after provisioning.
+5. **Samples.** While the runs execute it samples every container of the lane with `docker stats` every two seconds,
+   and it records each JVM's declared heap options and the maximum heap the JVM reports.
+
+```bash
+CAPACITY_REFERENCE_THREADS=8 CAPACITY_REFERENCE_MEMORY_MB=16384 \
+  bash scripts/measure-capacity.sh ../infrastructure
+```
+
+It needs `docker`, `curl`, `jq` and `node`, and `MAVEN_SETTINGS` (the Maven settings the image builds use; it defaults
+to a settings file with a `github` server entry made of `GITHUB_ACTOR` and `GITHUB_TOKEN`). It removes what it provisioned when it ends, unless `CAPACITY_KEEP=1`; raw
+samples stay in `target/capacity`. The report states the reference spec and the caps applied, the host machine, the
+service image digests and the effective rules and content digests, the games measured per player count and policy, the
+games per hour on the one lane, the wall-time quantiles 0.1, 0.5 and 0.9 per player count and policy, the share of wall
+time spent in play, policy decisions, service waits and context closes, the failed attempts by failure code, the
+lane's footprint (peak memory and CPU of each container and each JVM's heap settings) and the variation between the
+repetitions. Its wall-time breakdown shows a count of lane resets, which is zero unless a context close failed.
 
 ## Evidence, replay, and reproduction
 
@@ -623,6 +667,7 @@ never erased and is kept per game, so a failed attempt stays on record next to t
 | Raw events | Every event the game published on the `game.events` and `timeline.events` topics of its lane, with its headers (event type, identifier, aggregate, occurrence time, version) and the payload exactly as delivered |
 | Source offsets | The next offset to read for each topic partition; it only moves forward |
 | Pinned artifacts | The exact manifest the case ran under and, once the case succeeds, its accepted decision transcript and semantic digest |
+| Reported rules digests | The rules digest game-service and timeline-service each reported in the checkpoint of the case's execution context, next to the effective rules digest of the case's variant |
 
 Raw events are deduplicated by **source and event identifier**: a score or any other event delivered three times is
 one logical event, so it can never inflate a count. The same identifier on another topic is another event. Partition
@@ -685,9 +730,10 @@ reproduction.
 
 A reproduction runs on the lane that played the case, because the bot identities of a lane are part of what the seats
 observe and decide on. It waits, queued, while that lane is busy, shares the worker pool, and is taken after pending
-cases. Because it reuses the logical identities of the original case, that lane must be clean, as for any case. A
-reproduction whose lane is no longer configured, or now serves other rules or content digests than the case's variant,
-stays queued and is never played on another lane.
+cases. It opens its own execution context, carrying the case's frozen rules, and closes it afterwards, as any case does. A
+reproduction whose lane is no longer configured, or no longer fits the case (another content digest, service build or
+contract version), stays queued and is never played on another lane. Known limitation: a lane keeps the state of a game
+it played, so replaying the same case on it stalls (temporal-rift/simulation-workbench#95).
 
 ### Export
 

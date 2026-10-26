@@ -23,11 +23,15 @@
       <column name="variant_label" type="VARCHAR(120)">
         <constraints nullable="false"/>
       </column>
-      <!-- The variant's frozen bundle: the case plays only on a lane serving these digests. -->
+      <!-- The variant's frozen rules and content digests. -->
       <column name="rules_digest" type="VARCHAR(64)">
         <constraints nullable="false"/>
       </column>
       <column name="content_digest" type="VARCHAR(64)">
+        <constraints nullable="false"/>
+      </column>
+      <!-- What a lane must be for the case to play on it: content, service builds and contract versions. -->
+      <column name="lane_fit" type="VARCHAR(64)">
         <constraints nullable="false"/>
       </column>
       <column name="seed" type="VARCHAR(20)">

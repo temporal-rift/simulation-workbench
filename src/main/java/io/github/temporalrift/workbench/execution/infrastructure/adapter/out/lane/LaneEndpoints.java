@@ -8,6 +8,7 @@ import java.util.UUID;
 
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.BundleProvenance;
+import io.github.temporalrift.workbench.execution.domain.run.LaneFit;
 
 /**
  * One isolated lane: the three services that make up an independent deployment, the bundle they serve and its
@@ -16,8 +17,8 @@ import io.github.temporalrift.workbench.execution.domain.run.BundleProvenance;
  * Credentials come from runtime configuration only and are never stored with experiments, runs or evidence.
  *
  * @param kafkaBootstrapServers the broker of the lane, or {@code null} for the workbench default broker
- * @param resetUrl the deployment hook that makes the lane clean for another case, or {@code null} when the lane
- *     is never reset
+ * @param resetUrl the deployment hook that makes the lane clean after a failed context close, or {@code null} when
+ *     the lane has none
  */
 public record LaneEndpoints(
         String id,
@@ -41,9 +42,14 @@ public record LaneEndpoints(
         bots = List.copyOf(bots);
     }
 
+    /** What a case needs of a lane for this lane to take it. */
+    public LaneFit fit() {
+        return LaneFit.of(bundle.contentDigest(), provenance);
+    }
+
     /** The lane as the roster tracks its availability: resettable when it has a reset hook. */
     public LaneRoster.Member member() {
-        return new LaneRoster.Member(id, bundle, resetUrl != null);
+        return new LaneRoster.Member(id, fit(), resetUrl != null);
     }
 
     /** A bot's player identity and its bearer token; bots are assigned to seats in order. */

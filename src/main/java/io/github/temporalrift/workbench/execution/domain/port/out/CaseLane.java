@@ -4,24 +4,19 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import io.github.temporalrift.workbench.execution.domain.run.CaseRules;
 import io.github.temporalrift.workbench.execution.domain.run.SeatPlan;
 
 /**
- * An acquired isolated lane. Closing it returns the lane, which is made clean before another case gets it unless the
- * attempt was {@linkplain #retainForRecovery() interrupted}.
+ * An acquired isolated lane. Closing it closes the case's execution context and returns the lane, which is offered to
+ * another case only once its services hold no context of this one.
  */
 public interface CaseLane extends AutoCloseable {
 
     String laneId();
 
-    /**
-     * Configures the lane for the case and starts its game, or attaches to {@code resumeGameId} when the
-     * lane still hosts that game for the same case. A lane that cannot continue the game is started afresh.
-     */
-    GameSession open(CaseContext context, UUID resumeGameId);
-
-    /** Keeps the lane's game when it is closed, for the recovering attempt of the case it hosts. */
-    void retainForRecovery();
+    /** Opens the case's execution context on the lane's services and starts its game. */
+    GameSession open(CaseContext context);
 
     @Override
     void close();
@@ -33,6 +28,7 @@ public interface CaseLane extends AutoCloseable {
             UUID caseKey,
             String seed,
             String manifestDigest,
+            CaseRules rules,
             List<SeatPlan> seats,
             Instant logicalEpoch) {
         public CaseContext {

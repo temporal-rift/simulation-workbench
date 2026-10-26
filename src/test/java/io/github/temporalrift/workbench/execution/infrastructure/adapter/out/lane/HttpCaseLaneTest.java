@@ -11,6 +11,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
@@ -21,6 +22,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.UUID;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -35,19 +37,21 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.ResourceAccessException;
 
+import io.github.temporalrift.workbench.execution.LaneService;
 import io.github.temporalrift.workbench.execution.domain.command.SlotId;
 import io.github.temporalrift.workbench.execution.domain.command.SlotStatus;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
+import io.github.temporalrift.workbench.execution.domain.run.CaseRules;
+import io.github.temporalrift.workbench.execution.domain.run.LaneFit;
 import io.github.temporalrift.workbench.execution.domain.run.SeatPlan;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.SimulationExecutionApi;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.model.EffectiveRules;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.model.ExecutionCheckpoint;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.model.ExecutionContext;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.model.ExecutionState;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.ProjectionApi;
-import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.Phase;
-import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.SubmissionWindow;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.session.SessionApi;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.session.model.CreateLobbyResponse;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.session.model.JoinLobbyResponse;
@@ -58,6 +62,7 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 import io.github.temporalrift.workbench.execution.support.InMemoryCommandLedger;
 import io.github.temporalrift.workbench.execution.support.InMemoryEvidenceLedger;
 import io.github.temporalrift.workbench.execution.support.Provenances;
+import io.github.temporalrift.workbench.execution.support.RecordingContexts;
 import io.github.temporalrift.workbench.execution.support.StubEventObserver;
 import io.github.temporalrift.workbench.shared.execution.FailureCode;
 import io.github.temporalrift.workbench.shared.game.Faction;
@@ -71,6 +76,8 @@ class HttpCaseLaneTest {
     private static final UUID LOBBY = new UUID(3, 3);
     private static final UUID GAME = ProjectionStates.GAME;
     private static final String DIGEST = "c".repeat(64);
+    private static final String RULES_DIGEST = "e".repeat(64);
+    private static final LaneFit FIT = Provenances.fitOf(new BundleDigests("a".repeat(64), "b".repeat(64)));
     private static final Instant EPOCH = Instant.parse("2026-01-01T00:00:00Z");
 
     private final SimpleMeterRegistry registry = new SimpleMeterRegistry();
@@ -78,10 +85,10 @@ class HttpCaseLaneTest {
     private final InMemoryCommandLedger ledger = new InMemoryCommandLedger();
     private final InMemoryEvidenceLedger evidence = new InMemoryEvidenceLedger();
     private final StubEventObserver events = new StubEventObserver();
+    private final RecordingContexts contexts = new RecordingContexts();
     private final LaneRoster roster = new LaneRoster(
-            List.of(
-                    new LaneRoster.Member("lane-1", new BundleDigests("a".repeat(64), "b".repeat(64)), false),
-                    new LaneRoster.Member("lane-2", new BundleDigests("a".repeat(64), "b".repeat(64)), false)),
+            List.of(new LaneRoster.Member("lane-1", FIT, false), new LaneRoster.Member("lane-2", FIT, false)),
+            contexts,
             (_, _, _) -> {},
             (task, _) -> task.run());
     private SimulationExecutionApi gameControl;
@@ -91,6 +98,8 @@ class HttpCaseLaneTest {
 
     @BeforeEach
     void setUp() {
+        roster.prepare();
+        contexts.clear();
         endpoints = new LaneEndpoints(
                 "lane-1",
                 "http://game",
@@ -122,7 +131,7 @@ class HttpCaseLaneTest {
         configured();
         lobby(new HostedLobby());
 
-        var session = lane.open(context(), null);
+        var session = lane.open(context());
 
         assertThat(session.gameId()).isEqualTo(GAME);
         var requests = ArgumentCaptor.forClass(ExecutionContext.class);
@@ -157,7 +166,7 @@ class HttpCaseLaneTest {
         when(clients.session("t1").startGame(LOBBY)).thenThrow(new ResourceAccessException("reset"));
         hosted.status = LobbyStatus.STARTED;
 
-        var session = lane.open(context(), null);
+        var session = lane.open(context());
 
         assertThat(session.gameId()).isEqualTo(GAME);
         verify(clients.session("t1"), times(1)).startGame(LOBBY);
@@ -169,7 +178,7 @@ class HttpCaseLaneTest {
         lobby(new HostedLobby());
         when(clients.session("t1").startGame(LOBBY)).thenThrow(new ResourceAccessException("reset"));
 
-        assertThatThrownBy(() -> lane.open(context(), null)).isInstanceOfSatisfying(AttemptFailedException.class, e -> {
+        assertThatThrownBy(() -> lane.open(context())).isInstanceOfSatisfying(AttemptFailedException.class, e -> {
             assertThat(e.failure().code()).isEqualTo(FailureCode.EXECUTION_FAILED);
             assertThat(e.failure().message()).contains("could not be confirmed");
         });
@@ -187,7 +196,7 @@ class HttpCaseLaneTest {
                         "{\"code\":\"409-03\"}".getBytes(StandardCharsets.UTF_8),
                         StandardCharsets.UTF_8));
 
-        assertThatThrownBy(() -> lane.open(context(), null))
+        assertThatThrownBy(() -> lane.open(context()))
                 .isInstanceOfSatisfying(
                         AttemptFailedException.class,
                         e -> assertThat(e.failure().message()).contains("409-03"));
@@ -205,7 +214,7 @@ class HttpCaseLaneTest {
                 .when(clients.session("t2"))
                 .joinLobby(any(), any());
 
-        lane.open(context(), null);
+        lane.open(context());
 
         verify(clients.session("t2"), times(1)).joinLobby(any(), any());
         verify(clients.session("t3")).joinLobby(any(), any());
@@ -218,7 +227,7 @@ class HttpCaseLaneTest {
         lobby(new HostedLobby());
         doThrow(new ResourceAccessException("down")).when(clients.session("t2")).joinLobby(any(), any());
 
-        assertThatThrownBy(() -> lane.open(context(), null))
+        assertThatThrownBy(() -> lane.open(context()))
                 .isInstanceOfSatisfying(
                         AttemptFailedException.class,
                         e -> assertThat(e.failure().code()).isEqualTo(FailureCode.EXECUTION_FAILED));
@@ -232,7 +241,7 @@ class HttpCaseLaneTest {
         when(clients.session("t1").createLobby(any()))
                 .thenReturn(ResponseEntity.ok(new CreateLobbyResponse(LOBBY, ProjectionStates.id(77), "JOIN")));
 
-        assertThatThrownBy(() -> lane.open(context(), null))
+        assertThatThrownBy(() -> lane.open(context()))
                 .isInstanceOfSatisfying(
                         AttemptFailedException.class,
                         e -> assertThat(e.failure().code()).isEqualTo(FailureCode.CONFIGURATION_DRIFT));
@@ -248,7 +257,7 @@ class HttpCaseLaneTest {
                         "{\"code\":\"EXECUTION_CONTEXT_CONFLICT\"}".getBytes(StandardCharsets.UTF_8),
                         StandardCharsets.UTF_8));
 
-        assertThatThrownBy(() -> lane.open(context(), null)).isInstanceOfSatisfying(AttemptFailedException.class, e -> {
+        assertThatThrownBy(() -> lane.open(context())).isInstanceOfSatisfying(AttemptFailedException.class, e -> {
             assertThat(e.failure().code()).isEqualTo(FailureCode.EXECUTION_FAILED);
             assertThat(e.failure().message()).contains("EXECUTION_CONTEXT_CONFLICT");
         });
@@ -266,7 +275,7 @@ class HttpCaseLaneTest {
                         ("{\"code\":\"" + code + "\"}").getBytes(StandardCharsets.UTF_8),
                         StandardCharsets.UTF_8));
 
-        assertThatThrownBy(() -> lane.open(context(), null)).isInstanceOfSatisfying(AttemptFailedException.class, e -> {
+        assertThatThrownBy(() -> lane.open(context())).isInstanceOfSatisfying(AttemptFailedException.class, e -> {
             assertThat(e.failure().code()).isEqualTo(FailureCode.EXECUTION_FAILED);
             assertThat(e.failure().message()).contains(code);
         });
@@ -278,51 +287,10 @@ class HttpCaseLaneTest {
         when(gameControl.configureSimulationExecution(any()))
                 .thenReturn(ResponseEntity.ok(checkpoint(CASE_KEY, "d".repeat(64), null)));
 
-        assertThatThrownBy(() -> lane.open(context(), null))
+        assertThatThrownBy(() -> lane.open(context()))
                 .isInstanceOfSatisfying(
                         AttemptFailedException.class,
                         e -> assertThat(e.failure().code()).isEqualTo(FailureCode.CONFIGURATION_DRIFT));
-    }
-
-    @Test
-    void aRecoveringAttemptAttachesToTheGameTheLaneStillHostsAndResolvesWhatWasInDoubt() {
-        when(gameControl.getSimulationCheckpoint()).thenReturn(ResponseEntity.ok(checkpoint(CASE_KEY, DIGEST, GAME)));
-        when(timelineControl.getSimulationCheckpoint())
-                .thenReturn(ResponseEntity.ok(checkpoint(CASE_KEY, DIGEST, GAME)));
-        for (var seat = 1; seat <= 3; seat++) {
-            var state = ProjectionStates.base(Phase.RESOLUTION, 1);
-            if (seat == 1) {
-                state.getMySubmissions().add(ProjectionStates.accepted(SubmissionWindow.HAND_SELECTION, 1, null));
-            }
-            when(clients.projection("t" + seat).getGameState(GAME)).thenReturn(ResponseEntity.ok(state));
-        }
-        ledger.put(
-                new SlotId(CASE_ID, 0, WindowRef.of(WindowKind.HAND_SELECTION, 1)),
-                new UUID(9, 9),
-                "kept",
-                SlotStatus.SENT);
-
-        var session = lane.open(context(), GAME);
-
-        assertThat(session.gameId()).isEqualTo(GAME);
-        verify(gameControl, never()).configureSimulationExecution(any());
-        verify(clients.session("t1"), never()).createLobby(any());
-        assertThat(ledger.find(new SlotId(CASE_ID, 0, WindowRef.of(WindowKind.HAND_SELECTION, 1)))
-                        .orElseThrow()
-                        .status())
-                .isEqualTo(SlotStatus.ACCEPTED);
-    }
-
-    @Test
-    void aLaneThatHostsAnotherGameIsStartedAfresh() {
-        when(gameControl.getSimulationCheckpoint())
-                .thenReturn(ResponseEntity.ok(checkpoint(CASE_KEY, DIGEST, new UUID(8, 8))));
-        configured();
-        lobby(new HostedLobby());
-
-        lane.open(context(), GAME);
-
-        verify(gameControl).configureSimulationExecution(any());
     }
 
     @Test
@@ -341,18 +309,112 @@ class HttpCaseLaneTest {
                 null,
                 List.of(new LaneEndpoints.BotIdentity(ProjectionStates.id(1), "t1"))));
 
-        assertThatThrownBy(() -> small.open(context(), null))
+        assertThatThrownBy(() -> small.open(context()))
                 .isInstanceOfSatisfying(
                         AttemptFailedException.class,
                         e -> assertThat(e.failure().code()).isEqualTo(FailureCode.CONTRACT_MISMATCH));
     }
 
     @Test
-    void closingTheLaneReleasesIt() {
+    void aServiceThatAdoptsOtherRulesIsConfigurationDrift() {
+        when(gameControl.configureSimulationExecution(any()))
+                .thenReturn(ResponseEntity.ok(checkpoint(CASE_KEY, DIGEST, "f".repeat(64), null)));
+
+        assertThatThrownBy(() -> lane.open(context())).isInstanceOfSatisfying(AttemptFailedException.class, e -> {
+            assertThat(e.failure().code()).isEqualTo(FailureCode.CONFIGURATION_DRIFT);
+            assertThat(e.failure().message()).contains("game-service");
+        });
+        verify(clients.session("t1"), never()).createLobby(any());
+    }
+
+    @Test
+    void theContextCarriesTheRulesTheCasePlaysUnderAndTheirDigest() {
+        configured();
+        lobby(new HostedLobby());
+
+        lane.open(context());
+
+        var requests = ArgumentCaptor.forClass(ExecutionContext.class);
+        verify(timelineControl).configureSimulationExecution(requests.capture());
+        var request = requests.getValue();
+        assertThat(request.getRulesDigest()).isEqualTo(RULES_DIGEST);
+        assertThat(request.getRules().getSchemaVersion()).isEqualTo(EffectiveRules.SchemaVersionEnum.NUMBER_1);
+        assertThat(request.getRules().getProperties()).containsOnlyKeys("game.rules.win-score-threshold");
+    }
+
+    @Test
+    void theRulesDigestsBothServicesReportedAreRetainedWithTheEvidence() {
+        evidence.pin(CASE_ID, DIGEST, "{}", EPOCH);
+        when(gameControl.configureSimulationExecution(any()))
+                .thenReturn(ResponseEntity.ok(checkpoint(CASE_KEY, DIGEST, RULES_DIGEST, null)));
+        when(timelineControl.configureSimulationExecution(any()))
+                .thenReturn(ResponseEntity.ok(checkpoint(CASE_KEY, DIGEST, RULES_DIGEST, null)));
+        lobby(new HostedLobby());
+
+        lane.open(context());
+
+        assertThat(evidence.reportedRules(CASE_ID)).containsExactly(RULES_DIGEST, RULES_DIGEST);
+    }
+
+    @Test
+    void closingTheLaneClosesTheContextOnBothServicesAndReleasesIt() {
+        configured();
+        lobby(new HostedLobby());
+        lane.open(context());
+
         lane.close();
 
         assertThat(roster.free()).containsKey("lane-1");
         assertThat(lane.laneId()).isEqualTo("lane-1");
+        assertThat(contexts.calls()).singleElement().satisfies(call -> {
+            assertThat(call.caseKey()).isEqualTo(CASE_KEY);
+            assertThat(call.services()).containsExactlyInAnyOrder(LaneService.GAME, LaneService.TIMELINE);
+        });
+    }
+
+    @Test
+    void aContextADriftedServiceAdoptedIsStillClosed() {
+        when(gameControl.configureSimulationExecution(any()))
+                .thenReturn(ResponseEntity.ok(checkpoint(CASE_KEY, DIGEST, "f".repeat(64), null)));
+        var context = context();
+        assertThatThrownBy(() -> lane.open(context)).isInstanceOf(AttemptFailedException.class);
+
+        lane.close();
+
+        assertThat(contexts.calls())
+                .singleElement()
+                .satisfies(call -> assertThat(call.services()).containsExactly(LaneService.GAME));
+    }
+
+    @Test
+    void aServiceThatRefusedTheContextIsNotAskedToCloseIt() {
+        when(gameControl.configureSimulationExecution(any()))
+                .thenThrow(HttpClientErrorException.create(
+                        HttpStatus.CONFLICT,
+                        "",
+                        new HttpHeaders(),
+                        "{\"code\":\"EXECUTION_CONTEXT_CONFLICT\"}".getBytes(StandardCharsets.UTF_8),
+                        StandardCharsets.UTF_8));
+        var context = context();
+        assertThatThrownBy(() -> lane.open(context)).isInstanceOf(AttemptFailedException.class);
+
+        lane.close();
+
+        assertThat(roster.free()).containsKey("lane-1");
+        assertThat(contexts.calls()).isEmpty();
+    }
+
+    @Test
+    void aServiceThatNeverAnsweredTheContextIsStillAskedToCloseIt() {
+        when(gameControl.configureSimulationExecution(any())).thenThrow(new ResourceAccessException("timeout"));
+        var context = context();
+        assertThatThrownBy(() -> lane.open(context)).isInstanceOf(AttemptFailedException.class);
+
+        lane.close();
+
+        assertThat(contexts.calls())
+                .singleElement()
+                .satisfies(call -> assertThat(call.services()).containsExactly(LaneService.GAME));
     }
 
     private HttpCaseLane lane(LaneEndpoints endpoints) {
@@ -363,7 +425,7 @@ class HttpCaseLaneTest {
                 Clock.fixed(EPOCH, ZoneOffset.UTC),
                 new HttpGameSession.Pacing(
                         new LaneEndpoints.Barrier(Duration.ZERO, 1, 2), _ -> {}, new LaneWaits(registry)),
-                roster.takeExactly(endpoints.id(), endpoints.bundle()).orElseThrow());
+                roster.takeExactly(endpoints.id(), endpoints.fit()).orElseThrow());
     }
 
     private CaseLane.CaseContext context() {
@@ -373,6 +435,8 @@ class HttpCaseLaneTest {
                 CASE_KEY,
                 "42",
                 DIGEST,
+                new CaseRules(
+                        new TreeMap<>(Map.of("game.rules.win-score-threshold", new BigDecimal("22"))), RULES_DIGEST),
                 List.of(
                         new SeatPlan(0, Faction.ERASERS, "random", "1.0.0"),
                         new SeatPlan(1, Faction.PROPHETS, "random", "1.0.0"),
@@ -412,9 +476,14 @@ class HttpCaseLaneTest {
     }
 
     private static ExecutionCheckpoint checkpoint(UUID caseKey, String digest, UUID gameId) {
+        return checkpoint(caseKey, digest, RULES_DIGEST, gameId);
+    }
+
+    private static ExecutionCheckpoint checkpoint(UUID caseKey, String digest, String rulesDigest, UUID gameId) {
         return new ExecutionCheckpoint()
                 .caseKey(caseKey)
                 .manifestDigest(digest)
+                .rulesDigest(rulesDigest)
                 .revision(0L)
                 .logicalTime(OffsetDateTime.parse("2026-01-01T00:00:00Z"))
                 .gameId(gameId)
