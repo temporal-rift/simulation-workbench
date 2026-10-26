@@ -652,7 +652,10 @@ service image digests and the effective rules and content digests, the games mea
 games per hour on the one lane, the wall-time quantiles 0.1, 0.5 and 0.9 per player count and policy, the share of wall
 time spent in play, policy decisions, service waits and context closes, the failed attempts by failure code, the
 lane's footprint (peak memory and CPU of each container and each JVM's heap settings) and the variation between the
-repetitions. Its wall-time breakdown shows a count of lane resets, which is zero unless a context close failed.
+repetitions. Its wall-time breakdown shows a count of lane resets, which is zero unless a context close failed. It also lists,
+per repetition and per kind of service wait (`ACKNOWLEDGEMENT`, `CAUSAL_BARRIER`, `PROJECTION_BARRIER`), the summed
+seconds, the sample count and the mean seconds per sample, and the settle waits per game: the `CAUSAL_BARRIER` samples
+over the games played.
 
 ## Evidence, replay, and reproduction
 

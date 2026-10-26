@@ -163,10 +163,13 @@ psql_workbench() {
     --filter "label=com.docker.compose.service=workbench-postgres" --format '{{.Names}}')"
   docker exec "$container" psql -U workbench -d workbench -At -F $'\t' -c "$1"
 }
-metric_sums() { # prints "<metric> <sum>" for every capacity timer, summed over its tags
+metric_sums() { # prints "<metric> <sum>" for every capacity timer, summed over its tags, and per kind for lane waits
   curl --silent --show-error --fail --max-time 20 "$workbench_url/actuator/prometheus" \
     | awk '/^workbench_(case_attempt|policy_decision|lane_wait|lane_context_close|lane_reset)_seconds_(sum|count)/ {
         name = $1; sub(/\{.*/, "", name); total[name] += $NF
+        if (name ~ /^workbench_lane_wait_/ && match($1, /kind="[^"]*"/)) {
+          total[name "{" substr($1, RSTART, RLENGTH) "}"] += $NF
+        }
       } END { for (name in total) printf "%s %.6f\n", name, total[name] }' | sort
 }
 
