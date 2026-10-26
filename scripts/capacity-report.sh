@@ -146,6 +146,37 @@ metric_delta() { # metric_delta <repetition> <metric>
       printf "| %s | %.1f%% | %.1f%% | %.1f%% | %.1f%% | %d |\n", r, play * 100 / total, d * 100 / total, w * 100 / total, c * 100 / total, x }'
   done < "$out/runs.tsv"
   echo
+  echo "Per repetition and kind of service wait: the seconds summed over the attempts, the samples, and the mean seconds per"
+  echo "sample. A settle wait is a causal barrier sample, so the settle waits per game are those samples over the games played."
+  echo
+  echo "| Repetition | Kind | Seconds | Samples | Mean per sample (s) |"
+  echo "|---:|---|---:|---:|---:|"
+  settle_rows=()
+  while IFS=$'\t' read -r repetition run_id; do
+    games="$(psql_workbench "SELECT count(*) FROM run_case WHERE run_id = '$run_id' AND state = 'SUCCEEDED'")"
+    kinds="$(awk '/^workbench_lane_wait_seconds_count\{kind="/ { k = $1; sub(/^[^"]*"/, "", k); sub(/".*/, "", k); print k }' \
+      "$out/metrics-after-$repetition.txt" | sort)"
+    if [[ -z "$kinds" ]]; then
+      echo "| $repetition | not recorded | | | |"
+      settle_rows+=("| $repetition | $games | not recorded |")
+      continue
+    fi
+    causal_samples=0
+    while IFS= read -r kind; do
+      seconds="$(metric_delta "$repetition" "workbench_lane_wait_seconds_sum{kind=\"$kind\"}")"
+      count="$(metric_delta "$repetition" "workbench_lane_wait_seconds_count{kind=\"$kind\"}")"
+      [[ "$kind" != "CAUSAL_BARRIER" ]] || causal_samples="$count"
+      awk -v r="$repetition" -v k="$kind" -v s="$seconds" -v n="$count" 'BEGIN {
+        printf "| %s | `%s` | %.1f | %d | %.3f |\n", r, k, s, n, (n > 0 ? s / n : 0) }'
+    done <<< "$kinds"
+    settle_rows+=("$(awk -v r="$repetition" -v n="$causal_samples" -v g="$games" 'BEGIN {
+      printf "| %s | %d | %s |", r, g, (g > 0 ? sprintf("%.0f", n / g) : "n/a") }')")
+  done < "$out/runs.tsv"
+  echo
+  echo "| Repetition | Games | Settle waits per game |"
+  echo "|---:|---:|---:|"
+  printf '%s\n' "${settle_rows[@]}"
+  echo
   echo "### Failed attempts by failure code"
   echo
   failures="$(psql_workbench "SELECT a.failure_code, count(*) FROM case_attempt a JOIN run_case c ON c.case_id = a.case_id
