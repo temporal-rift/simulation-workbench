@@ -39,8 +39,6 @@ class SimulatorLanePoolTest {
 
     private static final BundleDigests BUNDLE = new BundleDigests("a".repeat(64), "b".repeat(64));
     private static final UUID CASE = new UUID(1, 1);
-    private static final UUID OTHER_CASE = new UUID(2, 2);
-    private static final UUID THIRD_CASE = new UUID(3, 3);
 
     @TempDir
     Path directory;

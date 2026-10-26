@@ -61,6 +61,9 @@ public final class CaseDriver {
         this.logicalEpoch = settings.logicalEpoch();
     }
 
+    /** What a reproduction replays: the scope that keeps its evidence, its attempt and the transcript it follows. */
+    public record Reproduction(UUID scopeId, UUID attemptId, DecisionTranscript transcript) {}
+
     /** A finished reproduction game: what it produced and where its evidence is. */
     public record Replayed(UUID gameId, CaseResult result) {}
 
@@ -107,17 +110,15 @@ public final class CaseDriver {
      */
     public Replayed replay(
             LogicalCase logicalCase,
-            UUID scopeId,
-            UUID attemptId,
-            DecisionTranscript transcript,
+            Reproduction reproduction,
             ExperimentSource.Plan plan,
             CaseRules rules,
             CaseLane lane,
             AttemptGuard guard) {
         var deadline = clock.instant().plus(Duration.ofSeconds(plan.caseWallTimeoutSeconds()));
-        var session = lane.open(context(logicalCase, scopeId, attemptId, plan, rules));
+        var session = lane.open(context(logicalCase, reproduction.scopeId(), reproduction.attemptId(), plan, rules));
         var player = decisions.windowPlayer(session.participants());
-        var policy = new TranscriptPolicy(transcript);
+        var policy = new TranscriptPolicy(reproduction.transcript());
         var policySeed = Long.parseUnsignedLong(logicalCase.seed());
         var seats = logicalCase.seats().stream()
                 .map(seat -> new SeatPolicy(seat.seatIndex(), REPLAY_POLICY_ID, policy, policySeed))
@@ -128,9 +129,9 @@ public final class CaseDriver {
                     policy,
                     seat,
                     codes,
-                    evidence.steps(scopeId, session.gameId()).size()));
+                    evidence.steps(reproduction.scopeId(), session.gameId()).size()));
         });
-        return new Replayed(session.gameId(), result(logicalCase, scopeId, ending));
+        return new Replayed(session.gameId(), result(logicalCase, reproduction.scopeId(), ending));
     }
 
     private CaseLane.CaseContext context(

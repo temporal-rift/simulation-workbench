@@ -221,7 +221,7 @@ for repetition in $(seq 1 "$repetitions"); do
   [[ -n "$run_id" && "$run_id" != "null" ]] || fail "the run did not start."
   deadline=$(( $(date +%s) + timeout_minutes * 60 ))
   while true; do
-    state="$(api GET "/api/v1/runs/$run_id" | jq -r .state)"
+    state="$(api GET "/api/v1/runs/$run_id" | jq -r .state)" || state="UNKNOWN"
     [[ "$state" == "COMPLETED" || "$state" == "FAILED" || "$state" == "CANCELLED" ]] && break
     [[ "$(date +%s)" -lt "$deadline" ]] || fail "run $run_id did not finish within $timeout_minutes minutes."
     sleep 20

@@ -102,9 +102,7 @@ public class ReproductionRunner implements RunReproductionUseCase {
             evidence.purge(scope);
             var replayed = driver.replay(
                     inputs.logicalCase(),
-                    scope,
-                    reproduction.attemptId(),
-                    inputs.transcript(),
+                    new CaseDriver.Reproduction(scope, reproduction.attemptId(), inputs.transcript()),
                     inputs.plan(),
                     inputs.rules(),
                     lane,

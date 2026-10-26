@@ -72,6 +72,8 @@ final class SimulatorCaseLane implements CaseLane {
         if (hosted != null) {
             hosted.close();
         } else {
+            // The slot's services may be running although no context reached them.
+            slot.stop();
             tenancy.giveBack();
         }
     }

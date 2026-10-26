@@ -39,7 +39,7 @@ measured by `scripts/measure-capacity.sh` (README, "Measuring capacity").
 | Effective rules | `825d507c86ee2a3d45bb1c18c5cc573229ff6af689e150e747d4a28b768b9b24` |
 | Effective content | `bcd07d59ad84792e3d62bae57949ca3884154d2942dbb39f89ab74d913492c4b` |
 
-The services are the `main` of each repository at the time of the run; the workbench is this change at commit `8a6182f`.
+The services are the `main` of each repository at the time of the run; the workbench is this change at commit `8a6182f`, before the projection wait described under the failed attempts.
 
 ## Result
 
@@ -112,5 +112,7 @@ no games they would have added.
 - A game takes 28 to 53 s, almost all of it waiting for the services to settle (96% of the wall time); the policy
   decides in well under a millisecond and play itself is about 3%.
 - Closing a context costs about 0.2 s, 0.5% of a game, and nothing else is spent between cases: no lane was restarted.
-- One lane plays about 88 games an hour at this workload; the two repetitions differ by 1.1%.
+- One lane plays about 88 games an hour over the games that succeeded (192 of 220). The failures removed mostly 4- and
+  5-player games, which are slower (only 8 of 20 five-player games succeeded), so the full workload will run below this
+  rate. The two repetitions differ by 1.1%.
 - `game-service` peaked at its 768 MiB limit with a 512 MiB heap, so it has no headroom left.

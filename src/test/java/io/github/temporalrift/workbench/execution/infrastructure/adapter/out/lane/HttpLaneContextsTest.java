@@ -111,7 +111,9 @@ class HttpLaneContextsTest {
         stalled = true;
         var contexts = contexts(Duration.ofMillis(200));
 
-        assertThatThrownBy(() -> contexts.close("lane-1", CASE_KEY, Set.of(LaneService.GAME)))
+        var services = Set.of(LaneService.GAME);
+
+        assertThatThrownBy(() -> contexts.close("lane-1", CASE_KEY, services))
                 .isInstanceOf(CloseTimeoutException.class);
     }
 
@@ -146,7 +148,9 @@ class HttpLaneContextsTest {
     void aLaneThatIsNotConfiguredCannotBeClosed() {
         var contexts = contexts(Duration.ofSeconds(5));
 
-        assertThatThrownBy(() -> contexts.close("lane-9", CASE_KEY, Set.of(LaneService.GAME)))
+        var services = Set.of(LaneService.GAME);
+
+        assertThatThrownBy(() -> contexts.close("lane-9", CASE_KEY, services))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 

@@ -376,7 +376,8 @@ class HttpCaseLaneTest {
     void aContextADriftedServiceAdoptedIsStillClosed() {
         when(gameControl.configureSimulationExecution(any()))
                 .thenReturn(ResponseEntity.ok(checkpoint(CASE_KEY, DIGEST, "f".repeat(64), null)));
-        assertThatThrownBy(() -> lane.open(context())).isInstanceOf(AttemptFailedException.class);
+        var context = context();
+        assertThatThrownBy(() -> lane.open(context)).isInstanceOf(AttemptFailedException.class);
 
         lane.close();
 
@@ -394,7 +395,8 @@ class HttpCaseLaneTest {
                         new HttpHeaders(),
                         "{\"code\":\"EXECUTION_CONTEXT_CONFLICT\"}".getBytes(StandardCharsets.UTF_8),
                         StandardCharsets.UTF_8));
-        assertThatThrownBy(() -> lane.open(context())).isInstanceOf(AttemptFailedException.class);
+        var context = context();
+        assertThatThrownBy(() -> lane.open(context)).isInstanceOf(AttemptFailedException.class);
 
         lane.close();
 
@@ -405,7 +407,8 @@ class HttpCaseLaneTest {
     @Test
     void aServiceThatNeverAnsweredTheContextIsStillAskedToCloseIt() {
         when(gameControl.configureSimulationExecution(any())).thenThrow(new ResourceAccessException("timeout"));
-        assertThatThrownBy(() -> lane.open(context())).isInstanceOf(AttemptFailedException.class);
+        var context = context();
+        assertThatThrownBy(() -> lane.open(context)).isInstanceOf(AttemptFailedException.class);
 
         lane.close();
 

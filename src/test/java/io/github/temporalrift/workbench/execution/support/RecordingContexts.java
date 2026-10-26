@@ -25,15 +25,15 @@ public class RecordingContexts implements LaneContexts {
 
     @Override
     public synchronized void close(String laneId, UUID caseKey, Set<LaneService> services) {
-        record(new Call(laneId, caseKey, Set.copyOf(services), true));
+        register(new Call(laneId, caseKey, Set.copyOf(services), true));
     }
 
     @Override
     public synchronized void closeAnyOpen(String laneId) {
-        record(new Call(laneId, null, Set.of(), true));
+        register(new Call(laneId, null, Set.of(), true));
     }
 
-    private void record(Call call) {
+    private void register(Call call) {
         var refused = refusals.getAndUpdate(left -> Math.max(0, left - 1)) > 0;
         calls.add(new Call(call.laneId(), call.caseKey(), call.services(), !refused));
         if (refused) {

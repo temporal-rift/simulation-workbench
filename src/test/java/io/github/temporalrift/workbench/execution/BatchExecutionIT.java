@@ -241,7 +241,7 @@ class BatchExecutionIT {
         assertThat(lanes.opened())
                 .allSatisfy(opened -> assertThat(lanes.contexts().calls())
                         .anySatisfy(call -> assertThat(call.caseKey()).isEqualTo(opened.caseKey())));
-        assertThat(lanes.contexts().calls()).allMatch(call -> call.succeeded());
+        assertThat(lanes.contexts().calls()).allMatch(RecordingContexts.Call::succeeded);
     }
 
     @Test

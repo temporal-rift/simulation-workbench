@@ -730,9 +730,10 @@ reproduction.
 
 A reproduction runs on the lane that played the case, because the bot identities of a lane are part of what the seats
 observe and decide on. It waits, queued, while that lane is busy, shares the worker pool, and is taken after pending
-cases. Because it reuses the logical identities of the original case, that lane must be clean, as for any case. A
-reproduction whose lane is no longer configured, or now serves other rules or content digests than the case's variant,
-stays queued and is never played on another lane.
+cases. It opens its own execution context, carrying the case's frozen rules, and closes it afterwards, as any case does. A
+reproduction whose lane is no longer configured, or no longer fits the case (another content digest, service build or
+contract version), stays queued and is never played on another lane. Known limitation: a lane keeps the state of a game
+it played, so replaying the same case on it stalls (temporal-rift/simulation-workbench#95).
 
 ### Export
 

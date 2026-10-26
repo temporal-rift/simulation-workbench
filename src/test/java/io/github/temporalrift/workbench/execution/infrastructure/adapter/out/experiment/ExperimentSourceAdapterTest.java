@@ -67,7 +67,7 @@ class ExperimentSourceAdapterTest {
         assertThat(rules.digest()).isEqualTo(baseline.digest());
         assertThat(rules.properties())
                 .containsOnlyKeys(baseline.properties().keySet().toArray(String[]::new));
-        assertThat(rules.properties().get("game.rules.win-score-threshold")).isEqualTo(new BigDecimal("20"));
+        assertThat(rules.properties()).containsEntry("game.rules.win-score-threshold", new BigDecimal("20"));
     }
 
     @Test
