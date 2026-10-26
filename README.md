@@ -436,7 +436,8 @@ are forgotten.
 
 Every decision a seat sends is recorded in the command ledger before it is sent, one slot per case, seat, and
 window. A slot that was sent and never acknowledged is in doubt: it is reconciled against the seat's own accepted
-state once the services have drained and the projection has stopped changing, and it is sent again only when
+state once the game has settled (the services have drained and every consumer group has applied the records the
+observer read), and it is sent again only when
 accepted state shows it was not spent. The accepted slots are the case's decision transcript, and the case's
 `semanticDigest` covers the setup, that transcript, and the authoritative ending, so a recovered case digests like
 an uninterrupted one. Starting a game is reconciled against the lobby's start state the same way.
