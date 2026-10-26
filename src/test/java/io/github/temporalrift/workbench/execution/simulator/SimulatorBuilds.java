@@ -1,14 +1,19 @@
 package io.github.temporalrift.workbench.execution.simulator;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.regex.Pattern;
 
 import org.springframework.test.context.DynamicPropertyRegistry;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 
 import io.github.temporalrift.workbench.experiment.ExperimentManifests;
 import io.github.temporalrift.workbench.experiment.VariantRulesFixtures;
+import io.github.temporalrift.workbench.shared.text.Sha256;
 
 /**
  * The builds the real-service simulator tests host. {@value #DIRECTORY_PROPERTY} names a directory holding the
@@ -22,6 +27,8 @@ public final class SimulatorBuilds {
     public static final String REVISIONS_PROPERTY = "simulator.revisions";
     static final String RULES_DIGEST = VariantRulesFixtures.baseline().digest();
     static final String CONTENT_DIGEST = "b".repeat(64);
+    private static final String RULES_ARTIFACT_DIGEST = "7".repeat(64);
+    private static final String CONTENT_ARTIFACT_DIGEST = "d".repeat(64);
 
     private static final Path RULES = Path.of("src/test/resources/simulator/baseline-rules.yml");
     private static final Path RULES_DOCUMENT = Path.of("src/test/resources/rules/baseline-effective-rules.json");
@@ -49,9 +56,31 @@ public final class SimulatorBuilds {
         return RULES_DOCUMENT.toAbsolutePath();
     }
 
-    /** The manifest with its variants naming the bundle the simulator serves. */
+    /** The manifest with its variants naming the bundle the simulator serves and its services pinned to the jars. */
     public static JsonNode served(JsonNode manifest) {
-        return ExperimentManifests.servedBy(manifest, RULES_DIGEST, CONTENT_DIGEST);
+        var served = (ObjectNode) ExperimentManifests.servedBy(manifest, RULES_DIGEST, CONTENT_DIGEST);
+        served.get("variants").forEach(variant -> {
+            ((ObjectNode) variant.get("rulesArtifact")).put("digest", RULES_ARTIFACT_DIGEST);
+            ((ObjectNode) variant.get("contentArtifact")).put("digest", CONTENT_ARTIFACT_DIGEST);
+        });
+        var revisions = revisions();
+        var services = served.putObject("services");
+        var names = new String[] {"game-service", "timeline-service", "read-service"};
+        var keys = new String[] {"gameService", "timelineService", "readService"};
+        for (var index = 0; index < names.length; index++) {
+            services.putObject(keys[index])
+                    .put("imageDigest", "sha256:" + digestOf(jar(names[index])))
+                    .put("sourceRevision", revisions[index]);
+        }
+        return served;
+    }
+
+    private static String digestOf(Path jar) {
+        try (var in = Files.newInputStream(jar)) {
+            return Sha256.hex(in);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     /** The source revisions of the game, timeline and read services. */
@@ -80,8 +109,8 @@ public final class SimulatorBuilds {
         registry.add("workbench.simulator.bundle.rules-digest", () -> RULES_DIGEST);
         registry.add("workbench.simulator.bundle.rules-document", SimulatorBuilds::rulesDocument);
         registry.add("workbench.simulator.bundle.content-digest", () -> CONTENT_DIGEST);
-        registry.add("workbench.simulator.bundle.rules-artifact-digest", () -> "7".repeat(64));
-        registry.add("workbench.simulator.bundle.content-artifact-digest", () -> "d".repeat(64));
+        registry.add("workbench.simulator.bundle.rules-artifact-digest", () -> RULES_ARTIFACT_DIGEST);
+        registry.add("workbench.simulator.bundle.content-artifact-digest", () -> CONTENT_ARTIFACT_DIGEST);
         registry.add("workbench.simulator.bundle.source-revisions.game-service", () -> revisions[0]);
         registry.add("workbench.simulator.bundle.source-revisions.timeline-service", () -> revisions[1]);
         registry.add("workbench.simulator.bundle.source-revisions.read-service", () -> revisions[2]);

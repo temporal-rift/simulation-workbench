@@ -94,6 +94,20 @@ public final class ExperimentManifests {
         return manifest;
     }
 
+    /** Seed 42 of one variant under both baseline policies, over every faction set of three, four and five players. */
+    public static JsonNode baselineTemplateCases() {
+        var manifest = (ObjectNode) singleSeedSinglePolicySingleVariant().deepCopy();
+        var policies = MAPPER.createArrayNode();
+        policies.add(policy(BaselinePolicies.RANDOM_V1));
+        policies.add(policy(BaselinePolicies.FACTION_GREEDY_V1));
+        manifest.set("policies", policies);
+        var counts = MAPPER.createArrayNode();
+        List.of(3, 4, 5).forEach(counts::add);
+        manifest.set("playerCounts", counts);
+        manifest.set("factionSets", fullFactionSets());
+        return manifest;
+    }
+
     /** The manifest with every variant naming the given effective digests, as a lane serving them would. */
     public static JsonNode servedBy(JsonNode manifest, String rulesDigest, String contentDigest) {
         var served = (ObjectNode) manifest.deepCopy();
