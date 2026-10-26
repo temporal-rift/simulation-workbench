@@ -162,6 +162,25 @@ class HttpCaseLaneTest {
     }
 
     @Test
+    void aCaseKeyThePreviousPlayClosedIsOpenedAgainAndPlaysAsANewGame() {
+        configured();
+        lobby(new HostedLobby());
+        lane.open(context());
+        lane.close();
+
+        var replay = lane(endpoints).open(context());
+
+        assertThat(replay.gameId()).isEqualTo(GAME);
+        var requests = ArgumentCaptor.forClass(ExecutionContext.class);
+        verify(gameControl, times(2)).configureSimulationExecution(requests.capture());
+        verify(timelineControl, times(2)).configureSimulationExecution(any());
+        assertThat(requests.getAllValues())
+                .extracting(ExecutionContext::getCaseKey)
+                .containsOnly(CASE_KEY);
+        verify(clients.session("t1"), times(2)).startGame(LOBBY);
+    }
+
+    @Test
     void aLostStartResponseIsReconciledAgainstTheLobbyAndNeverStartedTwice() {
         configured();
         var hosted = new HostedLobby();
