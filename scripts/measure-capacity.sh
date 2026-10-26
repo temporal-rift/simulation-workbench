@@ -19,7 +19,8 @@
 #   CAPACITY_TIMEOUT_MINUTES      Longest a run may take (default 360).
 #   CAPACITY_HOST                 Description of the host machine; derived when unset.
 #   CAPACITY_KEEP                 Set to 1 to leave the provisioned deployment running afterwards.
-#   MAVEN_SETTINGS                Maven settings the image builds use (default: the contents of ~/.m2/settings.xml).
+#   MAVEN_SETTINGS                Maven settings the image builds use; by default a settings file with a `github` server
+#                                 entry made of GITHUB_ACTOR (default: the `gh` user) and GITHUB_TOKEN.
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -38,6 +39,13 @@ lane_project="temporal-rift-sim-wbe2e-1"
 workbench_project="temporal-rift-workbench-e2e"
 issuer_url="http://localhost:19000/default"
 workbench_url="http://localhost:18200"
+
+case "$(uname -s)" in
+  MINGW*|MSYS*)
+    # Git Bash would rewrite the POSIX-style workspace path the harness hands to Compose in its environment.
+    export MSYS2_ENV_CONV_EXCL="WORKBENCH_E2E_"
+    ;;
+esac
 
 fail() { echo "Capacity measurement failed: $1" >&2; exit 1; }
 
@@ -63,8 +71,9 @@ mkdir -p "$out" "$(dirname "$report")"
 rm -f "$out"/*.tsv "$out"/*.json "$out"/*.txt
 
 if [[ -z "${MAVEN_SETTINGS:-}" ]]; then
-  [[ -f "$HOME/.m2/settings.xml" ]] || fail "MAVEN_SETTINGS is unset and ~/.m2/settings.xml does not exist."
-  MAVEN_SETTINGS="$(cat "$HOME/.m2/settings.xml")"
+  [[ -n "${GITHUB_TOKEN:-}" ]] || fail "MAVEN_SETTINGS and GITHUB_TOKEN are both unset; the image builds cannot read GitHub Packages."
+  actor="${GITHUB_ACTOR:-$(gh api user --jq .login)}"
+  MAVEN_SETTINGS="<settings><servers><server><id>github</id><username>$actor</username><password>$GITHUB_TOKEN</password></server></servers></settings>"
 fi
 export MAVEN_SETTINGS
 
@@ -104,9 +113,12 @@ lane_footprint() {
     local heap
     heap="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$container" \
       | sed -n 's/^\(JAVA_TOOL_OPTIONS\|KAFKA_HEAP_OPTS\)=\(.*\)$/\2/p' | tr '\n' ' ' | sed 's/ *$//')"
-    local effective
-    effective="$(docker exec "$container" sh -c 'java -XX:+PrintFlagsFinal -version 2>/dev/null | grep -E " MaxHeapSize "' 2> /dev/null \
-      | awk '{printf "%d", $4 / 1048576}' || true)"
+    local effective=""
+    # Only JAVA_TOOL_OPTIONS reaches a JVM started afresh in the container; Kafka reads KAFKA_HEAP_OPTS in its own script.
+    if docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$container" | grep -q '^JAVA_TOOL_OPTIONS='; then
+      effective="$(docker exec "$container" sh -c 'java -XX:+PrintFlagsFinal -version 2>/dev/null | grep -E " MaxHeapSize "' 2> /dev/null \
+        | awk '{printf "%d", $4 / 1048576}' || true)"
+    fi
     printf '%s\t%s\t%s\t%s\n' "$service" "$(( $(docker inspect -f '{{.HostConfig.Memory}}' "$container") / 1048576 ))" "${heap:-n/a}" "${effective:-n/a}"
   done | sort
 }
@@ -178,8 +190,13 @@ manifest="$(jq -n --argjson bundle "$bundle" --argjson template "$template" '
     contracts: $bundle.contracts
   }')"
 echo "$manifest" > "$out/manifest.json"
-experiment_id="$(api POST '/api/v1/experiments' "$manifest" | jq -r .experimentId)"
-[[ -n "$experiment_id" && "$experiment_id" != "null" ]] || fail "the experiment was not created."
+# A lane keeps the game a case played, and a game id follows from the case, so replaying a case on the same lane
+# stalls: repetition k plays the template's first seed plus k - 1 and has an experiment of its own.
+freeze_experiment() {
+  local manifest_k
+  manifest_k="$(jq --argjson shift "$(($1 - 1))" '.seeds = [(((.seeds[0] | tonumber) + $shift) | tostring)]' <<< "$manifest")"
+  api POST '/api/v1/experiments' "$manifest_k" | jq -r .experimentId
+}
 
 echo "== Sampling the lane's containers"
 samples="$out/resource-samples.txt"
@@ -198,6 +215,8 @@ sampler_pid=$!
 for repetition in $(seq 1 "$repetitions"); do
   echo "== Repetition $repetition of $repetitions"
   metric_sums > "$out/metrics-before-$repetition.txt"
+  experiment_id="$(freeze_experiment "$repetition")"
+  [[ -n "$experiment_id" && "$experiment_id" != "null" ]] || fail "the experiment was not created."
   run_id="$(api POST "/api/v1/experiments/$experiment_id/runs" '{}' | jq -r .runId)"
   [[ -n "$run_id" && "$run_id" != "null" ]] || fail "the run did not start."
   deadline=$(( $(date +%s) + timeout_minutes * 60 ))
@@ -209,152 +228,23 @@ for repetition in $(seq 1 "$repetitions"); do
   done
   [[ "$state" == "COMPLETED" ]] || fail "run $run_id ended $state."
   metric_sums > "$out/metrics-after-$repetition.txt"
+  succeeded="$(psql_workbench "SELECT count(*) FROM run_case WHERE run_id = '$run_id' AND state = 'SUCCEEDED'")"
+  [[ "$succeeded" -gt 0 ]] || fail "run $run_id played no game; see its failed attempts in the workbench database."
   printf '%s\t%s\n' "$repetition" "$run_id" >> "$out/runs.tsv"
 done
 
 kill "$sampler_pid" 2> /dev/null || true
 sampler_pid=""
 
-echo "== Computing the figures"
-mib() { # converts a docker size such as 512MiB or 1.2GiB to MiB
-  awk -v s="$1" 'BEGIN { v = s; u = s; gsub(/[0-9.]/, "", u); gsub(/[^0-9.]/, "", v);
-    if (u == "GiB") v *= 1024; else if (u == "KiB") v /= 1024; else if (u == "B") v /= 1048576; printf "%.0f", v }'
-}
-peaks="$(awk -F, '
-  function mib(text,   parts, value, unit) {
-    split(text, parts, " "); value = parts[1]; unit = value; gsub(/[0-9.]/, "", unit); gsub(/[^0-9.]/, "", value)
-    if (unit == "GiB") return value * 1024
-    if (unit == "KiB") return value / 1024
-    if (unit == "B") return value / 1048576
-    return value
-  }
-  /^#/ { next }
-  {
-    name = $1; sub(/^temporal-rift-sim-wbe2e-1-/, "", name); sub(/-[0-9]+$/, "", name)
-    cpu = $2; gsub(/%/, "", cpu); used = mib($3)
-    if (used > memory[name]) memory[name] = used
-    if (cpu + 0 > cpus[name]) cpus[name] = cpu + 0
-  }
-  END { for (name in memory) printf "%s\t%.0f\t%.0f\n", name, memory[name], cpus[name] }' "$samples" | sort)"
-echo "$peaks" > "$out/peaks.tsv"
-
-metric_delta() { # metric_delta <repetition> <metric>
-  local before after
-  before="$(awk -v m="$2" '$1 == m {print $2}' "$out/metrics-before-$1.txt")"
-  after="$(awk -v m="$2" '$1 == m {print $2}' "$out/metrics-after-$1.txt")"
-  awk -v a="${after:-0}" -v b="${before:-0}" 'BEGIN { printf "%.3f", a - b }'
-}
-
-{
-  echo "# Capacity of per-game execution contexts"
-  echo
-  echo "Games per hour and footprint of one light simulation lane that plays every case in its own execution context,"
-  echo "measured by \`scripts/measure-capacity.sh\` (README, \"Measuring capacity\")."
-  echo
-  echo "## Method"
-  echo
-  echo "- **Lane.** Exactly one light lane (\`$lane_project\`) serving the baseline bundle; no second lane project was"
-  echo "  provisioned at any point. It was provisioned by the infrastructure repository's workbench E2E harness with"
-  echo "  \`WORKBENCH_E2E_LANES=1\`, which also starts the issuer, the lane recycler, an ordinary deployment and the workbench."
-  echo "- **Workload.** The \`baseline-policy-comparison\` template with its defaults: seed \`42\`, every faction set of 3, 4 and"
-  echo "  5 players under all cyclic rotations, policies \`random-v1\` and \`faction-greedy-v1\` on every seat, one variant,"
-  echo "  one concurrent case (the lane count). The run was repeated $repetitions times on the same lane."
-  echo "- **Reference spec.** $((threads / 2)) cores / $threads threads and $((memory_mb / 1024)) GB. The lane's containers were capped to"
-  echo "  the logical processors \`$cpuset\` (\`docker update --cpuset-cpus\`); their memory limits come from the lane overlay and"
-  echo "  add up to $limit_sum MiB, within the cap of $memory_mb MiB."
-  echo "- **Host.** $host. Docker had $docker_cpus logical processors and $docker_memory_mb MiB of memory."
-  echo "- **Samples.** \`docker stats\` for every container of the lane every two seconds during the runs; the heap of a"
-  echo "  JVM is its declared options and the maximum heap the JVM reports."
-  echo "- **Wall time.** A game's wall time is its attempt's, from its start to its final state; closing its context follows it."
-  echo
-  echo "## Build and bundle"
-  echo
-  echo "| Service | Image |"
-  echo "|---|---|"
-  while IFS=$'\t' read -r service image; do echo "| \`$service\` | \`$image\` |"; done < "$out/images.tsv"
-  echo
-  echo "| | Digest |"
-  echo "|---|---|"
-  echo "| Effective rules | \`$(jq -r .effectiveRulesDigest "$out/bundle.json")\` |"
-  echo "| Effective content | \`$(jq -r .effectiveContentDigest "$out/bundle.json")\` |"
-  echo
-  echo "## Result"
-  echo
-  echo "| Repetition | Games | Wall time (s) | Games per hour |"
-  echo "|---:|---:|---:|---:|"
-  rates=()
-  while IFS=$'\t' read -r repetition run_id; do
-    row="$(psql_workbench "SELECT count(*) FILTER (WHERE c.state = 'SUCCEEDED'),
-        round(extract(epoch FROM (r.finished_at - r.started_at))::numeric, 0),
-        round((count(*) FILTER (WHERE c.state = 'SUCCEEDED') * 3600 / extract(epoch FROM (r.finished_at - r.started_at)))::numeric, 0)
-      FROM run r JOIN run_case c ON c.run_id = r.run_id WHERE r.run_id = '$run_id' GROUP BY r.run_id")"
-    IFS=$'\t' read -r games seconds rate <<< "$row"
-    echo "| $repetition | $games | $seconds | $rate |"
-    rates+=("$rate")
-  done < "$out/runs.tsv"
-  echo
-  first="${rates[0]}"; second="${rates[1]}"
-  echo "The run-to-run variation between repetitions 1 and 2 is $(awk -v a="$first" -v b="$second" 'BEGIN { d = a - b; if (d < 0) d = -d; printf "%d games per hour (%.1f%% of repetition 1)", d, a > 0 ? d * 100 / a : 0 }')."
-  echo
-  run_ids="$(awk -F'\t' '{printf "%s'\''%s'\''", (NR > 1 ? "," : ""), $2}' "$out/runs.tsv")"
-  echo "### Games measured per player count and policy"
-  echo
-  echo "| Players | Policy | Games |"
-  echo "|---:|---|---:|"
-  psql_workbench "SELECT c.player_count, (c.seats_json::jsonb)->0->>'policyId', count(*) FROM run_case c
-      WHERE c.run_id IN ($run_ids) AND c.state = 'SUCCEEDED' GROUP BY 1, 2 ORDER BY 1, 2" \
-    | awk -F'\t' '{printf "| %s | `%s` | %s |\n", $1, $2, $3}'
-  echo
-  echo "### Wall time per game, in seconds"
-  echo
-  echo "| Players | Policy | q0.1 | q0.5 | q0.9 |"
-  echo "|---:|---|---:|---:|---:|"
-  psql_workbench "SELECT c.player_count, (c.seats_json::jsonb)->0->>'policyId',
-        round((percentile_cont(0.1) WITHIN GROUP (ORDER BY extract(epoch FROM (a.finished_at - a.started_at))))::numeric, 2),
-        round((percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM (a.finished_at - a.started_at))))::numeric, 2),
-        round((percentile_cont(0.9) WITHIN GROUP (ORDER BY extract(epoch FROM (a.finished_at - a.started_at))))::numeric, 2)
-      FROM case_attempt a JOIN run_case c ON c.case_id = a.case_id
-      WHERE c.run_id IN ($run_ids) AND a.state = 'SUCCEEDED' GROUP BY 1, 2 ORDER BY 1, 2" \
-    | awk -F'\t' '{printf "| %s | `%s` | %s | %s | %s |\n", $1, $2, $3, $4, $5}'
-  echo
-  echo "### Where the wall time goes"
-  echo
-  echo "Per repetition, the share of the attempts' wall time and the context closes that went to play (the attempt less"
-  echo "decisions and waits), policy decisions, waits for the services, and closing the contexts."
-  echo
-  echo "| Repetition | Play | Policy decisions | Service waits | Context closes | Lane resets |"
-  echo "|---:|---:|---:|---:|---:|---:|"
-  while IFS=$'\t' read -r repetition _; do
-    attempt="$(metric_delta "$repetition" workbench_case_attempt_seconds_sum)"
-    decisions="$(metric_delta "$repetition" workbench_policy_decision_seconds_sum)"
-    waits="$(metric_delta "$repetition" workbench_lane_wait_seconds_sum)"
-    closes="$(metric_delta "$repetition" workbench_lane_context_close_seconds_sum)"
-    resets="$(metric_delta "$repetition" workbench_lane_reset_seconds_count)"
-    awk -v r="$repetition" -v a="$attempt" -v d="$decisions" -v w="$waits" -v c="$closes" -v x="$resets" 'BEGIN {
-      total = a + c; play = a - d - w
-      printf "| %s | %.1f%% | %.1f%% | %.1f%% | %.1f%% | %d |\n", r, play * 100 / total, d * 100 / total, w * 100 / total, c * 100 / total, x }'
-  done < "$out/runs.tsv"
-  echo
-  echo "### Failed attempts by failure code"
-  echo
-  failures="$(psql_workbench "SELECT a.failure_code, count(*) FROM case_attempt a JOIN run_case c ON c.case_id = a.case_id
-      WHERE c.run_id IN ($run_ids) AND a.state = 'FAILED' GROUP BY 1 ORDER BY 1")"
-  if [[ -z "$failures" ]]; then
-    echo "None."
-  else
-    echo "| Failure code | Attempts |"
-    echo "|---|---:|"
-    echo "$failures" | awk -F'\t' '{printf "| `%s` | %s |\n", $1, $2}'
-  fi
-  echo
-  echo "## Footprint of the lane"
-  echo
-  echo "| Container | Limit (MiB) | Peak memory (MiB) | Peak CPU (% of one processor) | Declared heap | Maximum heap (MiB) |"
-  echo "|---|---:|---:|---:|---|---:|"
-  while IFS=$'\t' read -r service limit heap effective; do
-    peak="$(awk -F'\t' -v s="$service" '$1 == s {printf "%s\t%s", $2, $3}' "$out/peaks.tsv")"
-    echo "| \`$service\` | $limit | ${peak%%$'\t'*} | ${peak##*$'\t'} | \`$heap\` | $effective |"
-  done < "$out/limits.tsv"
-} > "$report"
-
-echo "Report written: $report"
+cat > "$out/setup.env" <<ENV
+threads=$threads
+memory_mb=$memory_mb
+repetitions=$repetitions
+lane_project=$lane_project
+cpuset=$cpuset
+limit_sum=$limit_sum
+docker_cpus=$docker_cpus
+docker_memory_mb=$docker_memory_mb
+host="$host"
+ENV
+CAPACITY_OUT="$out" CAPACITY_REPORT="$report" bash "$script_dir/capacity-report.sh"

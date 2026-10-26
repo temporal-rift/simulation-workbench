@@ -646,7 +646,7 @@ CAPACITY_REFERENCE_THREADS=8 CAPACITY_REFERENCE_MEMORY_MB=16384 \
 ```
 
 It needs `docker`, `curl`, `jq` and `node`, and `MAVEN_SETTINGS` (the Maven settings the image builds use; it defaults
-to the contents of `~/.m2/settings.xml`). It removes what it provisioned when it ends, unless `CAPACITY_KEEP=1`; raw
+to a settings file with a `github` server entry made of `GITHUB_ACTOR` and `GITHUB_TOKEN`). It removes what it provisioned when it ends, unless `CAPACITY_KEEP=1`; raw
 samples stay in `target/capacity`. The report states the reference spec and the caps applied, the host machine, the
 service image digests and the effective rules and content digests, the games measured per player count and policy, the
 games per hour on the one lane, the wall-time quantiles 0.1, 0.5 and 0.9 per player count and policy, the share of wall
