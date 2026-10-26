@@ -329,6 +329,29 @@ class HttpParticipantGatewayTest {
         verify(action, never()).submitAction(any(), any(), any(), any());
     }
 
+    @Test
+    void aProjectionThatDoesNotHoldTheGameYetIsNotAFailure() {
+        when(projection.getGameState(any()))
+                .thenThrow(
+                        HttpClientErrorException.create(HttpStatus.NOT_FOUND, "", new HttpHeaders(), new byte[0], null))
+                .thenThrow(HttpServerErrorException.create(
+                        HttpStatus.SERVICE_UNAVAILABLE, "", new HttpHeaders(), new byte[0], null))
+                .thenReturn(ResponseEntity.ok(ProjectionStates.base(Phase.HAND_SELECTION, 1)));
+
+        assertThat(gateway.stateOnceProjected(1)).isEmpty();
+        assertThat(gateway.stateOnceProjected(1)).isEmpty();
+        assertThat(gateway.stateOnceProjected(1)).isPresent();
+    }
+
+    @Test
+    void aProjectionThatFailsForAnotherReasonIsStillAFailure() {
+        when(projection.getGameState(any()))
+                .thenThrow(HttpServerErrorException.create(
+                        HttpStatus.INTERNAL_SERVER_ERROR, "", new HttpHeaders(), new byte[0], null));
+
+        assertThatThrownBy(() -> gateway.stateOnceProjected(1)).hasMessageContaining("could not be read");
+    }
+
     private void state(PlayerGameStateResponse state) {
         when(projection.getGameState(ProjectionStates.GAME)).thenReturn(ResponseEntity.ok(state));
     }

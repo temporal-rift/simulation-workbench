@@ -142,7 +142,13 @@ public class HttpGameSession implements GameSession {
         var states = new ArrayList<PlayerGameStateResponse>();
         var complete = true;
         for (var seat : seats) {
-            var state = gateway.stateOf(seat.seatIndex());
+            var projected = gateway.stateOnceProjected(seat.seatIndex());
+            if (projected.isEmpty()) {
+                stableReads = 0;
+                lastRevisions = Map.of();
+                return new Projection(false, List.of());
+            }
+            var state = projected.get();
             states.add(state);
             complete &= state.getRevision() != null;
             revisions.put(seat.seatIndex(), state.getRevision());

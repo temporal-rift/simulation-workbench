@@ -469,6 +469,17 @@ class HttpGameSessionTest {
     }
 
     @Test
+    void aProjectionThatDoesNotHoldTheGameYetKeepsItUnsettledInsteadOfFailingTheAttempt() {
+        when(projections.get(0).getGameState(GAME))
+                .thenThrow(
+                        HttpClientErrorException.create(HttpStatus.NOT_FOUND, "", new HttpHeaders(), new byte[0], null))
+                .thenReturn(ResponseEntity.ok(states.get(0)));
+
+        assertThat(session.isSettled()).isFalse();
+        assertThat(session.poll()).isInstanceOf(GameProgress.Open.class);
+    }
+
+    @Test
     void anObserverThatHasNotReachedTheEndOfItsSourcesKeepsTheGameUnsettled() {
         events.caughtUp(false);
 

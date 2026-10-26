@@ -4,12 +4,14 @@ import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BooleanSupplier;
 
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
 import io.github.temporalrift.workbench.execution.domain.run.WindowClosedException;
@@ -196,6 +198,23 @@ public class HttpParticipantGateway implements ParticipantGateway {
     /** The seat's own current game state, as its authenticated bot reads it. */
     PlayerGameStateResponse stateOf(int seatIndex) {
         return state(participant(seatIndex));
+    }
+
+    /**
+     * The seat's game state, or empty while the projection does not hold the game yet: right after a game starts the
+     * read side answers {@code 404} or {@code 503} until it has consumed the first events.
+     */
+    Optional<PlayerGameStateResponse> stateOnceProjected(int seatIndex) {
+        try {
+            return Optional.of(state(participant(seatIndex)));
+        } catch (AttemptFailedException e) {
+            if (e.getCause() instanceof RestClientResponseException response
+                    && (response.getStatusCode().value() == 404
+                            || response.getStatusCode().value() == 503)) {
+                return Optional.empty();
+            }
+            throw e;
+        }
     }
 
     private PlayerGameStateResponse state(Participant participant) {
