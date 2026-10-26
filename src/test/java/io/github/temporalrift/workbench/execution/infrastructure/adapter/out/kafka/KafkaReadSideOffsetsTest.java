@@ -102,7 +102,9 @@ class KafkaReadSideOffsetsTest {
         when(listing.all()).thenReturn(failed);
         when(admin.listGroups()).thenReturn(listing);
 
-        assertThatThrownBy(() -> offsets.reached(Map.of(GAME_EVENTS, 5L))).isInstanceOf(AttemptFailedException.class);
+        var ends = Map.of(GAME_EVENTS, 5L);
+
+        assertThatThrownBy(() -> offsets.reached(ends)).isInstanceOf(AttemptFailedException.class);
     }
 
     @Test
@@ -125,10 +127,16 @@ class KafkaReadSideOffsetsTest {
         when(admin.listGroups()).thenReturn(listing);
     }
 
+    private static MemberDescription member(TopicPartition... partitions) {
+        var assignment = mock(MemberAssignment.class);
+        when(assignment.topicPartitions()).thenReturn(Set.of(partitions));
+        var member = mock(MemberDescription.class);
+        when(member.assignment()).thenReturn(assignment);
+        return member;
+    }
+
     private void assigned(String group, TopicPartition... partitions) {
-        var members = partitions.length == 0
-                ? List.<MemberDescription>of()
-                : List.of(new MemberDescription("m", "c", "h", new MemberAssignment(Set.of(partitions))));
+        var members = partitions.length == 0 ? List.<MemberDescription>of() : List.of(member(partitions));
         var description = mock(ConsumerGroupDescription.class);
         when(description.groupId()).thenReturn(group);
         when(description.members()).thenReturn(members);
