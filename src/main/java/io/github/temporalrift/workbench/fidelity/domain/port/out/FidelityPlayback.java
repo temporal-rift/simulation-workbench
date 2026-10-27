@@ -14,7 +14,7 @@ public interface FidelityPlayback {
     /**
      * Creates the run of the frozen experiment, once per idempotency key.
      *
-     * @throws PlaybackRefused when no lane serves some variant
+     * Refused with a fidelity refusal exception when no lane serves some variant
      */
     UUID startRun(UUID experimentId, UUID idempotencyKey);
 
@@ -26,7 +26,7 @@ public interface FidelityPlayback {
     /**
      * Queues the reproduction of a succeeded case on the lane, once per idempotency key.
      *
-     * @throws PlaybackRefused when the lane no longer plays the game of the case's lane
+     * Refused with a fidelity refusal exception when the lane no longer plays the game of the case's lane
      */
     UUID reproduce(UUID runId, UUID runCaseId, String laneId, UUID idempotencyKey);
 
@@ -81,14 +81,6 @@ public interface FidelityPlayback {
             MATCH,
             DIVERGED,
             FAILED
-        }
-    }
-
-    /** The execution module refused the request. */
-    class PlaybackRefused extends RuntimeException {
-
-        public PlaybackRefused(String message, Throwable cause) {
-            super(message, cause);
         }
     }
 }

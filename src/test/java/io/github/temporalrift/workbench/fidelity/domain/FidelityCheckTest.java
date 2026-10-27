@@ -77,8 +77,8 @@ class FidelityCheckTest {
     void aFinishedCheckNeverChangesAgain() {
         var passed = queued().begun(UUID.randomUUID(), UUID.randomUUID(), NOW).passed(NOW);
 
-        assertThatThrownBy(() -> passed.failed(new FidelityFailure("X", "no"), NOW))
-                .isInstanceOf(IllegalStateException.class);
+        var failure = new FidelityFailure("X", "no");
+        assertThatThrownBy(() -> passed.failed(failure, NOW)).isInstanceOf(IllegalStateException.class);
         assertThatThrownBy(() -> passed.failedByCases(NOW)).isInstanceOf(IllegalStateException.class);
     }
 }

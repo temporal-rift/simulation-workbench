@@ -24,9 +24,9 @@ public class GetSimulatorFidelityQueryHandler implements GetSimulatorFidelityUse
                 .simulator()
                 .orElseThrow(() -> new SimulatorNotAvailableException("The simulator is not enabled"));
         var revisions = simulator.environment().sourceRevisions();
-        var record =
+        var passing =
                 checks.newestPassed(revisions).map(check -> new FidelityCheckView(check, checks.counts(check.id())));
-        return new SimulatorFidelity(revisions, record.isPresent(), record.orElse(null));
+        return new SimulatorFidelity(revisions, passing.isPresent(), passing.orElse(null));
     }
 
     @Override

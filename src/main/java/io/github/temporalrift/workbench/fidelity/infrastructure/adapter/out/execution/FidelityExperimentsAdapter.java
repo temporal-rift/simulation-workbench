@@ -9,6 +9,7 @@ import tools.jackson.databind.JsonNode;
 
 import io.github.temporalrift.workbench.experiment.ExperimentFactory;
 import io.github.temporalrift.workbench.experiment.ExperimentRefusedException;
+import io.github.temporalrift.workbench.fidelity.domain.FidelityExperimentRefusedException;
 import io.github.temporalrift.workbench.fidelity.domain.port.out.FidelityExperiments;
 import io.github.temporalrift.workbench.policy.PolicyCatalog;
 
@@ -30,7 +31,7 @@ public class FidelityExperimentsAdapter implements FidelityExperiments {
             var preview = experiments.previewVariant(rulesArtifactDigest, parameterSpaceVersion, overrides);
             return new VariantRules(preview.effectiveRulesDigest(), preview.overrides());
         } catch (ExperimentRefusedException e) {
-            throw new ExperimentRefused(e.getMessage(), e);
+            throw new FidelityExperimentRefusedException(e.getMessage(), e);
         }
     }
 
@@ -46,7 +47,7 @@ public class FidelityExperimentsAdapter implements FidelityExperiments {
         try {
             return experiments.freeze(idempotencyKey, manifest);
         } catch (ExperimentRefusedException e) {
-            throw new ExperimentRefused(e.getMessage(), e);
+            throw new FidelityExperimentRefusedException(e.getMessage(), e);
         }
     }
 }

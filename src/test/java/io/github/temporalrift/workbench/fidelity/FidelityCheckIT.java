@@ -15,8 +15,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import io.github.temporalrift.workbench.WorkbenchIntegrationTest;
 import io.github.temporalrift.workbench.execution.application.port.in.RunBatchUseCase;
 import io.github.temporalrift.workbench.execution.application.port.in.RunReproductionUseCase;
-import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
-import io.github.temporalrift.workbench.execution.domain.port.out.GameSession;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.support.ScriptedLanes;
 import io.github.temporalrift.workbench.experiment.VariantRulesFixtures;
@@ -137,15 +135,26 @@ class FidelityCheckIT {
     void aCheckPlaysTheFullMatrixAndPassesWhenEveryCaseMatches() {
         assertThat(simulatorFidelity.handle().established()).isFalse();
         var check = accepted();
+        assertTheCheckWasAcceptedWithTheThreeVariants(check);
+
+        driveUntil(() -> finished(check.check().id()));
+
+        var done = getCheck.handle(check.check().id());
+        assertTheCheckPassedOnEveryCase(done);
+        assertEveryCaseWasReproducedOnceOnTheChosenLane(done);
+        assertTheCasesAreTheMatrixInOrder(done);
+        assertTheSimulatorIsEstablishedForItsRevisions(done);
+    }
+
+    private static void assertTheCheckWasAcceptedWithTheThreeVariants(FidelityCheckView check) {
         assertThat(check.check().state()).isEqualTo(FidelityCheckState.QUEUED);
         assertThat(check.check().laneId()).isEqualTo("lane-1");
         assertThat(check.check().variants())
                 .extracting("label")
                 .containsExactly(VariantLabel.BASELINE, VariantLabel.LOW, VariantLabel.HIGH);
+    }
 
-        driveUntil(() -> finished(check.check().id()));
-
-        var done = getCheck.handle(check.check().id());
+    private static void assertTheCheckPassedOnEveryCase(FidelityCheckView done) {
         assertThat(done.check().state()).isEqualTo(FidelityCheckState.PASSED);
         assertThat(done.check().verdict()).isEqualTo(FidelityVerdict.PASSED);
         assertThat(done.check().failure()).isNull();
@@ -153,9 +162,6 @@ class FidelityCheckIT {
         assertThat(done.counts().total()).isEqualTo(FidelityMatrix.caseCount());
         assertThat(done.check().startedAt()).isNotNull();
         assertThat(done.check().finishedAt()).isNotNull();
-        assertEveryCaseWasReproducedOnceOnTheChosenLane(done);
-        assertTheCasesAreTheMatrixInOrder(done);
-        assertTheSimulatorIsEstablishedForItsRevisions(done);
     }
 
     private void assertEveryCaseWasReproducedOnceOnTheChosenLane(FidelityCheckView done) {
@@ -193,7 +199,7 @@ class FidelityCheckIT {
         var gate = simulatorFidelity.handle();
 
         assertThat(gate.established()).isTrue();
-        assertThat(gate.record().check().id()).isEqualTo(done.check().id());
+        assertThat(gate.passingCheck().check().id()).isEqualTo(done.check().id());
         assertThat(gate.sourceRevisions()).isEqualTo(done.check().simulator().sourceRevisions());
     }
 
@@ -210,12 +216,7 @@ class FidelityCheckIT {
         driveUntil(() -> hasCases(check.check().id()));
 
         // From here on the services play another game: what a reordered due timer would do to a real build.
-        lanes.script(new ScriptedLanes.Script() {
-            @Override
-            public GameSession.AuthoritativeEnding ending(CaseLane.CaseContext context) {
-                return ScriptedLanes.withoutWinners(context, EndReason.TIMELINE_COLLAPSED);
-            }
-        });
+        lanes.script(context -> ScriptedLanes.withoutWinners(context, EndReason.TIMELINE_COLLAPSED));
         driveUntil(() -> finished(check.check().id()));
 
         var done = getCheck.handle(check.check().id());

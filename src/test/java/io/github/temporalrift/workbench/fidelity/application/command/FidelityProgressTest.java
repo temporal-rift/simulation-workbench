@@ -34,8 +34,10 @@ import io.github.temporalrift.workbench.fidelity.application.port.in.StartFideli
 import io.github.temporalrift.workbench.fidelity.domain.FidelityCaseResult;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityCheck;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityCheckState;
+import io.github.temporalrift.workbench.fidelity.domain.FidelityExperimentRefusedException;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityFailure;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityMatrix;
+import io.github.temporalrift.workbench.fidelity.domain.FidelityPlaybackRefusedException;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityVerdict;
 import io.github.temporalrift.workbench.fidelity.domain.FirstDivergence;
 import io.github.temporalrift.workbench.fidelity.domain.port.out.FidelityEnvironments;
@@ -188,7 +190,7 @@ class FidelityProgressTest {
 
     @Test
     void aRefusedExperimentFailsTheCheck() {
-        when(experiments.freeze(any(), any())).thenThrow(new FidelityExperiments.ExperimentRefused("bad", null));
+        when(experiments.freeze(any(), any())).thenThrow(new FidelityExperimentRefusedException("bad", null));
 
         progress().advance();
 
@@ -313,7 +315,7 @@ class FidelityProgressTest {
     void aRefusedReproductionMakesItsCaseUnreproducible() {
         givenARunWith(played(1, 1));
         when(playback.reproduce(any(), any(), any(), any()))
-                .thenThrow(new FidelityPlayback.PlaybackRefused("lane differs", null));
+                .thenThrow(new FidelityPlaybackRefusedException("lane differs", null));
         var progress = progress();
         progress.advance();
         progress.advance();

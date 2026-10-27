@@ -186,7 +186,7 @@ public class FidelityRepositoryAdapter implements FidelityRepository {
     public void updateCase(UUID checkId, FidelityCase updated) {
         var entity = cases.findByCheckIdAndOrdinal(checkId, updated.ordinal()).orElseThrow();
         var failure = updated.failure();
-        entity.record(
+        entity.recordResult(
                 updated.reproductionId(),
                 updated.result().name(),
                 updated.firstDivergence() == null ? null : json.write(updated.firstDivergence()),

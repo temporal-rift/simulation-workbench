@@ -56,7 +56,7 @@ class GetSimulatorFidelityQueryHandlerTest {
         var answer = handlerFor("1111111").handle();
 
         assertThat(answer.established()).isTrue();
-        assertThat(answer.record().check().id()).isEqualTo(passed.id());
+        assertThat(answer.passingCheck().check().id()).isEqualTo(passed.id());
         assertThat(answer.sourceRevisions().gameService()).isEqualTo("1111111");
         assertThat(handlerFor("1111111").established()).isTrue();
     }
@@ -68,7 +68,7 @@ class GetSimulatorFidelityQueryHandlerTest {
         var answer = handlerFor("2222222").handle();
 
         assertThat(answer.established()).isFalse();
-        assertThat(answer.record()).isNull();
+        assertThat(answer.passingCheck()).isNull();
         assertThat(handlerFor("2222222").established()).isFalse();
     }
 
@@ -100,7 +100,7 @@ class GetSimulatorFidelityQueryHandlerTest {
         stored("1111111", true);
         var newest = stored("1111111", true, 2);
 
-        assertThat(handlerFor("1111111").handle().record().check().id()).isEqualTo(newest.id());
+        assertThat(handlerFor("1111111").handle().passingCheck().check().id()).isEqualTo(newest.id());
     }
 
     @Test

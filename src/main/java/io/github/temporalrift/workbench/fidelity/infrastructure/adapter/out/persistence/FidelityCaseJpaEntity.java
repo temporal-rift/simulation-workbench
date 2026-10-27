@@ -90,7 +90,8 @@ class FidelityCaseJpaEntity extends AssignedIdJpaEntity<UUID> {
         return rowId;
     }
 
-    void record(UUID reproductionId, String result, String divergenceJson, String failureCode, String failureMessage) {
+    void recordResult(
+            UUID reproductionId, String result, String divergenceJson, String failureCode, String failureMessage) {
         this.reproductionId = reproductionId;
         this.result = result;
         this.divergenceJson = divergenceJson;

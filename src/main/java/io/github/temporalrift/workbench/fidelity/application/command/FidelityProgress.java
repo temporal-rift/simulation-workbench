@@ -10,8 +10,10 @@ import io.github.temporalrift.workbench.fidelity.application.port.in.AdvanceFide
 import io.github.temporalrift.workbench.fidelity.domain.FidelityCase;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityCheck;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityCheckState;
+import io.github.temporalrift.workbench.fidelity.domain.FidelityExperimentRefusedException;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityFailure;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityMatrix;
+import io.github.temporalrift.workbench.fidelity.domain.FidelityPlaybackRefusedException;
 import io.github.temporalrift.workbench.fidelity.domain.VariantLabel;
 import io.github.temporalrift.workbench.fidelity.domain.port.out.FidelityEnvironments;
 import io.github.temporalrift.workbench.fidelity.domain.port.out.FidelityExperiments;
@@ -75,13 +77,16 @@ public class FidelityProgress implements AdvanceFidelityUseCase {
 
     private boolean step(FidelityCheck check) {
         return switch (check.state()) {
-            case QUEUED -> begin(check);
+            case QUEUED -> {
+                begin(check);
+                yield true;
+            }
             case RUNNING -> checks.caseCount(check.id()) == 0 ? awaitRun(check) : awaitReproductions(check);
             case PASSED, FAILED -> false;
         };
     }
 
-    private boolean begin(FidelityCheck check) {
+    private void begin(FidelityCheck check) {
         var simulator = environments.simulator();
         if (simulator.isEmpty()
                 || !simulator
@@ -89,24 +94,22 @@ public class FidelityProgress implements AdvanceFidelityUseCase {
                         .environment()
                         .sourceRevisions()
                         .equals(check.simulator().sourceRevisions())) {
-            return fail(
-                    check, NOT_AVAILABLE, "The simulator no longer embeds the revisions the check was accepted for");
+            fail(check, NOT_AVAILABLE, "The simulator no longer embeds the revisions the check was accepted for");
+            return;
         }
         if (environments.equivalentLane().isEmpty()) {
-            return fail(check, NOT_AVAILABLE, "No configured real lane is build-equivalent to the simulator any more");
+            fail(check, NOT_AVAILABLE, "No configured real lane is build-equivalent to the simulator any more");
+            return;
         }
         try {
             var manifest = manifests.build(check.seed(), simulator.get(), check.variants(), policies());
             var experimentId = experiments.freeze(key(check, "experiment"), manifest);
             var runId = playback.startRun(experimentId, key(check, "run"));
             checks.update(check.begun(experimentId, runId, clock.instant()), FidelityCheckState.QUEUED);
-            return true;
-        } catch (FidelityExperiments.ExperimentRefused e) {
-            return fail(check, EXPERIMENT_REFUSED, e.getMessage());
-        } catch (FidelityPlayback.PlaybackRefused e) {
-            return fail(check, RUN_NOT_STARTED, e.getMessage());
-        } catch (IllegalStateException e) {
-            return fail(check, EXPERIMENT_REFUSED, e.getMessage());
+        } catch (FidelityExperimentRefusedException | IllegalStateException e) {
+            fail(check, EXPERIMENT_REFUSED, e.getMessage());
+        } catch (FidelityPlaybackRefusedException e) {
+            fail(check, RUN_NOT_STARTED, e.getMessage());
         }
     }
 
@@ -125,10 +128,13 @@ public class FidelityProgress implements AdvanceFidelityUseCase {
     private boolean awaitRun(FidelityCheck check) {
         var status = playback.run(check.runId());
         if (status.isEmpty()) {
-            return fail(check, RUN_MISSING, "The simulator run " + check.runId() + " no longer exists");
+            fail(check, RUN_MISSING, "The simulator run " + check.runId() + " no longer exists");
+            return true;
         }
-        return switch (status.get().phase()) {
-            case ACTIVE -> false;
+        switch (status.get().phase()) {
+            case ACTIVE -> {
+                return false;
+            }
             case FAILED ->
                 fail(
                         check,
@@ -138,14 +144,15 @@ public class FidelityProgress implements AdvanceFidelityUseCase {
                                 : status.get().failureMessage());
             case CANCELLED -> fail(check, RUN_CANCELLED, "The simulator run was cancelled");
             case COMPLETED -> materialise(check);
-        };
+        }
+        return true;
     }
 
-    private boolean materialise(FidelityCheck check) {
+    private void materialise(FidelityCheck check) {
         var played = playback.cases(check.runId());
         if (played.isEmpty()) {
             checks.update(check.failedByCases(clock.instant()), FidelityCheckState.RUNNING);
-            return true;
+            return;
         }
         var cases = played.stream()
                 .map(FidelityProgress::pending)
@@ -161,7 +168,6 @@ public class FidelityProgress implements AdvanceFidelityUseCase {
             numbered.add(source.succeeded() ? next : next.unreproducible(source.failure()));
         }
         checks.insertCases(check.id(), numbered);
-        return true;
     }
 
     private static FidelityCase pending(FidelityPlayback.PlayedCase played) {
@@ -198,7 +204,7 @@ public class FidelityProgress implements AdvanceFidelityUseCase {
                         check.laneId(),
                         key(check, "reproduction|" + fidelityCase.caseKey()));
                 checks.updateCase(check.id(), fidelityCase.reproducing(reproduction));
-            } catch (FidelityPlayback.PlaybackRefused e) {
+            } catch (FidelityPlaybackRefusedException e) {
                 checks.updateCase(
                         check.id(),
                         fidelityCase.unreproducible(new FidelityFailure(REPRODUCTION_REFUSED, e.getMessage())));
@@ -238,9 +244,8 @@ public class FidelityProgress implements AdvanceFidelityUseCase {
         };
     }
 
-    private boolean fail(FidelityCheck check, String code, String message) {
+    private void fail(FidelityCheck check, String code, String message) {
         checks.update(check.failed(new FidelityFailure(code, message), clock.instant()), check.state());
-        return true;
     }
 
     /** A key that is the same on every repetition of one request of one check. */

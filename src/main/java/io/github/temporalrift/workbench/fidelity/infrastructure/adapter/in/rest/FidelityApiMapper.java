@@ -60,7 +60,7 @@ final class FidelityApiMapper {
                 new SimulatorFidelitySourceRevisions(
                         revisions.gameService(), revisions.timelineService(), revisions.readService()),
                 fidelity.established(),
-                fidelity.record() == null ? null : toApi(fidelity.record()));
+                fidelity.passingCheck() == null ? null : toApi(fidelity.passingCheck()));
     }
 
     static io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.FidelityCase toApi(

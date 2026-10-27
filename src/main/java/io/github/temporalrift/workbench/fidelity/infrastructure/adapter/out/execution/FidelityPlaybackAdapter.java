@@ -14,6 +14,7 @@ import io.github.temporalrift.workbench.execution.RunCatalog;
 import io.github.temporalrift.workbench.execution.RunStarter;
 import io.github.temporalrift.workbench.execution.RunSummary;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityFailure;
+import io.github.temporalrift.workbench.fidelity.domain.FidelityPlaybackRefusedException;
 import io.github.temporalrift.workbench.fidelity.domain.FirstDivergence;
 import io.github.temporalrift.workbench.fidelity.domain.port.out.FidelityPlayback;
 import io.github.temporalrift.workbench.shared.execution.CaseState;
@@ -39,7 +40,7 @@ public class FidelityPlaybackAdapter implements FidelityPlayback {
         try {
             return runs.start(experimentId, idempotencyKey);
         } catch (ExecutionRefusedException e) {
-            throw new PlaybackRefused(e.getMessage(), e);
+            throw new FidelityPlaybackRefusedException(e.getMessage(), e);
         }
     }
 
@@ -62,7 +63,7 @@ public class FidelityPlaybackAdapter implements FidelityPlayback {
                     .reproduceOn(runId, runCaseId, laneId, idempotencyKey)
                     .reproductionId();
         } catch (ExecutionRefusedException e) {
-            throw new PlaybackRefused(e.getMessage(), e);
+            throw new FidelityPlaybackRefusedException(e.getMessage(), e);
         }
     }
 

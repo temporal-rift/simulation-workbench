@@ -25,6 +25,7 @@ import io.github.temporalrift.workbench.fidelity.application.port.in.StartFideli
 import io.github.temporalrift.workbench.fidelity.domain.EdgeVariants;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityCheckActiveException;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityCheckState;
+import io.github.temporalrift.workbench.fidelity.domain.FidelityExperimentRefusedException;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityIdempotencyConflictException;
 import io.github.temporalrift.workbench.fidelity.domain.SimulatorNotAvailableException;
 import io.github.temporalrift.workbench.fidelity.domain.VariantLabel;
@@ -150,7 +151,7 @@ class StartFidelityCheckCommandHandlerTest {
             if (overrides.isEmpty()) {
                 return FidelityFixtures.rules(overrides);
             }
-            throw new FidelityExperiments.ExperimentRefused("no baseline value for a parameter", null);
+            throw new FidelityExperimentRefusedException("no baseline value for a parameter", null);
         });
         var handler = handler(FidelityFixtures.environments("1111111"));
 

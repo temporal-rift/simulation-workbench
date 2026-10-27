@@ -16,6 +16,7 @@ import io.github.temporalrift.workbench.fidelity.domain.CheckCreation;
 import io.github.temporalrift.workbench.fidelity.domain.EdgeVariants;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityCheck;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityCheckActiveException;
+import io.github.temporalrift.workbench.fidelity.domain.FidelityExperimentRefusedException;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityIdempotencyConflictException;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityVariant;
 import io.github.temporalrift.workbench.fidelity.domain.InvalidSeedException;
@@ -35,7 +36,7 @@ public class StartFidelityCheckCommandHandler implements StartFidelityCheckUseCa
 
     static final String OPERATION = "startFidelityCheck";
 
-    private static final Pattern UINT64 = Pattern.compile("0|[1-9][0-9]*");
+    private static final Pattern UINT64 = Pattern.compile("0|[1-9]\\d*");
     private static final BigInteger MAX_UINT64 = BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE);
 
     private final FidelityRepository checks;
@@ -108,7 +109,7 @@ public class StartFidelityCheckCommandHandler implements StartFidelityCheckUseCa
             var rules = experiments.previewVariant(
                     simulator.rulesArtifactDigest(), edgeVariants.parameterSpaceVersion(), overrides);
             return new FidelityVariant(label, rules.effectiveRulesDigest(), rules.overrides());
-        } catch (FidelityExperiments.ExperimentRefused e) {
+        } catch (FidelityExperimentRefusedException e) {
             throw new SimulatorNotAvailableException("The simulator's baseline rules cannot carry the "
                     + label.label() + " variant of parameter space " + edgeVariants.parameterSpaceVersion() + ": "
                     + e.getMessage());

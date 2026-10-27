@@ -3,6 +3,7 @@ package io.github.temporalrift.workbench.fidelity.infrastructure.adapter.in.rest
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -45,7 +46,7 @@ class FidelityExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ProblemDetail handleInvalidBody(MethodArgumentNotValidException ex) {
         var field = ex.getBindingResult().getFieldErrors().stream()
-                .map(error -> error.getField())
+                .map(FieldError::getField)
                 .findFirst()
                 .orElse(SEED);
         return invalid("The request body is not valid: " + field, field);

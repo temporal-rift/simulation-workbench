@@ -42,10 +42,8 @@ class ExperimentFactoryServiceTest {
 
     @Test
     void anOverrideOutsideTheParameterSpaceIsRefused() {
-        assertThatThrownBy(() -> factory.previewVariant(
-                        VariantRulesFixtures.ARTIFACT_DIGEST,
-                        1,
-                        Map.of("game.rules.win-score-threshold", BigDecimal.TEN)))
+        var outOfRange = Map.of("game.rules.win-score-threshold", BigDecimal.TEN);
+        assertThatThrownBy(() -> factory.previewVariant(VariantRulesFixtures.ARTIFACT_DIGEST, 1, outOfRange))
                 .isInstanceOf(ExperimentRefusedException.class);
     }
 
@@ -66,10 +64,12 @@ class ExperimentFactoryServiceTest {
                 .thenThrow(new ExperimentValidationException(ExperimentErrorCode.INVALID_EXPERIMENT, "no"))
                 .thenThrow(new IdempotencyConflictException("reused"));
 
-        assertThatThrownBy(() -> factory.freeze(UUID.randomUUID(), manifest))
+        var first = UUID.randomUUID();
+        var second = UUID.randomUUID();
+        assertThatThrownBy(() -> factory.freeze(first, manifest))
                 .isInstanceOf(ExperimentRefusedException.class)
                 .hasMessage("no");
-        assertThatThrownBy(() -> factory.freeze(UUID.randomUUID(), manifest))
+        assertThatThrownBy(() -> factory.freeze(second, manifest))
                 .isInstanceOf(ExperimentRefusedException.class)
                 .hasMessage("reused");
     }

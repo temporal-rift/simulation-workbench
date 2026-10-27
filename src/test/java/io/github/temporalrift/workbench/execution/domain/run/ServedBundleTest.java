@@ -41,8 +41,9 @@ class ServedBundleTest {
 
         var counted = ServedBundle.counted(List.of(realLane, simulator));
 
-        assertThat(counted).hasSize(2);
-        assertThat(counted).allSatisfy(bundle -> assertThat(bundle.laneCount()).isEqualTo(1));
+        assertThat(counted)
+                .hasSize(2)
+                .allSatisfy(bundle -> assertThat(bundle.laneCount()).isEqualTo(1));
         assertThat(counted).extracting(bundle -> bundle.fit().digest()).isSorted();
         assertThat(counted).extracting(ServedBundle::fit).containsExactlyInAnyOrder(simulator.fit(), realLane.fit());
     }

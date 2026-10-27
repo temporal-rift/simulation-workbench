@@ -14,7 +14,7 @@ public interface FidelityExperiments {
     /**
      * The rules a variant would carry.
      *
-     * @throws ExperimentRefused when the baseline, the parameter space or an override is refused
+     * Refused with a fidelity refusal exception when the baseline, the parameter space or an override is refused
      */
     VariantRules previewVariant(
             String rulesArtifactDigest, int parameterSpaceVersion, Map<String, BigDecimal> overrides);
@@ -25,19 +25,11 @@ public interface FidelityExperiments {
     /**
      * Freezes the manifest once per idempotency key and returns the experiment id.
      *
-     * @throws ExperimentRefused when the manifest is refused
+     * Refused with a fidelity refusal exception when the manifest is refused
      */
     UUID freeze(UUID idempotencyKey, JsonNode manifest);
 
     record VariantRules(String effectiveRulesDigest, SortedMap<String, BigDecimal> overrides) {}
 
     record Policy(String id, String version, String artifactDigest) {}
-
-    /** The experiment module refused the request. */
-    class ExperimentRefused extends RuntimeException {
-
-        public ExperimentRefused(String message, Throwable cause) {
-            super(message, cause);
-        }
-    }
 }
