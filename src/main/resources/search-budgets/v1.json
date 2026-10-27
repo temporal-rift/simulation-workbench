@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "algorithm": {
+    "version": "SUCCESSIVE_HALVING_V1",
+    "initialCandidates": 4,
+    "screeningSeeds": 2,
+    "eta": 2,
+    "shortListSize": 1
+  }
+}
