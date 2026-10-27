@@ -39,7 +39,12 @@ public class ReproduceCaseCommandHandler implements ReproduceCaseUseCase {
             return replayed(existing.get(), requestHash);
         }
         var inputs = ReproductionInputs.verify(command.runId(), command.caseId(), sources);
-        var queued = Reproduction.queued(command.runId(), command.caseId(), inputs.originalLaneId(), clock.instant());
+        var queued = Reproduction.queued(
+                command.runId(),
+                command.caseId(),
+                inputs.originalLaneId(),
+                inputs.logicalCase().fit(),
+                clock.instant());
         return switch (reproductions.create(command.idempotencyKey(), requestHash, queued)) {
             case ReproductionCreation.Created _ -> queued;
             case ReproductionCreation.Existing(var claim) -> replayed(claim, requestHash);

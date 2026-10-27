@@ -155,7 +155,11 @@ class RunSourceAdapterTest {
                 new RunCatalog() {
                     @Override
                     public Optional<RunSummary> run(UUID runId) {
-                        return Optional.of(new RunSummary(RUN, new UUID(0, 9)));
+                        return Optional.of(new RunSummary(
+                                RUN,
+                                new UUID(0, 9),
+                                io.github.temporalrift.workbench.shared.execution.RunPhase.ACTIVE,
+                                null));
                     }
 
                     @Override

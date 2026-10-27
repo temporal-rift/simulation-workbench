@@ -146,6 +146,7 @@ public class ReproductionRepositoryAdapter implements ReproductionRepository {
                 entity.runId(),
                 entity.caseId(),
                 entity.laneId(),
+                new LaneFit(entity.laneFit()),
                 ReproductionState.valueOf(entity.state()),
                 entity.divergenceJson() == null ? null : divergences.read(entity.divergenceJson()),
                 Mappings.failure(entity.failureCode(), entity.failureMessage()),

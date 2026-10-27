@@ -22,8 +22,13 @@
         <constraints nullable="false" foreignKeyName="fk_reproduction_case" references="run_case(case_id)"
                      deleteCascade="true"/>
       </column>
-      <!-- The lane that played the case: its bot identities are part of what the seats observed. -->
+      <!-- The lane that takes the reproduction: by default the one that played the case, whose bot identities are
+           part of what the seats observed. -->
       <column name="lane_id" type="VARCHAR(64)">
+        <constraints nullable="false"/>
+      </column>
+      <!-- The fit that lane must have; the case's own fit unless the workbench placed the reproduction elsewhere. -->
+      <column name="lane_fit" type="VARCHAR(64)">
         <constraints nullable="false"/>
       </column>
       <column name="idempotency_key" type="UUID">

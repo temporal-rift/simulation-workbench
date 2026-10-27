@@ -37,10 +37,10 @@ class ClaimQueries {
     private static final Table<?> REPRODUCTION = DSL.table(DSL.name(REPRODUCTION_TABLE));
     private static final Field<UUID> REPRODUCTION_ID =
             DSL.field(DSL.name(REPRODUCTION_TABLE, "reproduction_id"), SQLDataType.UUID);
-    private static final Field<UUID> REPRODUCTION_CASE =
-            DSL.field(DSL.name(REPRODUCTION_TABLE, CASE_ID_COLUMN), SQLDataType.UUID);
     private static final Field<String> REPRODUCTION_LANE =
             DSL.field(DSL.name(REPRODUCTION_TABLE, "lane_id"), SQLDataType.VARCHAR);
+    private static final Field<String> REPRODUCTION_FIT =
+            DSL.field(DSL.name(REPRODUCTION_TABLE, "lane_fit"), SQLDataType.VARCHAR);
     private static final Field<String> REPRODUCTION_STATE =
             DSL.field(DSL.name(REPRODUCTION_TABLE, STATE_COLUMN), SQLDataType.VARCHAR);
     private static final Field<OffsetDateTime> REPRODUCTION_CREATED =
@@ -70,8 +70,8 @@ class ClaimQueries {
     }
 
     /**
-     * The oldest reproduction in {@code state} whose lane is free and still fits its case, locked for this
-     * transaction; rows another worker holds are skipped.
+     * The oldest reproduction in {@code state} whose lane is free and still has the fit the reproduction needs, locked
+     * for this transaction; rows another worker holds are skipped.
      */
     Optional<UUID> lockOldestReproductionServedBy(String state, Map<String, LaneFit> freeLanes) {
         if (freeLanes.isEmpty()) {
@@ -82,10 +82,8 @@ class ClaimQueries {
                 .toList();
         return dsl.select(REPRODUCTION_ID)
                 .from(REPRODUCTION)
-                .join(CASE)
-                .on(CASE_ID.eq(REPRODUCTION_CASE))
                 .where(REPRODUCTION_STATE.eq(state))
-                .and(DSL.row(REPRODUCTION_LANE, CASE_FIT).in(served))
+                .and(DSL.row(REPRODUCTION_LANE, REPRODUCTION_FIT).in(served))
                 .orderBy(REPRODUCTION_CREATED)
                 .limit(1)
                 .forUpdate()
