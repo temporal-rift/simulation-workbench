@@ -91,8 +91,8 @@ class StartFidelityCheckCommandHandlerTest {
         var key = UUID.randomUUID();
         handler.handle(new StartFidelityCheckUseCase.Command(key, "42"));
 
-        assertThatThrownBy(() -> handler.handle(new StartFidelityCheckUseCase.Command(key, "43")))
-                .isInstanceOf(FidelityIdempotencyConflictException.class);
+        var command = new StartFidelityCheckUseCase.Command(key, "43");
+        assertThatThrownBy(() -> handler.handle(command)).isInstanceOf(FidelityIdempotencyConflictException.class);
     }
 
     @Test
@@ -100,8 +100,8 @@ class StartFidelityCheckCommandHandlerTest {
         var handler = handler();
         handler.handle(new StartFidelityCheckUseCase.Command(UUID.randomUUID(), "42"));
 
-        assertThatThrownBy(() -> handler.handle(new StartFidelityCheckUseCase.Command(UUID.randomUUID(), "43")))
-                .isInstanceOf(FidelityCheckActiveException.class);
+        var command = new StartFidelityCheckUseCase.Command(UUID.randomUUID(), "43");
+        assertThatThrownBy(() -> handler.handle(command)).isInstanceOf(FidelityCheckActiveException.class);
     }
 
     @Test
@@ -118,7 +118,8 @@ class StartFidelityCheckCommandHandlerTest {
             }
         });
 
-        assertThatThrownBy(() -> handler.handle(new StartFidelityCheckUseCase.Command(UUID.randomUUID(), "42")))
+        var command = new StartFidelityCheckUseCase.Command(UUID.randomUUID(), "42");
+        assertThatThrownBy(() -> handler.handle(command))
                 .isInstanceOf(SimulatorNotAvailableException.class)
                 .hasMessageContaining("not enabled");
         assertThat(checks.list(null, 10, 0).total()).isZero();
@@ -138,7 +139,8 @@ class StartFidelityCheckCommandHandlerTest {
             }
         });
 
-        assertThatThrownBy(() -> handler.handle(new StartFidelityCheckUseCase.Command(UUID.randomUUID(), "42")))
+        var command = new StartFidelityCheckUseCase.Command(UUID.randomUUID(), "42");
+        assertThatThrownBy(() -> handler.handle(command))
                 .isInstanceOf(SimulatorNotAvailableException.class)
                 .hasMessageContaining("real lane");
         assertThat(checks.list(null, 10, 0).total()).isZero();
@@ -155,7 +157,8 @@ class StartFidelityCheckCommandHandlerTest {
         });
         var handler = handler(FidelityFixtures.environments("1111111"));
 
-        assertThatThrownBy(() -> handler.handle(new StartFidelityCheckUseCase.Command(UUID.randomUUID(), "42")))
+        var command = new StartFidelityCheckUseCase.Command(UUID.randomUUID(), "42");
+        assertThatThrownBy(() -> handler.handle(command))
                 .isInstanceOf(SimulatorNotAvailableException.class)
                 .hasMessageContaining("low variant");
     }
@@ -165,7 +168,8 @@ class StartFidelityCheckCommandHandlerTest {
     void aSeedThatIsNotAnUnsignedSixtyFourBitDecimalIsRefused(String seed) {
         var handler = handler();
 
-        assertThatThrownBy(() -> handler.handle(new StartFidelityCheckUseCase.Command(UUID.randomUUID(), seed)))
+        var command = new StartFidelityCheckUseCase.Command(UUID.randomUUID(), seed);
+        assertThatThrownBy(() -> handler.handle(command))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("seed");
     }

@@ -152,8 +152,8 @@ class ReproduceCaseOnLaneCommandHandlerTest {
         var other = profile(LaneProfile.Kind.DEPLOYED, "sha256:" + "9".repeat(64), "1111112", BOTS);
         givenLanes(Map.of("simulator-1", SIMULATOR, "lane-1", other));
 
-        assertThatThrownBy(() ->
-                        handler.handle(new ReproduceCaseOnLaneUseCase.Command(RUN, CASE, "lane-1", UUID.randomUUID())))
+        var command = new ReproduceCaseOnLaneUseCase.Command(RUN, CASE, "lane-1", UUID.randomUUID());
+        assertThatThrownBy(() -> handler.handle(command))
                 .isInstanceOf(LaneNotEquivalentException.class)
                 .hasMessageContaining("lane-1")
                 .hasMessageContaining("game-service source revision");
@@ -165,8 +165,8 @@ class ReproduceCaseOnLaneCommandHandlerTest {
         givenASucceededCaseOnTheSimulator();
         givenLanes(Map.of("simulator-1", SIMULATOR));
 
-        assertThatThrownBy(() ->
-                        handler.handle(new ReproduceCaseOnLaneUseCase.Command(RUN, CASE, "lane-9", UUID.randomUUID())))
+        var command = new ReproduceCaseOnLaneUseCase.Command(RUN, CASE, "lane-9", UUID.randomUUID());
+        assertThatThrownBy(() -> handler.handle(command))
                 .isInstanceOf(LaneNotEquivalentException.class)
                 .hasMessageContaining("lane-9 is not configured");
         verify(reproductions, never()).create(any(), anyString(), any());
@@ -198,7 +198,7 @@ class ReproduceCaseOnLaneCommandHandlerTest {
         var hash = RunRequestHash.of(ReproduceCaseOnLaneCommandHandler.OPERATION, CASE + "@lane-1");
         when(reproductions.findByKey(key)).thenReturn(Optional.of(new ReproductionClaim(original, hash)));
 
-        assertThatThrownBy(() -> handler.handle(new ReproduceCaseOnLaneUseCase.Command(RUN, CASE, "lane-2", key)))
-                .isInstanceOf(RunIdempotencyConflictException.class);
+        var command = new ReproduceCaseOnLaneUseCase.Command(RUN, CASE, "lane-2", key);
+        assertThatThrownBy(() -> handler.handle(command)).isInstanceOf(RunIdempotencyConflictException.class);
     }
 }
