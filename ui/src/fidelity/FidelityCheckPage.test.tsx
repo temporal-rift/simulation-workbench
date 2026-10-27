@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { FakeService } from '../test/fakeService'
 import { FIDELITY_IDS, check, fidelityCase, serveFidelity } from '../test/fidelityFixtures'
 import { renderApp } from '../test/renderApp'
@@ -96,6 +96,35 @@ describe('a failed check', () => {
     await waitFor(() => expect(service.requests.some((request) => request.query.get('result') === 'DIVERGED')).toBe(true))
     const table = await screen.findByRole('table', { name: 'Cases of this check' })
     await waitFor(() => expect(within(table).getAllByRole('row')).toHaveLength(2))
+  })
+})
+
+describe('the report', () => {
+  it('is downloaded as markdown named for the seed and revision, with the cases that did not match', async () => {
+    const saved: { blob: Blob; name: string }[] = []
+    vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) => {
+      saved.push({ blob: blob as Blob, name: '' })
+      return 'blob:report'
+    })
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      saved[saved.length - 1]!.name = this.download
+    })
+    const failed = check({ state: 'FAILED', verdict: 'FAILED', counts: { total: 330, matched: 329, diverged: 1, unreproducible: 0, pending: 0 } })
+    serveFidelity(service, {
+      checks: [failed],
+      cases: [fidelityCase({ result: 'DIVERGED', firstDivergence: { step: 12, kind: 'DECISION', expected: {}, actual: {} } })],
+    })
+    await renderApp(path, service)
+
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Download report' }))
+
+    await waitFor(() => expect(saved).toHaveLength(1))
+    expect(saved[0]!.name).toBe('report-42-abcdef1.md')
+    const text = await saved[0]!.blob.text()
+    expect(text).toContain('# Simulator fidelity report, seed 42')
+    expect(text).toContain('- Verdict: FAILED')
+    expect(text).toContain('differs at step 12: DECISION')
   })
 })
 

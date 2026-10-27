@@ -1,10 +1,14 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import type { FidelityCase, FidelityCheck, FidelityEnvironment } from '../api/generated'
-import { PAGE_SIZE, fidelityCasesQuery, fidelityCheckQuery, useApiClient } from '../api/queries'
+import { describeFailure } from '../api/problems'
+import { PAGE_SIZE, fidelityCasesQuery, fidelityCheckQuery, unmatchedFidelityCases, useApiClient } from '../api/queries'
+import { saveBlob } from '../components/download'
+import { ErrorNotice } from '../components/ErrorNotice'
 import { formatInstant } from '../components/format'
 import { Pager } from '../components/Pager'
 import { QueryView } from '../components/QueryView'
+import { fidelityReport, reportFilename } from './fidelityReport'
 import { FIDELITY_RESULTS, FIDELITY_RESULT_LABELS, FIDELITY_STATE_LABELS, FIDELITY_VARIANTS, isOpenCheck } from './fidelityView'
 
 export function FidelityCheckPage() {
@@ -51,6 +55,7 @@ function Check({ check }: { readonly check: FidelityCheck }) {
       {check.state === 'FAILED' && !check.failure && (
         <p className="notice notice-warning">At least one case differed or could not be reproduced. No difference is tolerated.</p>
       )}
+      <ReportButton check={check} />
       <h2>Case counts</h2>
       <table>
         <caption>Case counts</caption>
@@ -112,6 +117,25 @@ function Check({ check }: { readonly check: FidelityCheck }) {
       </table>
       <Cases check={check} />
     </>
+  )
+}
+
+/** Hands the report of the check to the browser as a file, to be committed beside the design records. */
+function ReportButton({ check }: { readonly check: FidelityCheck }) {
+  const client = useApiClient()
+  const download = useMutation({
+    mutationFn: async () => {
+      const unmatched = await unmatchedFidelityCases(client, check.fidelityCheckId)
+      saveBlob(new Blob([fidelityReport(check, unmatched)], { type: 'text/markdown' }), reportFilename(check))
+    },
+  })
+  return (
+    <div className="actions">
+      <button type="button" aria-busy={download.isPending} disabled={download.isPending} onClick={() => download.mutate()}>
+        Download report
+      </button>
+      {download.isError && <ErrorNotice message={describeFailure(download.error, { action: 'build the report' })} />}
+    </div>
   )
 }
 

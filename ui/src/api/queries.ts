@@ -37,6 +37,7 @@ import {
   type ComparisonRequest,
   type EvaluationMode,
   type ExperimentManifest,
+  type FidelityCase,
   type FidelityCaseResult,
   type FidelityVariantLabel,
   type RunState,
@@ -308,6 +309,15 @@ export const fidelityCasesQuery = (client: Client, checkId: string, filters: Fid
       unwrap(() => listFidelityCases({ client, path: { fidelityCheckId: checkId }, query: { ...filters, limit: PAGE_SIZE, offset } })),
     refetchInterval: active ? FIDELITY_POLL_MS : false,
   })
+
+/** Every case that did not match, whatever it ended as, for the report of a check. */
+export async function unmatchedFidelityCases(client: Client, checkId: string): Promise<FidelityCase[]> {
+  const unmatched: FidelityCase[] = []
+  for (const result of ['DIVERGED', 'UNREPRODUCIBLE'] as const) {
+    unmatched.push(...(await wholeList((offset) => unwrap(() => listFidelityCases({ client, path: { fidelityCheckId: checkId }, query: { result, limit: MAX_PAGE, offset } })))).items)
+  }
+  return unmatched
+}
 
 export const startFidelityCheckCommand = (client: Client, seed: string, idempotencyKey: string) =>
   unwrap(() => startFidelityCheck({ client, body: { seed }, headers: { 'Idempotency-Key': idempotencyKey } }))
