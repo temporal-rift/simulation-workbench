@@ -63,6 +63,8 @@ class FidelityControllerIT {
 
     private static final Instant NOW = Instant.parse("2026-01-01T00:00:00Z");
     private static final UUID CHECK = new UUID(1, 1);
+    private static final UUID EXPERIMENT = new UUID(2, 2);
+    private static final UUID RUN = new UUID(3, 3);
 
     @Autowired
     private MockMvc mockMvc;
@@ -136,6 +138,8 @@ class FidelityControllerIT {
                 .andExpect(jsonPath("$.variants[1].overrides['game.rules.win-score-threshold']")
                         .value(16))
                 .andExpect(jsonPath("$.counts.total").value(0))
+                .andExpect(jsonPath("$.experimentId").value((Object) null))
+                .andExpect(jsonPath("$.runId").value((Object) null))
                 .andExpect(jsonPath("$.startedAt").value((Object) null));
     }
 
@@ -199,6 +203,19 @@ class FidelityControllerIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.fidelityCheckId").value(CHECK.toString()))
                 .andExpect(jsonPath("$.failure").value((Object) null));
+    }
+
+    @Test
+    void aBegunCheckNamesTheExperimentAndTheRunItPlays() throws Exception {
+        var queued = view();
+        var begun = new FidelityCheckView(queued.check().begun(EXPERIMENT, RUN, NOW), queued.counts());
+        when(getCheck.handle(CHECK)).thenReturn(begun);
+
+        read("/api/v1/fidelity-checks/" + CHECK, READ)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.state").value("RUNNING"))
+                .andExpect(jsonPath("$.experimentId").value(EXPERIMENT.toString()))
+                .andExpect(jsonPath("$.runId").value(RUN.toString()));
     }
 
     @Test

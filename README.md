@@ -640,7 +640,9 @@ A check is a durable process. A worker (`workbench.fidelity.worker-enabled`, def
 the simulator's own bundle, starts its run, requests one reproduction per succeeded case on the chosen lane in batches
 (`workbench.fidelity.reproduction-batch`), and reads them back as the execution workers finish them. Every request is made
 with a key derived from the check, so a restart repeats nothing. A case the simulator could not play is `UNREPRODUCIBLE`,
-as is a case whose reproduction could not reach an ending.
+as is a case whose reproduction could not reach an ending. A check names its experiment and run (`experimentId`, `runId`)
+once it begins: its counts stay at zero until that run completes, so the run is where the simulator phase is followed, and
+cancelling the run abandons the check, which fails with `RUN_CANCELLED`.
 
 The check **passes** if and only if it has at least one case and every case is `MATCH`; a diverged or unreproducible case, a
 run that failed, or a check that could not complete fails it, with no tolerance. A fidelity record stores the seed, both
