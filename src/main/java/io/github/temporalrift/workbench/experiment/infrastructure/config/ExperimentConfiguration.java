@@ -9,8 +9,10 @@ import tools.jackson.databind.ObjectMapper;
 
 import io.github.temporalrift.workbench.experiment.BaselineRulesCatalog;
 import io.github.temporalrift.workbench.experiment.ExperimentCatalog;
+import io.github.temporalrift.workbench.experiment.ExperimentFactory;
 import io.github.temporalrift.workbench.experiment.LaneBundleCatalog;
 import io.github.temporalrift.workbench.experiment.application.command.CreateExperimentCommandHandler;
+import io.github.temporalrift.workbench.experiment.application.command.ExperimentFactoryService;
 import io.github.temporalrift.workbench.experiment.application.port.in.CreateExperimentUseCase;
 import io.github.temporalrift.workbench.experiment.application.port.in.GetExperimentUseCase;
 import io.github.temporalrift.workbench.experiment.application.port.in.GetVariantRulesUseCase;
@@ -127,6 +129,11 @@ public class ExperimentConfiguration {
             PolicyReferenceVerifier policyVerifier,
             VariantRules variantRules) {
         return new CreateExperimentCommandHandler(experiments, idempotency, clock, policyVerifier, variantRules);
+    }
+
+    @Bean
+    ExperimentFactory experimentFactory(PreviewVariantRulesUseCase preview, CreateExperimentUseCase create) {
+        return new ExperimentFactoryService(preview, create);
     }
 
     @Bean
