@@ -97,8 +97,8 @@ public class FidelityProgress implements AdvanceFidelityUseCase {
             fail(check, NOT_AVAILABLE, "The simulator no longer embeds the revisions the check was accepted for");
             return;
         }
-        if (environments.equivalentLane().isEmpty()) {
-            fail(check, NOT_AVAILABLE, "No configured real lane is build-equivalent to the simulator any more");
+        if (!environments.isEquivalentLane(check.laneId())) {
+            failBecauseTheLaneChanged(check);
             return;
         }
         try {
@@ -142,10 +142,20 @@ public class FidelityProgress implements AdvanceFidelityUseCase {
                         status.get().failureMessage() == null
                                 ? "The simulator run failed"
                                 : status.get().failureMessage());
+            case INTERRUPTED -> resume(check);
             case CANCELLED -> fail(check, RUN_CANCELLED, "The simulator run was cancelled");
             case COMPLETED -> materialise(check);
         }
         return true;
+    }
+
+    /** A restart or an expired lease interrupts a run, and nothing moves it on but a resume. */
+    private void resume(FidelityCheck check) {
+        try {
+            playback.resumeRun(check.runId());
+        } catch (FidelityPlaybackRefusedException _) {
+            // Something else resumed it first; the next step reads where it stands.
+        }
     }
 
     private void materialise(FidelityCheck check) {
@@ -183,6 +193,10 @@ public class FidelityProgress implements AdvanceFidelityUseCase {
     }
 
     private boolean awaitReproductions(FidelityCheck check) {
+        if (!environments.isEquivalentLane(check.laneId())) {
+            failBecauseTheLaneChanged(check);
+            return true;
+        }
         var progressed = request(check);
         progressed |= collect(check);
         var counts = checks.counts(check.id());
@@ -242,6 +256,14 @@ public class FidelityProgress implements AdvanceFidelityUseCase {
                                 : new FidelityFailure(REPRODUCTION_FAILED, "The reproduction could not run to an end"));
             case QUEUED, RUNNING -> fidelityCase;
         };
+    }
+
+    /** A lane that went away is a fact about the deployment, never a verdict on a case. */
+    private void failBecauseTheLaneChanged(FidelityCheck check) {
+        fail(
+                check,
+                NOT_AVAILABLE,
+                "Lane " + check.laneId() + " is no longer configured or no longer build-equivalent to the simulator");
     }
 
     private void fail(FidelityCheck check, String code, String message) {

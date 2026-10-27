@@ -20,6 +20,13 @@ public interface FidelityPlayback {
 
     Optional<RunStatus> run(UUID runId);
 
+    /**
+     * Resumes an interrupted run, which makes no progress until it is.
+     *
+     * @throws FidelityPlaybackRefusedException when the run is not interrupted
+     */
+    void resumeRun(UUID runId);
+
     /** Every case of the run in matrix order. */
     List<PlayedCase> cases(UUID runId);
 
@@ -35,9 +42,10 @@ public interface FidelityPlayback {
     /** Where the run stands; {@code failureMessage} is set only when it failed. */
     record RunStatus(Phase phase, String failureMessage) {
 
-        /** ACTIVE can still end. */
+        /** ACTIVE and INTERRUPTED can still end; an interrupted run needs to be resumed. */
         public enum Phase {
             ACTIVE,
+            INTERRUPTED,
             COMPLETED,
             FAILED,
             CANCELLED

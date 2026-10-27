@@ -32,19 +32,40 @@ public final class FidelityFixtures {
         return new FidelityEnvironments.RealLane("lane-1", environment(LANE_IMAGE, revision));
     }
 
-    /** Environments with a simulator and an equivalent lane of the given source revision. */
-    public static FidelityEnvironments environments(String revision) {
-        return new FidelityEnvironments() {
-            @Override
-            public Optional<Simulator> simulator() {
-                return Optional.of(FidelityFixtures.simulator(revision));
-            }
+    /** A simulator and a real lane of the given source revision, which a test can make go away. */
+    public static final class Environments implements FidelityEnvironments {
 
-            @Override
-            public Optional<RealLane> equivalentLane() {
-                return Optional.of(lane(revision));
-            }
-        };
+        private final String revision;
+        private volatile boolean laneEquivalent = true;
+
+        private Environments(String revision) {
+            this.revision = revision;
+        }
+
+        /** The lane is removed or reconfigured, as a redeployment would. */
+        public void laneChanges() {
+            laneEquivalent = false;
+        }
+
+        @Override
+        public Optional<Simulator> simulator() {
+            return Optional.of(FidelityFixtures.simulator(revision));
+        }
+
+        @Override
+        public Optional<RealLane> equivalentLane() {
+            return laneEquivalent ? Optional.of(lane(revision)) : Optional.empty();
+        }
+
+        @Override
+        public boolean isEquivalentLane(String laneId) {
+            return laneEquivalent && "lane-1".equals(laneId);
+        }
+    }
+
+    /** Environments with a simulator and an equivalent lane of the given source revision. */
+    public static Environments environments(String revision) {
+        return new Environments(revision);
     }
 
     /** The rules digest a variant means is a function of its overrides, which is all the tests need of it. */

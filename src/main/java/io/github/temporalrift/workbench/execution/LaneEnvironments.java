@@ -16,6 +16,9 @@ public interface LaneEnvironments {
      */
     Optional<DeployedLane> equivalentDeployedLane(int seats);
 
+    /** Whether this deployed lane is still configured and build-equivalent to the simulator for those seats. */
+    boolean isEquivalentDeployedLane(String laneId, int seats);
+
     /** A deployed lane and what it serves. */
     record DeployedLane(String laneId, LaneBundle bundle) {}
 }

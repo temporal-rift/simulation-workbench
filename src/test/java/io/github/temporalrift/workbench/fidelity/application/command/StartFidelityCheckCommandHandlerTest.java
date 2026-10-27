@@ -113,6 +113,11 @@ class StartFidelityCheckCommandHandlerTest {
             }
 
             @Override
+            public boolean isEquivalentLane(String laneId) {
+                return false;
+            }
+
+            @Override
             public Optional<RealLane> equivalentLane() {
                 return Optional.empty();
             }
@@ -131,6 +136,11 @@ class StartFidelityCheckCommandHandlerTest {
             @Override
             public Optional<Simulator> simulator() {
                 return Optional.of(FidelityFixtures.simulator("1111111"));
+            }
+
+            @Override
+            public boolean isEquivalentLane(String laneId) {
+                return false;
             }
 
             @Override

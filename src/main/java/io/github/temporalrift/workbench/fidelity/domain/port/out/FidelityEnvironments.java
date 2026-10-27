@@ -13,6 +13,9 @@ public interface FidelityEnvironments {
     /** The real lane that is build-equivalent to the simulator for every seat a case may use, if any. */
     Optional<RealLane> equivalentLane();
 
+    /** Whether this lane is still configured and build-equivalent to the simulator for every seat a case may use. */
+    boolean isEquivalentLane(String laneId);
+
     /**
      * The simulator's environment with the artifacts of the bundle it serves, which a manifest names.
      *

@@ -95,6 +95,34 @@ class LaneEnvironmentsQueryHandlerTest {
     }
 
     @Test
+    void theSimulatorPlaysOneCasePerSlotAndALaneOne() {
+        when(lanes.profiles())
+                .thenReturn(Map.of(
+                        "simulator-1", simulator(),
+                        "simulator-2", simulator(),
+                        "simulator-3", simulator(),
+                        "lane-1", lane("1111111")));
+
+        assertThat(environments.simulator().orElseThrow().laneCount()).isEqualTo(3);
+        assertThat(environments.equivalentDeployedLane(5).orElseThrow().bundle().laneCount())
+                .isEqualTo(1);
+    }
+
+    @Test
+    void aLaneIsEquivalentOnlyWhileItIsConfiguredAndPlaysTheSimulatorsGame() {
+        when(lanes.profiles())
+                .thenReturn(Map.of(
+                        "simulator-1", simulator(),
+                        "lane-1", lane("1111111"),
+                        "lane-2", lane("2222222")));
+
+        assertThat(environments.isEquivalentDeployedLane("lane-1", 5)).isTrue();
+        assertThat(environments.isEquivalentDeployedLane("lane-2", 5)).isFalse();
+        assertThat(environments.isEquivalentDeployedLane("lane-9", 5)).isFalse();
+        assertThat(environments.isEquivalentDeployedLane("simulator-1", 5)).isFalse();
+    }
+
+    @Test
     void anotherSimulatorSlotIsNeverTakenForARealLane() {
         when(lanes.profiles()).thenReturn(Map.of("simulator-1", simulator(), "simulator-2", simulator()));
 

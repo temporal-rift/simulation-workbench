@@ -36,6 +36,11 @@ public class FidelityEnvironmentsAdapter implements FidelityEnvironments {
                 .map(lane -> new RealLane(lane.laneId(), environment(lane.bundle())));
     }
 
+    @Override
+    public boolean isEquivalentLane(String laneId) {
+        return lanes.isEquivalentDeployedLane(laneId, FidelityMatrix.MAX_SEATS);
+    }
+
     private static FidelityEnvironment environment(LaneBundle bundle) {
         return new FidelityEnvironment(
                 build(bundle.gameService()),

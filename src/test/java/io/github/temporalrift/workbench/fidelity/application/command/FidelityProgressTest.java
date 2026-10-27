@@ -40,7 +40,6 @@ import io.github.temporalrift.workbench.fidelity.domain.FidelityMatrix;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityPlaybackRefusedException;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityVerdict;
 import io.github.temporalrift.workbench.fidelity.domain.FirstDivergence;
-import io.github.temporalrift.workbench.fidelity.domain.port.out.FidelityEnvironments;
 import io.github.temporalrift.workbench.fidelity.domain.port.out.FidelityExperiments;
 import io.github.temporalrift.workbench.fidelity.domain.port.out.FidelityPlayback;
 import io.github.temporalrift.workbench.fidelity.infrastructure.adapter.out.configuration.ConfiguredEdgeVariants;
@@ -60,7 +59,7 @@ class FidelityProgressTest {
     private final ObjectMapper mapper = new ObjectMapper();
     private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
 
-    private FidelityEnvironments environments = FidelityFixtures.environments("1111111");
+    private FidelityFixtures.Environments environments = FidelityFixtures.environments("1111111");
     private UUID checkId;
 
     @BeforeEach
@@ -186,6 +185,64 @@ class FidelityProgressTest {
         assertThat(check().state()).isEqualTo(FidelityCheckState.FAILED);
         assertThat(check().failure().code()).isEqualTo("SIMULATOR_NOT_AVAILABLE");
         verify(experiments, never()).freeze(any(), any());
+    }
+
+    @Test
+    void aLaneThatChangedBeforeTheCheckBeginsFailsItAsUnavailable() {
+        environments.laneChanges();
+
+        progress().advance();
+
+        assertThat(check().state()).isEqualTo(FidelityCheckState.FAILED);
+        assertThat(check().failure().code()).isEqualTo("SIMULATOR_NOT_AVAILABLE");
+        verify(experiments, never()).freeze(any(), any());
+    }
+
+    @Test
+    void aLaneThatVanishesMidCheckFailsTheCheckInsteadOfJudgingItsCases() {
+        givenARunWith(played(3, 3));
+        var progress = progress();
+        progress.advance();
+        progress.advance();
+        environments.laneChanges();
+
+        progress.advance();
+
+        assertThat(check().state()).isEqualTo(FidelityCheckState.FAILED);
+        assertThat(check().failure().code()).isEqualTo("SIMULATOR_NOT_AVAILABLE");
+        assertThat(checks.counts(checkId).unreproducible()).isZero();
+        verify(playback, never()).reproduce(any(), any(), any(), any());
+    }
+
+    @Test
+    void anInterruptedRunIsResumedAndTheCheckKeepsWaiting() {
+        givenTheRunStarts();
+        progress().advance();
+        when(playback.run(RUN))
+                .thenReturn(Optional.of(
+                        new FidelityPlayback.RunStatus(FidelityPlayback.RunStatus.Phase.INTERRUPTED, null)));
+
+        assertThat(progress().advance()).isTrue();
+
+        verify(playback).resumeRun(RUN);
+        assertThat(check().state()).isEqualTo(FidelityCheckState.RUNNING);
+        assertThat(checks.caseCount(checkId)).isZero();
+    }
+
+    @Test
+    void aRunSomethingElseAlreadyResumedIsNotAFailure() {
+        givenTheRunStarts();
+        progress().advance();
+        when(playback.run(RUN))
+                .thenReturn(Optional.of(
+                        new FidelityPlayback.RunStatus(FidelityPlayback.RunStatus.Phase.INTERRUPTED, null)));
+        org.mockito.Mockito.doThrow(new FidelityPlaybackRefusedException("not interrupted", null))
+                .when(playback)
+                .resumeRun(RUN);
+
+        progress().advance();
+
+        assertThat(check().state()).isEqualTo(FidelityCheckState.RUNNING);
     }
 
     @Test

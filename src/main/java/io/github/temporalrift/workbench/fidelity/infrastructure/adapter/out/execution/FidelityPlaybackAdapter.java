@@ -50,6 +50,15 @@ public class FidelityPlaybackAdapter implements FidelityPlayback {
     }
 
     @Override
+    public void resumeRun(UUID runId) {
+        try {
+            runs.resume(runId);
+        } catch (ExecutionRefusedException e) {
+            throw new FidelityPlaybackRefusedException(e.getMessage(), e);
+        }
+    }
+
+    @Override
     public List<PlayedCase> cases(UUID runId) {
         return catalog.cases(runId).stream()
                 .map(FidelityPlaybackAdapter::played)
@@ -76,6 +85,7 @@ public class FidelityPlaybackAdapter implements FidelityPlayback {
         return new RunStatus(
                 switch (run.phase()) {
                     case ACTIVE -> RunStatus.Phase.ACTIVE;
+                    case INTERRUPTED -> RunStatus.Phase.INTERRUPTED;
                     case COMPLETED -> RunStatus.Phase.COMPLETED;
                     case FAILED -> RunStatus.Phase.FAILED;
                     case CANCELLED -> RunStatus.Phase.CANCELLED;

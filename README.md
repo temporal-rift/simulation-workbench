@@ -574,9 +574,13 @@ workbench:
     read-service-jar: /builds/read-service.jar
     rules-file: /builds/rules.yml   # the game.rules.* properties every service plays under (.yml, .yaml, .properties)
     work-directory: /var/tmp/workbench-simulator   # optional; where the jars are extracted
-    bots: 6                       # bot identities per slot; at least the largest player count of a case
-    bot-player-ids:               # optional: the player id of each bot, in seat order; see "Simulator fidelity"
+    bots: 5                       # bot identities per slot; at least the largest player count of a case
+    bot-player-ids:               # optional: one player id per bot, in seat order; see "Simulator fidelity"
       - 6c0f5b1e-0000-4000-8000-000000000001
+      - 6c0f5b1e-0000-4000-8000-000000000002
+      - 6c0f5b1e-0000-4000-8000-000000000003
+      - 6c0f5b1e-0000-4000-8000-000000000004
+      - 6c0f5b1e-0000-4000-8000-000000000005
     bundle:                       # declared like a lane's; every slot serves this one bundle
       rules-digest: 3f1c…
       rules-document: /builds/effective-rules.json   # the EffectiveRules document of rules-file

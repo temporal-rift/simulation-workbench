@@ -112,6 +112,11 @@ class GetSimulatorFidelityQueryHandlerTest {
             }
 
             @Override
+            public boolean isEquivalentLane(String laneId) {
+                return false;
+            }
+
+            @Override
             public Optional<RealLane> equivalentLane() {
                 return Optional.empty();
             }

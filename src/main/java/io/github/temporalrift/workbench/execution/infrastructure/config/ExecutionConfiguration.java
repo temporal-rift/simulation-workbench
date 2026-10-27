@@ -350,8 +350,8 @@ public class ExecutionConfiguration {
     }
 
     @Bean
-    RunStarter runStarter(StartRunUseCase startRun) {
-        return new RunStartingService(startRun);
+    RunStarter runStarter(StartRunUseCase startRun, ResumeRunUseCase resumeRun) {
+        return new RunStartingService(startRun, resumeRun);
     }
 
     @Bean

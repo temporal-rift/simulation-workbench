@@ -58,7 +58,8 @@ public class RunCatalogQueryHandler implements RunCatalog {
 
     private static RunPhase phase(RunState state) {
         return switch (state) {
-            case QUEUED, RUNNING, INTERRUPTED, CANCELLING -> RunPhase.ACTIVE;
+            case QUEUED, RUNNING, CANCELLING -> RunPhase.ACTIVE;
+            case INTERRUPTED -> RunPhase.INTERRUPTED;
             case COMPLETED -> RunPhase.COMPLETED;
             case FAILED -> RunPhase.FAILED;
             case CANCELLED -> RunPhase.CANCELLED;

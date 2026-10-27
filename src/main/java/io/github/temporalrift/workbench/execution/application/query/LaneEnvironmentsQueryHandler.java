@@ -22,7 +22,25 @@ public class LaneEnvironmentsQueryHandler implements LaneEnvironments {
 
     @Override
     public Optional<LaneBundle> simulator() {
-        return simulatorProfile().map(LaneEnvironmentsQueryHandler::bundle);
+        return simulatorProfile().map(profile -> bundle(profile, slotsOf(profile)));
+    }
+
+    @Override
+    public boolean isEquivalentDeployedLane(String laneId, int seats) {
+        var lane = lanes.profiles().get(laneId);
+        return lane != null
+                && lane.kind() == LaneProfile.Kind.DEPLOYED
+                && simulatorProfile()
+                        .map(simulator -> BuildEquivalence.holds(simulator, lane, seats))
+                        .orElse(false);
+    }
+
+    /** The cases the simulator plays at once: one per slot, which are the in-process lanes of its fit. */
+    private int slotsOf(LaneProfile simulator) {
+        return (int) lanes.profiles().values().stream()
+                .filter(lane -> lane.kind() == LaneProfile.Kind.IN_PROCESS)
+                .filter(lane -> lane.fit().equals(simulator.fit()))
+                .count();
     }
 
     @Override
@@ -32,7 +50,7 @@ public class LaneEnvironmentsQueryHandler implements LaneEnvironments {
                         .filter(lane -> lane.getValue().kind() == LaneProfile.Kind.DEPLOYED)
                         .filter(lane -> BuildEquivalence.holds(simulator, lane.getValue(), seats))
                         .min(Map.Entry.comparingByKey(Comparator.naturalOrder()))
-                        .map(lane -> new DeployedLane(lane.getKey(), bundle(lane.getValue()))));
+                        .map(lane -> new DeployedLane(lane.getKey(), bundle(lane.getValue(), 1))));
     }
 
     private Optional<LaneProfile> simulatorProfile() {
@@ -42,7 +60,7 @@ public class LaneEnvironmentsQueryHandler implements LaneEnvironments {
                 .map(Map.Entry::getValue);
     }
 
-    private static LaneBundle bundle(LaneProfile profile) {
+    private static LaneBundle bundle(LaneProfile profile, int laneCount) {
         var provenance = profile.provenance();
         return new LaneBundle(
                 artifact(provenance.rulesArtifact()),
@@ -53,7 +71,7 @@ public class LaneEnvironmentsQueryHandler implements LaneEnvironments {
                 build(provenance.timelineService()),
                 build(provenance.readService()),
                 provenance.contracts(),
-                1);
+                laneCount);
     }
 
     private static LaneBundle.Artifact artifact(BundleProvenance.Artifact artifact) {
