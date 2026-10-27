@@ -47,10 +47,10 @@ the human player's client.
 ## Build and test
 
 ```bash
-# All tests (unit + integration via Testcontainers)
+# Unit tests
 mvn test
 
-# Full verification (also runs Failsafe *IT plus Sonar analysis with SONAR_TOKEN set)
+# Unit tests plus Failsafe *IT (Testcontainers); add `sonar:sonar` with SONAR_TOKEN set to analyze
 mvn verify
 
 # Check and fix formatting
@@ -62,6 +62,19 @@ mvn verify -Dskip.installnodenpm -Dskip.npm
 # Run all quality gates (formatting + Checkstyle)
 mvn validate
 ```
+
+For a fast Java inner loop once the local repository is warm, build offline and skip the designer application:
+
+```bash
+# One unit test class
+mvn -o -Dskip.installnodenpm -Dskip.npm test -Dtest=ReportCalculatorTest
+
+# One integration test class
+mvn -o -Dskip.installnodenpm -Dskip.npm verify -Dit.test=AnalysisIT
+```
+
+Integration tests run in one fork by default; `-Dfailsafe.forkCount=2` runs two forks, each with its own
+Testcontainers and database, which shortens the suite on machines with spare cores.
 
 ## Dependencies
 

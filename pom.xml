@@ -8,7 +8,7 @@
     <parent>
         <groupId>io.github.temporal-rift</groupId>
         <artifactId>temporal-rift-bom</artifactId>
-        <version>2.0.2</version>
+        <version>2.0.3</version>
         <relativePath/>
     </parent>
 
@@ -79,6 +79,8 @@
         <node.version>v22.23.3</node.version>
         <!-- Declared so the UI checks follow -DskipTests like the Java tests do. -->
         <skipTests>false</skipTests>
+        <!-- Overridable per environment: CI runs integration tests in two parallel forks. -->
+        <failsafe.forkCount>1</failsafe.forkCount>
     </properties>
 
     <dependencies>
@@ -277,6 +279,9 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-failsafe-plugin</artifactId>
+                <configuration>
+                    <forkCount>${failsafe.forkCount}</forkCount>
+                </configuration>
                 <executions>
                     <execution>
                         <goals>
@@ -294,6 +299,7 @@
                 <groupId>org.openapitools</groupId>
                 <artifactId>openapi-generator-maven-plugin</artifactId>
                 <configuration>
+                    <skipIfSpecIsUnchanged>true</skipIfSpecIsUnchanged>
                     <importMappings>
                         <importMapping>ProblemDetail=org.springframework.http.ProblemDetail</importMapping>
                     </importMappings>
