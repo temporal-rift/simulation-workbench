@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -236,7 +237,7 @@ class FidelityProgressTest {
         when(playback.run(RUN))
                 .thenReturn(Optional.of(
                         new FidelityPlayback.RunStatus(FidelityPlayback.RunStatus.Phase.INTERRUPTED, null)));
-        org.mockito.Mockito.doThrow(new FidelityPlaybackRefusedException("not interrupted", null))
+        doThrow(new FidelityPlaybackRefusedException("not interrupted", null))
                 .when(playback)
                 .resumeRun(RUN);
 

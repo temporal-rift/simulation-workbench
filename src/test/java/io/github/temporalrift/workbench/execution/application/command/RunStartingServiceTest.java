@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import java.util.UUID;
@@ -31,7 +32,7 @@ class RunStartingServiceTest {
         service.resume(RUN);
 
         var commands = ArgumentCaptor.forClass(ResumeRunUseCase.Command.class);
-        verify(resumeRun, org.mockito.Mockito.times(2)).handle(commands.capture());
+        verify(resumeRun, times(2)).handle(commands.capture());
         assertThat(commands.getAllValues())
                 .extracting(ResumeRunUseCase.Command::runId)
                 .containsOnly(RUN);
