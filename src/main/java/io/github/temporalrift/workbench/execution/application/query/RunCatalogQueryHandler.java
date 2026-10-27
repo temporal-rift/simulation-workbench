@@ -68,6 +68,7 @@ public class RunCatalogQueryHandler implements RunCatalog {
     private static RunCase runCase(LogicalCase logicalCase, FailureCode failureCode) {
         return new RunCase(
                 logicalCase.caseId(),
+                logicalCase.caseKey(),
                 logicalCase.variantLabel(),
                 logicalCase.seed(),
                 logicalCase.playerCount(),

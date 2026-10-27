@@ -48,6 +48,7 @@ class RunSourceAdapterTest {
 
     private final RunCase runCase = new RunCase(
             CASE,
+            new UUID(0, 99),
             "base",
             "42",
             3,

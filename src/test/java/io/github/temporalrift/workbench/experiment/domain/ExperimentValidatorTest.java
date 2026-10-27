@@ -192,6 +192,26 @@ class ExperimentValidatorTest {
         assertThat(ExperimentValidator.validate(manifest).name()).isEqualTo("secret-hitler variant");
     }
 
+    @Test
+    void aVariantMayOverrideAParameterWhoseKeyNamesASecretOutcome() {
+        var manifest = (ObjectNode) ExperimentManifests.valid().deepCopy();
+        var variant = manifest.withArray("variants").get(1).asObject();
+        variant.withObject("overrides").put("game.rules.scoring.score-deltas.SECRET_OUTCOME_WON", 5);
+        variant.put("parameterSpaceVersion", 1);
+
+        assertThat(ExperimentValidator.validate(manifest).name()).isEqualTo("threshold experiment");
+    }
+
+    @Test
+    void aSecretNamedFieldOfAVariantIsStillRejected() {
+        var manifest = (ObjectNode) ExperimentManifests.valid().deepCopy();
+        manifest.withArray("variants").get(1).asObject().put("password", "hunter2");
+
+        assertThatThrownBy(() -> ExperimentValidator.validate(manifest))
+                .isInstanceOf(ExperimentValidationException.class)
+                .hasMessageContaining("credentials or secrets");
+    }
+
     private static final PolicyReferenceVerifier VERIFIER =
             new PolicyReferenceVerifierAdapter(new BaselinePolicyCatalog());
 
