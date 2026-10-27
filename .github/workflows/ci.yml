@@ -34,12 +34,12 @@ jobs:
               }
             ]
 
-      - name: Cache Maven packages
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+      - name: Restore Maven cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: ~/.m2/repository
-          key: ${{ runner.os }}-m2-format-check-${{ hashFiles('**/pom.xml') }}
-          restore-keys: ${{ runner.os }}-m2-format-check-
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2-
 
       - name: Format and Checkstyle
         run: mvn --batch-mode -f pom.xml validate
@@ -79,7 +79,6 @@ jobs:
         run: snyk test --file=pom.xml --package-manager=maven --fail-on=upgradable --severity-threshold=high --org=temporal-rift
 
   build-test-analyze:
-    needs: format-check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -121,8 +120,23 @@ jobs:
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: ~/.m2/repository
-          key: ${{ runner.os }}-m2-build-test-analyze-${{ hashFiles('**/pom.xml') }}
-          restore-keys: ${{ runner.os }}-m2-build-test-analyze-
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2-
+
+      - name: Cache npm packages
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('ui/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-npm-
+
+      # The frontend plugin unpacks Node under target/; cache it so a clean runner skips the download.
+      - name: Cache Node
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: target/node
+          key: ${{ runner.os }}-node-${{ hashFiles('pom.xml') }}
+          restore-keys: ${{ runner.os }}-node-
 
       # The browser integration tests drive a real Chromium; Playwright downloads it on first use.
       - name: Cache Playwright browsers
@@ -147,4 +161,4 @@ jobs:
               "-Dsonar.pullrequest.base=$SONAR_PR_BASE"
             )
           fi
-          mvn --batch-mode -f pom.xml -U verify sonar:sonar "${SONAR_ARGS[@]}"
+          mvn --batch-mode -f pom.xml -Dfailsafe.forkCount=2 verify sonar:sonar "${SONAR_ARGS[@]}"
