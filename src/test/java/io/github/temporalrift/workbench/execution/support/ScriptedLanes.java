@@ -21,6 +21,7 @@ import io.github.temporalrift.workbench.execution.domain.port.out.LaneProvider;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.FinalScore;
 import io.github.temporalrift.workbench.execution.domain.run.LaneFit;
+import io.github.temporalrift.workbench.execution.domain.run.LaneProfile;
 import io.github.temporalrift.workbench.execution.domain.run.ServedBundle;
 import io.github.temporalrift.workbench.execution.domain.run.WinType;
 import io.github.temporalrift.workbench.execution.domain.run.Winner;
@@ -181,6 +182,11 @@ public class ScriptedLanes implements LaneProvider {
         return ServedBundle.counted(laneBundles.stream()
                 .map(bundle -> ServedBundle.ofLane(bundle, Provenances.of(bundle)))
                 .toList());
+    }
+
+    @Override
+    public Map<String, LaneProfile> profiles() {
+        return Map.of();
     }
 
     @Override

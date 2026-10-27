@@ -1,6 +1,8 @@
 package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.simulator;
 
 import java.time.Clock;
+import java.util.List;
+import java.util.UUID;
 
 import org.springframework.core.NestedExceptionUtils;
 
@@ -16,14 +18,14 @@ final class SimulatorSlot {
 
     private final String id;
     private final SlotRuntime.Build build;
-    private final int bots;
+    private final List<UUID> botPlayerIds;
     private final Clock clock;
     private SlotRuntime runtime;
 
-    SimulatorSlot(String id, SlotRuntime.Build build, int bots, Clock clock) {
+    SimulatorSlot(String id, SlotRuntime.Build build, List<UUID> botPlayerIds, Clock clock) {
         this.id = id;
         this.build = build;
-        this.bots = bots;
+        this.botPlayerIds = botPlayerIds;
         this.clock = clock;
     }
 
@@ -35,7 +37,7 @@ final class SimulatorSlot {
     synchronized SlotRuntime runtime() {
         stop();
         try {
-            runtime = SlotRuntime.start(build, bots, clock);
+            runtime = SlotRuntime.start(build, botPlayerIds, clock);
         } catch (RuntimeException e) {
             throw new AttemptFailedException(
                     FailureCode.EXECUTION_FAILED,

@@ -13,6 +13,7 @@ import io.github.temporalrift.workbench.execution.domain.port.out.GameSession;
 import io.github.temporalrift.workbench.execution.domain.port.out.LaneProvider;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.LaneFit;
+import io.github.temporalrift.workbench.execution.domain.run.LaneProfile;
 import io.github.temporalrift.workbench.execution.domain.run.ServedBundle;
 import io.github.temporalrift.workbench.execution.support.Provenances;
 
@@ -56,6 +57,11 @@ class CompositeLaneProviderTest {
         @Override
         public List<ServedBundle> servedBundles() {
             return List.of(ServedBundle.ofLane(BUNDLE, Provenances.sample()));
+        }
+
+        @Override
+        public Map<String, LaneProfile> profiles() {
+            return Map.of();
         }
 
         @Override

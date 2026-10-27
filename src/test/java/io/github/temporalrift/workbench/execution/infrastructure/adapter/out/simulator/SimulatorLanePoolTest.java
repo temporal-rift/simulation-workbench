@@ -208,7 +208,15 @@ class SimulatorLanePoolTest {
                 new TreeMap<>(Map.of("session-api", "3.0.0")));
         return SimulatorLanePool.create(
                 new SimulatorLanePool.Deployment(
-                        slots, gameJar, timelineJar, readJar, rules, directory.resolve("work"), 6, BUNDLE, declared),
+                        slots,
+                        gameJar,
+                        timelineJar,
+                        readJar,
+                        rules,
+                        directory.resolve("work"),
+                        SimulatorBots.derived(6),
+                        BUNDLE,
+                        declared),
                 new SimulatorLanePool.Collaborators(
                         null,
                         new InMemoryCommandLedger(),

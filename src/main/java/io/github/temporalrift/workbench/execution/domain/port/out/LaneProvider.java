@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import io.github.temporalrift.workbench.execution.domain.run.LaneFit;
+import io.github.temporalrift.workbench.execution.domain.run.LaneProfile;
 import io.github.temporalrift.workbench.execution.domain.run.ServedBundle;
 
 /**
@@ -31,6 +32,9 @@ public interface LaneProvider {
      * provenance and lane count, ordered by rules digest and then content digest.
      */
     List<ServedBundle> servedBundles();
+
+    /** What every configured lane is, by lane id, whatever its availability. */
+    Map<String, LaneProfile> profiles();
 
     /** The lanes that are free right now, each with the fit it satisfies. */
     Map<String, LaneFit> freeLanes();

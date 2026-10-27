@@ -1,14 +1,12 @@
 package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.simulator;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Consumer;
-import java.util.stream.IntStream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -72,6 +70,15 @@ final class SlotRuntime implements AutoCloseable {
      * @param botCount how many bot identities to mint; they are the same players in every slot
      */
     static SlotRuntime start(Build build, int botCount, Clock clock) {
+        return start(build, SimulatorBots.derived(botCount), clock);
+    }
+
+    /**
+     * Starts the three services and begins routing their records.
+     *
+     * @param botPlayerIds the player id of each bot identity to mint, in seat order
+     */
+    static SlotRuntime start(Build build, List<UUID> botPlayerIds, Clock clock) {
         var router = new SlotEventRouter();
         var issuer = new SimulatorIssuer(clock);
         var parent = new AnnotationConfigApplicationContext();
@@ -89,8 +96,8 @@ final class SlotRuntime implements AutoCloseable {
                     SlotEventRouter.GAME_SERVICE, delivery(game),
                     SlotEventRouter.TIMELINE_SERVICE, delivery(timeline),
                     SlotEventRouter.READ_SERVICE, delivery(read)));
-            var bots = IntStream.range(0, botCount)
-                    .mapToObj(seat -> bot(seat, issuer))
+            var bots = botPlayerIds.stream()
+                    .map(playerId -> new LaneEndpoints.BotIdentity(playerId, issuer.bot(playerId)))
                     .toList();
             var runtime = new SlotRuntime(
                     router, parent, children, List.of(url(game), url(timeline), url(read)), issuer.operator(), bots);
@@ -122,11 +129,6 @@ final class SlotRuntime implements AutoCloseable {
                 SlotRuntime.close(router, parent, children);
             }
         }
-    }
-
-    private static LaneEndpoints.BotIdentity bot(int seat, SimulatorIssuer issuer) {
-        var playerId = UUID.nameUUIDFromBytes(("simulator-bot-" + seat).getBytes(StandardCharsets.UTF_8));
-        return new LaneEndpoints.BotIdentity(playerId, issuer.bot(playerId));
     }
 
     private static ConfigurableApplicationContext host(

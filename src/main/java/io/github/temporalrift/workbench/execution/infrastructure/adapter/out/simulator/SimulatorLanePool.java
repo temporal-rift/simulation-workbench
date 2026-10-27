@@ -27,6 +27,7 @@ import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.BundleProvenance;
 import io.github.temporalrift.workbench.execution.domain.run.LaneFit;
+import io.github.temporalrift.workbench.execution.domain.run.LaneProfile;
 import io.github.temporalrift.workbench.execution.domain.run.ServedBundle;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.ApiClients;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneContexts;
@@ -68,7 +69,7 @@ public final class SimulatorLanePool extends RosterBackedLaneProvider {
      *
      * @param rulesFile the {@code game.rules.*} properties the services play under
      * @param workDirectory where the jars are extracted
-     * @param bots how many bot identities each slot mints
+     * @param botPlayerIds the player id of each bot identity every slot mints, in seat order
      */
     public record Deployment(
             int slots,
@@ -77,7 +78,7 @@ public final class SimulatorLanePool extends RosterBackedLaneProvider {
             Path readServiceJar,
             Path rulesFile,
             Path workDirectory,
-            int bots,
+            List<UUID> botPlayerIds,
             BundleDigests bundle,
             Declared declared) {}
 
@@ -103,8 +104,12 @@ public final class SimulatorLanePool extends RosterBackedLaneProvider {
             ResetScheduler scheduler) {}
 
     private SimulatorLanePool(
-            LaneRoster roster, Map<String, SimulatorSlot> slots, Hosting hosting, List<ServedBundle> servedBundles) {
-        super(roster, servedBundles);
+            LaneRoster roster,
+            Map<String, SimulatorSlot> slots,
+            Hosting hosting,
+            List<ServedBundle> servedBundles,
+            Map<String, LaneProfile> profiles) {
+        super(roster, servedBundles, profiles);
         this.slots = slots;
         this.hosting = hosting;
     }
@@ -132,7 +137,7 @@ public final class SimulatorLanePool extends RosterBackedLaneProvider {
                 new BundleProvenance.ServiceBuild(read.imageDigest(), declared.readServiceRevision()),
                 declared.contracts());
         var slots = new LinkedHashMap<String, SimulatorSlot>();
-        slotIds.forEach(id -> slots.put(id, new SimulatorSlot(id, build, deployment.bots(), with.clock())));
+        slotIds.forEach(id -> slots.put(id, new SimulatorSlot(id, build, deployment.botPlayerIds(), with.clock())));
         var fit = LaneFit.of(deployment.bundle().contentDigest(), provenance);
         var roster = new LaneRoster(
                 slotIds.stream().map(id -> new LaneRoster.Member(id, fit, true)).toList(),
@@ -153,7 +158,11 @@ public final class SimulatorLanePool extends RosterBackedLaneProvider {
         var served = ServedBundle.counted(slotIds.stream()
                 .map(_ -> ServedBundle.ofLane(deployment.bundle(), provenance))
                 .toList());
-        return new SimulatorLanePool(roster, slots, hosting, served);
+        var profile = new LaneProfile(
+                fit, deployment.bundle(), provenance, LaneProfile.Kind.IN_PROCESS, deployment.botPlayerIds());
+        var profiles = new LinkedHashMap<String, LaneProfile>();
+        slotIds.forEach(id -> profiles.put(id, profile));
+        return new SimulatorLanePool(roster, slots, hosting, served, profiles);
     }
 
     /** A slot holds its games in memory, so closing a context means stopping the services that hold it. */
