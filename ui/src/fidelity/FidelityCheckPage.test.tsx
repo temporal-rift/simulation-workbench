@@ -141,6 +141,27 @@ describe('a check that could not complete', () => {
   })
 })
 
+describe('the simulator run', () => {
+  it('is linked once the check has begun, where its progress is read and it can be cancelled', async () => {
+    serveFidelity(service, { checks: [check({ counts: { total: 0, matched: 0, diverged: 0, unreproducible: 0, pending: 0 } })], cases: [] })
+    await renderApp(path, service)
+
+    const link = await screen.findByRole('link', { name: 'Run e4a5f6b7' })
+    expect(link).toHaveAttribute('href', `/runs/${FIDELITY_IDS.run}`)
+  })
+
+  it('is not linked before the check begins', async () => {
+    serveFidelity(service, {
+      checks: [check({ state: 'QUEUED', experimentId: null, runId: null, startedAt: null, counts: { total: 0, matched: 0, diverged: 0, unreproducible: 0, pending: 0 } })],
+      cases: [],
+    })
+    await renderApp(path, service)
+
+    expect(await screen.findByText('Not started yet')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /^Run / })).not.toBeInTheDocument()
+  })
+})
+
 describe('an unknown check', () => {
   it('says it does not exist', async () => {
     serveFidelity(service, { checks: [] })
