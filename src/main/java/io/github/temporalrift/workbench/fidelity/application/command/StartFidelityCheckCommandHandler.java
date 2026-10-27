@@ -18,6 +18,7 @@ import io.github.temporalrift.workbench.fidelity.domain.FidelityCheck;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityCheckActiveException;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityIdempotencyConflictException;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityVariant;
+import io.github.temporalrift.workbench.fidelity.domain.InvalidSeedException;
 import io.github.temporalrift.workbench.fidelity.domain.SimulatorNotAvailableException;
 import io.github.temporalrift.workbench.fidelity.domain.VariantLabel;
 import io.github.temporalrift.workbench.fidelity.domain.port.out.FidelityEnvironments;
@@ -127,7 +128,7 @@ public class StartFidelityCheckCommandHandler implements StartFidelityCheckUseCa
 
     private static void requireUint64(String seed) {
         if (seed == null || !UINT64.matcher(seed).matches() || new BigInteger(seed).compareTo(MAX_UINT64) > 0) {
-            throw new IllegalArgumentException("seed must be a decimal unsigned 64-bit integer: " + seed);
+            throw new InvalidSeedException(seed);
         }
     }
 }

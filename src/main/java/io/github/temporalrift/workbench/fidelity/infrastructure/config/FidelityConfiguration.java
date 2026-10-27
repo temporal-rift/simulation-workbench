@@ -13,13 +13,11 @@ import io.github.temporalrift.workbench.execution.LaneEnvironments;
 import io.github.temporalrift.workbench.execution.RunCatalog;
 import io.github.temporalrift.workbench.execution.RunStarter;
 import io.github.temporalrift.workbench.experiment.ExperimentFactory;
-import io.github.temporalrift.workbench.fidelity.SimulatorFidelityGate;
 import io.github.temporalrift.workbench.fidelity.application.command.FidelityManifestFactory;
 import io.github.temporalrift.workbench.fidelity.application.command.FidelityProgress;
 import io.github.temporalrift.workbench.fidelity.application.command.StartFidelityCheckCommandHandler;
 import io.github.temporalrift.workbench.fidelity.application.port.in.AdvanceFidelityUseCase;
 import io.github.temporalrift.workbench.fidelity.application.port.in.GetFidelityCheckUseCase;
-import io.github.temporalrift.workbench.fidelity.application.port.in.GetSimulatorFidelityUseCase;
 import io.github.temporalrift.workbench.fidelity.application.port.in.ListFidelityCasesUseCase;
 import io.github.temporalrift.workbench.fidelity.application.port.in.ListFidelityChecksUseCase;
 import io.github.temporalrift.workbench.fidelity.application.port.in.StartFidelityCheckUseCase;
@@ -88,19 +86,10 @@ public class FidelityConfiguration {
         return new ListFidelityCasesQueryHandler(checks);
     }
 
+    /** Answers the API and, as the simulator fidelity gate, the search campaign. */
     @Bean
     GetSimulatorFidelityQueryHandler simulatorFidelity(FidelityRepository checks, FidelityEnvironments environments) {
         return new GetSimulatorFidelityQueryHandler(checks, environments);
-    }
-
-    @Bean
-    GetSimulatorFidelityUseCase getSimulatorFidelityUseCase(GetSimulatorFidelityQueryHandler handler) {
-        return handler;
-    }
-
-    @Bean
-    SimulatorFidelityGate simulatorFidelityGate(GetSimulatorFidelityQueryHandler handler) {
-        return handler;
     }
 
     @Bean

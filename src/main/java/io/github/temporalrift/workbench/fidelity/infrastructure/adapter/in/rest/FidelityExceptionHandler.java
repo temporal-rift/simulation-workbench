@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityCheckActiveException;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityCheckNotFoundException;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityIdempotencyConflictException;
+import io.github.temporalrift.workbench.fidelity.domain.InvalidSeedException;
 import io.github.temporalrift.workbench.fidelity.domain.SimulatorNotAvailableException;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.ProblemDetails;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.RestAdviceOrder;
@@ -50,8 +51,8 @@ class FidelityExceptionHandler {
         return invalid("The request body is not valid: " + field, field);
     }
 
-    @ExceptionHandler(IllegalArgumentException.class)
-    ProblemDetail handleInvalidSeed(IllegalArgumentException ex) {
+    @ExceptionHandler(InvalidSeedException.class)
+    ProblemDetail handleInvalidSeed(InvalidSeedException ex) {
         return invalid(ex.getMessage(), SEED);
     }
 
