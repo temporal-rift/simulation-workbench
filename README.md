@@ -300,6 +300,10 @@ read with `listParameterSpaces` and `getParameterSpace`. Its constraints are exp
 chains over `+`, `-`, `*`, `max` and `and`; a subtraction needs spaces around `-` because keys contain it) that the
 workbench both serves and evaluates.
 
+Budget record version 1 ([docs/budget/v1.md](docs/budget/v1.md)) computes, from the measured capacity, the search
+parameters that fit the default budget of 4 active hours on the simulator and the duration of the confirmation. Its
+search parameters are configuration (`search-budgets/v1.json`) and the default `SearchAlgorithm` values of a new campaign.
+
 Materialising a variant is a pure function of the baseline document, the space and the overrides: every key must be a
 parameter, every value in range and on its step; overrides equal to the baseline are dropped; the rest replace the
 baseline values and each derived key is set from its source; every constraint is then evaluated, and the effective rules
