@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -21,6 +22,7 @@ import io.github.temporalrift.workbench.execution.domain.port.out.LaneProvider;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.FinalScore;
 import io.github.temporalrift.workbench.execution.domain.run.LaneFit;
+import io.github.temporalrift.workbench.execution.domain.run.LaneProfile;
 import io.github.temporalrift.workbench.execution.domain.run.ServedBundle;
 import io.github.temporalrift.workbench.execution.domain.run.WinType;
 import io.github.temporalrift.workbench.execution.domain.run.Winner;
@@ -75,6 +77,8 @@ public class ScriptedLanes implements LaneProvider {
     }
 
     private static final Script DECISIVE = ScriptedLanes::decisive;
+    private static final List<UUID> BOT_PLAYER_IDS =
+            IntStream.range(0, 5).mapToObj(seat -> new UUID(0xb07L, seat)).toList();
     /** A scheduler that never runs what it is given: a lane that needs recovery stays unavailable. */
     private static final ResetScheduler NEVER = (_, _) -> {};
 
@@ -181,6 +185,28 @@ public class ScriptedLanes implements LaneProvider {
         return ServedBundle.counted(laneBundles.stream()
                 .map(bundle -> ServedBundle.ofLane(bundle, Provenances.of(bundle)))
                 .toList());
+    }
+
+    /**
+     * Lane {@code lane-0} stands for the simulator and the others for deployed lanes; every lane serves its bundle on
+     * the builds the test manifests pin and plays seats with the same bot identities.
+     */
+    @Override
+    public Map<String, LaneProfile> profiles() {
+        var profiles = new LinkedHashMap<String, LaneProfile>();
+        var bundles = laneBundles;
+        for (var index = 0; index < bundles.size(); index++) {
+            var bundle = bundles.get(index);
+            profiles.put(
+                    laneId(index),
+                    new LaneProfile(
+                            Provenances.fitOf(bundle),
+                            bundle,
+                            Provenances.of(bundle),
+                            index == 0 ? LaneProfile.Kind.IN_PROCESS : LaneProfile.Kind.DEPLOYED,
+                            BOT_PLAYER_IDS));
+        }
+        return profiles;
     }
 
     @Override

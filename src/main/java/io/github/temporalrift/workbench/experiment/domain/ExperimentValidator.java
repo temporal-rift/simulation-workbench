@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -54,6 +55,7 @@ public final class ExperimentValidator {
             "api_key",
             "apikey",
             "client_secret");
+    private static final Pattern VARIANT_PATH = Pattern.compile("variants\\[\\d+]");
     private static final List<String> SECRET_VALUE_MARKERS = List.of("-----begin", "ghp_", "gho_", "xoxb-", "sk-");
     private static final List<String> LOCAL_PATH_MARKERS =
             List.of("file://", "/home/", "/root/", "/tmp/", "/var/", "c:\\", "c:/", "c:\\\\", "${home}", "%home%");
@@ -392,12 +394,33 @@ public final class ExperimentValidator {
             for (var entry : node.properties()) {
                 var child = path.isEmpty() ? entry.getKey() : path + "." + entry.getKey();
                 rejectSecretFieldName(entry.getKey(), child);
-                inspectValue(entry.getValue(), child);
+                if (isVariantOverrides(path, entry)) {
+                    inspectOverrideValues(entry.getValue(), child);
+                } else {
+                    inspectValue(entry.getValue(), child);
+                }
             }
         } else if (node.isArray()) {
             for (int i = 0; i < node.size(); i++) {
                 inspectValue(node.get(i), path + "[" + i + "]");
             }
+        }
+    }
+
+    private static boolean isVariantOverrides(String path, Map.Entry<String, JsonNode> entry) {
+        return OVERRIDES_FIELD.equals(entry.getKey())
+                && entry.getValue().isObject()
+                && VARIANT_PATH.matcher(path).matches();
+    }
+
+    /**
+     * The keys of a variant's overrides are parameter keys, such as a score delta named for its reason, and are checked
+     * against the parameter space; they are not field names that could carry a credential, so only the values are
+     * scanned.
+     */
+    private static void inspectOverrideValues(JsonNode overrides, String path) {
+        for (var override : overrides.properties()) {
+            inspectValue(override.getValue(), path + "." + override.getKey());
         }
     }
 

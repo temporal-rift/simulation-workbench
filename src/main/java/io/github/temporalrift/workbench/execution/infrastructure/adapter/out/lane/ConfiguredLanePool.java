@@ -7,6 +7,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
+import io.github.temporalrift.workbench.execution.domain.run.LaneProfile;
 import io.github.temporalrift.workbench.execution.domain.run.ServedBundle;
 
 /**
@@ -33,13 +34,23 @@ public class ConfiguredLanePool extends RosterBackedLaneProvider {
                 roster,
                 ServedBundle.counted(lanes.stream()
                         .map(lane -> ServedBundle.ofLane(lane.bundle(), lane.provenance()))
-                        .toList()));
+                        .toList()),
+                lanes.stream().collect(Collectors.toMap(LaneEndpoints::id, ConfiguredLanePool::profile)));
         this.lanes = lanes.stream().collect(Collectors.toUnmodifiableMap(LaneEndpoints::id, Function.identity()));
         this.clients = lanes.stream()
                 .collect(Collectors.toUnmodifiableMap(LaneEndpoints::id, _ -> new CachingApiClients(clients)));
         this.services = services;
         this.clock = clock;
         this.pacing = pacing;
+    }
+
+    private static LaneProfile profile(LaneEndpoints lane) {
+        return new LaneProfile(
+                lane.fit(),
+                lane.bundle(),
+                lane.provenance(),
+                LaneProfile.Kind.DEPLOYED,
+                lane.bots().stream().map(LaneEndpoints.BotIdentity::playerId).toList());
     }
 
     @Override

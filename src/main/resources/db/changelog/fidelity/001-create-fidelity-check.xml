@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+  <changeSet id="001-create-fidelity-check" author="simulation-workbench">
+    <!-- One record per simulator fidelity check. Counts and the verdict are derived from its cases and its state. -->
+    <createTable tableName="fidelity_check">
+      <column name="check_id" type="UUID">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="idempotency_key" type="UUID">
+        <constraints nullable="false" unique="true" uniqueConstraintName="uq_fidelity_check_key"/>
+      </column>
+      <column name="request_hash" type="VARCHAR(64)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="seed" type="VARCHAR(20)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="state" type="VARCHAR(16)">
+        <constraints nullable="false"/>
+      </column>
+      <!-- The real lane the cases are reproduced on, chosen when the check is accepted. -->
+      <column name="lane_id" type="VARCHAR(64)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="simulator_json" type="TEXT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="lane_json" type="TEXT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="variants_json" type="TEXT">
+        <constraints nullable="false"/>
+      </column>
+      <!-- The simulator's source revisions, for the gate: a record applies only to exactly these three. -->
+      <column name="game_revision" type="VARCHAR(64)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="timeline_revision" type="VARCHAR(64)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="read_revision" type="VARCHAR(64)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="experiment_id" type="UUID"/>
+      <column name="run_id" type="UUID"/>
+      <column name="failure_code" type="VARCHAR(64)"/>
+      <column name="failure_message" type="TEXT"/>
+      <column name="created_at" type="TIMESTAMP WITH TIME ZONE">
+        <constraints nullable="false"/>
+      </column>
+      <column name="started_at" type="TIMESTAMP WITH TIME ZONE"/>
+      <column name="finished_at" type="TIMESTAMP WITH TIME ZONE"/>
+    </createTable>
+
+    <createIndex tableName="fidelity_check" indexName="fidelity_check_by_created_idx">
+      <column name="created_at" descending="true"/>
+      <column name="check_id" descending="true"/>
+    </createIndex>
+
+    <createIndex tableName="fidelity_check" indexName="fidelity_check_by_revisions_idx">
+      <column name="game_revision"/>
+      <column name="timeline_revision"/>
+      <column name="read_revision"/>
+      <column name="state"/>
+      <column name="finished_at"/>
+    </createIndex>
+
+    <!-- At most one check is queued or running: a second one is refused even when two requests race. -->
+    <sql>
+      CREATE UNIQUE INDEX uq_fidelity_check_open ON fidelity_check ((1))
+      WHERE state IN ('QUEUED', 'RUNNING')
+    </sql>
+    <rollback>
+      <dropIndex tableName="fidelity_check" indexName="uq_fidelity_check_open"/>
+    </rollback>
+  </changeSet>
+</databaseChangeLog>

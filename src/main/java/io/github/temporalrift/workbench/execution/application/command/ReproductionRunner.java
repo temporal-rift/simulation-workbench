@@ -81,8 +81,7 @@ public class ReproductionRunner implements RunReproductionUseCase {
             settle(reproduction, owner, reproduction.failed(failure, now));
             return true;
         }
-        var lane =
-                lanes.acquireExactly(reproduction.laneId(), inputs.logicalCase().fit());
+        var lane = lanes.acquireExactly(reproduction.laneId(), reproduction.laneFit());
         if (lane.isEmpty()) {
             reproductions.release(reproduction.reproductionId(), owner);
             return false;

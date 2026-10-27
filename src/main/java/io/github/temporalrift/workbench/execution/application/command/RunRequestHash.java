@@ -10,6 +10,10 @@ final class RunRequestHash {
     private RunRequestHash() {}
 
     static String of(String operation, UUID target) {
+        return of(operation, target.toString());
+    }
+
+    static String of(String operation, String target) {
         return Sha256.hexUtf8(operation + "|" + target);
     }
 }

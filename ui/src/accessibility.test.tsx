@@ -6,6 +6,7 @@ import { manifestToDraft, saveDraft } from './experiments/draft'
 import { FakeService, problem } from './test/fakeService'
 import { expectNoViolations } from './test/axe'
 import { COMPARISON_ID, IDS, comparison, manifest, report, run } from './test/fixtures'
+import { check as fidelityCheck, fidelityCase, gate, serveFidelity } from './test/fidelityFixtures'
 import { renderApp } from './test/renderApp'
 
 let service: FakeService
@@ -30,6 +31,26 @@ describe('accessibility', () => {
     const { container } = await renderApp(path, service)
     await screen.findAllByText(ready, { exact: false })
     await expectNoViolations(container)
+  })
+
+  it('the fidelity page and a failed check have no axe violations', async () => {
+    const failed = fidelityCheck({ state: 'FAILED', verdict: 'FAILED' })
+    serveFidelity(service, {
+      gate: gate(false),
+      checks: [failed],
+      cases: [
+        fidelityCase({ result: 'DIVERGED', firstDivergence: { step: 3, kind: 'DECISION', expected: {}, actual: {} } }),
+        fidelityCase({ caseKey: IDS.caseB, result: 'UNREPRODUCIBLE', failure: { code: 'RUNNER_TIMEOUT', message: 'The case ended FAILED on the simulator' } }),
+      ],
+    })
+    const page = await renderApp('/fidelity', service)
+    await page.findByRole('table', { name: 'Fidelity checks, newest first' })
+    await expectNoViolations(page.container)
+    page.unmount()
+
+    const detail = await renderApp(`/fidelity/${failed.fidelityCheckId}`, service)
+    await detail.findByRole('table', { name: 'Cases of this check' })
+    await expectNoViolations(detail.container)
   })
 
   it('the experiment form, previewed and with a problem on a field, has no axe violations', async () => {

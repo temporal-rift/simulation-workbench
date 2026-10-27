@@ -48,6 +48,7 @@ class RunSourceAdapterTest {
 
     private final RunCase runCase = new RunCase(
             CASE,
+            new UUID(0, 99),
             "base",
             "42",
             3,
@@ -155,7 +156,11 @@ class RunSourceAdapterTest {
                 new RunCatalog() {
                     @Override
                     public Optional<RunSummary> run(UUID runId) {
-                        return Optional.of(new RunSummary(RUN, new UUID(0, 9)));
+                        return Optional.of(new RunSummary(
+                                RUN,
+                                new UUID(0, 9),
+                                io.github.temporalrift.workbench.shared.execution.RunPhase.ACTIVE,
+                                null));
                     }
 
                     @Override

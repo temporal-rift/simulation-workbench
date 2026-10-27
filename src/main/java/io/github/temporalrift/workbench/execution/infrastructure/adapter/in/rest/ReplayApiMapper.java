@@ -11,6 +11,7 @@ import io.github.temporalrift.workbench.execution.domain.evidence.ObservedEvent;
 import io.github.temporalrift.workbench.execution.domain.evidence.StepEntropy;
 import io.github.temporalrift.workbench.execution.domain.evidence.StepRecord;
 import io.github.temporalrift.workbench.execution.domain.reproduction.Reproduction;
+import io.github.temporalrift.workbench.execution.infrastructure.serialization.DivergenceWire;
 import io.github.temporalrift.workbench.execution.infrastructure.serialization.ObservationJson;
 import io.github.temporalrift.workbench.policy.domain.decision.CandidateCodec;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Replay;

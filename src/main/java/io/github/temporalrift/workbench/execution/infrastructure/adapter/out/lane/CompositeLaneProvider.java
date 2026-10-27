@@ -9,6 +9,7 @@ import java.util.Optional;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.port.out.LaneProvider;
 import io.github.temporalrift.workbench.execution.domain.run.LaneFit;
+import io.github.temporalrift.workbench.execution.domain.run.LaneProfile;
 import io.github.temporalrift.workbench.execution.domain.run.ServedBundle;
 
 /**
@@ -49,6 +50,13 @@ public final class CompositeLaneProvider implements LaneProvider {
         return ServedBundle.counted(providers.stream()
                 .flatMap(provider -> provider.servedBundles().stream())
                 .toList());
+    }
+
+    @Override
+    public Map<String, LaneProfile> profiles() {
+        var all = new HashMap<String, LaneProfile>();
+        providers.forEach(provider -> all.putAll(provider.profiles()));
+        return Map.copyOf(all);
     }
 
     @Override

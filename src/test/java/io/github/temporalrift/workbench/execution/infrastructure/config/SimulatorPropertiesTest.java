@@ -85,6 +85,58 @@ class SimulatorPropertiesTest {
     }
 
     @Test
+    void withoutDeclaredBotIdsTheSeatsGetDerivedOnes() {
+        var properties = bind(simulator());
+
+        assertThat(properties.botPlayerIds()).isEmpty();
+        assertThat(properties.effectiveBotPlayerIds()).hasSize(6).doesNotHaveDuplicates();
+    }
+
+    @Test
+    void declaredBotIdsReplaceTheDerivedOnes() {
+        var values = simulator();
+        values.put(PREFIX + "bots", "3");
+        values.put(
+                PREFIX + "bot-player-ids",
+                "00000000-0000-4000-8000-000000000001,"
+                        + "00000000-0000-4000-8000-000000000002,00000000-0000-4000-8000-000000000003");
+
+        var properties = bind(values);
+
+        assertThat(properties.effectiveBotPlayerIds())
+                .extracting(java.util.UUID::toString)
+                .containsExactly(
+                        "00000000-0000-4000-8000-000000000001",
+                        "00000000-0000-4000-8000-000000000002",
+                        "00000000-0000-4000-8000-000000000003");
+    }
+
+    @Test
+    void tooFewDeclaredBotIdsFailNamingTheKey() {
+        var values = simulator();
+        values.put(PREFIX + "bot-player-ids", "00000000-0000-4000-8000-000000000001");
+
+        assertThatThrownBy(() -> bind(values))
+                .isInstanceOf(BindException.class)
+                .rootCause()
+                .hasMessageContaining(PREFIX + "bot-player-ids must declare at least 6 ids");
+    }
+
+    @Test
+    void aRepeatedDeclaredBotIdFails() {
+        var values = simulator();
+        values.put(PREFIX + "bots", "2");
+        values.put(
+                PREFIX + "bot-player-ids",
+                "00000000-0000-4000-8000-000000000001," + "00000000-0000-4000-8000-000000000001");
+
+        assertThatThrownBy(() -> bind(values))
+                .isInstanceOf(BindException.class)
+                .rootCause()
+                .hasMessage(PREFIX + "bot-player-ids must not repeat an id");
+    }
+
+    @Test
     void aNegativeNumberOfSlotsFails() {
         var values = Map.of(PREFIX + "slots", "-1");
 

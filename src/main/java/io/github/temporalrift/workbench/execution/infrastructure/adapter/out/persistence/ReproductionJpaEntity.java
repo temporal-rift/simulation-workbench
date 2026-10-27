@@ -31,6 +31,9 @@ class ReproductionJpaEntity extends AssignedIdJpaEntity<UUID> {
     @Column(name = "lane_id", nullable = false, length = 64)
     private String laneId;
 
+    @Column(name = "lane_fit", nullable = false, length = 64)
+    private String laneFit;
+
     @Column(name = "idempotency_key", nullable = false)
     private UUID idempotencyKey;
 
@@ -69,6 +72,7 @@ class ReproductionJpaEntity extends AssignedIdJpaEntity<UUID> {
         this.runId = queued.runId();
         this.caseId = queued.caseId();
         this.laneId = queued.laneId();
+        this.laneFit = queued.laneFit().digest();
         this.idempotencyKey = idempotencyKey;
         this.requestHash = requestHash;
         this.state = "QUEUED";
@@ -124,6 +128,10 @@ class ReproductionJpaEntity extends AssignedIdJpaEntity<UUID> {
 
     String laneId() {
         return laneId;
+    }
+
+    String laneFit() {
+        return laneFit;
     }
 
     String requestHash() {

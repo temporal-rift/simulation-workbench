@@ -29,3 +29,5 @@ logging:
 workbench:
   execution:
     worker-enabled: false
+  fidelity:
+    worker-enabled: false

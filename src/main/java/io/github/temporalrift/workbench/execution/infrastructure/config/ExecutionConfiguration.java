@@ -21,22 +21,29 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import tools.jackson.databind.ObjectMapper;
 
+import io.github.temporalrift.workbench.execution.CaseReproducer;
+import io.github.temporalrift.workbench.execution.LaneEnvironments;
 import io.github.temporalrift.workbench.execution.RunCatalog;
+import io.github.temporalrift.workbench.execution.RunStarter;
 import io.github.temporalrift.workbench.execution.application.command.CancelRunCommandHandler;
 import io.github.temporalrift.workbench.execution.application.command.CaseDriver;
 import io.github.temporalrift.workbench.execution.application.command.ExecutionSettings;
 import io.github.temporalrift.workbench.execution.application.command.ReproduceCaseCommandHandler;
+import io.github.temporalrift.workbench.execution.application.command.ReproduceCaseOnLaneCommandHandler;
 import io.github.temporalrift.workbench.execution.application.command.ReproductionRunner;
 import io.github.temporalrift.workbench.execution.application.command.ReproductionSources;
 import io.github.temporalrift.workbench.execution.application.command.ResumeRunCommandHandler;
 import io.github.temporalrift.workbench.execution.application.command.RunBatchService;
+import io.github.temporalrift.workbench.execution.application.command.RunStartingService;
 import io.github.temporalrift.workbench.execution.application.command.StartRunCommandHandler;
 import io.github.temporalrift.workbench.execution.application.port.in.CancelRunUseCase;
 import io.github.temporalrift.workbench.execution.application.port.in.GetCaseReplayUseCase;
 import io.github.temporalrift.workbench.execution.application.port.in.GetCaseUseCase;
+import io.github.temporalrift.workbench.execution.application.port.in.GetReproductionUseCase;
 import io.github.temporalrift.workbench.execution.application.port.in.GetRunUseCase;
 import io.github.temporalrift.workbench.execution.application.port.in.ListCasesUseCase;
 import io.github.temporalrift.workbench.execution.application.port.in.ListRunsUseCase;
+import io.github.temporalrift.workbench.execution.application.port.in.ReproduceCaseOnLaneUseCase;
 import io.github.temporalrift.workbench.execution.application.port.in.ReproduceCaseUseCase;
 import io.github.temporalrift.workbench.execution.application.port.in.ResumeRunUseCase;
 import io.github.temporalrift.workbench.execution.application.port.in.RunBatchUseCase;
@@ -44,8 +51,10 @@ import io.github.temporalrift.workbench.execution.application.port.in.RunReprodu
 import io.github.temporalrift.workbench.execution.application.port.in.StartRunUseCase;
 import io.github.temporalrift.workbench.execution.application.query.GetCaseQueryHandler;
 import io.github.temporalrift.workbench.execution.application.query.GetCaseReplayQueryHandler;
+import io.github.temporalrift.workbench.execution.application.query.GetReproductionQueryHandler;
 import io.github.temporalrift.workbench.execution.application.query.GetRunQueryHandler;
 import io.github.temporalrift.workbench.execution.application.query.LaneBundleCatalogQueryHandler;
+import io.github.temporalrift.workbench.execution.application.query.LaneEnvironmentsQueryHandler;
 import io.github.temporalrift.workbench.execution.application.query.ListCasesQueryHandler;
 import io.github.temporalrift.workbench.execution.application.query.ListRunsQueryHandler;
 import io.github.temporalrift.workbench.execution.application.query.RunCatalogQueryHandler;
@@ -58,6 +67,7 @@ import io.github.temporalrift.workbench.execution.domain.port.out.LaneProvider;
 import io.github.temporalrift.workbench.execution.domain.port.out.ReproductionRepository;
 import io.github.temporalrift.workbench.execution.domain.port.out.RunRepository;
 import io.github.temporalrift.workbench.execution.domain.run.BundleProvenance;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.in.module.CaseReproducerAdapter;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.in.scheduler.BatchWorker;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.experiment.ExperimentSourceAdapter;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.kafka.KafkaGameEventObservers;
@@ -252,7 +262,7 @@ public class ExecutionConfiguration {
                         simulator.readServiceJar(),
                         simulator.rulesFile(),
                         workDirectory,
-                        simulator.bots(),
+                        simulator.effectiveBotPlayerIds(),
                         bundle.digests(),
                         new SimulatorLanePool.Declared(
                                 new BundleProvenance.Artifact(bundle.rulesArtifactDigest(), bundle.rulesArtifactName()),
@@ -321,6 +331,32 @@ public class ExecutionConfiguration {
     ReproduceCaseUseCase reproduceCaseUseCase(
             ReproductionSources sources, ReproductionRepository reproductions, Clock clock) {
         return new ReproduceCaseCommandHandler(sources, reproductions, clock);
+    }
+
+    @Bean
+    ReproduceCaseOnLaneUseCase reproduceCaseOnLaneUseCase(
+            ReproductionSources sources, ReproductionRepository reproductions, LaneProvider lanes, Clock clock) {
+        return new ReproduceCaseOnLaneCommandHandler(sources, reproductions, lanes, clock);
+    }
+
+    @Bean
+    GetReproductionUseCase getReproductionUseCase(ReproductionRepository reproductions) {
+        return new GetReproductionQueryHandler(reproductions);
+    }
+
+    @Bean
+    CaseReproducer caseReproducer(ReproduceCaseOnLaneUseCase reproduceOnLane, GetReproductionUseCase getReproduction) {
+        return new CaseReproducerAdapter(reproduceOnLane, getReproduction);
+    }
+
+    @Bean
+    RunStarter runStarter(StartRunUseCase startRun, ResumeRunUseCase resumeRun) {
+        return new RunStartingService(startRun, resumeRun);
+    }
+
+    @Bean
+    LaneEnvironments laneEnvironments(LaneProvider lanes) {
+        return new LaneEnvironmentsQueryHandler(lanes);
     }
 
     @Bean

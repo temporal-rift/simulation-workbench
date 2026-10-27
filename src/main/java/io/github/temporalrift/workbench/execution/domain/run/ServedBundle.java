@@ -31,18 +31,24 @@ public record ServedBundle(BundleDigests digests, BundleProvenance provenance, i
     }
 
     /**
-     * One bundle per distinct digests among {@code lanes}, counting the lanes serving it, ordered by rules digest and
-     * then content digest. Lanes of one bundle declare one provenance, so the first one's stands for all.
+     * One bundle per distinct digests and builds among {@code lanes}, counting the lanes serving it, ordered by rules
+     * digest, content digest and then fit. Lanes of one bundle declare one provenance, so the first one's stands for
+     * all; lanes that serve the same digests from other builds, such as the simulator and a real lane, are other
+     * bundles.
      */
     public static List<ServedBundle> counted(Collection<ServedBundle> lanes) {
-        var byDigests = new LinkedHashMap<BundleDigests, ServedBundle>();
-        lanes.forEach(lane -> byDigests.merge(
-                lane.digests(),
+        var byBuild = new LinkedHashMap<Served, ServedBundle>();
+        lanes.forEach(lane -> byBuild.merge(
+                new Served(lane.digests(), lane.fit()),
                 lane,
                 (counted, more) -> new ServedBundle(
                         counted.digests(), counted.provenance(), counted.laneCount() + more.laneCount())));
-        return byDigests.values().stream()
-                .sorted(Comparator.comparing(ServedBundle::digests, DIGEST_ORDER))
+        return byBuild.values().stream()
+                .sorted(Comparator.comparing(ServedBundle::digests, DIGEST_ORDER)
+                        .thenComparing(bundle -> bundle.fit().digest()))
                 .toList();
     }
+
+    /** What makes two lanes' bundles one: the digests they serve and the builds that serve them. */
+    private record Served(BundleDigests digests, LaneFit fit) {}
 }

@@ -1,14 +1,18 @@
 package io.github.temporalrift.workbench.execution.infrastructure.config;
 
 import java.nio.file.Path;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.UUID;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.simulator.SimulatorBots;
 
 /**
  * The in-process simulator: how many slots play cases in this JVM, the executable jars of the three services every
@@ -20,6 +24,8 @@ import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
  *     every service of a slot is started under
  * @param workDirectory where the jars are extracted; defaults to a directory under the JVM temporary directory
  * @param bots how many bot identities each slot mints; at least the largest player count a case may have
+ * @param botPlayerIds the player id of each bot identity in seat order, when the deployment declares them; they let a
+ *     real lane that declares the same ids reproduce what the simulator played. Without them the ids are derived
  */
 @ConfigurationProperties("workbench.simulator")
 public record SimulatorProperties(
@@ -30,6 +36,7 @@ public record SimulatorProperties(
         Path rulesFile,
         Path workDirectory,
         @DefaultValue("6") int bots,
+        List<UUID> botPlayerIds,
         Bundle bundle) {
 
     private static final String SCOPE = "workbench.simulator.";
@@ -40,6 +47,16 @@ public record SimulatorProperties(
         }
         if (bots < 1) {
             throw new IllegalArgumentException(SCOPE + "bots must be at least 1");
+        }
+        botPlayerIds = botPlayerIds == null ? List.of() : List.copyOf(botPlayerIds);
+        if (!botPlayerIds.isEmpty()) {
+            if (botPlayerIds.size() < bots) {
+                throw new IllegalArgumentException(SCOPE + "bot-player-ids must declare at least " + bots
+                        + " ids, one per bot, but declares " + botPlayerIds.size());
+            }
+            if (new HashSet<>(botPlayerIds).size() != botPlayerIds.size()) {
+                throw new IllegalArgumentException(SCOPE + "bot-player-ids must not repeat an id");
+            }
         }
         if (slots > 0) {
             requirePath("game-service-jar", gameServiceJar);
@@ -60,6 +77,11 @@ public record SimulatorProperties(
 
     public boolean enabled() {
         return slots > 0;
+    }
+
+    /** The player id of each bot every slot mints, in seat order: the declared ids, else the derived ones. */
+    public List<UUID> effectiveBotPlayerIds() {
+        return botPlayerIds.isEmpty() ? SimulatorBots.derived(bots) : botPlayerIds;
     }
 
     /**

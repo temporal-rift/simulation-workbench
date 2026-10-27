@@ -84,10 +84,10 @@ class ReproductionRepositoryIT {
     @Test
     void theSameKeyReturnsTheOriginalReproductionAndTheRequestThatClaimedIt() {
         var key = UUID.randomUUID();
-        var first = Reproduction.queued(runId, caseId, "lane-1", NOW);
+        var first = Reproduction.queued(runId, caseId, "lane-1", FIT, NOW);
 
         assertThat(reproductions.create(key, "hash-a", first)).isInstanceOf(ReproductionCreation.Created.class);
-        var second = reproductions.create(key, "hash-b", Reproduction.queued(runId, caseId, "lane-1", NOW));
+        var second = reproductions.create(key, "hash-b", Reproduction.queued(runId, caseId, "lane-1", FIT, NOW));
 
         assertThat(second).isInstanceOfSatisfying(ReproductionCreation.Existing.class, existing -> {
             assertThat(existing.claim().reproduction().reproductionId()).isEqualTo(first.reproductionId());
@@ -118,6 +118,18 @@ class ReproductionRepositoryIT {
                 .isEqualTo(ReproductionState.MATCH);
         assertThat(reproductions.settle(queued.reproductionId(), "worker-a", queued.matched(NOW)))
                 .isFalse();
+    }
+
+    @Test
+    void aReproductionPlacedOnAnotherFitIsClaimedOnlyByALaneOfThatFit() {
+        var placed = Reproduction.queued(runId, caseId, "lane-2", OTHER_FIT, NOW);
+        reproductions.create(UUID.randomUUID(), "hash", placed);
+
+        assertThat(reproductions.claimNext("worker", NOW.plusSeconds(30), Map.of("lane-2", FIT)))
+                .isEmpty();
+        assertThat(reproductions.claimNext("worker", NOW.plusSeconds(30), Map.of("lane-2", OTHER_FIT)))
+                .map(Reproduction::reproductionId)
+                .contains(placed.reproductionId());
     }
 
     @Test
@@ -197,7 +209,7 @@ class ReproductionRepositoryIT {
     }
 
     private Reproduction queue() {
-        var queued = Reproduction.queued(runId, caseId, "lane-1", NOW);
+        var queued = Reproduction.queued(runId, caseId, "lane-1", FIT, NOW);
         reproductions.create(UUID.randomUUID(), "hash", queued);
         return queued;
     }

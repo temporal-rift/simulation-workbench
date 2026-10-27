@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+  <changeSet id="002-create-fidelity-case" author="simulation-workbench">
+    <!-- One row per case of a check, in matrix order: its coordinate, its simulator case and its reproduction. -->
+    <createTable tableName="fidelity_case">
+      <column name="row_id" type="UUID">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="check_id" type="UUID">
+        <constraints nullable="false" foreignKeyName="fk_fidelity_case_check" references="fidelity_check(check_id)"
+                     deleteCascade="true"/>
+      </column>
+      <column name="ordinal" type="INT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="case_key" type="UUID">
+        <constraints nullable="false"/>
+      </column>
+      <column name="variant_label" type="VARCHAR(16)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="player_count" type="INT">
+        <constraints nullable="false"/>
+      </column>
+      <!-- The factions of the set, ordered by name and comma-separated. -->
+      <column name="faction_set" type="VARCHAR(128)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="seat_rotation" type="INT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="policy_id" type="VARCHAR(64)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="run_case_id" type="UUID">
+        <constraints nullable="false"/>
+      </column>
+      <column name="reproduction_id" type="UUID"/>
+      <column name="result" type="VARCHAR(16)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="divergence_json" type="TEXT"/>
+      <column name="failure_code" type="VARCHAR(64)"/>
+      <column name="failure_message" type="TEXT"/>
+    </createTable>
+
+    <addUniqueConstraint tableName="fidelity_case" columnNames="check_id, ordinal"
+                         constraintName="uq_fidelity_case_position"/>
+
+    <createIndex tableName="fidelity_case" indexName="fidelity_case_by_result_idx">
+      <column name="check_id"/>
+      <column name="result"/>
+      <column name="ordinal"/>
+    </createIndex>
+  </changeSet>
+</databaseChangeLog>

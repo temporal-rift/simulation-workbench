@@ -1,15 +1,15 @@
-package io.github.temporalrift.workbench.execution.infrastructure.adapter.in.rest;
+package io.github.temporalrift.workbench.execution.infrastructure.serialization;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import io.github.temporalrift.workbench.execution.DivergenceReport;
 import io.github.temporalrift.workbench.execution.domain.reproduction.Divergence;
-import io.github.temporalrift.workbench.execution.infrastructure.serialization.ObservationJson;
 import io.github.temporalrift.workbench.policy.domain.decision.CandidateCodec;
 import io.github.temporalrift.workbench.shared.window.WindowRef;
 
 /** The published {@code {step, kind, expected, actual}} shape of a divergence. */
-final class DivergenceWire {
+public final class DivergenceWire {
 
     private static final String SEAT_INDEX = "seatIndex";
     private static final String WINDOW = "window";
@@ -19,9 +19,15 @@ final class DivergenceWire {
 
     private DivergenceWire() {}
 
-    static io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Divergence toApi(
+    public static io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Divergence toApi(
             Divergence divergence) {
         return new io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Divergence(
+                divergence.step(), divergence.kind().name(), expected(divergence), actual(divergence));
+    }
+
+    /** The same shape for other modules, which do not see the domain divergence. */
+    public static DivergenceReport report(Divergence divergence) {
+        return new DivergenceReport(
                 divergence.step(), divergence.kind().name(), expected(divergence), actual(divergence));
     }
 
