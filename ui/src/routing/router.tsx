@@ -4,11 +4,13 @@
  */
 import { Navigate, Outlet, createRootRoute, createRoute, createRouter, redirect, type RouterHistory } from '@tanstack/react-router'
 import * as z from 'zod'
-import { zRunState } from '../api/generated/zod.gen'
+import { zFidelityCaseResult, zFidelityVariantLabel, zRunState } from '../api/generated/zod.gen'
 import { AppShell } from '../components/AppShell'
 import { ExperimentFormPage } from '../experiments/ExperimentFormPage'
 import { ExperimentPage } from '../experiments/ExperimentPage'
 import { ExperimentsListPage } from '../experiments/ExperimentsListPage'
+import { FidelityCheckPage } from '../fidelity/FidelityCheckPage'
+import { FidelityPage } from '../fidelity/FidelityPage'
 import { ComparisonPage } from '../reports/ComparisonPage'
 import { ComparisonsPage } from '../reports/ComparisonsPage'
 import { ReportPage } from '../reports/ReportPage'
@@ -122,6 +124,28 @@ const caseRoute = createRoute({
   component: CasePage,
 })
 
+const fidelityRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/fidelity',
+  validateSearch: offsetSearch,
+  component: FidelityPage,
+})
+
+const fidelityCheckRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/fidelity/$checkId',
+  beforeLoad: ({ params }) => {
+    if (!UUID_PATTERN.test(params.checkId)) {
+      throw redirect({ to: '/fidelity', replace: true })
+    }
+  },
+  validateSearch: offsetSearch.extend({
+    variantLabel: zFidelityVariantLabel.optional().catch(undefined),
+    result: zFidelityCaseResult.optional().catch(undefined),
+  }),
+  component: FidelityCheckPage,
+})
+
 /** The fixed OIDC redirect URI. The sign-in gate completes the exchange first, so a visit here has nothing left to do. */
 const authCallbackRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -142,6 +166,8 @@ export const routeTree = rootRoute.addChildren([
   comparisonsRoute,
   comparisonRoute,
   caseRoute,
+  fidelityRoute,
+  fidelityCheckRoute,
   authCallbackRoute,
 ])
 

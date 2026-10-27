@@ -10,14 +10,18 @@ import {
   getCaseReplay,
   getComparison,
   getExperiment,
+  getFidelityCheck,
   getRun,
   getRunEvaluation,
   getRunReport,
+  getSimulatorFidelity,
   listBalanceCriteria,
   listCases,
   listComparisons,
   listExperimentTemplates,
   listExperiments,
+  listFidelityCases,
+  listFidelityChecks,
   listLaneBundles,
   listParameterSpaces,
   listPolicies,
@@ -26,16 +30,20 @@ import {
   previewVariantRules,
   reproduceCase,
   resumeRun,
+  startFidelityCheck,
   startRun,
   type CaseCounts,
   type CaseState,
   type ComparisonRequest,
   type EvaluationMode,
   type ExperimentManifest,
+  type FidelityCaseResult,
+  type FidelityVariantLabel,
   type RunState,
   type VariantRulesPreviewRequest,
 } from './generated'
 import type { Client } from './generated/client'
+import { isOpenCheck } from '../fidelity/fidelityView'
 import { isTerminalRunState } from '../runs/runView'
 
 export const PAGE_SIZE = 20
@@ -264,3 +272,42 @@ export const evaluationQuery = (client: Client, runId: string, variantLabel: str
     queryKey: ['evaluation', runId, variantLabel, criterionVersion, mode],
     queryFn: () => unwrap(() => getRunEvaluation({ client, path: { runId }, query: { variantLabel, criterionVersion, mode } })),
   })
+
+/** How often a fidelity check that has not ended is read again, while the tab is visible. */
+export const FIDELITY_POLL_MS = 5000
+
+export const simulatorFidelityQuery = (client: Client) =>
+  queryOptions({
+    queryKey: ['simulator-fidelity'],
+    queryFn: () => unwrap(() => getSimulatorFidelity({ client })),
+  })
+
+export const fidelityChecksQuery = (client: Client, offset: number) =>
+  queryOptions({
+    queryKey: ['fidelity-checks', { offset }],
+    queryFn: () => unwrap(() => listFidelityChecks({ client, query: { limit: PAGE_SIZE, offset } })),
+    refetchInterval: (query) => (query.state.data?.items.some((check) => isOpenCheck(check.state)) ? FIDELITY_POLL_MS : false),
+  })
+
+export const fidelityCheckQuery = (client: Client, checkId: string) =>
+  queryOptions({
+    queryKey: ['fidelity-check', checkId],
+    queryFn: () => unwrap(() => getFidelityCheck({ client, path: { fidelityCheckId: checkId } })),
+    refetchInterval: (query) => (isOpenCheck(query.state.data?.state) ? FIDELITY_POLL_MS : false),
+  })
+
+export interface FidelityCaseFilters {
+  readonly variantLabel?: FidelityVariantLabel | undefined
+  readonly result?: FidelityCaseResult | undefined
+}
+
+export const fidelityCasesQuery = (client: Client, checkId: string, filters: FidelityCaseFilters, offset: number, active: boolean) =>
+  queryOptions({
+    queryKey: ['fidelity-cases', checkId, filters, { offset }],
+    queryFn: () =>
+      unwrap(() => listFidelityCases({ client, path: { fidelityCheckId: checkId }, query: { ...filters, limit: PAGE_SIZE, offset } })),
+    refetchInterval: active ? FIDELITY_POLL_MS : false,
+  })
+
+export const startFidelityCheckCommand = (client: Client, seed: string, idempotencyKey: string) =>
+  unwrap(() => startFidelityCheck({ client, body: { seed }, headers: { 'Idempotency-Key': idempotencyKey } }))

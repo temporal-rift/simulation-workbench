@@ -20,6 +20,7 @@ export function AppShell({ children }: { readonly children: ReactNode }) {
           <Link to="/experiments">Experiments</Link>
           <Link to="/runs">Runs</Link>
           <Link to="/comparisons">Comparisons</Link>
+          <Link to="/fidelity">Simulator fidelity</Link>
         </nav>
         <p className="session">
           <span>Granted: {granted.length > 0 ? granted.join(', ') : 'no simulation scope'}</span>

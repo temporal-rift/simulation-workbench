@@ -50,6 +50,10 @@ export function describeFailure(error: unknown, context: FailureContext): string
         : `You cannot ${context.action}: your session lacks a required scope.`
     case 'INVALID_REPLAY_PERSPECTIVE':
       return `Could not ${context.action}: that perspective or seat cannot be shown for this case.${explanation}`
+    case 'FIDELITY_CHECK_ACTIVE':
+      return `Could not ${context.action}: another fidelity check is queued or running. Wait for it to end.`
+    case 'SIMULATOR_NOT_AVAILABLE':
+      return `Could not ${context.action}: the simulator is not enabled or no real lane matches its builds.${explanation}`
     case 'INVALID_COMPARISON':
     case 'INCOMPARABLE_RUNS':
       return `Could not ${context.action}: the request was refused.${explanation}`
