@@ -37,6 +37,16 @@ function Check({ check }: { readonly check: FidelityCheck }) {
         <dd>{FIDELITY_STATE_LABELS[check.state]}</dd>
         <dt>Verdict</dt>
         <dd>{check.verdict ?? 'Not yet decided'}</dd>
+        <dt>Simulator run</dt>
+        <dd>
+          {check.runId ? (
+            <Link to="/runs/$runId" params={{ runId: check.runId }}>
+              Run {check.runId.slice(0, 8)}
+            </Link>
+          ) : (
+            'Not started yet'
+          )}
+        </dd>
         <dt>Created</dt>
         <dd>{formatInstant(check.createdAt)}</dd>
         <dt>Started</dt>

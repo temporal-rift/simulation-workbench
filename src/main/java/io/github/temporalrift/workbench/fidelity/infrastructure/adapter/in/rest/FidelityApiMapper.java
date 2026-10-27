@@ -46,6 +46,8 @@ final class FidelityApiMapper {
                         : VerdictEnum.valueOf(check.verdict().name()),
                 environment(check.simulator()),
                 environment(check.lane()),
+                check.experimentId(),
+                check.runId(),
                 check.variants().stream().map(FidelityApiMapper::variant).toList(),
                 counts(view.counts()),
                 failure(check.failure()),

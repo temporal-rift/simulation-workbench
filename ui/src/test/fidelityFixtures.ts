@@ -5,6 +5,8 @@ import type { FakeService } from './fakeService'
 export const FIDELITY_IDS = {
   check: 'b1d2c3e4-5f60-4a71-8b92-a3b4c5d6e7f8',
   other: 'c2e3d4f5-6071-4b82-9ca3-b4c5d6e7f809',
+  experiment: 'd3f4e5a6-7182-4c93-8db4-c5d6e7f8091a',
+  run: 'e4a5f6b7-8293-4da4-9ec5-d6e7f8091a2b',
 } as const
 
 const digest = (character: string) => character.repeat(64)
@@ -29,6 +31,8 @@ export function check(overrides: Partial<FidelityCheck> = {}): FidelityCheck {
     verdict: null,
     simulator: environment('1'),
     lane: environment('9'),
+    experimentId: FIDELITY_IDS.experiment,
+    runId: FIDELITY_IDS.run,
     variants: [
       { label: 'baseline', effectiveRulesDigest: digest('a'), overrides: {} },
       { label: 'low', effectiveRulesDigest: digest('c'), overrides: { 'game.rules.win-score-threshold': 16 } },
