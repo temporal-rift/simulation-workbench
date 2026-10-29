@@ -54,8 +54,12 @@ public class LaneRoster {
         }
     }
 
-    /** What has to be undone before a lane is offered again; no case key means whichever context is open. */
-    private record Release(Member lane, UUID caseKey, Set<LaneService> services, UUID idempotencyKey) {}
+    /**
+     * What has to be undone before a lane is offered again; no case key means whichever context is open.
+     *
+     * @param reset whether the lane must be reset whatever the close answers
+     */
+    private record Release(Member lane, UUID caseKey, Set<LaneService> services, UUID idempotencyKey, boolean reset) {}
 
     public LaneRoster(List<Member> members, LaneContexts contexts, LaneResets resets, ResetScheduler scheduler) {
         this.seats = members.stream()
@@ -101,11 +105,11 @@ public class LaneRoster {
                     .toList();
             unprepared.forEach(seat -> seat.availability = Availability.RELEASING);
         }
-        unprepared.forEach(seat -> release(new Release(seat.member, null, controlled(), UUID.randomUUID())));
+        unprepared.forEach(seat -> release(new Release(seat.member, null, controlled(), UUID.randomUUID(), false)));
     }
 
     private static Set<LaneService> controlled() {
-        return EnumSet.of(LaneService.GAME, LaneService.TIMELINE);
+        return EnumSet.of(LaneService.GAME, LaneService.TIMELINE, LaneService.READ);
     }
 
     private Tenancy occupy(Seat seat) {
@@ -113,11 +117,15 @@ public class LaneRoster {
         return new Tenancy(seat);
     }
 
-    /** Closes the contexts; a failure hands the lane to the retrying recovery. */
+    /** Closes the contexts; a failure, or a lane that must be reset anyway, hands it to the retrying recovery. */
     private void release(Release release) {
         try {
             closeContexts(release);
-            markFree(release.lane());
+            if (release.reset()) {
+                scheduler.schedule(() -> recover(release, 0), Duration.ZERO);
+            } else {
+                markFree(release.lane());
+            }
         } catch (RuntimeException e) {
             LOG.warn("Closing the context of lane {} failed: {}", release.lane().id(), describe(e));
             scheduler.schedule(() -> recover(release, 0), Duration.ZERO);
@@ -129,6 +137,13 @@ public class LaneRoster {
      * lane has none. Whatever ends it short of a clean lane, an error included, schedules the next.
      */
     private void recover(Release release, int failures) {
+        if (release.reset() && !release.lane().resettable()) {
+            // Closing again cannot clean a service that kept an earlier case; only a reset could.
+            LOG.error(
+                    "Lane {} holds state of an earlier case and declares no reset; it stays unavailable",
+                    release.lane().id());
+            return;
+        }
         var cleaned = false;
         try {
             if (release.lane().resettable()) {
@@ -182,6 +197,7 @@ public class LaneRoster {
         private final AtomicBoolean returned = new AtomicBoolean();
         private final Set<LaneService> opened = EnumSet.noneOf(LaneService.class);
         private volatile UUID caseKey;
+        private volatile boolean unclean;
 
         private Tenancy(Seat seat) {
             this.seat = seat;
@@ -206,6 +222,11 @@ public class LaneRoster {
             opened.remove(service);
         }
 
+        /** Records that a service still holds an earlier case, so the lane is reset when it is returned. */
+        public void unclean() {
+            unclean = true;
+        }
+
         /** Returns the lane, closing the contexts it opened; later calls do nothing. */
         public void giveBack() {
             if (!returned.compareAndSet(false, true)) {
@@ -215,14 +236,14 @@ public class LaneRoster {
             synchronized (this) {
                 services = Set.copyOf(opened);
             }
-            if (caseKey == null || services.isEmpty()) {
+            if (!unclean && (caseKey == null || services.isEmpty())) {
                 markFree(seat.member);
                 return;
             }
             synchronized (LaneRoster.this) {
                 seat.availability = Availability.RELEASING;
             }
-            release(new Release(seat.member, caseKey, services, UUID.randomUUID()));
+            release(new Release(seat.member, caseKey, services, UUID.randomUUID(), unclean));
         }
     }
 }

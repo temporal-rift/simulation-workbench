@@ -14,6 +14,7 @@ import io.github.temporalrift.workbench.execution.domain.reproduction.Reproducti
 import io.github.temporalrift.workbench.execution.domain.reproduction.TranscriptDivergedException;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
 import io.github.temporalrift.workbench.execution.domain.run.Failure;
+import io.github.temporalrift.workbench.execution.domain.run.LaneNotCleanException;
 import io.github.temporalrift.workbench.execution.domain.run.LeaseLostException;
 import io.github.temporalrift.workbench.execution.domain.run.RunNotFoundException;
 import io.github.temporalrift.workbench.shared.execution.FailureCode;
@@ -120,6 +121,9 @@ public class ReproductionRunner implements RunReproductionUseCase {
                             .orElseGet(() -> reproduction.matched(now)));
         } catch (TranscriptDivergedException e) {
             settle(reproduction, owner, reproduction.diverged(e.divergence(), clock.instant()));
+        } catch (LaneNotCleanException _) {
+            // The lane is reset when it is returned; the reproduction was never played and is queued again.
+            reproductions.release(reproduction.reproductionId(), owner);
         } catch (AttemptFailedException e) {
             settle(reproduction, owner, reproduction.failed(e.failure(), clock.instant()));
         } catch (LeaseLostException _) {

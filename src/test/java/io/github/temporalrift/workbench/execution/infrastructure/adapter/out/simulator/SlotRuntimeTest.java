@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
+import java.lang.ref.WeakReference;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -107,6 +108,18 @@ class SlotRuntimeTest {
         runtime = null;
 
         assertThatThrownBy(() -> statusOf(url + "/anything")).isInstanceOf(IOException.class);
+    }
+
+    @Test
+    void stoppingLetsTheServicesClassLoadersBeCollected() {
+        runtime = SlotRuntime.start(build("game", "timeline", "read"), 1, Clock.systemUTC());
+        var loaders = runtime.classLoaders().stream().map(WeakReference::new).toList();
+
+        runtime.close();
+        runtime = null;
+
+        assertThat(loaders).hasSize(3);
+        ClassLoaders.awaitCollected(loaders);
     }
 
     private SlotRuntime.Build build(String game, String timeline, String read) {

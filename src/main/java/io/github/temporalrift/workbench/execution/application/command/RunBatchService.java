@@ -21,6 +21,7 @@ import io.github.temporalrift.workbench.execution.domain.run.AttemptState;
 import io.github.temporalrift.workbench.execution.domain.run.CaseCounts;
 import io.github.temporalrift.workbench.execution.domain.run.CaseRules;
 import io.github.temporalrift.workbench.execution.domain.run.Failure;
+import io.github.temporalrift.workbench.execution.domain.run.LaneNotCleanException;
 import io.github.temporalrift.workbench.execution.domain.run.LeaseLostException;
 import io.github.temporalrift.workbench.execution.domain.run.Run;
 import io.github.temporalrift.workbench.execution.domain.run.RunCancelledException;
@@ -146,6 +147,9 @@ public class RunBatchService implements RunBatchUseCase {
                     fail(attempt, owner, e.failure()),
                     AttemptState.FAILED,
                     e.failure().code());
+        } catch (LaneNotCleanException _) {
+            // The lane is reset when it is returned; the case was never played, so its claim goes back unspent.
+            cases.release(attempt.attemptId(), owner);
         } catch (RunCancelledException _) {
             ended(
                     claim,

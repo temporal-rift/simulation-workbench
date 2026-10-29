@@ -4,7 +4,6 @@ import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.port.out.GameSession;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.HttpCaseLane;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.HttpGameSession;
-import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneEndpoints;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneRoster;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneServices;
 
@@ -33,22 +32,10 @@ final class SimulatorCaseLane implements CaseLane {
 
     @Override
     public GameSession open(CaseContext context) {
-        // From here the slot holds running services, so returning it must stop them even if the case never starts.
+        // From here the slot hosts the case, so returning it must close whatever context reached its services.
         tenancy.host(context);
         var runtime = slot.runtime();
-        var endpoints = new LaneEndpoints(
-                slot.id(),
-                runtime.gameServiceUrl(),
-                runtime.timelineServiceUrl(),
-                runtime.readServiceUrl(),
-                runtime.operatorToken(),
-                hosting.bundle(),
-                hosting.provenance(),
-                SlotEventRouter.GAME_EVENTS,
-                SlotEventRouter.TIMELINE_EVENTS,
-                null,
-                null,
-                runtime.bots());
+        var endpoints = SimulatorLanePool.endpoints(slot, runtime, hosting.bundle(), hosting.provenance());
         var services = new LaneServices(
                 hosting.commands(),
                 hosting.evidence(),
@@ -67,13 +54,17 @@ final class SimulatorCaseLane implements CaseLane {
         return hosted.open(context);
     }
 
+    /**
+     * Releases the slot before the lane is given back: once given back, another case may take the slot at once, and a
+     * release that came after it would count that case's services as idle.
+     */
     @Override
     public void close() {
+        slot.released();
         if (hosted != null) {
             hosted.close();
         } else {
-            // The slot's services may be running although no context reached them.
-            slot.stop();
+            // No context reached the services, so they are as clean as before the case.
             tenancy.giveBack();
         }
     }

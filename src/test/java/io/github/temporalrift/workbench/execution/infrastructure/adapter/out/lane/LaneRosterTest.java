@@ -137,6 +137,36 @@ class LaneRosterTest {
     }
 
     @Test
+    void aLaneWhoseServiceStillHeldAnEarlierCaseIsResetAfterItsCloseSucceeded() {
+        var roster = prepared(true);
+        var lane = hosted(roster);
+        lane.unclean();
+
+        lane.giveBack();
+
+        assertThat(roster.free()).as("a successful close does not clean it").isEmpty();
+        scheduler.runAll();
+        assertThat(contexts.calls()).hasSize(1);
+        assertThat(resets.calls())
+                .singleElement()
+                .satisfies(call -> assertThat(call.caseKey()).isEqualTo(CASE_KEY));
+        assertThat(roster.free()).containsOnlyKeys("a");
+    }
+
+    @Test
+    void anUncleanLaneWithoutAResetStaysUnavailable() {
+        var roster = prepared(false);
+        var lane = hosted(roster);
+        lane.unclean();
+
+        lane.giveBack();
+        scheduler.runAll();
+
+        assertThat(roster.free()).isEmpty();
+        assertThat(resets.calls()).isEmpty();
+    }
+
+    @Test
     void aFailingResetKeepsTheLaneUnavailableAndIsRetriedWithTheSameIdempotencyKey() {
         var roster = prepared(true);
         var lane = hosted(roster);

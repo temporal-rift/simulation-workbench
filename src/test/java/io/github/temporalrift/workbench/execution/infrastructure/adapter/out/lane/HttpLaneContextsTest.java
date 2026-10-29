@@ -32,8 +32,10 @@ class HttpLaneContextsTest {
     private final List<Received> received = new CopyOnWriteArrayList<>();
     private HttpServer game;
     private HttpServer timeline;
+    private HttpServer read;
     private volatile int gameStatus = 204;
     private volatile int timelineStatus = 204;
+    private volatile int readStatus = 204;
     private volatile String gameBody = "";
     private volatile String checkpointBody = "";
     private volatile boolean stalled;
@@ -45,6 +47,7 @@ class HttpLaneContextsTest {
     void start() throws IOException {
         game = server("game", () -> gameStatus, () -> gameBody);
         timeline = server("timeline", () -> timelineStatus, () -> "");
+        read = server("read", () -> readStatus, () -> "");
     }
 
     @AfterEach
@@ -52,19 +55,21 @@ class HttpLaneContextsTest {
         released.countDown();
         game.stop(0);
         timeline.stop(0);
+        read.stop(0);
     }
 
     @Test
-    void aCaseIsClosedOnBothServicesWithTheOperatorTokenAndItsCaseKey() {
-        contexts(Duration.ofSeconds(5)).close("lane-1", CASE_KEY, Set.of(LaneService.GAME, LaneService.TIMELINE));
+    void aCaseIsClosedOnEveryServiceWithTheOperatorTokenAndItsCaseKey() {
+        contexts(Duration.ofSeconds(5))
+                .close("lane-1", CASE_KEY, Set.of(LaneService.GAME, LaneService.TIMELINE, LaneService.READ));
 
-        assertThat(received).hasSize(2).allSatisfy(request -> {
+        assertThat(received).hasSize(3).allSatisfy(request -> {
             assertThat(request.method()).isEqualTo("DELETE");
             assertThat(request.path()).isEqualTo("/internal/simulation/v1/execution");
             assertThat(request.query()).isEqualTo("caseKey=" + CASE_KEY);
             assertThat(request.authorization()).isEqualTo("Bearer operator-token");
         });
-        assertThat(received).extracting(Received::service).containsExactly("game", "timeline");
+        assertThat(received).extracting(Received::service).containsExactly("game", "timeline", "read");
     }
 
     @Test
@@ -129,13 +134,16 @@ class HttpLaneContextsTest {
                         org.assertj.core.api.Assertions.tuple("game", "GET", null),
                         org.assertj.core.api.Assertions.tuple("game", "DELETE", "caseKey=" + OPEN_KEY),
                         org.assertj.core.api.Assertions.tuple("timeline", "GET", null),
-                        org.assertj.core.api.Assertions.tuple("timeline", "DELETE", "caseKey=" + OPEN_KEY));
+                        org.assertj.core.api.Assertions.tuple("timeline", "DELETE", "caseKey=" + OPEN_KEY),
+                        org.assertj.core.api.Assertions.tuple("read", "GET", null),
+                        org.assertj.core.api.Assertions.tuple("read", "DELETE", "caseKey=" + OPEN_KEY));
     }
 
     @Test
     void closingWhateverIsOpenDoesNothingWhereNothingIsOpen() {
         gameStatus = 409;
         timelineStatus = 409;
+        readStatus = 409;
         gameBody = "{\"code\":\"EXECUTION_NOT_CONFIGURED\"}";
         checkpointBody = gameBody;
 
@@ -164,7 +172,7 @@ class HttpLaneContextsTest {
                 "lane-1",
                 "http://127.0.0.1:" + game.getAddress().getPort(),
                 "http://127.0.0.1:" + timeline.getAddress().getPort(),
-                "http://read",
+                "http://127.0.0.1:" + read.getAddress().getPort(),
                 "operator-token",
                 bundle,
                 Provenances.of(bundle),

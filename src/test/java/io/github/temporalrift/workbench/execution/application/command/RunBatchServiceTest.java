@@ -39,6 +39,7 @@ import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.CaseCounts;
 import io.github.temporalrift.workbench.execution.domain.run.CaseRules;
 import io.github.temporalrift.workbench.execution.domain.run.LaneFit;
+import io.github.temporalrift.workbench.execution.domain.run.LaneNotCleanException;
 import io.github.temporalrift.workbench.execution.domain.run.LeaseLostException;
 import io.github.temporalrift.workbench.execution.domain.run.LogicalCase;
 import io.github.temporalrift.workbench.execution.domain.run.Run;
@@ -223,6 +224,19 @@ class RunBatchServiceTest {
 
         service.runNextCase("worker");
 
+        verify(lane).close();
+    }
+
+    @Test
+    void aLaneThatStillHeldAnEarlierCaseGivesTheClaimBackUnspentAndHandsTheLaneBack() {
+        var lane = playing();
+        when(driver.play(any(), any(), any(), any(), any(), any()))
+                .thenThrow(new LaneNotCleanException("game-service of lane lane-1 still holds an earlier case"));
+
+        service.runNextCase("worker");
+
+        verify(cases).release(any(), eq("worker"));
+        verify(cases, never()).fail(any(), any(), any(), anyBoolean(), any());
         verify(lane).close();
     }
 

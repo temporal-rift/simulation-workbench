@@ -90,6 +90,7 @@ class LaneClientReuseTest {
                 .containsOnlyKeys(
                         "SimulationExecutionApi|http://game|operator",
                         "SimulationExecutionApi|http://timeline|operator",
+                        "SimulationExecutionApi|http://read|operator",
                         "SessionApi|http://game|t1",
                         "ScoringApi|http://game|t1",
                         "ProjectionApi|http://read|t1",

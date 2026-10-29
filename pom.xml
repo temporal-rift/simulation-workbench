@@ -59,7 +59,7 @@
         <!-- Workbench-owned boundary (implemented by this application). -->
         <simulation-api.version>4.3.0</simulation-api.version>
         <!-- Isolated execution boundary (consumed operator interface, owned by the game/timeline services). -->
-        <simulation-control-api.version>2.0.1</simulation-control-api.version>
+        <simulation-control-api.version>2.1.0</simulation-control-api.version>
         <!-- Pinned participant/event contracts: consumed via generated clients/interfaces only.
              Never hand-copy engine or player-contract types into this repository. -->
         <session-event.version>7.0.0</session-event.version>
@@ -81,6 +81,14 @@
         <skipTests>false</skipTests>
         <!-- Overridable per environment: CI runs integration tests in two parallel forks. -->
         <failsafe.forkCount>1</failsafe.forkCount>
+        <!-- JaCoCo sets argLine to its agent; empty when JaCoCo is skipped, so @{argLine} still resolves. -->
+        <argLine/>
+        <!--
+            A stopped simulator slot's classes stay softly reachable from the framework's soft caches until memory
+            runs short. The tests that check a slot's class loaders are released must see them collected at the next
+            full collection, so test JVMs clear soft references at every collection.
+        -->
+        <test.jvm.flags>@{argLine} -XX:SoftRefLRUPolicyMSPerMB=0</test.jvm.flags>
     </properties>
 
     <dependencies>
@@ -197,6 +205,10 @@
         </dependency>
         <dependency>
             <groupId>org.springframework.modulith</groupId>
+            <artifactId>spring-modulith-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.modulith</groupId>
             <artifactId>spring-modulith-starter-jpa</artifactId>
         </dependency>
 
@@ -278,9 +290,17 @@
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>${test.jvm.flags}</argLine>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-failsafe-plugin</artifactId>
                 <configuration>
                     <forkCount>${failsafe.forkCount}</forkCount>
+                    <argLine>${test.jvm.flags}</argLine>
                 </configuration>
                 <executions>
                     <execution>
