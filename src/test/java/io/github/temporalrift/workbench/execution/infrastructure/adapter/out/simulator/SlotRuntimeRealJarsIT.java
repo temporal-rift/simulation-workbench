@@ -11,22 +11,28 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.IntStream;
 
+import com.fasterxml.jackson.annotation.JsonValue;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.springframework.boot.env.YamlPropertySourceLoader;
 import org.springframework.core.env.CompositePropertySource;
 import org.springframework.core.io.FileSystemResource;
+import tools.jackson.databind.JsonNode;
 
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.RestApiClients;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.SimulationExecutionApi;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.model.EffectiveRules;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.model.EffectiveRulesPropertiesValue;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.model.ExecutionContext;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.model.Faction;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.model.SimulationSeat;
 import io.github.temporalrift.workbench.execution.simulator.SimulatorBuilds;
+import io.github.temporalrift.workbench.experiment.VariantRulesFixtures;
 
 /**
  * Starts the real executable jars as a slot hosts them. {@code simulator.builds} names the directory holding
@@ -62,6 +68,9 @@ class SlotRuntimeRealJarsIT {
     }
 
     private static void configure(SlotRuntime runtime) {
+        var rules = VariantRulesFixtures.baseline();
+        var properties = new LinkedHashMap<String, EffectiveRulesPropertiesValue>();
+        rules.properties().forEach((key, value) -> properties.put(key, new RulesValue(value)));
         var factions = List.of(Faction.ERASERS, Faction.PROPHETS, Faction.WEAVERS);
         var context = new ExecutionContext()
                 .schemaVersion(ExecutionContext.SchemaVersionEnum.NUMBER_1)
@@ -69,6 +78,8 @@ class SlotRuntimeRealJarsIT {
                 .seed("42")
                 .entropyVersion(ExecutionContext.EntropyVersionEnum.SHA256_V1)
                 .manifestDigest("a".repeat(64))
+                .rules(new EffectiveRules(EffectiveRules.SchemaVersionEnum.NUMBER_1, properties))
+                .rulesDigest(rules.digest())
                 .logicalTime(Instant.parse("2026-01-01T00:00:00Z").atOffset(ZoneOffset.UTC))
                 .seats(IntStream.range(0, factions.size())
                         .mapToObj(seat -> new SimulationSeat(
@@ -82,6 +93,9 @@ class SlotRuntimeRealJarsIT {
         assertThat(checkpoint).isNotNull();
         assertThat(checkpoint.getCaseKey()).isEqualTo(context.getCaseKey());
     }
+
+    /** A rules value as the JSON it is; the generated union names none of its forms. */
+    private record RulesValue(@JsonValue JsonNode value) implements EffectiveRulesPropertiesValue {}
 
     private static SlotRuntime.Build build() {
         var work = Path.of(System.getProperty("java.io.tmpdir"), "workbench-simulator-it");
