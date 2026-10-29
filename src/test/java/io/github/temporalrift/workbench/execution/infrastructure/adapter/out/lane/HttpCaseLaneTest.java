@@ -47,6 +47,7 @@ import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedExcept
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.domain.run.CaseRules;
 import io.github.temporalrift.workbench.execution.domain.run.LaneFit;
+import io.github.temporalrift.workbench.execution.domain.run.LaneNotCleanException;
 import io.github.temporalrift.workbench.execution.domain.run.SeatPlan;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.SimulationExecutionApi;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.model.EffectiveRules;
@@ -96,6 +97,7 @@ class HttpCaseLaneTest {
             (task, _) -> task.run());
     private SimulationExecutionApi gameControl;
     private SimulationExecutionApi timelineControl;
+    private SimulationExecutionApi readControl;
     private LaneEndpoints endpoints;
     private HttpCaseLane lane;
 
@@ -121,11 +123,12 @@ class HttpCaseLaneTest {
                         new LaneEndpoints.BotIdentity(ProjectionStates.id(3), "t3")));
         gameControl = clients.control("http://game");
         timelineControl = clients.control("http://timeline");
+        readControl = clients.control("http://read");
         lane = lane(endpoints);
     }
 
     @Test
-    void aFreshStartConfiguresBothServicesAndThenPlaysTheLobbyAsTheBots() {
+    void aFreshStartConfiguresEveryServiceAndThenPlaysTheLobbyAsTheBots() {
         ledger.put(
                 new SlotId(CASE_ID, 0, WindowRef.of(WindowKind.HAND_SELECTION, 1)),
                 new UUID(9, 9),
@@ -140,6 +143,7 @@ class HttpCaseLaneTest {
         var requests = ArgumentCaptor.forClass(ExecutionContext.class);
         verify(gameControl).configureSimulationExecution(requests.capture());
         verify(timelineControl).configureSimulationExecution(any());
+        verify(readControl).configureSimulationExecution(any());
         var request = requests.getValue();
         assertThat(request.getCaseKey()).isEqualTo(CASE_KEY);
         assertThat(request.getSeed()).isEqualTo("42");
@@ -174,6 +178,7 @@ class HttpCaseLaneTest {
         var requests = ArgumentCaptor.forClass(ExecutionContext.class);
         verify(gameControl, times(2)).configureSimulationExecution(requests.capture());
         verify(timelineControl, times(2)).configureSimulationExecution(any());
+        verify(readControl, times(2)).configureSimulationExecution(any());
         assertThat(requests.getAllValues())
                 .extracting(ExecutionContext::getCaseKey)
                 .containsOnly(CASE_KEY);
@@ -371,6 +376,8 @@ class HttpCaseLaneTest {
                 .thenReturn(ResponseEntity.ok(checkpoint(CASE_KEY, DIGEST, RULES_DIGEST, null)));
         when(timelineControl.configureSimulationExecution(any()))
                 .thenReturn(ResponseEntity.ok(checkpoint(CASE_KEY, DIGEST, RULES_DIGEST, null)));
+        when(readControl.configureSimulationExecution(any()))
+                .thenReturn(ResponseEntity.ok(checkpoint(CASE_KEY, DIGEST, RULES_DIGEST, null)));
         lobby(new HostedLobby());
 
         lane.open(context());
@@ -379,7 +386,7 @@ class HttpCaseLaneTest {
     }
 
     @Test
-    void closingTheLaneClosesTheContextOnBothServicesAndReleasesIt() {
+    void closingTheLaneClosesTheContextOnEveryServiceAndReleasesIt() {
         configured();
         lobby(new HostedLobby());
         lane.open(context());
@@ -390,7 +397,8 @@ class HttpCaseLaneTest {
         assertThat(lane.laneId()).isEqualTo("lane-1");
         assertThat(contexts.calls()).singleElement().satisfies(call -> {
             assertThat(call.caseKey()).isEqualTo(CASE_KEY);
-            assertThat(call.services()).containsExactlyInAnyOrder(LaneService.GAME, LaneService.TIMELINE);
+            assertThat(call.services())
+                    .containsExactlyInAnyOrder(LaneService.GAME, LaneService.TIMELINE, LaneService.READ);
         });
     }
 
@@ -424,6 +432,32 @@ class HttpCaseLaneTest {
 
         assertThat(roster.free()).containsKey("lane-1");
         assertThat(contexts.calls()).isEmpty();
+    }
+
+    @Test
+    void aServiceThatStillHoldsAnEarlierCaseMakesTheLaneUncleanWithoutFailingTheAttempt() {
+        when(gameControl.configureSimulationExecution(any()))
+                .thenReturn(ResponseEntity.ok(checkpoint(CASE_KEY, DIGEST, null)));
+        when(timelineControl.configureSimulationExecution(any()))
+                .thenThrow(HttpClientErrorException.create(
+                        HttpStatus.CONFLICT,
+                        "",
+                        new HttpHeaders(),
+                        "{\"code\":\"EXECUTION_STATE_NOT_CLEAN\"}".getBytes(StandardCharsets.UTF_8),
+                        StandardCharsets.UTF_8));
+        var context = context();
+        assertThatThrownBy(() -> lane.open(context))
+                .isInstanceOf(LaneNotCleanException.class)
+                .hasMessageContaining("timeline-service");
+
+        lane.close();
+
+        assertThat(contexts.calls())
+                .singleElement()
+                .satisfies(call -> assertThat(call.services()).containsExactly(LaneService.GAME));
+        assertThat(roster.free())
+                .as("a lane without a reset stays out of service")
+                .doesNotContainKey("lane-1");
     }
 
     @Test
@@ -472,6 +506,8 @@ class HttpCaseLaneTest {
         when(gameControl.configureSimulationExecution(any()))
                 .thenReturn(ResponseEntity.ok(checkpoint(CASE_KEY, DIGEST, null)));
         when(timelineControl.configureSimulationExecution(any()))
+                .thenReturn(ResponseEntity.ok(checkpoint(CASE_KEY, DIGEST, null)));
+        when(readControl.configureSimulationExecution(any()))
                 .thenReturn(ResponseEntity.ok(checkpoint(CASE_KEY, DIGEST, null)));
     }
 

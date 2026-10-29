@@ -21,6 +21,7 @@ import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger
 import io.github.temporalrift.workbench.execution.domain.port.out.GameEventObserver;
 import io.github.temporalrift.workbench.execution.domain.port.out.GameSession;
 import io.github.temporalrift.workbench.execution.domain.run.AttemptFailedException;
+import io.github.temporalrift.workbench.execution.domain.run.LaneNotCleanException;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.action.ActionApi;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.SimulationExecutionApi;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.model.EffectiveRules;
@@ -45,6 +46,7 @@ import io.github.temporalrift.workbench.shared.execution.FailureCode;
 public class HttpCaseLane implements CaseLane {
 
     private static final Duration START_RECONCILE_BUDGET = Duration.ofMillis(2500);
+    private static final String NOT_CLEAN = "EXECUTION_STATE_NOT_CLEAN";
     /** Allowance for the difference between this clock and the producers' record timestamps. */
     private static final Duration CLOCK_SKEW = Duration.ofMinutes(1);
 
@@ -92,11 +94,12 @@ public class HttpCaseLane implements CaseLane {
         var gameControl = clients.create(SimulationExecutionApi.class, lane.gameServiceUrl(), lane.operatorToken());
         var timelineControl =
                 clients.create(SimulationExecutionApi.class, lane.timelineServiceUrl(), lane.operatorToken());
+        var readControl = clients.create(SimulationExecutionApi.class, lane.readServiceUrl(), lane.operatorToken());
         var participants = participants(context);
         // The slots of an abandoned game must neither block nor appear in this transcript.
         ledger.reset(context.caseId());
         var since = clock.instant().minus(CLOCK_SKEW);
-        var gameId = startGame(context, gameControl, timelineControl);
+        var gameId = startGame(context, gameControl, timelineControl, readControl);
         return session(context, gameId, gameControl, timelineControl, participants, since);
     }
 
@@ -158,9 +161,13 @@ public class HttpCaseLane implements CaseLane {
     }
 
     private UUID startGame(
-            CaseContext context, SimulationExecutionApi gameControl, SimulationExecutionApi timelineControl) {
+            CaseContext context,
+            SimulationExecutionApi gameControl,
+            SimulationExecutionApi timelineControl,
+            SimulationExecutionApi readControl) {
         var game = configure(gameControl, LaneService.GAME, context);
         var timeline = configure(timelineControl, LaneService.TIMELINE, context);
+        configure(readControl, LaneService.READ, context);
         evidence.reportRulesDigests(context.caseId(), game.getRulesDigest(), timeline.getRulesDigest());
         var host = lane.bots().getFirst();
         var hostSession = clients.create(SessionApi.class, lane.gameServiceUrl(), host.token());
@@ -207,6 +214,11 @@ public class HttpCaseLane implements CaseLane {
         } catch (RestClientResponseException e) {
             if (e.getStatusCode().is4xxClientError()) {
                 tenancy.refused(service);
+            }
+            if (NOT_CLEAN.equals(ProblemCodes.codeOf(e))) {
+                tenancy.unclean();
+                throw new LaneNotCleanException(
+                        service.serviceName() + " of lane " + lane.id() + " still holds an earlier case");
             }
             throw new AttemptFailedException(
                     FailureCode.EXECUTION_FAILED,

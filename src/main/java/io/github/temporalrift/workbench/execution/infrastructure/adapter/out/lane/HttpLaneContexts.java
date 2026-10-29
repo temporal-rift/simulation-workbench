@@ -17,14 +17,15 @@ import io.github.temporalrift.workbench.execution.LaneService;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.SimulationExecutionApi;
 
 /**
- * Closes execution contexts with {@code closeSimulationExecution} on the game and timeline services of a lane. A
+ * Closes execution contexts with {@code closeSimulationExecution} on the game, timeline and read services of a lane. A
  * {@code 204} and a {@code 409 EXECUTION_NOT_CONFIGURED} both mean the service holds no context of the case. Every
  * service is asked even when another fails, so one failure never leaves a context open that could have been closed.
  */
 public class HttpLaneContexts implements LaneContexts {
 
     private static final String NOT_CONFIGURED = "EXECUTION_NOT_CONFIGURED";
-    private static final List<LaneService> CONTROLLED = List.of(LaneService.GAME, LaneService.TIMELINE);
+    private static final List<LaneService> CONTROLLED =
+            List.of(LaneService.GAME, LaneService.TIMELINE, LaneService.READ);
 
     private final Map<String, LaneEndpoints> lanes;
     private final ApiClients clients;
@@ -109,7 +110,11 @@ public class HttpLaneContexts implements LaneContexts {
     }
 
     private SimulationExecutionApi control(LaneEndpoints lane, LaneService service) {
-        var url = service == LaneService.GAME ? lane.gameServiceUrl() : lane.timelineServiceUrl();
+        var url = switch (service) {
+            case GAME -> lane.gameServiceUrl();
+            case TIMELINE -> lane.timelineServiceUrl();
+            case READ -> lane.readServiceUrl();
+        };
         return clients.create(SimulationExecutionApi.class, url, lane.operatorToken());
     }
 
