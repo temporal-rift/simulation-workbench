@@ -263,6 +263,7 @@ public class ExecutionConfiguration {
                         simulator.rulesFile(),
                         workDirectory,
                         simulator.effectiveBotPlayerIds(),
+                        simulator.idleTimeout(),
                         bundle.digests(),
                         new SimulatorLanePool.Declared(
                                 new BundleProvenance.Artifact(bundle.rulesArtifactDigest(), bundle.rulesArtifactName()),

@@ -215,6 +215,7 @@ class SimulatorLanePoolTest {
                         rules,
                         directory.resolve("work"),
                         SimulatorBots.derived(6),
+                        Duration.ZERO,
                         BUNDLE,
                         declared),
                 new SimulatorLanePool.Collaborators(

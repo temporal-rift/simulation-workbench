@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -30,6 +31,7 @@ import io.github.temporalrift.workbench.execution.domain.run.LaneFit;
 import io.github.temporalrift.workbench.execution.domain.run.LaneProfile;
 import io.github.temporalrift.workbench.execution.domain.run.ServedBundle;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.ApiClients;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.HttpLaneContexts;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneContexts;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneEndpoints;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.LaneRoster;
@@ -40,8 +42,10 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 
 /**
  * The simulator lane: slots that each host the three services in this JVM under profile {@code in-memory}. A slot
- * plays one case at a time and is made clean after each case by stopping its services, so slots are the unit of
- * parallelism. All slots host the same builds under the same rules and so serve one bundle.
+ * plays one case at a time, and is made clean after each case by closing the case's execution context on its services,
+ * as a real lane is, so slots are the unit of parallelism. A slot's reset, after a failed close or a service that still
+ * held an earlier case, restarts its services. All slots host the same builds under the same rules and so serve one
+ * bundle.
  */
 public final class SimulatorLanePool extends RosterBackedLaneProvider {
 
@@ -70,6 +74,7 @@ public final class SimulatorLanePool extends RosterBackedLaneProvider {
      * @param rulesFile the {@code game.rules.*} properties the services play under
      * @param workDirectory where the jars are extracted
      * @param botPlayerIds the player id of each bot identity every slot mints, in seat order
+     * @param idleTimeout how long a slot's services may host no case before they stop; zero keeps them running
      */
     public record Deployment(
             int slots,
@@ -79,6 +84,7 @@ public final class SimulatorLanePool extends RosterBackedLaneProvider {
             Path rulesFile,
             Path workDirectory,
             List<UUID> botPlayerIds,
+            Duration idleTimeout,
             BundleDigests bundle,
             Declared declared) {}
 
@@ -137,12 +143,24 @@ public final class SimulatorLanePool extends RosterBackedLaneProvider {
                 new BundleProvenance.ServiceBuild(read.imageDigest(), declared.readServiceRevision()),
                 declared.contracts());
         var slots = new LinkedHashMap<String, SimulatorSlot>();
-        slotIds.forEach(id -> slots.put(id, new SimulatorSlot(id, build, deployment.botPlayerIds(), with.clock())));
+        slotIds.forEach(id -> slots.put(
+                id,
+                new SimulatorSlot(
+                        id,
+                        build,
+                        deployment.botPlayerIds(),
+                        with.clock(),
+                        deployment.idleTimeout(),
+                        with.scheduler())));
         var fit = LaneFit.of(deployment.bundle().contentDigest(), provenance);
         var roster = new LaneRoster(
                 slotIds.stream().map(id -> new LaneRoster.Member(id, fit, true)).toList(),
-                new StoppingContexts(slots),
-                (laneId, _, _) -> slots.get(laneId).stop(),
+                new SlotContexts(slots, with.clients(), deployment.bundle(), provenance),
+                (laneId, _, _) -> {
+                    var slot = slots.get(laneId);
+                    slot.restart();
+                    slot.released();
+                },
                 with.scheduler());
         var hosting = new Hosting(
                 with.clients(),
@@ -165,18 +183,54 @@ public final class SimulatorLanePool extends RosterBackedLaneProvider {
         return new SimulatorLanePool(roster, slots, hosting, served, profiles);
     }
 
-    /** A slot holds its games in memory, so closing a context means stopping the services that hold it. */
-    private record StoppingContexts(Map<String, SimulatorSlot> slots) implements LaneContexts {
+    /**
+     * Closes contexts through the services' own control interface, exactly as on a real lane. A slot that runs no
+     * services holds no context, so there is nothing to close.
+     */
+    private record SlotContexts(
+            Map<String, SimulatorSlot> slots, ApiClients clients, BundleDigests bundle, BundleProvenance provenance)
+            implements LaneContexts {
 
         @Override
         public void close(String laneId, UUID caseKey, Set<LaneService> services) {
-            slots.get(laneId).stop();
+            var slot = slots.get(laneId);
+            slot.running().ifPresent(runtime -> contexts(slot, runtime).close(laneId, caseKey, services));
+            slot.released();
         }
 
         @Override
         public void closeAnyOpen(String laneId) {
-            slots.get(laneId).stop();
+            var slot = slots.get(laneId);
+            slot.running().ifPresent(runtime -> contexts(slot, runtime).closeAnyOpen(laneId));
+            slot.released();
         }
+
+        private HttpLaneContexts contexts(SimulatorSlot slot, SlotRuntime runtime) {
+            return new HttpLaneContexts(List.of(endpoints(slot, runtime, bundle, provenance)), clients);
+        }
+    }
+
+    /** Where a slot's running services answer, and who plays and controls them. */
+    static LaneEndpoints endpoints(
+            SimulatorSlot slot, SlotRuntime runtime, BundleDigests bundle, BundleProvenance provenance) {
+        return new LaneEndpoints(
+                slot.id(),
+                runtime.gameServiceUrl(),
+                runtime.timelineServiceUrl(),
+                runtime.readServiceUrl(),
+                runtime.operatorToken(),
+                bundle,
+                provenance,
+                SlotEventRouter.GAME_EVENTS,
+                SlotEventRouter.TIMELINE_EVENTS,
+                null,
+                null,
+                runtime.bots());
+    }
+
+    /** The slot behind a lane. */
+    SimulatorSlot slot(String laneId) {
+        return slots.get(laneId);
     }
 
     @Override

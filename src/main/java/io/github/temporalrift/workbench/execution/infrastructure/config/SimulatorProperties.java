@@ -1,6 +1,7 @@
 package io.github.temporalrift.workbench.execution.infrastructure.config;
 
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +27,8 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.sim
  * @param bots how many bot identities each slot mints; at least the largest player count a case may have
  * @param botPlayerIds the player id of each bot identity in seat order, when the deployment declares them; they let a
  *     real lane that declares the same ids reproduce what the simulator played. Without them the ids are derived
+ * @param idleTimeout how long a slot's services may host no case before they stop and give their memory back; zero
+ *     keeps them running for as long as the workbench runs
  */
 @ConfigurationProperties("workbench.simulator")
 public record SimulatorProperties(
@@ -37,6 +40,7 @@ public record SimulatorProperties(
         Path workDirectory,
         @DefaultValue("6") int bots,
         List<UUID> botPlayerIds,
+        @DefaultValue("10m") Duration idleTimeout,
         Bundle bundle) {
 
     private static final String SCOPE = "workbench.simulator.";
@@ -44,6 +48,9 @@ public record SimulatorProperties(
     public SimulatorProperties {
         if (slots < 0) {
             throw new IllegalArgumentException(SCOPE + "slots must not be negative");
+        }
+        if (idleTimeout == null || idleTimeout.isNegative()) {
+            throw new IllegalArgumentException(SCOPE + "idle-timeout must not be negative");
         }
         if (bots < 1) {
             throw new IllegalArgumentException(SCOPE + "bots must be at least 1");
