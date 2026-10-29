@@ -32,6 +32,10 @@ final class SlotRuntime implements AutoCloseable {
 
     private static final Logger LOG = LoggerFactory.getLogger(SlotRuntime.class);
 
+    /** Spring Boot DevTools' listener, present only while the workbench runs from its development classpath. */
+    private static final String RESTART_LISTENER =
+            "org.springframework.boot.devtools.restart.RestartApplicationListener";
+
     /** The builds a slot hosts and the rules it plays under. */
     record Build(ServiceJar game, ServiceJar timeline, ServiceJar read, PropertySource<?> rules) {}
 
@@ -79,6 +83,7 @@ final class SlotRuntime implements AutoCloseable {
      * @param botPlayerIds the player id of each bot identity to mint, in seat order
      */
     static SlotRuntime start(Build build, List<UUID> botPlayerIds, Clock clock) {
+        SharedFramework.prepare();
         var router = new SlotEventRouter();
         var issuer = new SimulatorIssuer(clock);
         var parent = new AnnotationConfigApplicationContext();
@@ -146,11 +151,15 @@ final class SlotRuntime implements AutoCloseable {
                     .bannerMode(Banner.Mode.OFF)
                     .registerShutdownHook(false)
                     .properties(properties);
-            // The workbench has configured logging; a hosted service must not reconfigure it for the whole JVM.
+            // The workbench has configured logging and owns restarting the JVM's application; a hosted service must
+            // do neither for the whole JVM, and the restarter would keep the class loader of the first to try.
             var application = builder.application();
             application.setListeners(application.getListeners().stream()
                     .filter(listener -> !(listener instanceof LoggingApplicationListener))
+                    .filter(listener ->
+                            !RESTART_LISTENER.equals(listener.getClass().getName()))
                     .toList());
+            application.addListeners(new HostOwnedAutoConfigurations(loader));
             // Arguments, because a service's own application.yml outranks the defaults that properties() sets.
             var context = builder.run("--server.port=0", "--server.address=127.0.0.1");
             started.add(new Hosted(context, loader));
@@ -200,6 +209,11 @@ final class SlotRuntime implements AutoCloseable {
         return bots;
     }
 
+    /** The class loaders the services were hosted in, last started last. */
+    List<ClassLoader> classLoaders() {
+        return children.stream().<ClassLoader>map(Hosted::loader).toList();
+    }
+
     @Override
     public void close() {
         close(router, parent, children);
@@ -221,6 +235,8 @@ final class SlotRuntime implements AutoCloseable {
             loader.close();
         } catch (IOException e) {
             LOG.warn("A hosted service's class loader did not close cleanly: {}", e.getMessage());
+        } finally {
+            SharedFramework.release();
         }
     }
 
