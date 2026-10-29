@@ -72,17 +72,19 @@ final class SimulatorSlot {
      */
     synchronized void released() {
         hosting = false;
-        if (idleTimeout.isZero() || runtime == null) {
-            return;
-        }
-        var released = tenancies;
-        scheduler.schedule(() -> stopIfIdleSince(released), idleTimeout);
+        scheduleIdleStop();
     }
 
-    /** Stops and starts the services, so the slot is clean whatever the previous ones held. */
+    /**
+     * Stops and starts the services, so the slot is clean whatever the previous ones held. A recovery can outlast the
+     * idle timeout, so restarted services that host no case get an idle stop of their own.
+     */
     synchronized void restart() {
         stop();
         runtime = start();
+        if (!hosting) {
+            scheduleIdleStop();
+        }
     }
 
     /** Stops the services and drops everything they held. */
@@ -92,6 +94,14 @@ final class SimulatorSlot {
             runtime = null;
             stopping.close();
         }
+    }
+
+    private void scheduleIdleStop() {
+        if (idleTimeout.isZero() || runtime == null) {
+            return;
+        }
+        var released = tenancies;
+        scheduler.schedule(() -> stopIfIdleSince(released), idleTimeout);
     }
 
     private synchronized void stopIfIdleSince(long released) {

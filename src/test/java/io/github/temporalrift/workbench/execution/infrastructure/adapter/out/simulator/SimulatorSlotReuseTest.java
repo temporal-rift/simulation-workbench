@@ -92,6 +92,21 @@ class SimulatorSlotReuseTest {
     }
 
     @Test
+    void servicesRestartedAfterTheIdleStopAlreadyRanStopOnceIdleAgain() {
+        slot = slot(Duration.ofMinutes(10));
+        slot.runtime();
+        slot.released();
+        scheduler.runAll();
+        assertThat(slot.running()).as("the idle stop ran before the recovery").isEmpty();
+
+        slot.restart();
+        assertThat(slot.running()).isPresent();
+        scheduler.runAll();
+
+        assertThat(slot.running()).isEmpty();
+    }
+
+    @Test
     void aSlotThatTookAnotherCaseIsNotStoppedByAnEarlierIdleTimeout() {
         slot = slot(Duration.ofMinutes(10));
         var first = slot.runtime();
