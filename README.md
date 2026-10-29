@@ -469,8 +469,8 @@ terminal run.
 The runner needs isolated lanes. A lane is an independent deployment of `game-service`, `timeline-service`, and
 `read-service` with the simulation controls enabled, one operator credential holding `simulation:control`, and
 one bot identity per seat (at least five for the largest case). It hosts one case at a time and must be clean when
-a case starts. Each case plays in an execution context of its own, opened on the lane's game and timeline services and
-closed when the case ends, so a lane plays any number of cases in sequence without restarting; a lane that declares a
+a case starts. Each case plays in an execution context of its own, opened on the lane's game, timeline and read services
+and closed when the case ends, so a lane plays any number of cases in sequence without restarting; a lane that declares a
 reset hook is recovered through it only when a context cannot be closed. Lanes and credentials are runtime
 configuration only; they are never stored with experiments, runs, or evidence:
 
@@ -540,13 +540,16 @@ only after that, so accepted state read before it is never treated as current. T
 The simulator has no broker, so its observer reports the slot router's idle check in place of offsets.
 
 A lane's services play one game per execution context. Whatever the outcome of an attempt or reproduction (succeeded,
-failed, cancelled, timed out or interrupted), the runner closes the case's context on the game and timeline services
-with `closeSimulationExecution` before the lane is offered again; the lane is never restarted between cases. A `204`
+failed, cancelled, timed out or interrupted), the runner closes the case's context on the game, timeline and read
+services with `closeSimulationExecution` before the lane is offered again; the lane is never restarted between cases. A `204`
 answer, or a `409 EXECUTION_NOT_CONFIGURED` answer (nothing was open), means the service holds no context of the case.
 Any other answer, a connection failure or no answer within `reset-timeout` is a failed close. The close of each case is
 timed as `workbench.lane.context.close`. After a failed close the lane is recovered through its deployment: a lane with a
 `reset-url` (an absolute http or https URL; the workbench refuses to start otherwise) has the hook called, and a lane
-without one has the close retried:
+without one has the close retried. A service that refuses a case's context with `409 EXECUTION_STATE_NOT_CLEAN` still
+holds an earlier case, which no close can remove: the lane is reset before it hosts anything, as after a failed close,
+and the case goes back to pending without spending an attempt or recording a failure. A lane without a `reset-url`
+cannot be cleaned that way and stays out of service until the workbench restarts:
 
 ```http
 POST {reset-url}
@@ -592,6 +595,7 @@ workbench:
     rules-file: /builds/rules.yml   # the game.rules.* properties every service plays under (.yml, .yaml, .properties)
     work-directory: /var/tmp/workbench-simulator   # optional; where the jars are extracted
     bots: 5                       # bot identities per slot; at least the largest player count of a case
+    idle-timeout: 10m             # a slot that hosted no case for this long stops its services; 0 keeps them running
     bot-player-ids:               # optional: one player id per bot, in seat order; see "Simulator fidelity"
       - 6c0f5b1e-0000-4000-8000-000000000001
       - 6c0f5b1e-0000-4000-8000-000000000002
@@ -621,9 +625,13 @@ service, records arrive in publication order and one at a time, as a partition w
 settlement barrier waits until every routed record has been delivered. The observer retains each routed record as
 delivered, the same raw evidence a real lane's observer retains.
 
-A slot stops its services when its case ends and starts fresh ones for the next case: the services keep every game in
-memory, so stopping them is what releases it. State lives only in memory, so a workbench restart cannot resume a game on
-a slot.
+A slot starts its services for its first case and keeps them for the cases that follow, as a real lane does: each case's
+execution context is closed on its three services before the next is opened, which leaves them as clean as newly
+started ones. A slot restarts its services only to recover, after a failed close or a service that answered
+`EXECUTION_STATE_NOT_CLEAN`, and stops them once it hosted no case for `idle-timeout`, so a workbench with no run in
+progress gives their memory back. Stopped services leave nothing behind: their class loaders are collected, so a run's
+memory depends on the number of slots, not on the cases it plays. State lives only in memory, so a workbench restart
+cannot resume a game on a slot.
 
 The slots' behavior on the real service jars is covered by integration tests that run only when
 `-Dsimulator.builds=<directory>` names a directory holding `game-service.jar`, `timeline-service.jar` and
@@ -682,7 +690,7 @@ time. None carries a case key, seed, game id, player id or credential as a tag.
 | `workbench.case.attempt` | Wall time of one attempt, from its start to its final state | `lane`, `players`, `state` (`SUCCEEDED`, `FAILED`, `CANCELLED`, `INTERRUPTED`), `failure` (failure code, or `none`) |
 | `workbench.policy.decision` | Time a policy takes to produce one decision | `policy` (policy id; reproductions use `transcript`) |
 | `workbench.lane.wait` | Time spent waiting for the services after a command | `kind` |
-| `workbench.lane.context.close` | Duration of closing one case's execution context on both services | `lane`, `outcome` (`CLEAN`, `FAILED`, `TIMEOUT`) |
+| `workbench.lane.context.close` | Duration of closing one case's execution context on a lane's services | `lane`, `outcome` (`CLEAN`, `FAILED`, `TIMEOUT`) |
 | `workbench.lane.reset` | Duration of one reset-hook call, which follows a failed close only | `lane`, `outcome` (`CLEAN`, `FAILED`, `TIMEOUT`) |
 
 `workbench.lane.wait` has three kinds. `ACKNOWLEDGEMENT` is one sample per command sent, from the request until the
@@ -690,8 +698,8 @@ service answers (terminal readiness sends nothing and adds none). `CAUSAL_BARRIE
 sample each per settle wait: the time until both services report their work drained, and the time until every consumer
 group has applied the records the event observer has read and every seat's state has been read after that. Each poll's
 pause is attributed to the barrier that was still unmet. An attempt whose lane lost its lease or was fenced out is recorded as `INTERRUPTED`.
-Slots of the simulator stop their services instead of closing a context or calling a hook, and record neither
-`workbench.lane.context.close` nor `workbench.lane.reset`. A case whose context closes cleanly adds no
+Slots of the simulator close contexts as a lane does and restart their services in place of a reset hook; these two
+timers cover real lanes only, so slots record neither `workbench.lane.context.close` nor `workbench.lane.reset`. A case whose context closes cleanly adds no
 `workbench.lane.reset` sample.
 
 ## Measuring capacity
