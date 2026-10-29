@@ -20,7 +20,11 @@ import io.github.temporalrift.workbench.execution.application.port.in.StartRunUs
 import io.github.temporalrift.workbench.experiment.ExperimentManifests;
 import io.github.temporalrift.workbench.experiment.application.port.in.CreateExperimentUseCase;
 
-/** One slot hosting the real services: a seeded case reaches an authoritative ending, and replays identically. */
+/**
+ * One slot hosting the real services: a seeded case reaches an authoritative ending, and replays identically. The first
+ * run plays on services the slot just started and the second on the same services after their contexts were closed, so
+ * equal digests also show that a closed context leaves nothing that changes the next game.
+ */
 @SpringBootTest(properties = "workbench.simulator.slots=1")
 @ActiveProfiles("test")
 @Import({TestcontainersConfiguration.class, TestSecurityConfig.class})
