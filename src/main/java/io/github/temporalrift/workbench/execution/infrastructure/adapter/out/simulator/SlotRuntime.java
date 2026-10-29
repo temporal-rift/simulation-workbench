@@ -94,7 +94,7 @@ final class SlotRuntime implements AutoCloseable {
         parent.refresh();
         var children = new ArrayList<Hosted>();
         try (var startup = new Startup(router, parent, children)) {
-            var read = host(build.read(), parent, children);
+            var read = host(build.read(), parent, children, "game.simulation.enabled=true");
             var timeline = host(build.timeline(), parent, children, "game.simulation.enabled=true");
             var game = host(build.game(), parent, children, "game.simulation.enabled=true");
             router.bind(Map.of(
