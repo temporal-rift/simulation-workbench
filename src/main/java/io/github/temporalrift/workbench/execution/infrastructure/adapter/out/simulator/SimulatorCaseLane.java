@@ -54,14 +54,18 @@ final class SimulatorCaseLane implements CaseLane {
         return hosted.open(context);
     }
 
+    /**
+     * Releases the slot before the lane is given back: once given back, another case may take the slot at once, and a
+     * release that came after it would count that case's services as idle.
+     */
     @Override
     public void close() {
+        slot.released();
         if (hosted != null) {
             hosted.close();
         } else {
             // No context reached the services, so they are as clean as before the case.
             tenancy.giveBack();
-            slot.released();
         }
     }
 }

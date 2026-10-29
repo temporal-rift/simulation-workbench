@@ -156,11 +156,7 @@ public final class SimulatorLanePool extends RosterBackedLaneProvider {
         var roster = new LaneRoster(
                 slotIds.stream().map(id -> new LaneRoster.Member(id, fit, true)).toList(),
                 new SlotContexts(slots, with.clients(), deployment.bundle(), provenance),
-                (laneId, _, _) -> {
-                    var slot = slots.get(laneId);
-                    slot.restart();
-                    slot.released();
-                },
+                (laneId, _, _) -> slots.get(laneId).restart(),
                 with.scheduler());
         var hosting = new Hosting(
                 with.clients(),
@@ -195,14 +191,12 @@ public final class SimulatorLanePool extends RosterBackedLaneProvider {
         public void close(String laneId, UUID caseKey, Set<LaneService> services) {
             var slot = slots.get(laneId);
             slot.running().ifPresent(runtime -> contexts(slot, runtime).close(laneId, caseKey, services));
-            slot.released();
         }
 
         @Override
         public void closeAnyOpen(String laneId) {
             var slot = slots.get(laneId);
             slot.running().ifPresent(runtime -> contexts(slot, runtime).closeAnyOpen(laneId));
-            slot.released();
         }
 
         private HttpLaneContexts contexts(SimulatorSlot slot, SlotRuntime runtime) {

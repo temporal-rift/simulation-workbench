@@ -66,7 +66,10 @@ final class SimulatorSlot {
         return Optional.ofNullable(runtime);
     }
 
-    /** The hosted case was closed and the slot is free; it stops its services once it stays idle long enough. */
+    /**
+     * The hosted case is over; the slot stops its services once it stays idle long enough. Called before the lane is
+     * given back, so no later case can be mistaken for idleness.
+     */
     synchronized void released() {
         hosting = false;
         if (idleTimeout.isZero() || runtime == null) {

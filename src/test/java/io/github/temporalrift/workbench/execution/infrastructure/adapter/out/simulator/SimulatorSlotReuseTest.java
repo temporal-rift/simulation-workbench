@@ -136,7 +136,9 @@ class SimulatorSlotReuseTest {
         scheduler.runAll();
         var lane = pool.acquire(pool.freeLanes().get("simulator-1"), null).orElseThrow();
 
-        assertThatThrownBy(() -> lane.open(context()))
+        var context = context();
+
+        assertThatThrownBy(() -> lane.open(context))
                 .isInstanceOf(LaneNotCleanException.class)
                 .hasMessageContaining("game-service");
         var unclean = pool.slot("simulator-1").running().orElseThrow();
@@ -151,12 +153,32 @@ class SimulatorSlotReuseTest {
         assertThat(pool.freeLanes()).containsOnlyKeys("simulator-1");
     }
 
+    @Test
+    void aCaseThatNoServiceAcceptedStillLetsTheIdleSlotStop() {
+        pool = pool(UNCONTROLLED, Map.of(), Duration.ofMinutes(10));
+        pool.prepare();
+        scheduler.runAll();
+        var lane = pool.acquire(pool.freeLanes().get("simulator-1"), null).orElseThrow();
+        var context = context();
+        assertThatThrownBy(() -> lane.open(context)).isInstanceOf(AttemptFailedException.class);
+        assertThat(pool.slot("simulator-1").running())
+                .as("the refused case started the services")
+                .isPresent();
+
+        lane.close();
+        scheduler.runAll();
+
+        assertThat(pool.slot("simulator-1").running()).isEmpty();
+        assertThat(pool.freeLanes()).containsOnlyKeys("simulator-1");
+    }
+
     /** Plays one case, which the stand-ins end right after it is configured; returns the services it ran on. */
     private SlotRuntime play() {
         pool.prepare();
         scheduler.runAll();
         var lane = pool.acquire(pool.freeLanes().get("simulator-1"), null).orElseThrow();
-        assertThatThrownBy(() -> lane.open(context())).isInstanceOf(AttemptFailedException.class);
+        var context = context();
+        assertThatThrownBy(() -> lane.open(context)).isInstanceOf(AttemptFailedException.class);
         var played = pool.slot("simulator-1").running().orElseThrow();
         lane.close();
         scheduler.runAll();
@@ -186,6 +208,10 @@ class SimulatorSlotReuseTest {
     }
 
     private SimulatorLanePool pool(String startClass, Map<String, String> configuration) {
+        return pool(startClass, configuration, Duration.ZERO);
+    }
+
+    private SimulatorLanePool pool(String startClass, Map<String, String> configuration, Duration idleTimeout) {
         var game = jarPath("game", startClass, configuration);
         var timeline = jarPath("timeline", startClass, configuration);
         var read = jarPath("read", startClass, configuration);
@@ -211,7 +237,7 @@ class SimulatorSlotReuseTest {
                         rules,
                         directory.resolve("work"),
                         SimulatorBots.derived(6),
-                        Duration.ZERO,
+                        idleTimeout,
                         BUNDLE,
                         declared),
                 new SimulatorLanePool.Collaborators(
