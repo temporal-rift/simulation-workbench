@@ -28,11 +28,15 @@ import io.github.temporalrift.workbench.experiment.ExperimentManifests;
 import io.github.temporalrift.workbench.experiment.application.port.in.CreateExperimentUseCase;
 
 /**
- * Plays real games on the simulator and checks that the services of the cases that ended are gone from the JVM: once
- * every case is over no slot is running, so after a full collection no class loader of a hosted service may be left,
- * however many cases were played.
+ * Plays real games on the simulator and checks what stays in the JVM. A slot keeps its three services across cases, so
+ * after a full collection at most three hosted-service class loaders per slot are live, however many cases were
+ * played; once the slots stop their idle services, none is left.
  */
-@SpringBootTest(properties = "workbench.simulator.slots=" + SimulatorClassLoaderReleaseIT.SLOTS)
+@SpringBootTest(
+        properties = {
+            "workbench.simulator.slots=" + SimulatorClassLoaderReleaseIT.SLOTS,
+            "workbench.simulator.idle-timeout=5s"
+        })
 @ActiveProfiles("test")
 @Import({TestcontainersConfiguration.class, TestSecurityConfig.class})
 @EnabledIfSystemProperty(named = SimulatorBuilds.DIRECTORY_PROPERTY, matches = ".+")
@@ -69,18 +73,22 @@ class SimulatorClassLoaderReleaseIT {
     }
 
     @Test
-    void theServicesOfEveryCasePlayedAreCollectedOnceTheirSlotsStop() {
+    void aSlotKeepsThreeServiceLoadersAcrossCasesAndNoneOnceItStops() throws Exception {
         var run = play.start(workload());
         play.drain(run, SLOTS);
 
         assertThat(play.states(run).values()).hasSize(SEEDS * 3).containsOnly("SUCCEEDED");
+        System.gc();
+        assertThat(liveServiceClassLoaders())
+                .as("service class loaders after %d cases on %d slots", SEEDS * 3, SLOTS)
+                .isLessThanOrEqualTo(3L * SLOTS);
         Awaitility.await()
-                .atMost(Duration.ofSeconds(30))
+                .atMost(Duration.ofSeconds(60))
                 .pollInterval(Duration.ofMillis(500))
                 .untilAsserted(() -> {
                     System.gc();
                     assertThat(liveServiceClassLoaders())
-                            .as("service class loaders left after a full collection")
+                            .as("service class loaders left once the idle slots stopped")
                             .isZero();
                 });
     }
