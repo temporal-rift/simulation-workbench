@@ -54,8 +54,11 @@ public class LaneRoster {
         }
     }
 
-    /** What has to be undone before a lane is offered again; no case key means whichever context is open. */
-    /** @param reset whether the lane must be reset whatever the close answers */
+    /**
+     * What has to be undone before a lane is offered again; no case key means whichever context is open.
+     *
+     * @param reset whether the lane must be reset whatever the close answers
+     */
     private record Release(Member lane, UUID caseKey, Set<LaneService> services, UUID idempotencyKey, boolean reset) {}
 
     public LaneRoster(List<Member> members, LaneContexts contexts, LaneResets resets, ResetScheduler scheduler) {

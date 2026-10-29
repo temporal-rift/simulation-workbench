@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.lang.ref.WeakReference;
 import java.time.Duration;
 import java.util.List;
+import java.util.Objects;
 
 import org.awaitility.Awaitility;
 
@@ -20,7 +21,7 @@ final class ClassLoaders {
                 .pollInterval(Duration.ofMillis(200))
                 .untilAsserted(() -> {
                     System.gc();
-                    assertThat(loaders.stream().map(WeakReference::get).filter(loader -> loader != null))
+                    assertThat(loaders.stream().map(WeakReference::get).filter(Objects::nonNull))
                             .as("service class loaders still reachable after a full collection")
                             .isEmpty();
                 });

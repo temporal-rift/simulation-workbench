@@ -32,6 +32,9 @@ final class SlotRuntime implements AutoCloseable {
 
     private static final Logger LOG = LoggerFactory.getLogger(SlotRuntime.class);
 
+    /** Registers each service's execution controls, which a slot closes every case through. */
+    private static final String SIMULATION_DEPLOYMENT = "game.simulation.enabled=true";
+
     /** Spring Boot DevTools' listener, present only while the workbench runs from its development classpath. */
     private static final String RESTART_LISTENER =
             "org.springframework.boot.devtools.restart.RestartApplicationListener";
@@ -94,9 +97,9 @@ final class SlotRuntime implements AutoCloseable {
         parent.refresh();
         var children = new ArrayList<Hosted>();
         try (var startup = new Startup(router, parent, children)) {
-            var read = host(build.read(), parent, children, "game.simulation.enabled=true");
-            var timeline = host(build.timeline(), parent, children, "game.simulation.enabled=true");
-            var game = host(build.game(), parent, children, "game.simulation.enabled=true");
+            var read = host(build.read(), parent, children, SIMULATION_DEPLOYMENT);
+            var timeline = host(build.timeline(), parent, children, SIMULATION_DEPLOYMENT);
+            var game = host(build.game(), parent, children, SIMULATION_DEPLOYMENT);
             router.bind(Map.of(
                     SlotEventRouter.GAME_SERVICE, delivery(game),
                     SlotEventRouter.TIMELINE_SERVICE, delivery(timeline),

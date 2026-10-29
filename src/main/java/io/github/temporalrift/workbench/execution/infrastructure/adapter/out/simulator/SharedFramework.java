@@ -137,6 +137,8 @@ final class SharedFramework {
             }
         }
 
+        // The framework keeps these caches private and offers no way to evict them, so reflection is the only way in.
+        @SuppressWarnings("java:S3011")
         private Object cache() throws ReflectiveOperationException {
             Field field = ClassUtils.forName(owner, SharedFramework.class.getClassLoader())
                     .getDeclaredField(name);
