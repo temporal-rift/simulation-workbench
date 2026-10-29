@@ -1,6 +1,6 @@
 package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.simulator;
 
-import java.lang.reflect.Field;
+import java.lang.invoke.MethodHandles;
 import java.util.Map;
 
 import io.prometheus.metrics.core.util.Scheduler;
@@ -137,13 +137,12 @@ final class SharedFramework {
             }
         }
 
-        // The framework keeps these caches private and offers no way to evict them, so reflection is the only way in.
-        @SuppressWarnings("java:S3011")
+        /** Reads the field through a private lookup into its class, as nothing outside the framework may name it. */
         private Object cache() throws ReflectiveOperationException {
-            Field field = ClassUtils.forName(owner, SharedFramework.class.getClassLoader())
-                    .getDeclaredField(name);
-            field.setAccessible(true);
-            return field.get(null);
+            var type = ClassUtils.forName(owner, SharedFramework.class.getClassLoader());
+            return MethodHandles.privateLookupIn(type, MethodHandles.lookup())
+                    .unreflectVarHandle(type.getDeclaredField(name))
+                    .get();
         }
     }
 }
