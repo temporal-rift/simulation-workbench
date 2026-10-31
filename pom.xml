@@ -69,7 +69,7 @@
         <session-api.version>3.0.0</session-api.version>
         <action-api.version>7.1.0</action-api.version>
         <scoring-api.version>2.0.1</scoring-api.version>
-        <projection-api.version>10.1.1</projection-api.version>
+        <projection-api.version>10.1.2</projection-api.version>
         <archunit-junit5.version>1.5.1</archunit-junit5.version>
         <!-- Not managed by temporal-rift-bom; pinned directly like the other test-only tooling. -->
         <playwright.version>1.64.0</playwright.version>
