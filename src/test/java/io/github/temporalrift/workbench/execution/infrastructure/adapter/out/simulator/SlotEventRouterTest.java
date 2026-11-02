@@ -148,6 +148,31 @@ class SlotEventRouterTest {
     }
 
     @Test
+    void closingReleasesTheRetainedRecords() {
+        bindAll();
+        router.publish(message(SlotEventRouter.GAME_EVENTS, "a"));
+        router.publish(message(SlotEventRouter.TIMELINE_EVENTS, "b"));
+        awaitIdle();
+
+        router.close();
+
+        assertThat(router.routed(SlotEventRouter.GAME_EVENTS, 0)).isEmpty();
+        assertThat(router.routed(SlotEventRouter.TIMELINE_EVENTS, 0)).isEmpty();
+    }
+
+    @Test
+    void aRecordPublishedAfterTheRouterClosedIsDropped() {
+        bindAll();
+        router.close();
+
+        router.publish(message(SlotEventRouter.GAME_EVENTS, "late"));
+
+        assertThat(router.idle()).isTrue();
+        assertThat(router.routed(SlotEventRouter.GAME_EVENTS, 0)).isEmpty();
+        assertThat(timeline.payloads()).isEmpty();
+    }
+
+    @Test
     void aRecordOnAnUnknownTopicIsRefused() {
         var unknown = message("other.events", "x");
 
