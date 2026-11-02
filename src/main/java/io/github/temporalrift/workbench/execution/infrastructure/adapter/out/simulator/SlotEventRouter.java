@@ -17,8 +17,8 @@ import io.github.temporalrift.workbench.execution.LaneService;
 /**
  * Carries the records the services of one slot publish to the services that consume them, as the broker would for one
  * game: a record reaches a consuming service once, after the one before it on the same topic returned from that
- * service, and a record is never offered to the service that published its topic. Every record is also retained, so
- * an observer reads what was routed from any offset.
+ * service, and a record is never offered to the service that published its topic. Every record is also retained until
+ * the router closes, so an observer reads what was routed from any offset; closing releases them.
  */
 final class SlotEventRouter implements AutoCloseable {
 
@@ -69,11 +69,15 @@ final class SlotEventRouter implements AutoCloseable {
         }
     }
 
+    /** Guards {@code log}, {@code deliveries}, {@code bound} and {@code closed}; never held while a service runs. */
+    private final Object lock = new Object();
+
     private final Map<String, List<Routed>> log = new HashMap<>();
     private final Map<String, List<Delivery>> deliveries = new HashMap<>();
     private final AtomicInteger pending = new AtomicInteger();
     private final AtomicReference<RuntimeException> failure = new AtomicReference<>();
     private boolean bound;
+    private boolean closed;
 
     /** One consuming service's queue of one topic: a single thread, so records arrive in publication order. */
     private final class Delivery {
@@ -116,7 +120,10 @@ final class SlotEventRouter implements AutoCloseable {
         if (!CONSUMERS.containsKey(topic)) {
             throw new IllegalArgumentException("A record was published on the unknown topic " + topic);
         }
-        synchronized (this) {
+        synchronized (lock) {
+            if (closed) {
+                return;
+            }
             var onTopic = log.computeIfAbsent(topic, _ -> new ArrayList<>());
             var routed = new Routed(
                     topic,
@@ -135,15 +142,17 @@ final class SlotEventRouter implements AutoCloseable {
      * Starts delivering to the services' entries. Records published while the services were still starting are
      * delivered first, in publication order.
      */
-    synchronized void bind(Map<String, Consumer<Map<String, Object>>> entries) {
-        CONSUMERS.forEach((topic, services) -> deliveries.put(
-                topic,
-                services.stream()
-                        .map(service -> new Delivery(topic, service, entries.get(service)))
-                        .toList()));
-        bound = true;
-        log.forEach((topic, records) ->
-                records.forEach(item -> deliveries.get(topic).forEach(delivery -> delivery.offer(item))));
+    void bind(Map<String, Consumer<Map<String, Object>>> entries) {
+        synchronized (lock) {
+            CONSUMERS.forEach((topic, services) -> deliveries.put(
+                    topic,
+                    services.stream()
+                            .map(service -> new Delivery(topic, service, entries.get(service)))
+                            .toList()));
+            bound = true;
+            log.forEach((topic, records) ->
+                    records.forEach(item -> deliveries.get(topic).forEach(delivery -> delivery.offer(item))));
+        }
     }
 
     /** Whether every routed record has been delivered to every consuming service. */
@@ -157,13 +166,19 @@ final class SlotEventRouter implements AutoCloseable {
     }
 
     /** The records routed on {@code topic} from {@code offset} on. */
-    synchronized List<Routed> routed(String topic, long offset) {
-        var onTopic = log.getOrDefault(topic, List.of());
-        return List.copyOf(onTopic.subList((int) Math.min(offset, onTopic.size()), onTopic.size()));
+    List<Routed> routed(String topic, long offset) {
+        synchronized (lock) {
+            var onTopic = log.getOrDefault(topic, List.of());
+            return List.copyOf(onTopic.subList((int) Math.min(offset, onTopic.size()), onTopic.size()));
+        }
     }
 
     @Override
-    public synchronized void close() {
-        deliveries.values().forEach(onTopic -> onTopic.forEach(delivery -> delivery.queue.shutdownNow()));
+    public void close() {
+        synchronized (lock) {
+            closed = true;
+            log.clear();
+            deliveries.values().forEach(onTopic -> onTopic.forEach(delivery -> delivery.queue.shutdownNow()));
+        }
     }
 }
