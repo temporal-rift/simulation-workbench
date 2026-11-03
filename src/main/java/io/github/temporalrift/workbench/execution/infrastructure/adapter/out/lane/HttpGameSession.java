@@ -129,6 +129,9 @@ public class HttpGameSession implements GameSession {
     /** A settled game: the checkpoints and every seat's state (in seat order) read by the settling check. */
     private record Settled(Checkpoints checkpoints, List<PlayerGameStateResponse> states) {}
 
+    /** One pass over the barriers: what it read, and whether both barriers were met. */
+    private record Read(Checkpoints checkpoints, List<PlayerGameStateResponse> states, boolean barrierMet) {}
+
     /** One projection check: whether it is settled, and the states it read. */
     private record Projection(boolean settled, List<PlayerGameStateResponse> states) {}
 
@@ -257,37 +260,46 @@ public class HttpGameSession implements GameSession {
         List<PlayerGameStateResponse> previous = null;
         try {
             while (true) {
-                var checkpoints = timed(LaneWaits.Kind.CAUSAL_BARRIER, this::readCheckpoints, spent);
-                var drained = checkpoints.drained();
-                var projection = timed(
-                        LaneWaits.Kind.PROJECTION_BARRIER,
-                        () -> drained ? projectionSettled(checkpoints) : new Projection(false, List.of()),
-                        spent);
-                var barrierMet = drained && projection.settled();
-                if (barrierMet && projection.states().equals(previous)) {
-                    settled = new Settled(checkpoints, projection.states());
-                    return Optional.of(settled);
-                }
+                var read = readOnce(spent);
                 // The seats are read one after another, so the projection can move between two reads; only a
                 // snapshot that a second full read repeats is one the game actually held.
-                previous = barrierMet ? projection.states() : null;
+                if (read.barrierMet() && read.states().equals(previous)) {
+                    settled = new Settled(read.checkpoints(), read.states());
+                    return Optional.of(settled);
+                }
+                var confirming = read.barrierMet() && previous == null;
+                previous = read.barrierMet() ? read.states() : null;
+                if (confirming) {
+                    // A met barrier is always confirmed at once, even when the first read used up the budget.
+                    continue;
+                }
                 if (waits.now() - started >= barrier.timeout().toNanos()) {
                     return Optional.empty();
                 }
-                if (barrierMet) {
-                    continue;
-                }
-                // The pause is spent on whichever barrier was still unmet.
-                var pausing = waits.now();
-                sleeper.sleep(barrier.pollInterval());
-                spent.add(
-                        drained ? LaneWaits.Kind.PROJECTION_BARRIER : LaneWaits.Kind.CAUSAL_BARRIER,
-                        waits.now() - pausing);
+                pause(read.checkpoints().drained(), spent);
             }
         } finally {
             waits.waited(LaneWaits.Kind.CAUSAL_BARRIER, spent.causal);
             waits.waited(LaneWaits.Kind.PROJECTION_BARRIER, spent.projection);
         }
+    }
+
+    /** One pass over both barriers: the checkpoints, then, once they are drained, every seat's projected state. */
+    private Read readOnce(Spent spent) {
+        var checkpoints = timed(LaneWaits.Kind.CAUSAL_BARRIER, this::readCheckpoints, spent);
+        var drained = checkpoints.drained();
+        var projection = timed(
+                LaneWaits.Kind.PROJECTION_BARRIER,
+                () -> drained ? projectionSettled(checkpoints) : new Projection(false, List.of()),
+                spent);
+        return new Read(checkpoints, projection.states(), drained && projection.settled());
+    }
+
+    /** The pause is spent on whichever barrier was still unmet. */
+    private void pause(boolean drained, Spent spent) {
+        var pausing = waits.now();
+        sleeper.sleep(barrier.pollInterval());
+        spent.add(drained ? LaneWaits.Kind.PROJECTION_BARRIER : LaneWaits.Kind.CAUSAL_BARRIER, waits.now() - pausing);
     }
 
     /** Runs one barrier check, charging its duration to the barrier even when the check throws. */

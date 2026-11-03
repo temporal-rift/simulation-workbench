@@ -28,6 +28,8 @@ import io.micrometer.core.instrument.simple.SimpleConfig;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -136,6 +138,11 @@ class HttpGameSessionTest {
     @Test
     void anIterationThatSettlesReadsEachCheckpointAndEachSeatTwiceToConfirmTheSnapshot() {
         var once = session;
+        // Each production read returns a separate response, so the confirming read compares equal copies.
+        projections
+                .values()
+                .forEach(projection ->
+                        when(projection.getGameState(GAME)).thenAnswer(_ -> ResponseEntity.ok(handSelection())));
 
         assertThat(once.poll()).isEqualTo(new GameProgress.Open(List.of(0, 1, 2)));
 
@@ -157,15 +164,30 @@ class HttpGameSessionTest {
         projections.values().forEach(projection -> verify(projection, times(2)).getGameState(GAME));
     }
 
-    @Test
-    void aRoundOpeningDuringTheSeatReadsIsNotReportedInPart() {
+    @ParameterizedTest
+    @ValueSource(ints = {0, 1, 2})
+    void aRoundOpeningDuringTheSeatReadsIsNotReportedInPart(int lateSeat) {
         var before = ProjectionStates.base(Phase.RESOLUTION, 1);
-        when(projections.get(0).getGameState(GAME))
+        when(projections.get(lateSeat).getGameState(GAME))
                 .thenReturn(ResponseEntity.ok(before), ResponseEntity.ok(handSelection()));
 
         assertThat(session.poll()).isEqualTo(new GameProgress.Open(List.of(0, 1, 2)));
 
-        verify(projections.get(0), times(3)).getGameState(GAME);
+        verify(projections.get(lateSeat), times(3)).getGameState(GAME);
+    }
+
+    @Test
+    void aFirstReadThatUsesUpTheBarrierBudgetIsStillConfirmed() {
+        projections
+                .values()
+                .forEach(projection -> when(projection.getGameState(GAME)).thenAnswer(_ -> {
+                    clock.add(Duration.ofSeconds(1));
+                    return ResponseEntity.ok(handSelection());
+                }));
+
+        assertThat(session.poll()).isEqualTo(new GameProgress.Open(List.of(0, 1, 2)));
+
+        assertThat(sleeps.get()).isZero();
     }
 
     @Test
