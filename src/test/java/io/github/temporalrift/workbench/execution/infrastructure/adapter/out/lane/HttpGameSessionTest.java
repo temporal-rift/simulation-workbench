@@ -28,6 +28,8 @@ import io.micrometer.core.instrument.simple.SimpleConfig;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -134,14 +136,19 @@ class HttpGameSessionTest {
     }
 
     @Test
-    void anIterationThatSettlesReadsEachCheckpointAndEachSeatOnce() {
+    void anIterationThatSettlesReadsEachCheckpointAndEachSeatTwiceToConfirmTheSnapshot() {
         var once = session;
+        // Each production read returns a separate response, so the confirming read compares equal copies.
+        projections
+                .values()
+                .forEach(projection ->
+                        when(projection.getGameState(GAME)).thenAnswer(_ -> ResponseEntity.ok(handSelection())));
 
         assertThat(once.poll()).isEqualTo(new GameProgress.Open(List.of(0, 1, 2)));
 
-        verify(gameControl, times(1)).getSimulationCheckpoint();
-        verify(timelineControl, times(1)).getSimulationCheckpoint();
-        projections.values().forEach(projection -> verify(projection, times(1)).getGameState(GAME));
+        verify(gameControl, times(2)).getSimulationCheckpoint();
+        verify(timelineControl, times(2)).getSimulationCheckpoint();
+        projections.values().forEach(projection -> verify(projection, times(2)).getGameState(GAME));
     }
 
     @Test
@@ -152,9 +159,48 @@ class HttpGameSessionTest {
 
         assertThat(once.ending()).isPresent();
 
-        verify(gameControl, times(1)).getSimulationCheckpoint();
-        verify(timelineControl, times(1)).getSimulationCheckpoint();
-        projections.values().forEach(projection -> verify(projection, times(1)).getGameState(GAME));
+        verify(gameControl, times(2)).getSimulationCheckpoint();
+        verify(timelineControl, times(2)).getSimulationCheckpoint();
+        projections.values().forEach(projection -> verify(projection, times(2)).getGameState(GAME));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 1, 2})
+    void aRoundOpeningDuringTheSeatReadsIsNotReportedInPart(int lateSeat) {
+        var before = ProjectionStates.base(Phase.RESOLUTION, 1);
+        when(projections.get(lateSeat).getGameState(GAME))
+                .thenReturn(ResponseEntity.ok(before), ResponseEntity.ok(handSelection()));
+
+        assertThat(session.poll()).isEqualTo(new GameProgress.Open(List.of(0, 1, 2)));
+
+        verify(projections.get(lateSeat), times(3)).getGameState(GAME);
+    }
+
+    @Test
+    void aFirstReadThatUsesUpTheBarrierBudgetIsStillConfirmed() {
+        projections
+                .values()
+                .forEach(projection -> when(projection.getGameState(GAME)).thenAnswer(_ -> {
+                    clock.add(Duration.ofSeconds(1));
+                    return ResponseEntity.ok(handSelection());
+                }));
+
+        assertThat(session.poll()).isEqualTo(new GameProgress.Open(List.of(0, 1, 2)));
+
+        assertThat(sleeps.get()).isZero();
+    }
+
+    @Test
+    void readsThatNeverAgreeAreNotSettledOnceTheBarrierTimeoutElapses() {
+        var reads = new AtomicInteger();
+        when(projections.get(0).getGameState(GAME)).thenAnswer(_ -> {
+            clock.add(POLL);
+            var state = ProjectionStates.base(Phase.RESOLUTION, 1);
+            state.setRevision(reads.incrementAndGet());
+            return ResponseEntity.ok(state);
+        });
+
+        assertThat(session.poll()).isInstanceOf(GameProgress.Waiting.class);
     }
 
     @Test
@@ -177,8 +223,8 @@ class HttpGameSessionTest {
         var advance = ArgumentCaptor.forClass(ClockAdvance.class);
         verify(gameControl).advanceSimulationClock(advance.capture());
         assertThat(advance.getValue().getExpectedRevision()).isEqualTo(4L);
-        verify(gameControl, times(1)).getSimulationCheckpoint();
-        verify(timelineControl, times(1)).getSimulationCheckpoint();
+        verify(gameControl, times(2)).getSimulationCheckpoint();
+        verify(timelineControl, times(2)).getSimulationCheckpoint();
     }
 
     @Test
@@ -195,11 +241,11 @@ class HttpGameSessionTest {
         once.poll();
         once.logicalTime();
         once.logicalTime();
-        verify(gameControl, times(1)).getSimulationCheckpoint();
+        verify(gameControl, times(2)).getSimulationCheckpoint();
 
         once.advanceClock();
         once.logicalTime();
-        verify(gameControl, times(2)).getSimulationCheckpoint();
+        verify(gameControl, times(3)).getSimulationCheckpoint();
     }
 
     @Test

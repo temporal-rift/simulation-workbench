@@ -26,6 +26,7 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 final class ProjectionStates {
 
     static final UUID GAME = id(0xA1);
+    private static final OffsetDateTime SELECTION_DEADLINE = OffsetDateTime.parse("2026-01-01T00:00:00Z");
     static final UUID ME = id(1);
     static final UUID OTHER_A = id(2);
     static final UUID OTHER_B = id(3);
@@ -79,7 +80,7 @@ final class ProjectionStates {
             deal.add(new DealtHandCard(id(100 + slot), types.get(slot), CardGrade.II, slot + 1));
         }
         state.setPendingHandSelection(new PendingHandSelection(
-                deal, PendingHandSelection.RequiredSelectionCountEnum.NUMBER_5, OffsetDateTime.now()));
+                deal, PendingHandSelection.RequiredSelectionCountEnum.NUMBER_5, SELECTION_DEADLINE));
         return state;
     }
 
