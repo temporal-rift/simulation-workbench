@@ -254,6 +254,7 @@ public class HttpGameSession implements GameSession {
         settled = null;
         var spent = new Spent();
         var started = waits.now();
+        List<PlayerGameStateResponse> previous = null;
         try {
             while (true) {
                 var checkpoints = timed(LaneWaits.Kind.CAUSAL_BARRIER, this::readCheckpoints, spent);
@@ -262,12 +263,19 @@ public class HttpGameSession implements GameSession {
                         LaneWaits.Kind.PROJECTION_BARRIER,
                         () -> drained ? projectionSettled(checkpoints) : new Projection(false, List.of()),
                         spent);
-                if (drained && projection.settled()) {
+                var barrierMet = drained && projection.settled();
+                if (barrierMet && projection.states().equals(previous)) {
                     settled = new Settled(checkpoints, projection.states());
                     return Optional.of(settled);
                 }
+                // The seats are read one after another, so the projection can move between two reads; only a
+                // snapshot that a second full read repeats is one the game actually held.
+                previous = barrierMet ? projection.states() : null;
                 if (waits.now() - started >= barrier.timeout().toNanos()) {
                     return Optional.empty();
+                }
+                if (barrierMet) {
+                    continue;
                 }
                 // The pause is spent on whichever barrier was still unmet.
                 var pausing = waits.now();
