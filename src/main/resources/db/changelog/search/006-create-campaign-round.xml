@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+  <changeSet id="006-create-campaign-round" author="simulation-workbench">
+    <!-- What each decided round left standing: the survivors in rank order and the short list after the round. -->
+    <createTable tableName="campaign_round">
+      <column name="campaign_id" type="UUID">
+        <constraints nullable="false" foreignKeyName="fk_campaign_round_campaign" references="campaign(campaign_id)"/>
+      </column>
+      <column name="round" type="INT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="survivors_json" type="TEXT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="short_list_json" type="TEXT">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+    <addPrimaryKey tableName="campaign_round" columnNames="campaign_id, round" constraintName="pk_campaign_round"/>
+  </changeSet>
+</databaseChangeLog>

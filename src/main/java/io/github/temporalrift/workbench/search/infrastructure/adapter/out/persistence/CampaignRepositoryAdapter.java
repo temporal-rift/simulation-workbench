@@ -23,6 +23,7 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.JsonNode;
 
 import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignChange;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignClaim;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignCreation;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
@@ -32,6 +33,7 @@ import io.github.temporalrift.workbench.search.domain.campaign.StoredCampaign;
 import io.github.temporalrift.workbench.search.domain.candidate.Candidate;
 import io.github.temporalrift.workbench.search.domain.log.LogEntry;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRepository;
+import io.github.temporalrift.workbench.search.domain.round.RoundResult;
 import io.github.temporalrift.workbench.search.domain.wave.Game;
 import io.github.temporalrift.workbench.search.domain.wave.Wave;
 import io.github.temporalrift.workbench.shared.Page;
@@ -90,6 +92,9 @@ class CampaignRepositoryAdapter implements CampaignRepository {
 
     private static final Table<Record> GAME = DSL.table(DSL.name("campaign_game"));
     private static final Field<String> SEED = DSL.field(DSL.name("seed"), SQLDataType.VARCHAR);
+
+    private static final Table<Record> ROUND_RESULT = DSL.table(DSL.name("campaign_round"));
+    private static final Field<String> SURVIVORS = DSL.field(DSL.name("survivors_json"), SQLDataType.CLOB);
 
     private static final Table<Record> LOG = DSL.table(DSL.name("campaign_log_entry"));
     private static final Field<Integer> SEQUENCE = DSL.field(DSL.name("sequence"), SQLDataType.INTEGER);
@@ -202,6 +207,45 @@ class CampaignRepositoryAdapter implements CampaignRepository {
                         .and(VERSION.eq(expectedVersion))
                         .execute()
                 == 1;
+    }
+
+    @Override
+    @Transactional
+    public boolean apply(CampaignChange change) {
+        if (!save(change.next(), change.accruedAt(), change.expectedVersion())) {
+            return false;
+        }
+        var campaignId = change.next().campaignId();
+        insertCandidates(campaignId, change.candidates());
+        change.waves().forEach(wave -> insertWave(campaignId, wave));
+        insertGames(campaignId, change.games());
+        appendLog(campaignId, change.log());
+        if (change.round() != null) {
+            insertRound(campaignId, change.round());
+        }
+        return true;
+    }
+
+    private void insertRound(UUID campaignId, RoundResult result) {
+        dsl.insertInto(ROUND_RESULT)
+                .set(CAMPAIGN_ID, campaignId)
+                .set(ROUND, result.round())
+                .set(SURVIVORS, json.write(result.survivors()))
+                .set(SHORT_LIST, json.write(result.shortList()))
+                .onConflictDoNothing()
+                .execute();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<RoundResult> rounds(UUID campaignId) {
+        return dsl.selectFrom(ROUND_RESULT)
+                .where(CAMPAIGN_ID.eq(campaignId))
+                .orderBy(ROUND.asc())
+                .fetch(row -> new RoundResult(
+                        row.get(ROUND),
+                        json.read(row.get(SURVIVORS), STRINGS),
+                        json.read(row.get(SHORT_LIST), STRINGS)));
     }
 
     @Override

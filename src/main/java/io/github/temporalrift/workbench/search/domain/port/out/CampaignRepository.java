@@ -6,12 +6,14 @@ import java.util.Optional;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignChange;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignClaim;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignCreation;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
 import io.github.temporalrift.workbench.search.domain.campaign.StoredCampaign;
 import io.github.temporalrift.workbench.search.domain.candidate.Candidate;
 import io.github.temporalrift.workbench.search.domain.log.LogEntry;
+import io.github.temporalrift.workbench.search.domain.round.RoundResult;
 import io.github.temporalrift.workbench.search.domain.wave.Game;
 import io.github.temporalrift.workbench.search.domain.wave.Wave;
 import io.github.temporalrift.workbench.shared.Page;
@@ -40,6 +42,16 @@ public interface CampaignRepository {
      * no longer {@code expectedVersion}, because another step wrote first.
      */
     boolean save(Campaign next, Instant accruedAt, long expectedVersion);
+
+    /**
+     * Applies a step: the campaign's next value and everything the step records, all or nothing. False, with nothing
+     * stored, when the campaign is no longer at the version the step started from. Records the campaign already has
+     * are kept as they are.
+     */
+    boolean apply(CampaignChange change);
+
+    /** What each decided round left standing, in round order. */
+    List<RoundResult> rounds(UUID campaignId);
 
     /** Stores candidates the campaign does not have yet; ones it already has are left as they are. */
     void insertCandidates(UUID campaignId, List<Candidate> candidates);

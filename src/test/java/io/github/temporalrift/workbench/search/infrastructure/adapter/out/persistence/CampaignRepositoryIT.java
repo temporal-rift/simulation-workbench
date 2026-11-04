@@ -21,6 +21,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 import io.github.temporalrift.workbench.WorkbenchIntegrationTest;
 import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignChange;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignClaim;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignCreation;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
@@ -30,6 +31,7 @@ import io.github.temporalrift.workbench.search.domain.campaign.SearchAlgorithm;
 import io.github.temporalrift.workbench.search.domain.candidate.Candidate;
 import io.github.temporalrift.workbench.search.domain.log.LogEntry;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRepository;
+import io.github.temporalrift.workbench.search.domain.round.RoundResult;
 import io.github.temporalrift.workbench.search.domain.wave.Game;
 import io.github.temporalrift.workbench.search.domain.wave.Wave;
 
@@ -47,6 +49,7 @@ class CampaignRepositoryIT {
     @BeforeEach
     @AfterEach
     void clean() {
+        jdbc.update("DELETE FROM campaign_round");
         jdbc.update("DELETE FROM campaign_log_entry");
         jdbc.update("DELETE FROM campaign_game");
         jdbc.update("DELETE FROM campaign_wave");
@@ -185,6 +188,47 @@ class CampaignRepositoryIT {
                         new Game("c-0000", "43", 0),
                         new Game("c-0001", "42", 0),
                         new Game("c-0001", "44", 0));
+    }
+
+    @Test
+    void aStepAppliesEverythingItRecordsOrNothing() {
+        var campaign = queued("steps", NOW);
+        store(campaign, NOW);
+        var id = campaign.campaignId();
+        var running = repository.find(id).orElseThrow();
+        var candidate = new Candidate("c-0000", 0, List.of(0), new TreeMap<>(), "a".repeat(64), 0);
+        var wave = new Wave(0, 0, UUID.randomUUID(), UUID.randomUUID());
+        var change = CampaignChange.of(running, campaign.start(NOW), NOW)
+                .recording(List.of(candidate), List.of())
+                .playing(wave, List.of(new Game("c-0000", "42", 0)))
+                .deciding(new RoundResult(0, List.of("c-0000"), List.of("c-0000")), List.of());
+
+        assertThat(repository.apply(change)).isTrue();
+
+        assertThat(repository.find(id).orElseThrow().campaign().state()).isEqualTo(CampaignState.RUNNING);
+        assertThat(repository.candidates(id)).hasSize(1);
+        assertThat(repository.waves(id)).containsExactly(wave);
+        assertThat(repository.games(id)).hasSize(1);
+        assertThat(repository.rounds(id)).containsExactly(new RoundResult(0, List.of("c-0000"), List.of("c-0000")));
+    }
+
+    @Test
+    void aStepFromAStaleVersionRecordsNothingAtAll() {
+        var campaign = queued("stale", NOW);
+        store(campaign, NOW);
+        var id = campaign.campaignId();
+        var stale = repository.find(id).orElseThrow();
+        assertThat(repository.save(campaign.pause(), NOW, 0)).isTrue();
+        var candidate = new Candidate("c-0000", 0, List.of(0), new TreeMap<>(), "a".repeat(64), 0);
+        var change = CampaignChange.of(stale, campaign.start(NOW), NOW)
+                .recording(List.of(candidate), List.of())
+                .deciding(new RoundResult(0, List.of("c-0000"), List.of()), List.of());
+
+        assertThat(repository.apply(change)).isFalse();
+
+        assertThat(repository.find(id).orElseThrow().campaign().state()).isEqualTo(CampaignState.PAUSED);
+        assertThat(repository.candidates(id)).isEmpty();
+        assertThat(repository.rounds(id)).isEmpty();
     }
 
     @Test
