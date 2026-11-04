@@ -6,6 +6,7 @@ import { manifestToDraft, saveDraft } from './experiments/draft'
 import { FakeService, problem } from './test/fakeService'
 import { expectNoViolations } from './test/axe'
 import { COMPARISON_ID, IDS, comparison, manifest, report, run } from './test/fixtures'
+import { campaign, logEntry, serveCampaigns } from './test/campaignFixtures'
 import { check as fidelityCheck, fidelityCase, gate, serveFidelity } from './test/fidelityFixtures'
 import { renderApp } from './test/renderApp'
 
@@ -31,6 +32,21 @@ describe('accessibility', () => {
     const { container } = await renderApp(path, service)
     await screen.findAllByText(ready, { exact: false })
     await expectNoViolations(container)
+  })
+
+  it('the campaigns page and a campaign with its log have no axe violations', async () => {
+    serveCampaigns(service, {
+      campaigns: [campaign({ state: 'QUEUED', failure: { code: 'FIDELITY_NOT_ESTABLISHED', message: 'No passing record' } })],
+      log: [logEntry(), logEntry({ sequence: 2, decision: 'DISCARDED', reason: 'GATE_FAILS', evidence: { lineIds: ['G-01'] }, evaluation: { verdict: 'REJECTED', score: null } })],
+    })
+    const page = await renderApp('/campaigns', service)
+    await page.findByRole('table', { name: 'Campaigns, newest first' })
+    await expectNoViolations(page.container)
+    page.unmount()
+
+    const detail = await renderApp(`/campaigns/${campaign().campaignId}`, service)
+    await detail.findByRole('table', { name: 'Decisions, in the order they were taken' })
+    await expectNoViolations(detail.container)
   })
 
   it('the fidelity page and a failed check have no axe violations', async () => {

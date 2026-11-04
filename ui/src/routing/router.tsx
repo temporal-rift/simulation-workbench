@@ -6,6 +6,8 @@ import { Navigate, Outlet, createRootRoute, createRoute, createRouter, redirect,
 import * as z from 'zod'
 import { zFidelityCaseResult, zFidelityVariantLabel, zRunState } from '../api/generated/zod.gen'
 import { AppShell } from '../components/AppShell'
+import { CampaignPage } from '../campaigns/CampaignPage'
+import { CampaignsPage } from '../campaigns/CampaignsPage'
 import { ExperimentFormPage } from '../experiments/ExperimentFormPage'
 import { ExperimentPage } from '../experiments/ExperimentPage'
 import { ExperimentsListPage } from '../experiments/ExperimentsListPage'
@@ -146,6 +148,25 @@ const fidelityCheckRoute = createRoute({
   component: FidelityCheckPage,
 })
 
+const campaignsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/campaigns',
+  validateSearch: offsetSearch,
+  component: CampaignsPage,
+})
+
+const campaignRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/campaigns/$campaignId',
+  beforeLoad: ({ params }) => {
+    if (!UUID_PATTERN.test(params.campaignId)) {
+      throw redirect({ to: '/campaigns', replace: true })
+    }
+  },
+  validateSearch: offsetSearch,
+  component: CampaignPage,
+})
+
 /** The fixed OIDC redirect URI. The sign-in gate completes the exchange first, so a visit here has nothing left to do. */
 const authCallbackRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -166,6 +187,8 @@ export const routeTree = rootRoute.addChildren([
   comparisonsRoute,
   comparisonRoute,
   caseRoute,
+  campaignsRoute,
+  campaignRoute,
   fidelityRoute,
   fidelityCheckRoute,
   authCallbackRoute,
