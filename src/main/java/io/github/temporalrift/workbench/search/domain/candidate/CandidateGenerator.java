@@ -131,7 +131,7 @@ public final class CandidateGenerator {
 
     /** The most steps a mutation moves one parameter in {@code round}: shrinks every round, never below one. */
     public static int maxMutationSteps(int round) {
-        return Math.max(1, FIRST_ROUND_MUTATION_STEPS >> Math.min(Math.max(round - 1, 0), 30));
+        return Math.max(1, FIRST_ROUND_MUTATION_STEPS >> Math.clamp(round - 1, 0, 30));
     }
 
     private List<Integer> mutate(List<Integer> parent, int round, SplitMix64 stream) {

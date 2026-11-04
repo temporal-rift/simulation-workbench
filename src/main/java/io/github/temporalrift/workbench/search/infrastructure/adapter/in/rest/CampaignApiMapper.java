@@ -128,6 +128,14 @@ class CampaignApiMapper {
                 page.items().stream().map(CampaignApiMapper::toApi).toList(), Math.toIntExact(page.total()));
     }
 
+    private static CampaignEvaluation toApi(LogEntry.Evaluation evaluation) {
+        if (evaluation == null) {
+            return null;
+        }
+        var score = evaluation.score() == null ? null : BigDecimal.valueOf(evaluation.score());
+        return new CampaignEvaluation(EvaluationVerdict.valueOf(evaluation.verdict()), score);
+    }
+
     private static CampaignLogEntry toApi(LogEntry entry) {
         var overrides = new java.util.LinkedHashMap<String, BigDecimal>();
         entry.overrides().forEach(overrides::put);
@@ -140,13 +148,7 @@ class CampaignApiMapper {
                 new LinkedHashSet<>(entry.seeds()),
                 entry.gamesSpent(),
                 entry.redraws(),
-                entry.evaluation() == null
-                        ? null
-                        : new CampaignEvaluation(
-                                EvaluationVerdict.valueOf(entry.evaluation().verdict()),
-                                entry.evaluation().score() == null
-                                        ? null
-                                        : BigDecimal.valueOf(entry.evaluation().score())),
+                toApi(entry.evaluation()),
                 CampaignLogDecision.valueOf(entry.decision().name()),
                 entry.reason() == null
                         ? null

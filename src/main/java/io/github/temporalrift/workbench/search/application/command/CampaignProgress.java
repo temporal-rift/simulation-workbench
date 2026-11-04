@@ -218,11 +218,17 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
                     return fail(step, RUN_CANCELLED, "Wave " + wave.index() + " was cancelled");
                 }
                 case ACTIVE, INTERRUPTED -> waiting = true;
-                case COMPLETED -> {}
+                case COMPLETED -> {
+                    // every game of the wave is played
+                }
             }
         }
         if (waiting) {
-            return budgetSpent(step) ? concludeOutOfBudget(step, ledger) : saveAccrual(step);
+            if (budgetSpent(step)) {
+                return concludeOutOfBudget(step, ledger);
+            }
+            saveAccrual(step);
+            return false;
         }
         var missing = missingGames(step, ledger);
         if (!missing.candidates.isEmpty()) {
@@ -235,12 +241,10 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
         return step.campaign.budgetSpent();
     }
 
-    private boolean saveAccrual(Step step) {
-        if (step.accruedAt.equals(step.stored.accruedAt())) {
-            return false;
+    private void saveAccrual(Step step) {
+        if (!step.accruedAt.equals(step.stored.accruedAt())) {
+            campaigns.apply(CampaignChange.of(step.stored, step.campaign, step.accruedAt));
         }
-        campaigns.apply(CampaignChange.of(step.stored, step.campaign, step.accruedAt));
-        return false;
     }
 
     private boolean generate(Step step, Ledger ledger) {
@@ -303,8 +307,8 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
         var definition = campaign.definition();
         var casesPerGame = experiments.casesPerGame(definition);
         // A wave holds at most the configured number of cases: first as many seeds as fit, then as many candidates.
-        var seeds = missing.seeds.subList(0, (int)
-                Math.min(missing.seeds.size(), Math.max(1, settings.maxCasesPerWave() / casesPerGame)));
+        var seeds = missing.seeds.subList(
+                0, Math.clamp(settings.maxCasesPerWave() / casesPerGame, 1, missing.seeds.size()));
         var perWave = Math.max(1, settings.maxCasesPerWave() / (casesPerGame * seeds.size()));
         var candidates = missing.candidates.stream().limit(perWave).toList();
         var index = ledger.waves().size();

@@ -190,6 +190,10 @@ class CampaignRepositoryAdapter implements CampaignRepository {
     @Override
     @Transactional
     public boolean save(Campaign next, Instant accruedAt, long expectedVersion) {
+        return update(next, accruedAt, expectedVersion);
+    }
+
+    private boolean update(Campaign next, Instant accruedAt, long expectedVersion) {
         var failure = next.failure();
         return dsl.update(CAMPAIGN)
                         .set(PARALLELISM, next.parallelism())
@@ -212,14 +216,14 @@ class CampaignRepositoryAdapter implements CampaignRepository {
     @Override
     @Transactional
     public boolean apply(CampaignChange change) {
-        if (!save(change.next(), change.accruedAt(), change.expectedVersion())) {
+        if (!update(change.next(), change.accruedAt(), change.expectedVersion())) {
             return false;
         }
         var campaignId = change.next().campaignId();
-        insertCandidates(campaignId, change.candidates());
-        change.waves().forEach(wave -> insertWave(campaignId, wave));
-        insertGames(campaignId, change.games());
-        appendLog(campaignId, change.log());
+        writeCandidates(campaignId, change.candidates());
+        change.waves().forEach(wave -> writeWave(campaignId, wave));
+        writeGames(campaignId, change.games());
+        writeLog(campaignId, change.log());
         if (change.round() != null) {
             insertRound(campaignId, change.round());
         }
@@ -251,6 +255,10 @@ class CampaignRepositoryAdapter implements CampaignRepository {
     @Override
     @Transactional
     public void insertCandidates(UUID campaignId, List<Candidate> candidates) {
+        writeCandidates(campaignId, candidates);
+    }
+
+    private void writeCandidates(UUID campaignId, List<Candidate> candidates) {
         chunks(candidates).forEach(chunk -> {
             var insert = dsl.insertInto(CANDIDATE)
                     .columns(CAMPAIGN_ID, CANDIDATE_ID, ROUND, POINT, OVERRIDES, DIGEST, REDRAWS);
@@ -289,6 +297,10 @@ class CampaignRepositoryAdapter implements CampaignRepository {
     @Override
     @Transactional
     public void insertWave(UUID campaignId, Wave wave) {
+        writeWave(campaignId, wave);
+    }
+
+    private void writeWave(UUID campaignId, Wave wave) {
         dsl.insertInto(WAVE)
                 .set(CAMPAIGN_ID, campaignId)
                 .set(WAVE_INDEX, wave.index())
@@ -311,6 +323,10 @@ class CampaignRepositoryAdapter implements CampaignRepository {
     @Override
     @Transactional
     public void insertGames(UUID campaignId, List<Game> games) {
+        writeGames(campaignId, games);
+    }
+
+    private void writeGames(UUID campaignId, List<Game> games) {
         chunks(games).forEach(chunk -> {
             var insert = dsl.insertInto(GAME).columns(CAMPAIGN_ID, CANDIDATE_ID, SEED, WAVE_INDEX);
             chunk.forEach(game -> insert.values(campaignId, game.candidateId(), game.seed(), game.waveIndex()));
@@ -330,6 +346,10 @@ class CampaignRepositoryAdapter implements CampaignRepository {
     @Override
     @Transactional
     public void appendLog(UUID campaignId, List<LogEntry> entries) {
+        writeLog(campaignId, entries);
+    }
+
+    private void writeLog(UUID campaignId, List<LogEntry> entries) {
         chunks(entries).forEach(chunk -> {
             var insert = dsl.insertInto(LOG).columns(CAMPAIGN_ID, SEQUENCE, ENTRY);
             chunk.forEach(entry -> insert.values(campaignId, entry.sequence(), entry.canonicalJson()));
@@ -368,6 +388,18 @@ class CampaignRepositoryAdapter implements CampaignRepository {
         return new StoredCampaign(campaign, row.get(VERSION), instant(row.get(ACCRUED)));
     }
 
+    private static LogEntry.Evaluation evaluation(JsonNode evaluation) {
+        if (evaluation.isNull()) {
+            return null;
+        }
+        var score = evaluation.path("score");
+        return new LogEntry.Evaluation(evaluation.path("verdict").asString(), score.isNull() ? null : score.asDouble());
+    }
+
+    private static LogEntry.Reason reason(JsonNode reason) {
+        return reason.isNull() ? null : LogEntry.Reason.valueOf(reason.asString());
+    }
+
     private LogEntry entry(String text) {
         var node = json.read(text, JsonNode.class);
         var overrides = new TreeMap<String, BigDecimal>();
@@ -388,17 +420,9 @@ class CampaignRepositoryAdapter implements CampaignRepository {
                 seeds,
                 node.path("gamesSpent").asInt(),
                 node.path("redraws").asInt(),
-                evaluation.isNull()
-                        ? null
-                        : new LogEntry.Evaluation(
-                                evaluation.path("verdict").asString(),
-                                evaluation.path("score").isNull()
-                                        ? null
-                                        : evaluation.path("score").asDouble()),
+                evaluation(evaluation),
                 LogEntry.Decision.valueOf(node.path("decision").asString()),
-                node.path("reason").isNull()
-                        ? null
-                        : LogEntry.Reason.valueOf(node.path("reason").asString()),
+                reason(node.path("reason")),
                 evidence.isNull() ? null : evidence(evidence));
     }
 

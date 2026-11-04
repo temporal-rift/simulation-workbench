@@ -38,10 +38,10 @@ public final class CohortComputation {
 
         @Override
         public boolean equals(Object other) {
-            return other instanceof Replicates that
-                    && Double.compare(point, that.point) == 0
-                    && blocks == that.blocks
-                    && Arrays.equals(values, that.values);
+            return other instanceof Replicates(double otherPoint, int otherBlocks, double[] otherValues)
+                    && Double.compare(point, otherPoint) == 0
+                    && blocks == otherBlocks
+                    && Arrays.equals(values, otherValues);
         }
 
         @Override

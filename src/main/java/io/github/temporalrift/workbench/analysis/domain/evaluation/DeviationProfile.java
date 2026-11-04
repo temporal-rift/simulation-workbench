@@ -2,6 +2,7 @@ package io.github.temporalrift.workbench.analysis.domain.evaluation;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.analysis.domain.AnalysisVersion;
@@ -54,22 +55,22 @@ public final class DeviationProfile {
                 continue;
             }
             var interval = pairedInterval(mine, theirs);
-            if (interval == null || interval[0] < 0) {
+            if (interval.isEmpty() || interval.get()[0] < 0) {
                 return false;
             }
-            strict |= interval[0] > 0;
+            strict |= interval.get()[0] > 0;
         }
         return strict;
     }
 
-    private static double[] pairedInterval(DeviationReplicates mine, DeviationReplicates theirs) {
+    private static Optional<double[]> pairedInterval(DeviationReplicates mine, DeviationReplicates theirs) {
         if (mine.hasData() != theirs.hasData() || mine.values() == null || theirs.values() == null) {
-            return null;
+            return Optional.empty();
         }
         var difference = new double[mine.values().length];
         for (var index = 0; index < difference.length; index++) {
             difference[index] = mine.values()[index] - theirs.values()[index];
         }
-        return BlockBootstrap.interval(difference).orElse(null);
+        return BlockBootstrap.interval(difference);
     }
 }

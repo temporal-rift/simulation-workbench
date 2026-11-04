@@ -16,10 +16,10 @@ record DeviationReplicates(boolean hasData, int blocks, double[] values) {
 
     @Override
     public boolean equals(Object other) {
-        return other instanceof DeviationReplicates that
-                && hasData == that.hasData
-                && blocks == that.blocks
-                && Arrays.equals(values, that.values);
+        return other instanceof DeviationReplicates(boolean otherHasData, int otherBlocks, double[] otherValues)
+                && hasData == otherHasData
+                && blocks == otherBlocks
+                && Arrays.equals(values, otherValues);
     }
 
     @Override

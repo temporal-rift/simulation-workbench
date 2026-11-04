@@ -23,6 +23,7 @@ import io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefus
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignException;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignReason;
 import io.github.temporalrift.workbench.search.domain.campaign.SearchAlgorithm;
+import io.github.temporalrift.workbench.search.domain.candidate.Candidate;
 import io.github.temporalrift.workbench.search.domain.candidate.CandidateGenerator;
 import io.github.temporalrift.workbench.search.domain.candidate.SearchSeeds;
 
@@ -91,8 +92,9 @@ class CampaignExperimentsAdapterTest {
 
     @Test
     void aGridThatCannotBeBuiltIsAPlayRefusal() {
-        assertThatThrownBy(() -> adapter.grid(definition("f".repeat(64), 1)))
-                .isInstanceOf(CampaignPlayRefusedException.class);
+        var unknown = definition("f".repeat(64), 1);
+
+        assertThatThrownBy(() -> adapter.grid(unknown)).isInstanceOf(CampaignPlayRefusedException.class);
     }
 
     @Test
@@ -123,8 +125,7 @@ class CampaignExperimentsAdapterTest {
         var candidates = generator.roundZero();
 
         assertThat(candidates).hasSize(100);
-        assertThat(candidates.stream().map(candidate -> candidate.effectiveRulesDigest()))
-                .doesNotHaveDuplicates();
+        assertThat(candidates.stream().map(Candidate::effectiveRulesDigest)).doesNotHaveDuplicates();
     }
 
     @Test

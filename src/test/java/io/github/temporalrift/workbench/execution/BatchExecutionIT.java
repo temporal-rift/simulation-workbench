@@ -547,7 +547,8 @@ class BatchExecutionIT {
         drain();
 
         assertThatThrownBy(() -> runStarter.setConcurrency(runId, 2)).isInstanceOf(ExecutionRefusedException.class);
-        assertThatThrownBy(() -> runStarter.setConcurrency(UUID.randomUUID(), 2))
+        var unknownRun = UUID.randomUUID();
+        assertThatThrownBy(() -> runStarter.setConcurrency(unknownRun, 2))
                 .isInstanceOf(ExecutionRefusedException.class);
     }
 

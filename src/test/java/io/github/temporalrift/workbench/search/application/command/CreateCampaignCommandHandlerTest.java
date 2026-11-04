@@ -69,8 +69,9 @@ class CreateCampaignCommandHandlerTest {
         var key = UUID.randomUUID();
         create.handle(command(key, "7", "9"));
 
-        assertThatThrownBy(() -> create.handle(command(key, "7", "10")))
-                .isInstanceOf(CampaignIdempotencyConflictException.class);
+        var another = command(key, "7", "10");
+
+        assertThatThrownBy(() -> create.handle(another)).isInstanceOf(CampaignIdempotencyConflictException.class);
     }
 
     @Test

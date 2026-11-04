@@ -75,7 +75,7 @@ public class CampaignRunsAdapter implements CampaignRuns {
         }
         var finished = new HashSet<String>();
         over.forEach((seed, done) -> {
-            if (done) {
+            if (Boolean.TRUE.equals(done)) {
                 finished.add(seed);
             }
         });

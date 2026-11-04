@@ -64,7 +64,7 @@ public class CreateCampaignCommandHandler implements CreateCampaignUseCase {
         var queued = Campaign.queued(UUID.randomUUID(), definition, parallelism, now);
         return switch (campaigns.create(command.idempotencyKey(), hash, queued, now)) {
             case CampaignCreation.Created _ -> queued;
-            case CampaignCreation.Existing existing -> replay(existing.claim(), hash, command.idempotencyKey());
+            case CampaignCreation.Existing(var claim) -> replay(claim, hash, command.idempotencyKey());
         };
     }
 

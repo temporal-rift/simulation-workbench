@@ -19,6 +19,7 @@ import io.github.temporalrift.workbench.search.domain.campaign.CampaignFailure;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
 import io.github.temporalrift.workbench.search.domain.campaign.SearchAlgorithm;
 import io.github.temporalrift.workbench.search.domain.log.LogEntry;
+import io.github.temporalrift.workbench.search.domain.wave.Game;
 import io.github.temporalrift.workbench.shared.execution.RunPhase;
 
 class CampaignProgressTest {
@@ -70,7 +71,7 @@ class CampaignProgressTest {
         var games = harness.campaigns.games(id);
         assertThat(games.stream().map(game -> game.candidateId() + "/" + game.seed()))
                 .doesNotHaveDuplicates();
-        var finalSeeds = new HashSet<>(games.stream().map(game -> game.seed()).toList());
+        var finalSeeds = new HashSet<>(games.stream().map(Game::seed).toList());
         assertThat(finalSeeds).hasSizeGreaterThanOrEqualTo(2);
     }
 
@@ -82,11 +83,9 @@ class CampaignProgressTest {
 
         var interrupted = new Harness(3600);
         var interruptedId = interrupted.create(4);
-        interrupted.driveUntil(
-                interruptedId,
-                () -> interrupted.campaign(interruptedId).round() == 1
-                        && !interrupted.campaigns.waves(interruptedId).isEmpty()
-                        && interrupted.campaigns.waves(interruptedId).stream().anyMatch(wave -> wave.round() == 1));
+        interrupted.driveUntil(() -> interrupted.campaign(interruptedId).round() == 1
+                && !interrupted.campaigns.waves(interruptedId).isEmpty()
+                && interrupted.campaigns.waves(interruptedId).stream().anyMatch(wave -> wave.round() == 1));
         interrupted.pause.handle(interruptedId);
         var inPlay = interrupted.campaigns.waves(interruptedId).stream()
                 .filter(wave -> interrupted.play.phaseOf(wave.runId()) == RunPhase.ACTIVE)
@@ -115,7 +114,7 @@ class CampaignProgressTest {
 
         var restarted = new Harness(3600);
         var restartedId = restarted.create(4);
-        restarted.driveUntil(restartedId, () -> restarted.campaign(restartedId).round() == 2);
+        restarted.driveUntil(() -> restarted.campaign(restartedId).round() == 2);
         restarted.play.restart();
         restarted.restartProcess();
         restarted.drive(restartedId);
@@ -243,10 +242,8 @@ class CampaignProgressTest {
     void aCampaignWhoseBudgetRunsOutBetweenRoundsEndsWithTheShortListOfTheLastDecidedRound() {
         var harness = new Harness(3600);
         var id = harness.create(4);
-        harness.driveUntil(
-                id,
-                () -> harness.campaign(id).round() == 1
-                        && harness.campaigns.candidates(id).stream().noneMatch(candidate -> candidate.round() == 1));
+        harness.driveUntil(() -> harness.campaign(id).round() == 1
+                && harness.campaigns.candidates(id).stream().noneMatch(candidate -> candidate.round() == 1));
         harness.clock.advance(Duration.ofHours(2));
 
         harness.progress.advance();
@@ -359,11 +356,10 @@ class CampaignProgressTest {
 
         void drive(UUID id) {
             driveUntil(
-                    id,
                     () -> campaign(id).state().isTerminal() || campaign(id).state() == CampaignState.SEARCH_COMPLETED);
         }
 
-        void driveUntil(UUID id, java.util.function.BooleanSupplier done) {
+        void driveUntil(java.util.function.BooleanSupplier done) {
             for (var step = 0; step < 2_000 && !done.getAsBoolean(); step++) {
                 var moved = progress.advance();
                 if (done.getAsBoolean()) {

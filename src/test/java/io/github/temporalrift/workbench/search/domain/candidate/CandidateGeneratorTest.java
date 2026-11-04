@@ -65,11 +65,10 @@ class CandidateGeneratorTest {
                         .mapToObj(Candidate::idOf)
                         .toList());
         assertThat(candidates).extracting(Candidate::effectiveRulesDigest).doesNotHaveDuplicates();
-        assertThat(candidates)
-                .allSatisfy(candidate ->
-                        assertThat(VALIDATION.validate(candidate.overrides())).isPresent());
-        assertThat(candidates)
-                .allSatisfy(candidate -> assertThat(candidate.round()).isZero());
+        assertThat(candidates).allSatisfy(candidate -> {
+            assertThat(VALIDATION.validate(candidate.overrides())).isPresent();
+            assertThat(candidate.round()).isZero();
+        });
     }
 
     @Test

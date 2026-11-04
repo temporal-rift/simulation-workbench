@@ -1,7 +1,6 @@
 package io.github.temporalrift.workbench.search.infrastructure.adapter.in.rest;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -58,7 +57,7 @@ import io.github.temporalrift.workbench.shared.infrastructure.config.SecurityCon
             "workbench.ui.oidc-issuer-url=http://localhost:9000/default",
             "workbench.ui.oidc-client-id=simulation-workbench-ui"
         })
-@Import({SecurityConfig.class, TestSecurityConfig.class, SearchApiJsonConfiguration.class})
+@Import({SecurityConfig.class, TestSecurityConfig.class, SearchApiJsonConfiguration.class, CampaignControls.class})
 class CampaignControllerIT {
 
     private static final Instant NOW = Instant.parse("2026-01-01T00:00:00Z");
@@ -363,7 +362,7 @@ class CampaignControllerIT {
 
     @Test
     void parallelismIsChangedWithAPutAndRefusedBelowOne() throws Exception {
-        when(parallelism.handle(eq(CAMPAIGN), eq(2))).thenReturn(campaign().withParallelism(2));
+        when(parallelism.handle(CAMPAIGN, 2)).thenReturn(campaign().withParallelism(2));
 
         mockMvc.perform(put("/api/v1/campaigns/" + CAMPAIGN + "/parallelism")
                         .with(jwt().authorities(authorities(WRITE)))

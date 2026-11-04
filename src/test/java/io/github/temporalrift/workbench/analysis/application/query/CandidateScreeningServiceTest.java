@@ -140,10 +140,13 @@ class CandidateScreeningServiceTest {
 
     @Test
     void aCandidateWithoutGamesIsRefused() {
-        assertThatThrownBy(() -> service.screen(criterion.version(), List.of(new Candidate("c-000", List.of()))))
+        var criterionVersion = criterion.version();
+        var noGames = List.of(new Candidate("c-000", List.of()));
+        var gamesOfNoCase = List.of(new Candidate("c-000", List.of(new Games(FIRST_RUN, "none"))));
+
+        assertThatThrownBy(() -> service.screen(criterionVersion, noGames))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> service.screen(
-                        criterion.version(), List.of(new Candidate("c-000", List.of(new Games(FIRST_RUN, "none"))))))
+        assertThatThrownBy(() -> service.screen(criterionVersion, gamesOfNoCase))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 

@@ -78,7 +78,9 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
     }
 
     @Override
-    public void check(CampaignDefinition definition) {}
+    public void check(CampaignDefinition definition) {
+        // every definition is acceptable
+    }
 
     @Override
     public boolean servesCriterion(int criterionVersion) {

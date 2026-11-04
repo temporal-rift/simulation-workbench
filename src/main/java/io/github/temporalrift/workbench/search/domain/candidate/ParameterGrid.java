@@ -3,6 +3,7 @@ package io.github.temporalrift.workbench.search.domain.candidate;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
+import java.util.SortedMap;
 import java.util.TreeMap;
 
 /**
@@ -66,7 +67,7 @@ public record ParameterGrid(List<Axis> axes) {
     }
 
     /** The overrides a point stands for: the parameters that differ from the baseline, by key. */
-    public TreeMap<String, BigDecimal> overridesOf(List<Integer> point) {
+    public SortedMap<String, BigDecimal> overridesOf(List<Integer> point) {
         if (point.size() != axes.size()) {
             throw new IllegalArgumentException("a point needs one index per parameter");
         }

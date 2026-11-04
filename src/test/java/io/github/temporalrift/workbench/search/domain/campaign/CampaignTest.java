@@ -97,7 +97,8 @@ class CampaignTest {
 
         assertThat(requeued.state()).isEqualTo(CampaignState.QUEUED);
         assertThat(requeued.failure()).isEqualTo(reason);
-        assertThatThrownBy(() -> queued.start(NOW).requeue(reason)).isInstanceOf(InvalidCampaignStateException.class);
+        var started = queued.start(NOW);
+        assertThatThrownBy(() -> started.requeue(reason)).isInstanceOf(InvalidCampaignStateException.class);
     }
 
     @Test
@@ -156,7 +157,8 @@ class CampaignTest {
         assertThat(running.spentSeconds()).isEqualTo(30);
         assertThat(running.remainingSeconds()).isEqualTo(CampaignDefinition.DEFAULT_BUDGET_SECONDS - 30);
         assertThat(running.budgetSpent()).isFalse();
-        assertThatThrownBy(() -> running.pause().spend(1)).isInstanceOf(InvalidCampaignStateException.class);
+        var paused = running.pause();
+        assertThatThrownBy(() -> paused.spend(1)).isInstanceOf(InvalidCampaignStateException.class);
         assertThat(running.spend(CampaignDefinition.DEFAULT_BUDGET_SECONDS).budgetSpent())
                 .isTrue();
         assertThat(running.spend(CampaignDefinition.DEFAULT_BUDGET_SECONDS).remainingSeconds())

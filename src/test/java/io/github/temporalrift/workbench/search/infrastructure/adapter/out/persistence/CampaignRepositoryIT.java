@@ -101,7 +101,7 @@ class CampaignRepositoryIT {
     }
 
     @Test
-    void ofTwoConcurrentStepsFromTheSameVersionExactlyOneApplies() throws Exception {
+    void ofTwoConcurrentStepsFromTheSameVersionExactlyOneApplies() {
         var queued = queued("race", NOW);
         store(queued, NOW);
         var start = new CountDownLatch(1);

@@ -6,14 +6,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.ObjectMapper;
 
-import io.github.temporalrift.workbench.search.application.port.in.CancelCampaignUseCase;
 import io.github.temporalrift.workbench.search.application.port.in.CreateCampaignUseCase;
 import io.github.temporalrift.workbench.search.application.port.in.GetCampaignLogUseCase;
 import io.github.temporalrift.workbench.search.application.port.in.GetCampaignUseCase;
 import io.github.temporalrift.workbench.search.application.port.in.ListCampaignsUseCase;
-import io.github.temporalrift.workbench.search.application.port.in.PauseCampaignUseCase;
-import io.github.temporalrift.workbench.search.application.port.in.ResumeCampaignUseCase;
-import io.github.temporalrift.workbench.search.application.port.in.SetCampaignParallelismUseCase;
 import io.github.temporalrift.workbench.search.domain.campaign.ConfirmationNotAvailableException;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.CampaignsApi;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Campaign;
@@ -29,10 +25,7 @@ class CampaignController implements CampaignsApi {
     private final GetCampaignUseCase getCampaign;
     private final ListCampaignsUseCase listCampaigns;
     private final GetCampaignLogUseCase getLog;
-    private final PauseCampaignUseCase pauseCampaign;
-    private final ResumeCampaignUseCase resumeCampaign;
-    private final CancelCampaignUseCase cancelCampaign;
-    private final SetCampaignParallelismUseCase setParallelism;
+    private final CampaignControls controls;
     private final CampaignApiMapper mapper;
 
     CampaignController(
@@ -40,19 +33,13 @@ class CampaignController implements CampaignsApi {
             GetCampaignUseCase getCampaign,
             ListCampaignsUseCase listCampaigns,
             GetCampaignLogUseCase getLog,
-            PauseCampaignUseCase pauseCampaign,
-            ResumeCampaignUseCase resumeCampaign,
-            CancelCampaignUseCase cancelCampaign,
-            SetCampaignParallelismUseCase setParallelism,
+            CampaignControls controls,
             ObjectMapper objectMapper) {
         this.createCampaign = createCampaign;
         this.getCampaign = getCampaign;
         this.listCampaigns = listCampaigns;
         this.getLog = getLog;
-        this.pauseCampaign = pauseCampaign;
-        this.resumeCampaign = resumeCampaign;
-        this.cancelCampaign = cancelCampaign;
-        this.setParallelism = setParallelism;
+        this.controls = controls;
         this.mapper = new CampaignApiMapper(objectMapper);
     }
 
@@ -80,23 +67,23 @@ class CampaignController implements CampaignsApi {
 
     @Override
     public ResponseEntity<Campaign> pauseCampaign(UUID campaignId, UUID idempotencyKey) {
-        return ResponseEntity.ok(mapper.toApi(pauseCampaign.handle(campaignId)));
+        return ResponseEntity.ok(mapper.toApi(controls.pause().handle(campaignId)));
     }
 
     @Override
     public ResponseEntity<Campaign> resumeCampaign(UUID campaignId, UUID idempotencyKey) {
-        return ResponseEntity.ok(mapper.toApi(resumeCampaign.handle(campaignId)));
+        return ResponseEntity.ok(mapper.toApi(controls.resume().handle(campaignId)));
     }
 
     @Override
     public ResponseEntity<Campaign> cancelCampaign(UUID campaignId, UUID idempotencyKey) {
-        return ResponseEntity.ok(mapper.toApi(cancelCampaign.handle(campaignId)));
+        return ResponseEntity.ok(mapper.toApi(controls.cancel().handle(campaignId)));
     }
 
     @Override
     public ResponseEntity<Campaign> setCampaignParallelism(
             UUID campaignId, UUID idempotencyKey, CampaignParallelismUpdate update) {
-        return ResponseEntity.ok(mapper.toApi(setParallelism.handle(campaignId, update.getParallelism())));
+        return ResponseEntity.ok(mapper.toApi(controls.parallelism().handle(campaignId, update.getParallelism())));
     }
 
     @Override
