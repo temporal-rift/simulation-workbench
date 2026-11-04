@@ -1,6 +1,7 @@
 package io.github.temporalrift.workbench.experiment;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.UUID;
@@ -20,12 +21,23 @@ public interface ExperimentFactory {
             String rulesArtifactDigest, int parameterSpaceVersion, Map<String, BigDecimal> overrides);
 
     /**
+     * The parameters of a parameter space that overrides may set, in key order, each with its range, its step and the
+     * value the baseline rules carry.
+     *
+     * @throws ExperimentRefusedException when the baseline or the parameter space is unknown
+     */
+    List<ParameterAxis> parameterAxes(String rulesArtifactDigest, int parameterSpaceVersion);
+
+    /**
      * Freezes the manifest once per idempotency key and returns the experiment's id; the same key with the same
      * manifest returns the original experiment.
      *
      * @throws ExperimentRefusedException when the manifest is refused or the key was used for another manifest
      */
     UUID freeze(UUID idempotencyKey, JsonNode manifest);
+
+    /** One overridable parameter: the values {@code min}, {@code min + step}, ... up to {@code max}. */
+    record ParameterAxis(String key, BigDecimal min, BigDecimal max, BigDecimal step, BigDecimal baseline) {}
 
     /** A variant's effective rules digest and its normalised overrides. */
     record VariantPreview(String effectiveRulesDigest, SortedMap<String, BigDecimal> overrides) {}

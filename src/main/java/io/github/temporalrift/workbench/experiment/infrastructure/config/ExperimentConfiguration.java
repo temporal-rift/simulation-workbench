@@ -15,6 +15,7 @@ import io.github.temporalrift.workbench.experiment.application.command.CreateExp
 import io.github.temporalrift.workbench.experiment.application.command.ExperimentFactoryService;
 import io.github.temporalrift.workbench.experiment.application.port.in.CreateExperimentUseCase;
 import io.github.temporalrift.workbench.experiment.application.port.in.GetExperimentUseCase;
+import io.github.temporalrift.workbench.experiment.application.port.in.GetParameterAxesUseCase;
 import io.github.temporalrift.workbench.experiment.application.port.in.GetVariantRulesUseCase;
 import io.github.temporalrift.workbench.experiment.application.port.in.ListExperimentTemplatesUseCase;
 import io.github.temporalrift.workbench.experiment.application.port.in.ListExperimentsUseCase;
@@ -24,6 +25,7 @@ import io.github.temporalrift.workbench.experiment.application.port.in.PreviewMa
 import io.github.temporalrift.workbench.experiment.application.port.in.PreviewVariantRulesUseCase;
 import io.github.temporalrift.workbench.experiment.application.query.ExperimentCatalogQueryHandler;
 import io.github.temporalrift.workbench.experiment.application.query.GetExperimentQueryHandler;
+import io.github.temporalrift.workbench.experiment.application.query.GetParameterAxesQueryHandler;
 import io.github.temporalrift.workbench.experiment.application.query.GetVariantRulesQueryHandler;
 import io.github.temporalrift.workbench.experiment.application.query.ListExperimentTemplatesQueryHandler;
 import io.github.temporalrift.workbench.experiment.application.query.ListExperimentsQueryHandler;
@@ -132,8 +134,14 @@ public class ExperimentConfiguration {
     }
 
     @Bean
-    ExperimentFactory experimentFactory(PreviewVariantRulesUseCase preview, CreateExperimentUseCase create) {
-        return new ExperimentFactoryService(preview, create);
+    GetParameterAxesUseCase getParameterAxesUseCase(VariantRules variantRules) {
+        return new GetParameterAxesQueryHandler(variantRules);
+    }
+
+    @Bean
+    ExperimentFactory experimentFactory(
+            PreviewVariantRulesUseCase preview, GetParameterAxesUseCase axes, CreateExperimentUseCase create) {
+        return new ExperimentFactoryService(preview, axes, create);
     }
 
     @Bean

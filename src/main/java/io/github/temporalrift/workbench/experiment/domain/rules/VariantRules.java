@@ -1,7 +1,9 @@
 package io.github.temporalrift.workbench.experiment.domain.rules;
 
 import java.math.BigDecimal;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -116,6 +118,40 @@ public final class VariantRules {
                             null));
             var materialized = VariantMaterializer.materialize(baseline.rules(), space, overrides);
             return new Preview(materialized.rules(), materialized.digest(), materialized.overrides());
+        } catch (VariantRulesRefusal refusal) {
+            throw refusal.at(ExperimentErrorCode.INVALID_REQUEST, "");
+        }
+    }
+
+    /** One overridable parameter with the value the baseline rules carry. */
+    public record Axis(String key, BigDecimal min, BigDecimal max, BigDecimal step, BigDecimal baseline) {}
+
+    /** The parameters of a space that overrides may set, by key, with the values a baseline publishes for them. */
+    public List<Axis> axes(String rulesArtifactDigest, int parameterSpaceVersion) {
+        try {
+            var space = space(parameterSpaceVersion);
+            var baseline = baselines
+                    .find(rulesArtifactDigest)
+                    .orElseThrow(() -> new VariantRulesRefusal(
+                            VariantRulesReason.UNKNOWN_BASELINE,
+                            "no lane publishes the baseline rules artifact " + rulesArtifactDigest,
+                            null,
+                            null));
+            return space.parameters().stream()
+                    .sorted(Comparator.comparing(ParameterSpace.Parameter::key))
+                    .map(parameter -> new Axis(
+                            parameter.key(),
+                            parameter.min(),
+                            parameter.max(),
+                            parameter.step(),
+                            baseline.rules()
+                                    .number(parameter.key())
+                                    .orElseThrow(() -> new VariantRulesRefusal(
+                                            VariantRulesReason.UNKNOWN_BASELINE,
+                                            "the baseline rules carry no number at " + parameter.key(),
+                                            null,
+                                            null))))
+                    .toList();
         } catch (VariantRulesRefusal refusal) {
             throw refusal.at(ExperimentErrorCode.INVALID_REQUEST, "");
         }
