@@ -6,6 +6,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignClaim;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignCreation;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
 import io.github.temporalrift.workbench.search.domain.campaign.StoredCampaign;
 import io.github.temporalrift.workbench.search.domain.candidate.Candidate;
@@ -17,8 +19,13 @@ import io.github.temporalrift.workbench.shared.Page;
 /** Durable campaigns and everything a search records: candidates, waves, games and its decision log. */
 public interface CampaignRepository {
 
-    /** Stores a new campaign at version 0. */
-    void insert(Campaign queued, Instant accruedAt);
+    /**
+     * Stores a new campaign at version 0 and claims the idempotency key in one step. When the key is already
+     * claimed, even by a request racing this one, nothing is stored.
+     */
+    CampaignCreation create(UUID idempotencyKey, String requestHash, Campaign queued, Instant accruedAt);
+
+    Optional<CampaignClaim> findClaim(UUID idempotencyKey);
 
     Optional<StoredCampaign> find(UUID campaignId);
 

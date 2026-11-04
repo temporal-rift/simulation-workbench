@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.TreeMap;
 import java.util.UUID;
@@ -20,6 +21,8 @@ import tools.jackson.databind.json.JsonMapper;
 
 import io.github.temporalrift.workbench.WorkbenchIntegrationTest;
 import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignClaim;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignCreation;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignFailure;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
@@ -54,7 +57,7 @@ class CampaignRepositoryIT {
     @Test
     void aCampaignComesBackAsItWasStoredAtVersionZero() {
         var queued = queued("first", NOW);
-        repository.insert(queued, NOW);
+        store(queued, NOW);
 
         var stored = repository.find(queued.campaignId()).orElseThrow();
 
@@ -67,7 +70,7 @@ class CampaignRepositoryIT {
     @Test
     void aWriteBumpsTheVersionAndPersistsEveryField() {
         var queued = queued("moving", NOW);
-        repository.insert(queued, NOW);
+        store(queued, NOW);
         var later = NOW.plusSeconds(90);
         var next = queued.waiting(new CampaignFailure(CampaignFailure.FIDELITY_NOT_ESTABLISHED, "no passing record"))
                 .withParallelism(7);
@@ -83,7 +86,7 @@ class CampaignRepositoryIT {
     @Test
     void aWriteFromAStaleVersionStoresNothing() {
         var queued = queued("stale", NOW);
-        repository.insert(queued, NOW);
+        store(queued, NOW);
         var running = queued.start(NOW);
         assertThat(repository.save(running, NOW, 0)).isTrue();
 
@@ -97,7 +100,7 @@ class CampaignRepositoryIT {
     @Test
     void ofTwoConcurrentStepsFromTheSameVersionExactlyOneApplies() throws Exception {
         var queued = queued("race", NOW);
-        repository.insert(queued, NOW);
+        store(queued, NOW);
         var start = new CountDownLatch(1);
         var steps = List.<Callable<Boolean>>of(
                 () -> {
@@ -132,8 +135,8 @@ class CampaignRepositoryIT {
     void campaignsAreListedNewestFirstAndFilteredByState() {
         var older = queued("older", NOW);
         var newer = queued("newer", NOW.plusSeconds(10));
-        repository.insert(older, NOW);
-        repository.insert(newer, NOW);
+        store(older, NOW);
+        store(newer, NOW);
         repository.save(older.start(NOW), NOW, 0);
 
         assertThat(repository.list(null, 10, 0).items())
@@ -154,7 +157,7 @@ class CampaignRepositoryIT {
     @Test
     void candidatesWavesAndGamesAreStoredOnceAndComeBackInOrder() {
         var campaign = queued("records", NOW);
-        repository.insert(campaign, NOW);
+        store(campaign, NOW);
         var id = campaign.campaignId();
         var overrides = new TreeMap<String, BigDecimal>();
         overrides.put("game.rules.a", new BigDecimal("1.50"));
@@ -187,7 +190,7 @@ class CampaignRepositoryIT {
     @Test
     void aGameCanNotBeRecordedForACandidateOrWaveThatDoesNotExist() {
         var campaign = queued("orphans", NOW);
-        repository.insert(campaign, NOW);
+        store(campaign, NOW);
 
         org.junit.jupiter.api.Assertions.assertThrows(
                 org.springframework.dao.DataIntegrityViolationException.class,
@@ -197,7 +200,7 @@ class CampaignRepositoryIT {
     @Test
     void theLogComesBackInSequenceOrderAsTheEntriesThatWereAppended() {
         var campaign = queued("log", NOW);
-        repository.insert(campaign, NOW);
+        store(campaign, NOW);
         var overrides = new TreeMap<String, BigDecimal>();
         overrides.put("game.rules.a", new BigDecimal("2"));
         var first = new LogEntry(
@@ -248,6 +251,53 @@ class CampaignRepositoryIT {
         assertThat(page.items()).containsExactly(first, second);
         assertThat(repository.log(campaign.campaignId(), 2, 2).items()).containsExactly(third);
         assertThat(page.items().get(0).canonicalJson()).isEqualTo(first.canonicalJson());
+    }
+
+    private void store(Campaign campaign, Instant accruedAt) {
+        assertThat(repository.create(UUID.randomUUID(), "h".repeat(64), campaign, accruedAt))
+                .isInstanceOf(CampaignCreation.Created.class);
+    }
+
+    @Test
+    void aKeyClaimedTwiceReturnsTheFirstCampaignAndItsRequestHashAndStoresNothingMore() {
+        var key = UUID.randomUUID();
+        var first = queued("claimed", NOW);
+        var second = queued("claimed-again", NOW.plusSeconds(5));
+        assertThat(repository.create(key, "a".repeat(64), first, NOW)).isInstanceOf(CampaignCreation.Created.class);
+
+        var repeated = repository.create(key, "b".repeat(64), second, NOW);
+
+        assertThat(repeated).isEqualTo(new CampaignCreation.Existing(new CampaignClaim(first, "a".repeat(64))));
+        assertThat(repository.find(second.campaignId())).isEmpty();
+        assertThat(repository.findClaim(key)).contains(new CampaignClaim(first, "a".repeat(64)));
+        assertThat(repository.findClaim(UUID.randomUUID())).isEmpty();
+    }
+
+    @Test
+    void ofTwoRequestsRacingForOneKeyExactlyOneCampaignIsStored() throws Exception {
+        var key = UUID.randomUUID();
+        var start = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var futures = List.of("one", "two").stream()
+                    .map(name -> executor.submit(() -> {
+                        start.await();
+                        return repository.create(key, "a".repeat(64), queued(name, NOW), NOW);
+                    }))
+                    .toList();
+            start.countDown();
+            var outcomes = new ArrayList<CampaignCreation>();
+            for (var future : futures) {
+                outcomes.add(future.get());
+            }
+
+            assertThat(outcomes)
+                    .filteredOn(CampaignCreation.Created.class::isInstance)
+                    .hasSize(1);
+            assertThat(outcomes)
+                    .filteredOn(CampaignCreation.Existing.class::isInstance)
+                    .hasSize(1);
+        }
+        assertThat(repository.list(null, 10, 0).total()).isOne();
     }
 
     private static Campaign queued(String name, Instant createdAt) {

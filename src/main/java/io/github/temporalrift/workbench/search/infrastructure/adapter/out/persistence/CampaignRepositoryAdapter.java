@@ -23,6 +23,8 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.JsonNode;
 
 import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignClaim;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignCreation;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignFailure;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
@@ -33,6 +35,7 @@ import io.github.temporalrift.workbench.search.domain.port.out.CampaignRepositor
 import io.github.temporalrift.workbench.search.domain.wave.Game;
 import io.github.temporalrift.workbench.search.domain.wave.Wave;
 import io.github.temporalrift.workbench.shared.Page;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.InsertOnce;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.StoredJson;
 
 /**
@@ -52,6 +55,8 @@ class CampaignRepositoryAdapter implements CampaignRepository {
 
     private static final Table<Record> CAMPAIGN = DSL.table(DSL.name("campaign"));
     private static final Field<UUID> CAMPAIGN_ID = DSL.field(DSL.name("campaign_id"), SQLDataType.UUID);
+    private static final Field<UUID> KEY = DSL.field(DSL.name("idempotency_key"), SQLDataType.UUID);
+    private static final Field<String> REQUEST_HASH = DSL.field(DSL.name("request_hash"), SQLDataType.VARCHAR);
     private static final Field<String> NAME = DSL.field(DSL.name("name"), SQLDataType.VARCHAR);
     private static final Field<String> DEFINITION = DSL.field(DSL.name("definition_json"), SQLDataType.CLOB);
     private static final Field<Integer> PARALLELISM = DSL.field(DSL.name("parallelism"), SQLDataType.INTEGER);
@@ -92,18 +97,42 @@ class CampaignRepositoryAdapter implements CampaignRepository {
 
     private final DSLContext dsl;
     private final StoredJson json;
+    private final InsertOnce insertOnce;
 
-    CampaignRepositoryAdapter(DSLContext dsl, StoredJson json) {
+    CampaignRepositoryAdapter(DSLContext dsl, StoredJson json, InsertOnce insertOnce) {
         this.dsl = dsl;
+        this.insertOnce = insertOnce;
         this.json = json;
     }
 
     @Override
-    @Transactional
-    public void insert(Campaign queued, Instant accruedAt) {
+    public CampaignCreation create(UUID idempotencyKey, String requestHash, Campaign queued, Instant accruedAt) {
+        var claimed = findClaim(idempotencyKey);
+        if (claimed.isPresent()) {
+            return new CampaignCreation.Existing(claimed.get());
+        }
+        var stored = insertOnce.insert(() -> insert(idempotencyKey, requestHash, queued, accruedAt));
+        if (stored) {
+            return new CampaignCreation.Created();
+        }
+        return new CampaignCreation.Existing(findClaim(idempotencyKey).orElseThrow());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<CampaignClaim> findClaim(UUID idempotencyKey) {
+        return dsl.selectFrom(CAMPAIGN)
+                .where(KEY.eq(idempotencyKey))
+                .fetchOptional()
+                .map(row -> new CampaignClaim(stored(row).campaign(), row.get(REQUEST_HASH)));
+    }
+
+    private void insert(UUID idempotencyKey, String requestHash, Campaign queued, Instant accruedAt) {
         var failure = queued.failure();
         dsl.insertInto(CAMPAIGN)
                 .set(CAMPAIGN_ID, queued.campaignId())
+                .set(KEY, idempotencyKey)
+                .set(REQUEST_HASH, requestHash)
                 .set(NAME, queued.definition().name())
                 .set(DEFINITION, json.write(queued.definition()))
                 .set(PARALLELISM, queued.parallelism())
