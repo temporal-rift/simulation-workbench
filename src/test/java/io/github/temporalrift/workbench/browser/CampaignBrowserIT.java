@@ -88,7 +88,7 @@ class CampaignBrowserIT extends DesignerBrowserTest {
         assertThat(log.getByRole(AriaRole.ROW)).hasCount(3);
         assertThat(log.getByText("Generated")).isVisible();
         assertThat(log.getByText("A gate line fails (G-01)")).isVisible();
-        assertThat(log.getByText("win-score-threshold = 22")).isVisible();
+        assertThat(log.getByText("win-score-threshold = 22").first()).isVisible();
     }
 
     @Test
