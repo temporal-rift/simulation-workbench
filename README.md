@@ -313,9 +313,10 @@ read with `listParameterSpaces` and `getParameterSpace`. Its constraints are exp
 chains over `+`, `-`, `*`, `max` and `and`; a subtraction needs spaces around `-` because keys contain it) that the
 workbench both serves and evaluates.
 
-Budget record version 1 ([docs/budget/v1.md](docs/budget/v1.md)) computes, from the measured capacity, the search
-parameters that fit the default budget of 4 active hours on the simulator and the duration of the confirmation. Its
-search parameters are configuration (`search-budgets/v1.json`) and the default `SearchAlgorithm` values of a new campaign.
+Budget record version 2 ([docs/budget/v2.md](docs/budget/v2.md)) computes, from the measured capacity, the search
+parameters that fit the default budget of 4 active hours on the simulator and the duration of the confirmation; it
+supersedes version 1 ([docs/budget/v1.md](docs/budget/v1.md)), which is unchanged. Its search parameters are
+configuration (`search-budgets/v2.json`) and the default `SearchAlgorithm` values of a new campaign.
 
 Materialising a variant is a pure function of the baseline document, the space and the overrides: every key must be a
 parameter, every value in range and on its step; overrides equal to the baseline are dropped; the rest replace the
@@ -637,7 +638,7 @@ The slots' behavior on the real service jars is covered by integration tests tha
 `-Dsimulator.builds=<directory>` names a directory holding `game-service.jar`, `timeline-service.jar` and
 `read-service.jar`: `SlotRuntimeRealJarsIT` starts the three services, `SimulatorLaneIT` plays a seeded case twice and
 compares the semantic digests, and `SimulatorParallelSlotsIT` plays cases on two slots at once. `SimulatorCapacityIT`
-measures one slot count; its results are in [docs/capacity/simulator-v1.md](docs/capacity/simulator-v1.md).
+measures one slot count; its results are in [docs/capacity/simulator-v1.md](docs/capacity/simulator-v1.md) and, for the full matrix through the run API, [docs/capacity/simulator-v2.md](docs/capacity/simulator-v2.md).
 
 ## Simulator fidelity
 
