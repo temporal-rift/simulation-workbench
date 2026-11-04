@@ -23,8 +23,11 @@ import io.github.temporalrift.workbench.shared.random.SplitMix64;
  */
 public final class CandidateGenerator {
 
-    /** Draws a single place may use before the space is declared too small. */
-    static final int MAX_DRAWS_PER_PLACE = 1_000;
+    /**
+     * Draws a single place may use before the space is declared too small. The shipped parameter space has 46
+     * parameters under sum and ordering constraints, so about one independent draw in 3,000 is valid.
+     */
+    static final int MAX_DRAWS_PER_PLACE = 100_000;
 
     /** One in this many new candidates of a later round is random rather than a mutation. */
     static final int RANDOM_SHARE = 4;

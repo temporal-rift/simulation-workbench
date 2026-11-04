@@ -1,0 +1,403 @@
+package io.github.temporalrift.workbench.search.infrastructure.adapter.in.rest;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.Arrays;
+import java.util.List;
+import java.util.TreeMap;
+import java.util.UUID;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
+import tools.jackson.databind.json.JsonMapper;
+
+import io.github.temporalrift.workbench.TestSecurityConfig;
+import io.github.temporalrift.workbench.search.application.port.in.CancelCampaignUseCase;
+import io.github.temporalrift.workbench.search.application.port.in.CreateCampaignUseCase;
+import io.github.temporalrift.workbench.search.application.port.in.GetCampaignLogUseCase;
+import io.github.temporalrift.workbench.search.application.port.in.GetCampaignUseCase;
+import io.github.temporalrift.workbench.search.application.port.in.ListCampaignsUseCase;
+import io.github.temporalrift.workbench.search.application.port.in.PauseCampaignUseCase;
+import io.github.temporalrift.workbench.search.application.port.in.ResumeCampaignUseCase;
+import io.github.temporalrift.workbench.search.application.port.in.SetCampaignParallelismUseCase;
+import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignFailure;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignIdempotencyConflictException;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignNotFoundException;
+import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignException;
+import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignReason;
+import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignStateException;
+import io.github.temporalrift.workbench.search.domain.campaign.SearchAlgorithm;
+import io.github.temporalrift.workbench.search.domain.log.LogEntry;
+import io.github.temporalrift.workbench.search.infrastructure.config.SearchApiJsonConfiguration;
+import io.github.temporalrift.workbench.shared.Page;
+import io.github.temporalrift.workbench.shared.infrastructure.config.SecurityConfig;
+
+@WebMvcTest(
+        controllers = CampaignController.class,
+        properties = {
+            "workbench.ui.oidc-issuer-url=http://localhost:9000/default",
+            "workbench.ui.oidc-client-id=simulation-workbench-ui"
+        })
+@Import({SecurityConfig.class, TestSecurityConfig.class, SearchApiJsonConfiguration.class})
+class CampaignControllerIT {
+
+    private static final Instant NOW = Instant.parse("2026-01-01T00:00:00Z");
+    private static final UUID CAMPAIGN = new UUID(1, 1);
+    private static final String WRITE = "SCOPE_simulation:write";
+    private static final String READ = "SCOPE_simulation:read";
+
+    private static final String BODY = """
+            {
+              "name": "threshold-halving-01",
+              "baseline": {
+                "rulesArtifact": {"digest": "%s"},
+                "contentArtifact": {"digest": "%s"}
+              },
+              "parameterSpaceVersion": 1,
+              "criterionVersion": 1,
+              "policies": [{
+                "id": "faction-greedy",
+                "version": "1.0.0",
+                "artifactDigest": "%s",
+                "parameters": {},
+                "seatAssignment": [
+                  {"seatIndex": 0, "policyId": "faction-greedy", "policyVersion": "1.0.0"}
+                ]
+              }],
+              "playerCounts": [3, 4],
+              "searchMasterSeed": "7",
+              "confirmationMasterSeed": "9",
+              "algorithm": {
+                "version": "SUCCESSIVE_HALVING_V1",
+                "initialCandidates": 8,
+                "screeningSeeds": 4,
+                "eta": 2,
+                "shortListSize": 2
+              }
+            }
+            """.formatted("a".repeat(64), "b".repeat(64), "c".repeat(64));
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockitoBean
+    private CreateCampaignUseCase create;
+
+    @MockitoBean
+    private GetCampaignUseCase get;
+
+    @MockitoBean
+    private ListCampaignsUseCase list;
+
+    @MockitoBean
+    private GetCampaignLogUseCase log;
+
+    @MockitoBean
+    private PauseCampaignUseCase pause;
+
+    @MockitoBean
+    private ResumeCampaignUseCase resume;
+
+    @MockitoBean
+    private CancelCampaignUseCase cancel;
+
+    @MockitoBean
+    private SetCampaignParallelismUseCase parallelism;
+
+    private static Campaign campaign() {
+        var mapper = JsonMapper.builder().build();
+        var baseline = mapper.createObjectNode();
+        baseline.putObject("rulesArtifact").put("digest", "a".repeat(64));
+        baseline.putObject("contentArtifact").put("digest", "b".repeat(64));
+        var policy = mapper.createObjectNode()
+                .put("id", "faction-greedy")
+                .put("version", "1.0.0")
+                .put("artifactDigest", "c".repeat(64));
+        policy.putObject("parameters");
+        policy.putArray("seatAssignment")
+                .addObject()
+                .put("seatIndex", 0)
+                .put("policyId", "faction-greedy")
+                .put("policyVersion", "1.0.0");
+        var definition = new CampaignDefinition(
+                "threshold-halving-01",
+                baseline,
+                1,
+                1,
+                mapper.createArrayNode().add(policy),
+                List.of(3, 4),
+                14_400,
+                "7",
+                "9",
+                new SearchAlgorithm(8, 4, 2, 2));
+        return Campaign.queued(CAMPAIGN, definition, 4, NOW);
+    }
+
+    private ResultActions send(String path, String body, String... scopes) throws Exception {
+        return mockMvc.perform(post(path)
+                .with(jwt().authorities(authorities(scopes)))
+                .header("Idempotency-Key", UUID.randomUUID().toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body));
+    }
+
+    private ResultActions read(String path, String... scopes) throws Exception {
+        return mockMvc.perform(get(path).with(jwt().authorities(authorities(scopes))));
+    }
+
+    private static SimpleGrantedAuthority[] authorities(String... scopes) {
+        return Arrays.stream(scopes).map(SimpleGrantedAuthority::new).toArray(SimpleGrantedAuthority[]::new);
+    }
+
+    @Test
+    void creatingACampaignAnswers201WithTheQueuedCampaignAndEveryRequiredField() throws Exception {
+        when(create.handle(any())).thenReturn(campaign());
+
+        send("/api/v1/campaigns", BODY, WRITE)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.campaignId").value(CAMPAIGN.toString()))
+                .andExpect(jsonPath("$.name").value("threshold-halving-01"))
+                .andExpect(jsonPath("$.state").value("QUEUED"))
+                .andExpect(jsonPath("$.budgetSeconds").value(14_400))
+                .andExpect(jsonPath("$.parallelism").value(4))
+                .andExpect(jsonPath("$.playerCounts[0]").value(3))
+                .andExpect(jsonPath("$.baseline.rulesArtifact.digest").value("a".repeat(64)))
+                .andExpect(jsonPath("$.policies[0].id").value("faction-greedy"))
+                .andExpect(jsonPath("$.algorithm.version").value("SUCCESSIVE_HALVING_V1"))
+                .andExpect(jsonPath("$.spentSeconds").value(0))
+                .andExpect(jsonPath("$.round").value(0))
+                .andExpect(jsonPath("$.shortList").isEmpty())
+                .andExpect(jsonPath("$.confirmation").value((Object) null))
+                .andExpect(jsonPath("$.failure").value((Object) null))
+                .andExpect(jsonPath("$.startedAt").value((Object) null))
+                .andExpect(jsonPath("$.finishedAt").value((Object) null));
+    }
+
+    @Test
+    void theCommandCarriesTheKeyTheDefinitionAndTheDefaultsOfTheContract() throws Exception {
+        when(create.handle(any())).thenReturn(campaign());
+        var key = UUID.randomUUID();
+
+        mockMvc.perform(post("/api/v1/campaigns")
+                        .with(jwt().authorities(authorities(WRITE)))
+                        .header("Idempotency-Key", key.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(BODY))
+                .andExpect(status().isCreated());
+
+        verify(create)
+                .handle(org.mockito.ArgumentMatchers.argThat(
+                        command -> command.idempotencyKey().equals(key)
+                                && command.budgetSeconds() == 14_400
+                                && command.parallelism() == 4
+                                && command.playerCounts().equals(List.of(3, 4))
+                                && command.searchMasterSeed().equals("7")
+                                && command.algorithm().equals(new SearchAlgorithm(8, 4, 2, 2))));
+    }
+
+    @Test
+    void creatingNeedsTheWriteScope() throws Exception {
+        send("/api/v1/campaigns", BODY, READ).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void aDefinitionTheServiceRefusesAnswers400WithTheFieldAndReason() throws Exception {
+        when(create.handle(any()))
+                .thenThrow(new InvalidCampaignException(
+                        InvalidCampaignReason.EQUAL_MASTER_SEEDS,
+                        "confirmationMasterSeed",
+                        "The search and confirmation master seeds must differ"));
+
+        send("/api/v1/campaigns", BODY, WRITE)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_CAMPAIGN"))
+                .andExpect(jsonPath("$.field").value("confirmationMasterSeed"))
+                .andExpect(jsonPath("$.reason").value("EQUAL_MASTER_SEEDS"));
+    }
+
+    @Test
+    void aBodyThatBreaksTheSchemaAnswers400AsAnInvalidValue() throws Exception {
+        send("/api/v1/campaigns", BODY.replace("\"criterionVersion\": 1", "\"criterionVersion\": 0"), WRITE)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_CAMPAIGN"))
+                .andExpect(jsonPath("$.field").value("criterionVersion"))
+                .andExpect(jsonPath("$.reason").value("INVALID_VALUE"));
+    }
+
+    @Test
+    void aKeyReusedWithAnotherDefinitionAnswers409() throws Exception {
+        when(create.handle(any())).thenThrow(new CampaignIdempotencyConflictException(UUID.randomUUID()));
+
+        send("/api/v1/campaigns", BODY, WRITE)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_CONFLICT"));
+    }
+
+    @Test
+    void aWaitingCampaignShowsWhyItHasNotStarted() throws Exception {
+        var waiting = campaign()
+                .waiting(new CampaignFailure(
+                        CampaignFailure.FIDELITY_NOT_ESTABLISHED, "The simulator has no passing fidelity record"));
+        when(get.handle(CAMPAIGN)).thenReturn(waiting);
+
+        read("/api/v1/campaigns/" + CAMPAIGN, READ)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.state").value("QUEUED"))
+                .andExpect(jsonPath("$.failure.code").value("FIDELITY_NOT_ESTABLISHED"));
+    }
+
+    @Test
+    void anUnknownCampaignAnswers404() throws Exception {
+        when(get.handle(CAMPAIGN)).thenThrow(new CampaignNotFoundException(CAMPAIGN));
+
+        read("/api/v1/campaigns/" + CAMPAIGN, READ)
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
+    }
+
+    @Test
+    void campaignsAreListedWithTheirTotal() throws Exception {
+        when(list.handle(new ListCampaignsUseCase.Query(50, 0))).thenReturn(new Page<>(List.of(campaign()), 1));
+
+        read("/api/v1/campaigns", READ)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(1))
+                .andExpect(jsonPath("$.items[0].campaignId").value(CAMPAIGN.toString()));
+    }
+
+    @Test
+    void theLogShowsEveryDecisionWithItsEvidenceAndRedraws() throws Exception {
+        var overrides = new TreeMap<String, BigDecimal>();
+        overrides.put("game.rules.win-score-threshold", new BigDecimal("22"));
+        var generated = new LogEntry(
+                1,
+                0,
+                "c-0001",
+                overrides,
+                "d".repeat(64),
+                List.of(),
+                0,
+                3,
+                null,
+                LogEntry.Decision.GENERATED,
+                null,
+                null);
+        var discarded = new LogEntry(
+                2,
+                0,
+                "c-0001",
+                overrides,
+                "d".repeat(64),
+                List.of("11", "12"),
+                2,
+                3,
+                new LogEntry.Evaluation("REJECTED", null),
+                LogEntry.Decision.DISCARDED,
+                LogEntry.Reason.GATE_FAILS,
+                LogEntry.Evidence.failingLines(List.of("G-01")));
+        when(log.handle(new GetCampaignLogUseCase.Query(CAMPAIGN, 50, 0)))
+                .thenReturn(new Page<>(List.of(generated, discarded), 2));
+
+        read("/api/v1/campaigns/" + CAMPAIGN + "/log", READ)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(2))
+                .andExpect(jsonPath("$.items[0].decision").value("GENERATED"))
+                .andExpect(jsonPath("$.items[0].redraws").value(3))
+                .andExpect(jsonPath("$.items[0].evaluation").value((Object) null))
+                .andExpect(jsonPath("$.items[0].reason").value((Object) null))
+                .andExpect(jsonPath("$.items[0].evidence").value((Object) null))
+                .andExpect(jsonPath("$.items[1].reason").value("GATE_FAILS"))
+                .andExpect(jsonPath("$.items[1].evidence.lineIds[0]").value("G-01"))
+                .andExpect(jsonPath("$.items[1].evaluation.verdict").value("REJECTED"))
+                .andExpect(jsonPath("$.items[1].evaluation.score").value((Object) null))
+                .andExpect(jsonPath("$.items[1].seeds[1]").value("12"))
+                .andExpect(jsonPath("$.items[1].overrides['game.rules.win-score-threshold']")
+                        .value(22));
+    }
+
+    @Test
+    void pausingAnswers200AndAStateThatDoesNotAllowItAnswers409() throws Exception {
+        when(pause.handle(CAMPAIGN)).thenReturn(campaign().pause());
+
+        send("/api/v1/campaigns/" + CAMPAIGN + "/pause", "", WRITE)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.state").value("PAUSED"));
+
+        when(resume.handle(CAMPAIGN))
+                .thenThrow(
+                        new InvalidCampaignStateException("resume", campaign().state()));
+        send("/api/v1/campaigns/" + CAMPAIGN + "/resume", "", WRITE)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_CAMPAIGN_STATE"));
+    }
+
+    @Test
+    void cancellingAnswers200() throws Exception {
+        when(cancel.handle(CAMPAIGN)).thenReturn(campaign().cancel(NOW));
+
+        send("/api/v1/campaigns/" + CAMPAIGN + "/cancel", "", WRITE)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.state").value("CANCELLED"))
+                .andExpect(jsonPath("$.finishedAt").value("2026-01-01T00:00:00Z"));
+    }
+
+    @Test
+    void parallelismIsChangedWithAPutAndRefusedBelowOne() throws Exception {
+        when(parallelism.handle(eq(CAMPAIGN), eq(2))).thenReturn(campaign().withParallelism(2));
+
+        mockMvc.perform(put("/api/v1/campaigns/" + CAMPAIGN + "/parallelism")
+                        .with(jwt().authorities(authorities(WRITE)))
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"parallelism\":2}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.parallelism").value(2));
+
+        mockMvc.perform(put("/api/v1/campaigns/" + CAMPAIGN + "/parallelism")
+                        .with(jwt().authorities(authorities(WRITE)))
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"parallelism\":0}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_CAMPAIGN"))
+                .andExpect(jsonPath("$.field").value("parallelism"));
+    }
+
+    @Test
+    void confirmingIsNotAvailableYet() throws Exception {
+        send("/api/v1/campaigns/" + CAMPAIGN + "/confirmation", "", WRITE)
+                .andExpect(status().isNotImplemented())
+                .andExpect(jsonPath("$.code").value("NOT_IMPLEMENTED"));
+    }
+
+    @Test
+    void mutatingNeedsTheWriteScope() throws Exception {
+        send("/api/v1/campaigns/" + CAMPAIGN + "/pause", "", READ).andExpect(status().isForbidden());
+        mockMvc.perform(put("/api/v1/campaigns/" + CAMPAIGN + "/parallelism")
+                        .with(jwt().authorities(authorities(READ)))
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"parallelism\":2}"))
+                .andExpect(status().isForbidden());
+    }
+}
