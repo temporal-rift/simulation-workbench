@@ -1,0 +1,171 @@
+package io.github.temporalrift.workbench.browser;
+
+import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.List;
+import java.util.TreeMap;
+import java.util.UUID;
+
+import com.microsoft.playwright.Locator;
+import com.microsoft.playwright.Page;
+import com.microsoft.playwright.options.AriaRole;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
+import tools.jackson.databind.json.JsonMapper;
+
+import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignChange;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignFailure;
+import io.github.temporalrift.workbench.search.domain.campaign.SearchAlgorithm;
+import io.github.temporalrift.workbench.search.domain.candidate.Candidate;
+import io.github.temporalrift.workbench.search.domain.log.LogEntry;
+import io.github.temporalrift.workbench.search.domain.port.out.CampaignRepository;
+
+/**
+ * A designer follows a campaign that is waiting for the simulator to be established: pauses it, changes how many
+ * games it plays at once, resumes it and reads the decisions it has taken, without calling any endpoint. The campaign
+ * worker is off, so the page shows exactly what the designer commands.
+ */
+@BrowserIntegrationTest
+class CampaignBrowserIT extends DesignerBrowserTest {
+
+    @Autowired
+    private CampaignRepository campaigns;
+
+    @Autowired
+    private JdbcTemplate store;
+
+    @BeforeEach
+    @AfterEach
+    void cleanCampaigns() {
+        store.update("DELETE FROM campaign_round");
+        store.update("DELETE FROM campaign_log_entry");
+        store.update("DELETE FROM campaign_game");
+        store.update("DELETE FROM campaign_wave");
+        store.update("DELETE FROM campaign_candidate");
+        store.update("DELETE FROM campaign");
+    }
+
+    @Test
+    void aDesignerPausesAWaitingCampaignChangesItsGamesAtOnceResumesItAndReadsItsLog() {
+        var campaignId = waitingCampaign();
+
+        signInAndOpen(TestIssuer.DESIGNER, "/campaigns/" + campaignId);
+
+        assertThat(page.getByRole(AriaRole.HEADING, new Page.GetByRoleOptions().setName("Campaign browser-search")))
+                .isVisible();
+        assertThat(page.getByText("This campaign has not started")).isVisible();
+        assertThat(page.getByText("State: Queued")).isVisible();
+
+        page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Pause campaign"))
+                .click();
+        assertThat(page.getByText("State: Paused")).isVisible();
+        assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Pause campaign")))
+                .hasCount(0);
+
+        page.getByLabel("Games at once", new Page.GetByLabelOptions().setExact(true))
+                .last()
+                .fill("2");
+        page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Set games at once"))
+                .click();
+        assertThat(page.locator("dd")
+                        .filter(new Locator.FilterOptions().setHasText("2").setHasNotText("h"))
+                        .first())
+                .isVisible();
+
+        page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Resume campaign"))
+                .click();
+        assertThat(page.getByText("State: Running")).isVisible();
+
+        var log = page.getByRole(
+                AriaRole.TABLE, new Page.GetByRoleOptions().setName("Decisions, in the order they were taken"));
+        assertThat(log.getByRole(AriaRole.ROW)).hasCount(3);
+        assertThat(log.getByText("Generated")).isVisible();
+        assertThat(log.getByText("A gate line fails (G-01)")).isVisible();
+        assertThat(log.getByText("win-score-threshold = 22")).isVisible();
+    }
+
+    @Test
+    void theCampaignsPageListsTheCampaignAndLinksToIt() {
+        var campaignId = waitingCampaign();
+
+        signInAndOpen(TestIssuer.DESIGNER, "/campaigns");
+
+        var table = page.getByRole(AriaRole.TABLE, new Page.GetByRoleOptions().setName("Campaigns, newest first"));
+        assertThat(table.getByText("browser-search")).isVisible();
+        table.getByRole(AriaRole.LINK).first().click();
+        page.waitForURL(url -> url.endsWith("/campaigns/" + campaignId));
+    }
+
+    private UUID waitingCampaign() {
+        var mapper = JsonMapper.builder().build();
+        var baseline = mapper.createObjectNode();
+        baseline.putObject("rulesArtifact").put("digest", "a".repeat(64));
+        baseline.putObject("contentArtifact").put("digest", "b".repeat(64));
+        var policy = mapper.createObjectNode()
+                .put("id", "faction-greedy")
+                .put("version", "1.0.0")
+                .put("artifactDigest", "c".repeat(64));
+        policy.putObject("parameters");
+        policy.putArray("seatAssignment")
+                .addObject()
+                .put("seatIndex", 0)
+                .put("policyId", "faction-greedy")
+                .put("policyVersion", "1.0.0");
+        var definition = new CampaignDefinition(
+                "browser-search",
+                baseline,
+                1,
+                1,
+                mapper.createArrayNode().add(policy),
+                List.of(3),
+                CampaignDefinition.DEFAULT_BUDGET_SECONDS,
+                "7",
+                "9",
+                new SearchAlgorithm(8, 4, 2, 2));
+        var now = Instant.now();
+        var queued = Campaign.queued(UUID.randomUUID(), definition, 4, now);
+        campaigns.create(UUID.randomUUID(), "h".repeat(64), queued, now);
+        var waiting = queued.waiting(new CampaignFailure(
+                CampaignFailure.FIDELITY_NOT_ESTABLISHED, "The simulator has no passing fidelity record"));
+        var overrides = new TreeMap<String, BigDecimal>();
+        overrides.put("game.rules.win-score-threshold", new BigDecimal("22"));
+        var candidate = new Candidate("c-0001", 0, List.of(1), overrides, "d".repeat(64), 0);
+        var generated = new LogEntry(
+                1,
+                0,
+                "c-0001",
+                overrides,
+                "d".repeat(64),
+                List.of(),
+                0,
+                0,
+                null,
+                LogEntry.Decision.GENERATED,
+                null,
+                null);
+        var discarded = new LogEntry(
+                2,
+                0,
+                "c-0001",
+                overrides,
+                "d".repeat(64),
+                List.of("11", "12"),
+                2,
+                0,
+                new LogEntry.Evaluation("REJECTED", null),
+                LogEntry.Decision.DISCARDED,
+                LogEntry.Reason.GATE_FAILS,
+                LogEntry.Evidence.failingLines(List.of("G-01")));
+        var stored = campaigns.find(queued.campaignId()).orElseThrow();
+        campaigns.apply(
+                CampaignChange.of(stored, waiting, now).recording(List.of(candidate), List.of(generated, discarded)));
+        return queued.campaignId();
+    }
+}
