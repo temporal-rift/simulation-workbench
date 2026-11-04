@@ -129,6 +129,18 @@ public class RunRepositoryAdapter implements RunRepository {
     }
 
     @Override
+    @Transactional
+    public boolean setConcurrency(UUID runId, int concurrency) {
+        return runs.findWithLockByRunId(runId)
+                .filter(run -> !RunState.valueOf(run.state()).isTerminal())
+                .map(run -> {
+                    run.changeConcurrency(concurrency);
+                    return true;
+                })
+                .orElse(false);
+    }
+
+    @Override
     public List<Run> findByState(RunState state) {
         return runs.findAllByStateOrderByCreatedAt(state.name()).stream()
                 .map(mappings::run)

@@ -14,7 +14,9 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import io.github.temporalrift.workbench.execution.ExecutionRefusedException;
+import io.github.temporalrift.workbench.execution.application.port.in.CancelRunUseCase;
 import io.github.temporalrift.workbench.execution.application.port.in.ResumeRunUseCase;
+import io.github.temporalrift.workbench.execution.application.port.in.SetRunConcurrencyUseCase;
 import io.github.temporalrift.workbench.execution.application.port.in.StartRunUseCase;
 import io.github.temporalrift.workbench.execution.domain.run.InvalidRunStateException;
 import io.github.temporalrift.workbench.execution.domain.run.RunState;
@@ -24,7 +26,10 @@ class RunStartingServiceTest {
     private static final UUID RUN = new UUID(1, 1);
 
     private final ResumeRunUseCase resumeRun = mock(ResumeRunUseCase.class);
-    private final RunStartingService service = new RunStartingService(mock(StartRunUseCase.class), resumeRun);
+    private final CancelRunUseCase cancelRun = mock(CancelRunUseCase.class);
+    private final SetRunConcurrencyUseCase setConcurrency = mock(SetRunConcurrencyUseCase.class);
+    private final RunStartingService service =
+            new RunStartingService(mock(StartRunUseCase.class), resumeRun, cancelRun, setConcurrency);
 
     @Test
     void everyResumeIsItsOwnCommand() {
@@ -48,5 +53,31 @@ class RunStartingServiceTest {
                 .handle(any());
 
         assertThatThrownBy(() -> service.resume(RUN)).isInstanceOf(ExecutionRefusedException.class);
+    }
+
+    @Test
+    void everyCancelIsItsOwnCommand() {
+        service.cancel(RUN);
+        service.cancel(RUN);
+
+        var commands = ArgumentCaptor.forClass(CancelRunUseCase.Command.class);
+        verify(cancelRun, times(2)).handle(commands.capture());
+        assertThat(commands.getAllValues())
+                .extracting(CancelRunUseCase.Command::idempotencyKey)
+                .doesNotHaveDuplicates();
+    }
+
+    @Test
+    void aConcurrencyChangeOfAFinishedRunIsRefused() {
+        doThrow(new InvalidRunStateException("setConcurrency", RunState.COMPLETED))
+                .when(setConcurrency)
+                .handle(any());
+
+        assertThatThrownBy(() -> service.setConcurrency(RUN, 2)).isInstanceOf(ExecutionRefusedException.class);
+    }
+
+    @Test
+    void aNegativeConcurrencyIsRefused() {
+        assertThatThrownBy(() -> service.setConcurrency(RUN, -1)).isInstanceOf(ExecutionRefusedException.class);
     }
 }

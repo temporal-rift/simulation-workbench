@@ -18,4 +18,19 @@ public interface RunStarter {
      * @throws ExecutionRefusedException when the run is not interrupted or does not exist
      */
     void resume(UUID runId);
+
+    /**
+     * Sets how many of the run's cases may execute at once. The bound applies to the next case claimed: cases already
+     * executing finish, and 0 holds back every case that has not started.
+     *
+     * @throws ExecutionRefusedException when the run does not exist, is finished or the bound is negative
+     */
+    void setConcurrency(UUID runId, int concurrency);
+
+    /**
+     * Stops scheduling new cases of the run, keeping every completed result; cancelling a finished run is a no-op.
+     *
+     * @throws ExecutionRefusedException when the run does not exist
+     */
+    void cancel(UUID runId);
 }

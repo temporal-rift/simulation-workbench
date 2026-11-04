@@ -35,6 +35,7 @@ import io.github.temporalrift.workbench.execution.application.command.Reproducti
 import io.github.temporalrift.workbench.execution.application.command.ResumeRunCommandHandler;
 import io.github.temporalrift.workbench.execution.application.command.RunBatchService;
 import io.github.temporalrift.workbench.execution.application.command.RunStartingService;
+import io.github.temporalrift.workbench.execution.application.command.SetRunConcurrencyCommandHandler;
 import io.github.temporalrift.workbench.execution.application.command.StartRunCommandHandler;
 import io.github.temporalrift.workbench.execution.application.port.in.CancelRunUseCase;
 import io.github.temporalrift.workbench.execution.application.port.in.GetCaseReplayUseCase;
@@ -48,6 +49,7 @@ import io.github.temporalrift.workbench.execution.application.port.in.ReproduceC
 import io.github.temporalrift.workbench.execution.application.port.in.ResumeRunUseCase;
 import io.github.temporalrift.workbench.execution.application.port.in.RunBatchUseCase;
 import io.github.temporalrift.workbench.execution.application.port.in.RunReproductionUseCase;
+import io.github.temporalrift.workbench.execution.application.port.in.SetRunConcurrencyUseCase;
 import io.github.temporalrift.workbench.execution.application.port.in.StartRunUseCase;
 import io.github.temporalrift.workbench.execution.application.query.GetCaseQueryHandler;
 import io.github.temporalrift.workbench.execution.application.query.GetCaseReplayQueryHandler;
@@ -351,8 +353,17 @@ public class ExecutionConfiguration {
     }
 
     @Bean
-    RunStarter runStarter(StartRunUseCase startRun, ResumeRunUseCase resumeRun) {
-        return new RunStartingService(startRun, resumeRun);
+    RunStarter runStarter(
+            StartRunUseCase startRun,
+            ResumeRunUseCase resumeRun,
+            CancelRunUseCase cancelRun,
+            SetRunConcurrencyUseCase setConcurrency) {
+        return new RunStartingService(startRun, resumeRun, cancelRun, setConcurrency);
+    }
+
+    @Bean
+    SetRunConcurrencyUseCase setRunConcurrencyUseCase(RunRepository runs) {
+        return new SetRunConcurrencyCommandHandler(runs);
     }
 
     @Bean

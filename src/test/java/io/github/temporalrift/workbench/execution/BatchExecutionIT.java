@@ -98,6 +98,9 @@ class BatchExecutionIT {
     private PreviewVariantRulesUseCase previewRules;
 
     @Autowired
+    private RunStarter runStarter;
+
+    @Autowired
     private Clock clock;
 
     @Autowired
@@ -514,6 +517,38 @@ class BatchExecutionIT {
         assertThat(getRun.handle(runId).counts().running()).isEqualTo(3);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM case_attempt WHERE state = 'RUNNING'", Integer.class))
                 .isEqualTo(3);
+    }
+
+    @Test
+    void aRunHeldAtConcurrencyZeroClaimsNothingUntilTheBoundIsRaised() {
+        var runId = start(ExperimentManifests.threePlayerSingleSet());
+        batch.maintain();
+        var now = clock.instant();
+        var first = caseLedger.claimNext("holder", now, now.plusSeconds(30), Set.of(DEFAULT_FIT));
+        assertThat(first).isPresent();
+
+        runStarter.setConcurrency(runId, 0);
+
+        assertThat(caseLedger.claimNext("held", now, now.plusSeconds(30), Set.of(DEFAULT_FIT)))
+                .isEmpty();
+        assertThat(getRun.handle(runId).counts().running()).isEqualTo(1);
+
+        runStarter.setConcurrency(runId, 4);
+
+        assertThat(caseLedger.claimNext("released", now, now.plusSeconds(30), Set.of(DEFAULT_FIT)))
+                .isPresent();
+    }
+
+    @Test
+    void aFinishedRunRefusesAConcurrencyChange() {
+        var runId = start(ExperimentManifests.threePlayerSingleSet());
+        runStarter.cancel(runId);
+        runStarter.cancel(runId);
+        drain();
+
+        assertThatThrownBy(() -> runStarter.setConcurrency(runId, 2)).isInstanceOf(ExecutionRefusedException.class);
+        assertThatThrownBy(() -> runStarter.setConcurrency(UUID.randomUUID(), 2))
+                .isInstanceOf(ExecutionRefusedException.class);
     }
 
     @Test

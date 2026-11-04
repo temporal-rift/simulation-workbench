@@ -14,4 +14,7 @@ interface RunJpaRepository extends JpaRepository<RunJpaEntity, UUID> {
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<RunJpaEntity> findWithLockByRunIdAndState(UUID runId, String state);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<RunJpaEntity> findWithLockByRunId(UUID runId);
 }

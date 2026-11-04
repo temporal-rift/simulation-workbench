@@ -69,6 +69,10 @@ class RunJpaEntity extends AssignedIdJpaEntity<UUID> {
         this.failureMessage = failureMessage;
     }
 
+    void changeConcurrency(int concurrency) {
+        this.concurrency = concurrency;
+    }
+
     UUID runId() {
         return runId;
     }

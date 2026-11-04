@@ -122,6 +122,34 @@ class ExperimentValidatorTest {
     }
 
     @Test
+    void aHundredVariantsAreAcceptedWhenTheMatrixStaysUnderTheCaseBound() {
+        var manifest = (ObjectNode) ExperimentManifests.threePlayerSingleSet().deepCopy();
+        var variants = manifest.putArray("variants");
+        for (var index = 0; index < 100; index++) {
+            variants.add(ExperimentManifests.variant("c-%03d".formatted(index), "a".repeat(64), "b".repeat(64)));
+        }
+
+        assertThat(ExperimentValidator.validate(manifest).variantLabels()).hasSize(100);
+    }
+
+    @Test
+    void theCaseBoundRefusesAWaveThatWouldExpandPastIt() {
+        var manifest = (ObjectNode) ExperimentManifests.threePlayerSingleSet().deepCopy();
+        var variants = manifest.putArray("variants");
+        for (var index = 0; index < 100; index++) {
+            variants.add(ExperimentManifests.variant("c-%03d".formatted(index), "a".repeat(64), "b".repeat(64)));
+        }
+        var seeds = manifest.putArray("seeds");
+        for (var seed = 1; seed <= 400; seed++) {
+            seeds.add(Integer.toString(seed));
+        }
+
+        assertThatThrownBy(() -> ExperimentValidator.validate(manifest))
+                .isInstanceOf(ExperimentValidationException.class)
+                .hasMessageContaining("at most 100000");
+    }
+
+    @Test
     void duplicateVariantLabelsAreInvalid() {
         var manifest = (ObjectNode) ExperimentManifests.valid().deepCopy();
         manifest.withArray("variants").get(1).asObject().put("label", "baseline");
