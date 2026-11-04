@@ -38,6 +38,10 @@ export function describeFailure(error: unknown, context: FailureContext): string
       return `Could not ${context.action}: a frozen experiment cannot be changed. Start a new draft from it instead.`
     case 'IDEMPOTENCY_CONFLICT':
       return `Could not ${context.action}: this request was already submitted with different content. Reload and try again.`
+    case 'INVALID_CAMPAIGN':
+      return `Could not ${context.action}: the campaign definition was refused.${explanation}`
+    case 'INVALID_CAMPAIGN_STATE':
+      return `Could not ${context.action}: the campaign's current state does not allow it.`
     case 'INVALID_RUN_STATE':
       return `Could not ${context.action}: the run's current state does not allow it.`
     case 'RESOURCE_NOT_FOUND':

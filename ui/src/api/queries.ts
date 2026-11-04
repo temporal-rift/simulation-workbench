@@ -3,11 +3,15 @@ import { useMemo } from 'react'
 import { useSession } from '../auth/sessionContext'
 import { apiClientFor, problemOf, unwrap } from './client'
 import {
+  cancelCampaign,
   cancelRun,
+  createCampaign,
   createComparison,
   createExperiment,
   getCase,
   getCaseReplay,
+  getCampaign,
+  getCampaignLog,
   getComparison,
   getExperiment,
   getFidelityCheck,
@@ -16,6 +20,7 @@ import {
   getRunReport,
   getSimulatorFidelity,
   listBalanceCriteria,
+  listCampaigns,
   listCases,
   listComparisons,
   listExperimentTemplates,
@@ -26,12 +31,16 @@ import {
   listParameterSpaces,
   listPolicies,
   listRuns,
+  pauseCampaign,
   previewExperiment,
   previewVariantRules,
   reproduceCase,
+  resumeCampaign,
   resumeRun,
+  setCampaignParallelism,
   startFidelityCheck,
   startRun,
+  type CampaignDefinition,
   type CaseCounts,
   type CaseState,
   type ComparisonRequest,
@@ -44,6 +53,7 @@ import {
   type VariantRulesPreviewRequest,
 } from './generated'
 import type { Client } from './generated/client'
+import { isLive } from '../campaigns/campaignView'
 import { isOpenCheck } from '../fidelity/fidelityView'
 import { isTerminalRunState } from '../runs/runView'
 
@@ -321,3 +331,44 @@ export async function unmatchedFidelityCases(client: Client, checkId: string): P
 
 export const startFidelityCheckCommand = (client: Client, seed: string, idempotencyKey: string) =>
   unwrap(() => startFidelityCheck({ client, body: { seed }, headers: { 'Idempotency-Key': idempotencyKey } }))
+
+/** How often a campaign that is not over is read again, while the tab is visible. */
+export const CAMPAIGN_POLL_MS = 3000
+
+export const CAMPAIGN_LOG_PAGE_SIZE = 50
+
+export const campaignsQuery = (client: Client, offset: number) =>
+  queryOptions({
+    queryKey: ['campaigns', { offset }],
+    queryFn: () => unwrap(() => listCampaigns({ client, query: { limit: PAGE_SIZE, offset } })),
+    refetchInterval: CAMPAIGN_POLL_MS,
+  })
+
+export const campaignQuery = (client: Client, campaignId: string) =>
+  queryOptions({
+    queryKey: ['campaign', campaignId],
+    queryFn: () => unwrap(() => getCampaign({ client, path: { campaignId } })),
+    refetchInterval: (query) => (isLive(query.state.data?.state) ? CAMPAIGN_POLL_MS : false),
+  })
+
+export const campaignLogQuery = (client: Client, campaignId: string, offset: number, live: boolean) =>
+  queryOptions({
+    queryKey: ['campaign-log', campaignId, { offset }],
+    queryFn: () => unwrap(() => getCampaignLog({ client, path: { campaignId }, query: { limit: CAMPAIGN_LOG_PAGE_SIZE, offset } })),
+    refetchInterval: live ? CAMPAIGN_POLL_MS : false,
+  })
+
+export const createCampaignCommand = (client: Client, body: CampaignDefinition, idempotencyKey: string) =>
+  unwrap(() => createCampaign({ client, body, headers: { 'Idempotency-Key': idempotencyKey } }))
+
+export const pauseCampaignCommand = (client: Client, campaignId: string, idempotencyKey: string) =>
+  unwrap(() => pauseCampaign({ client, path: { campaignId }, headers: { 'Idempotency-Key': idempotencyKey } }))
+
+export const resumeCampaignCommand = (client: Client, campaignId: string, idempotencyKey: string) =>
+  unwrap(() => resumeCampaign({ client, path: { campaignId }, headers: { 'Idempotency-Key': idempotencyKey } }))
+
+export const cancelCampaignCommand = (client: Client, campaignId: string, idempotencyKey: string) =>
+  unwrap(() => cancelCampaign({ client, path: { campaignId }, headers: { 'Idempotency-Key': idempotencyKey } }))
+
+export const setCampaignParallelismCommand = (client: Client, campaignId: string, parallelism: number, idempotencyKey: string) =>
+  unwrap(() => setCampaignParallelism({ client, path: { campaignId }, body: { parallelism }, headers: { 'Idempotency-Key': idempotencyKey } }))

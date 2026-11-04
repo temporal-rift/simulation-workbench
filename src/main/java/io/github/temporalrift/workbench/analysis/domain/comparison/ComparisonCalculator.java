@@ -23,9 +23,9 @@ import io.github.temporalrift.workbench.analysis.domain.report.ReportCalculator;
 import io.github.temporalrift.workbench.analysis.domain.report.Vocabulary;
 import io.github.temporalrift.workbench.analysis.domain.statistics.BlockBootstrap;
 import io.github.temporalrift.workbench.analysis.domain.statistics.BlockSeries;
-import io.github.temporalrift.workbench.analysis.domain.statistics.SplitMix64;
 import io.github.temporalrift.workbench.shared.execution.CaseState;
 import io.github.temporalrift.workbench.shared.game.Faction;
+import io.github.temporalrift.workbench.shared.random.SplitMix64;
 
 /**
  * Pairs the two sides' cases and estimates differences from complete matched blocks only. A pair shares seed,

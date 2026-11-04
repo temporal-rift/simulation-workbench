@@ -31,3 +31,5 @@ workbench:
     worker-enabled: false
   fidelity:
     worker-enabled: false
+  search:
+    worker-enabled: false

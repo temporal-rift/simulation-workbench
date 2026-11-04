@@ -13,9 +13,11 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
 
+import io.github.temporalrift.workbench.experiment.ExperimentFactory;
 import io.github.temporalrift.workbench.experiment.ExperimentRefusedException;
 import io.github.temporalrift.workbench.experiment.VariantRulesFixtures;
 import io.github.temporalrift.workbench.experiment.application.port.in.CreateExperimentUseCase;
+import io.github.temporalrift.workbench.experiment.application.query.GetParameterAxesQueryHandler;
 import io.github.temporalrift.workbench.experiment.application.query.PreviewVariantRulesQueryHandler;
 import io.github.temporalrift.workbench.experiment.domain.ExperimentErrorCode;
 import io.github.temporalrift.workbench.experiment.domain.ExperimentValidationException;
@@ -25,7 +27,9 @@ class ExperimentFactoryServiceTest {
 
     private final CreateExperimentUseCase create = mock(CreateExperimentUseCase.class);
     private final ExperimentFactoryService factory = new ExperimentFactoryService(
-            new PreviewVariantRulesQueryHandler(VariantRulesFixtures.variantRules()), create);
+            new PreviewVariantRulesQueryHandler(VariantRulesFixtures.variantRules()),
+            new GetParameterAxesQueryHandler(VariantRulesFixtures.variantRules()),
+            create);
 
     @Test
     void aVariantPreviewNamesItsDigestAndTheOverridesFreezingWouldStore() {
@@ -38,6 +42,25 @@ class ExperimentFactoryServiceTest {
         assertThat(baseline.overrides()).isEmpty();
         assertThat(changed.overrides()).containsOnlyKeys("game.rules.win-score-threshold");
         assertThat(changed.effectiveRulesDigest()).isNotEqualTo(baseline.effectiveRulesDigest());
+    }
+
+    @Test
+    void theParameterAxesAreInKeyOrderWithTheBaselineValues() {
+        var axes = factory.parameterAxes(VariantRulesFixtures.ARTIFACT_DIGEST, 1);
+
+        assertThat(axes).isNotEmpty();
+        assertThat(axes).extracting(ExperimentFactory.ParameterAxis::key).isSorted();
+        assertThat(axes)
+                .filteredOn(axis -> axis.key().equals("game.rules.win-score-threshold"))
+                .singleElement()
+                .satisfies(axis -> assertThat(axis.baseline()).isBetween(axis.min(), axis.max()));
+    }
+
+    @Test
+    void parameterAxesOfAnUnknownBaselineAreRefused() {
+        var unknown = "f".repeat(64);
+
+        assertThatThrownBy(() -> factory.parameterAxes(unknown, 1)).isInstanceOf(ExperimentRefusedException.class);
     }
 
     @Test

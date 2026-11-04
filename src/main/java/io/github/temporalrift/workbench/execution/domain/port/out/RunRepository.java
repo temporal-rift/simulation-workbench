@@ -41,6 +41,9 @@ public interface RunRepository {
 
     List<Run> findByState(RunState state);
 
+    /** Sets the run's concurrency bound; returns false when the run does not exist or is in a terminal state. */
+    boolean setConcurrency(UUID runId, int concurrency);
+
     /** Runs newest first, optionally of one experiment and one state; {@code offset} skips that many. */
     List<Run> list(UUID experimentId, RunState state, int limit, int offset);
 

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+  <changeSet id="003-create-campaign-wave" author="simulation-workbench">
+    <!-- A wave is a frozen experiment and the run that plays it. -->
+    <createTable tableName="campaign_wave">
+      <column name="campaign_id" type="UUID">
+        <constraints nullable="false" foreignKeyName="fk_campaign_wave_campaign" references="campaign(campaign_id)"/>
+      </column>
+      <column name="wave_index" type="INT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="round" type="INT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="experiment_id" type="UUID">
+        <constraints nullable="false"/>
+      </column>
+      <column name="run_id" type="UUID">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+    <addPrimaryKey tableName="campaign_wave" columnNames="campaign_id, wave_index"
+                   constraintName="pk_campaign_wave"/>
+  </changeSet>
+</databaseChangeLog>

@@ -30,9 +30,17 @@ public final class SyntheticRun {
     private final List<AnalyzedCase> cases = new ArrayList<>();
     private final Map<UUID, CaseFacts> facts = new HashMap<>();
 
+    private final long idSpace;
+
     public SyntheticRun(String variant, String policy) {
+        this(variant, policy, 7);
+    }
+
+    /** @param idSpace keeps the case ids of this run apart from those of another synthetic run */
+    public SyntheticRun(String variant, String policy, long idSpace) {
         this.variant = variant;
         this.policy = policy;
+        this.idSpace = idSpace;
     }
 
     /** The policy of the cases added from now on. */
@@ -109,7 +117,7 @@ public final class SyntheticRun {
     private AnalyzedCase analyzed(
             String seed, List<Faction> seats, CaseState status, CaseOutcome outcome, FailureCode code) {
         return new AnalyzedCase(
-                new UUID(7, cases.size()),
+                new UUID(idSpace, cases.size()),
                 variant,
                 seed,
                 seats.size(),

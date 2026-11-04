@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+  <changeSet id="001-create-campaign" author="simulation-workbench">
+    <!-- One configuration search. The row version makes every step of the worker apply exactly once. -->
+    <createTable tableName="campaign">
+      <column name="campaign_id" type="UUID">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="idempotency_key" type="UUID">
+        <constraints nullable="false" unique="true" uniqueConstraintName="uq_campaign_key"/>
+      </column>
+      <column name="request_hash" type="VARCHAR(64)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="name" type="VARCHAR(120)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="definition_json" type="TEXT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="parallelism" type="INT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="state" type="VARCHAR(16)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="spent_seconds" type="BIGINT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="round" type="INT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="short_list_json" type="TEXT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="failure_code" type="VARCHAR(64)"/>
+      <column name="failure_message" type="TEXT"/>
+      <!-- The moment active time was last counted up to; only meaningful while the campaign is RUNNING. -->
+      <column name="accrued_at" type="TIMESTAMP WITH TIME ZONE">
+        <constraints nullable="false"/>
+      </column>
+      <column name="row_version" type="BIGINT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="created_at" type="TIMESTAMP WITH TIME ZONE">
+        <constraints nullable="false"/>
+      </column>
+      <column name="started_at" type="TIMESTAMP WITH TIME ZONE"/>
+      <column name="finished_at" type="TIMESTAMP WITH TIME ZONE"/>
+    </createTable>
+
+    <createIndex tableName="campaign" indexName="campaign_by_created_idx">
+      <column name="created_at" descending="true"/>
+      <column name="campaign_id" descending="true"/>
+    </createIndex>
+    <createIndex tableName="campaign" indexName="campaign_by_state_idx">
+      <column name="state"/>
+      <column name="created_at"/>
+    </createIndex>
+  </changeSet>
+</databaseChangeLog>

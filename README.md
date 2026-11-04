@@ -681,6 +681,53 @@ while it is. The operator page of the designer application (**Simulator fidelity
 seed and lists a check's cases with their first divergence. A passing check for the revisions current at a release is
 committed as a report under [docs/fidelity](docs/fidelity): the check page offers **Download report**, which renders the served record, with the cases that did not match, as `report-<seed>-<game revision>.md`.
 
+## Search campaigns
+
+A **campaign** searches the rules of a baseline for configurations that meet the balance criterion, on the in-process
+simulator. It is a durable process; every decision is a function of its definition and of the games' results, so the
+same definition always gives the same log.
+
+| Operation | Meaning |
+|---|---|
+| `POST /api/v1/campaigns` | Accepts a definition (`simulation:write`, `Idempotency-Key`); `400 INVALID_CAMPAIGN` with the offending `field` and a `reason` (`UNKNOWN_PARAMETER_SPACE`, `UNKNOWN_BASELINE`, `UNKNOWN_CRITERION`, `EQUAL_MASTER_SEEDS`, `INVALID_VALUE`); the same key with the same definition returns the original campaign, with another `409 IDEMPOTENCY_CONFLICT` |
+| `GET /api/v1/campaigns`, `.../{id}`, `.../{id}/log` | The campaigns newest first, one campaign with the active time it has spent so far, and its decision log in sequence order |
+| `POST .../{id}/pause`, `.../resume`, `.../cancel` | Pause a queued or running campaign, resume a paused one, cancel one that is not over; repeating the one that already holds changes nothing, any other state answers `409 INVALID_CAMPAIGN_STATE` |
+| `PUT .../{id}/parallelism` | Changes the games played at once; the next game claimed obeys it and games in flight finish |
+| `POST .../{id}/confirmation` | Answers `501 NOT_IMPLEMENTED` until confirmation on fresh seeds is built |
+
+**The search.** Round 0 generates `initialCandidates`: the baseline, its one-step perturbations in key order, then a Latin
+hypercube sample of the parameter space. Every candidate plays the same seeds, which derive from `searchMasterSeed` and
+extend from round to round, over the full matrix of the campaign's player counts, faction sets under cyclic seat rotation
+and policies. A candidate that breaks a range, a step or a constraint, or makes rules another candidate already makes, is
+redrawn, never repaired, and its redraws are counted in the log. When a round is played it is decided at once, in
+candidate order: a candidate with a failing gate line is discarded (`GATE_FAILS`), then one another candidate dominates
+with evidence (`DOMINATED`), then all but the best `1/eta` (`NOT_IN_TOP_FRACTION`). Survivors play `eta` times as many
+seeds next round, beside new candidates that mutate the survivors or are drawn at random. The search stops when its budget
+is spent or when the short list has stayed the same for two rounds, and the campaign becomes `SEARCH_COMPLETED` with its
+short list; candidates still undecided when the budget runs out are discarded as `BUDGET_EXHAUSTED`.
+
+**Waves.** A round plays as one or more waves, one after another. A wave is a frozen experiment whose variants are the
+candidates (labelled by candidate id) and a run of it; the campaign records which candidate plays which seed in which
+wave, so a game is never played or counted twice. Pausing, resuming and changing parallelism set the concurrency of the
+waves being played: a paused campaign claims no new game and games already playing finish.
+
+**Budget.** `budgetSeconds` is active time: the seconds a campaign spends `RUNNING` are counted, the time it is queued,
+paused or the process is down is not.
+
+**Durability.** A worker (`workbench.search.worker-enabled`, default `true`) advances campaigns one persisted step at a
+time. A step applies, with everything it records, only if the campaign is still at the version it read, and the
+experiment and run of a wave are requested with keys derived from the campaign, so a restart repeats nothing. A queued
+campaign stays queued with the failure `FIDELITY_NOT_ESTABLISHED` until the simulator is established (see
+"Simulator fidelity"). The worker polls every `workbench.search.poll-interval` (default `2s`); a round is split into waves
+of at most `workbench.search.max-cases-per-wave` cases (default `50000`), and
+`workbench.search.case-wall-timeout-seconds` and `workbench.search.max-rejected-candidates-per-window` bound the cases of
+its experiments.
+
+The designer application has a **Campaigns** page that lists campaigns and starts one, and a campaign page with its
+state, active time spent and remaining, round, short list and paged decision log, pause, resume and cancel enabled only
+where the state accepts them, a control for the games at once, and the fidelity gate shown as the reason a campaign has
+not started.
+
 ## Timing metrics
 
 The workbench publishes Micrometer timers on its Prometheus endpoint (`/actuator/prometheus`) that split a game's wall
