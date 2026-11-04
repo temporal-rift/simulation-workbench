@@ -201,7 +201,10 @@ class CampaignRepositoryIT {
         var change = CampaignChange.of(running, campaign.start(NOW), NOW)
                 .recording(List.of(candidate), List.of())
                 .playing(wave, List.of(new Game("c-0000", "42", 0)))
-                .deciding(new RoundResult(0, List.of("c-0000"), List.of("c-0000")), List.of());
+                .deciding(
+                        new RoundResult(
+                                0, List.of(new RoundResult.Survivor("c-0000", "CONFIRMED", 1.5)), List.of("c-0000")),
+                        List.of());
 
         assertThat(repository.apply(change)).isTrue();
 
@@ -209,7 +212,9 @@ class CampaignRepositoryIT {
         assertThat(repository.candidates(id)).hasSize(1);
         assertThat(repository.waves(id)).containsExactly(wave);
         assertThat(repository.games(id)).hasSize(1);
-        assertThat(repository.rounds(id)).containsExactly(new RoundResult(0, List.of("c-0000"), List.of("c-0000")));
+        assertThat(repository.rounds(id))
+                .containsExactly(new RoundResult(
+                        0, List.of(new RoundResult.Survivor("c-0000", "CONFIRMED", 1.5)), List.of("c-0000")));
     }
 
     @Test
@@ -222,7 +227,9 @@ class CampaignRepositoryIT {
         var candidate = new Candidate("c-0000", 0, List.of(0), new TreeMap<>(), "a".repeat(64), 0);
         var change = CampaignChange.of(stale, campaign.start(NOW), NOW)
                 .recording(List.of(candidate), List.of())
-                .deciding(new RoundResult(0, List.of("c-0000"), List.of()), List.of());
+                .deciding(
+                        new RoundResult(0, List.of(new RoundResult.Survivor("c-0000", "CONFIRMED", null)), List.of()),
+                        List.of());
 
         assertThat(repository.apply(change)).isFalse();
 

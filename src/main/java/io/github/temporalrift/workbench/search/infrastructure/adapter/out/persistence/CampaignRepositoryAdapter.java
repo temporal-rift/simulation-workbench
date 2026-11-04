@@ -52,6 +52,7 @@ class CampaignRepositoryAdapter implements CampaignRepository {
     private static final int ROWS_PER_STATEMENT = 500;
 
     private static final TypeReference<List<String>> STRINGS = new TypeReference<>() {};
+    private static final TypeReference<List<RoundResult.Survivor>> SURVIVOR_LIST = new TypeReference<>() {};
     private static final TypeReference<List<Integer>> INTEGERS = new TypeReference<>() {};
     private static final TypeReference<TreeMap<String, String>> DECIMALS = new TypeReference<>() {};
 
@@ -244,7 +245,7 @@ class CampaignRepositoryAdapter implements CampaignRepository {
                 .orderBy(ROUND.asc())
                 .fetch(row -> new RoundResult(
                         row.get(ROUND),
-                        json.read(row.get(SURVIVORS), STRINGS),
+                        json.read(row.get(SURVIVORS), SURVIVOR_LIST),
                         json.read(row.get(SHORT_LIST), STRINGS)));
     }
 

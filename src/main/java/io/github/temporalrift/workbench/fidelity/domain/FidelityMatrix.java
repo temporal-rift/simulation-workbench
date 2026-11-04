@@ -1,11 +1,10 @@
 package io.github.temporalrift.workbench.fidelity.domain;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 
 import io.github.temporalrift.workbench.shared.game.Faction;
+import io.github.temporalrift.workbench.shared.game.FactionSets;
 
 /**
  * The case matrix every check plays: player counts 3, 4 and 5, every faction set under {@code CYCLIC} seat rotation,
@@ -46,29 +45,11 @@ public final class FidelityMatrix {
 
     /** Every set of distinct factions of each player count, smallest first, each ordered by faction name. */
     public static List<List<Faction>> factionSets() {
-        var names = Arrays.stream(Faction.values())
-                .sorted(Comparator.comparing(Faction::name))
-                .toList();
-        var sets = new ArrayList<List<Faction>>();
-        PLAYER_COUNTS.forEach(size -> collect(names, size, 0, new ArrayList<>(), sets));
-        return List.copyOf(sets);
+        return FactionSets.of(PLAYER_COUNTS);
     }
 
     /** How many cases a check plays: 55 per policy and variant. */
     public static int caseCount() {
         return factionSets().stream().mapToInt(List::size).sum() * POLICY_IDS.size() * VariantLabel.values().length;
-    }
-
-    private static void collect(
-            List<Faction> names, int size, int from, List<Faction> chosen, List<List<Faction>> sets) {
-        if (chosen.size() == size) {
-            sets.add(List.copyOf(chosen));
-            return;
-        }
-        for (var index = from; index < names.size(); index++) {
-            chosen.add(names.get(index));
-            collect(names, size, index + 1, chosen, sets);
-            chosen.removeLast();
-        }
     }
 }
