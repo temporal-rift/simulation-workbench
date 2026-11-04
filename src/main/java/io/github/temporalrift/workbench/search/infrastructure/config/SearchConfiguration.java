@@ -16,14 +16,22 @@ import io.github.temporalrift.workbench.experiment.ExperimentFactory;
 import io.github.temporalrift.workbench.fidelity.SimulatorFidelityGate;
 import io.github.temporalrift.workbench.search.application.command.CampaignProgress;
 import io.github.temporalrift.workbench.search.application.command.CancelCampaignCommandHandler;
+import io.github.temporalrift.workbench.search.application.command.CreateCampaignCommandHandler;
 import io.github.temporalrift.workbench.search.application.command.PauseCampaignCommandHandler;
 import io.github.temporalrift.workbench.search.application.command.ResumeCampaignCommandHandler;
 import io.github.temporalrift.workbench.search.application.command.SetCampaignParallelismCommandHandler;
 import io.github.temporalrift.workbench.search.application.port.in.AdvanceCampaignsUseCase;
 import io.github.temporalrift.workbench.search.application.port.in.CancelCampaignUseCase;
+import io.github.temporalrift.workbench.search.application.port.in.CreateCampaignUseCase;
+import io.github.temporalrift.workbench.search.application.port.in.GetCampaignLogUseCase;
+import io.github.temporalrift.workbench.search.application.port.in.GetCampaignUseCase;
+import io.github.temporalrift.workbench.search.application.port.in.ListCampaignsUseCase;
 import io.github.temporalrift.workbench.search.application.port.in.PauseCampaignUseCase;
 import io.github.temporalrift.workbench.search.application.port.in.ResumeCampaignUseCase;
 import io.github.temporalrift.workbench.search.application.port.in.SetCampaignParallelismUseCase;
+import io.github.temporalrift.workbench.search.application.query.GetCampaignLogQueryHandler;
+import io.github.temporalrift.workbench.search.application.query.GetCampaignQueryHandler;
+import io.github.temporalrift.workbench.search.application.query.ListCampaignsQueryHandler;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignExperiments;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRepository;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRuns;
@@ -73,6 +81,30 @@ public class SearchConfiguration {
             SearchProperties properties,
             Clock clock) {
         return new CampaignProgress(campaigns, experiments, runs, evaluation, gate, properties.settings(), clock);
+    }
+
+    @Bean
+    CreateCampaignUseCase createCampaignUseCase(
+            CampaignRepository campaigns,
+            CampaignExperiments experiments,
+            CandidateEvaluation evaluation,
+            Clock clock) {
+        return new CreateCampaignCommandHandler(campaigns, experiments, evaluation, clock);
+    }
+
+    @Bean
+    GetCampaignUseCase getCampaignUseCase(CampaignRepository campaigns, Clock clock) {
+        return new GetCampaignQueryHandler(campaigns, clock);
+    }
+
+    @Bean
+    ListCampaignsUseCase listCampaignsUseCase(CampaignRepository campaigns, Clock clock) {
+        return new ListCampaignsQueryHandler(campaigns, clock);
+    }
+
+    @Bean
+    GetCampaignLogUseCase getCampaignLogUseCase(CampaignRepository campaigns) {
+        return new GetCampaignLogQueryHandler(campaigns);
     }
 
     @Bean
