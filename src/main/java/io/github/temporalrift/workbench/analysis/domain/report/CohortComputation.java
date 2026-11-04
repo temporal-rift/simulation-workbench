@@ -1,9 +1,11 @@
 package io.github.temporalrift.workbench.analysis.domain.report;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
@@ -32,7 +34,26 @@ public final class CohortComputation {
      * @param blocks how many seed blocks the cohort resampled; two cohorts share plans only when these are equal
      * @param values null when the cohort has too few blocks to resample
      */
-    public record Replicates(double point, int blocks, double[] values) {}
+    public record Replicates(double point, int blocks, double[] values) {
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof Replicates that
+                    && Double.compare(point, that.point) == 0
+                    && blocks == that.blocks
+                    && Arrays.equals(values, that.values);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(point, blocks, Arrays.hashCode(values));
+        }
+
+        @Override
+        public String toString() {
+            return "Replicates[point=" + point + ", blocks=" + blocks + ", values=" + Arrays.toString(values) + "]";
+        }
+    }
 
     /** A derived value with the status and interval a report metric would carry. */
     public record Estimate(Double value, MetricStatus status, Interval interval) {}

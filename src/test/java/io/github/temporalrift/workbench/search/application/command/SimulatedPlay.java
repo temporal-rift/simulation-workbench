@@ -29,6 +29,19 @@ import io.github.temporalrift.workbench.shared.text.Sha256;
  */
 final class SimulatedPlay implements CampaignExperiments, CampaignRuns, CandidateEvaluation, FidelityGate {
 
+    static final String POISONED = "poisoned";
+
+    private Runnable beforeRaise;
+
+    /** Runs {@code action} once, just before the next time a run is allowed to play: a command landing mid-step. */
+    synchronized void beforeNextRaise(Runnable action) {
+        this.beforeRaise = action;
+    }
+
+    synchronized List<Experiment> frozen() {
+        return List.copyOf(experiments.values());
+    }
+
     private final AtomicBoolean fidelityEstablished = new AtomicBoolean(true);
     private final Map<UUID, Run> runs = new HashMap<>();
     private final Map<UUID, UUID> experimentOfRun = new HashMap<>();
@@ -49,6 +62,9 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
 
     @Override
     public ParameterGrid grid(CampaignDefinition definition) {
+        if (POISONED.equals(definition.name())) {
+            throw new IllegalStateException("this campaign cannot be generated");
+        }
         return new ParameterGrid(List.of(
                 axis("game.rules.a", 0, 4, 2),
                 axis("game.rules.b", 0, 4, 2),
@@ -120,6 +136,11 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
 
     @Override
     public synchronized void setConcurrency(UUID runId, int concurrency) {
+        if (concurrency > 0 && beforeRaise != null) {
+            var action = beforeRaise;
+            beforeRaise = null;
+            action.run();
+        }
         var run = runs.get(runId);
         if (run != null && !run.phase.isFinal()) {
             run.concurrency = concurrency;

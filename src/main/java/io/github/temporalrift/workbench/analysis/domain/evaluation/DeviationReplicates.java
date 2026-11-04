@@ -1,5 +1,8 @@
 package io.github.temporalrift.workbench.analysis.domain.evaluation;
 
+import java.util.Arrays;
+import java.util.Objects;
+
 import io.github.temporalrift.workbench.analysis.domain.criterion.Band;
 import io.github.temporalrift.workbench.analysis.domain.report.CohortComputation.Replicates;
 
@@ -10,6 +13,25 @@ import io.github.temporalrift.workbench.analysis.domain.report.CohortComputation
  * @param values null when there were too few blocks to resample; NaN where a plan leaves the line undefined
  */
 record DeviationReplicates(boolean hasData, int blocks, double[] values) {
+
+    @Override
+    public boolean equals(Object other) {
+        return other instanceof DeviationReplicates that
+                && hasData == that.hasData
+                && blocks == that.blocks
+                && Arrays.equals(values, that.values);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(hasData, blocks, Arrays.hashCode(values));
+    }
+
+    @Override
+    public String toString() {
+        return "DeviationReplicates[hasData=" + hasData + ", blocks=" + blocks + ", values=" + Arrays.toString(values)
+                + "]";
+    }
 
     static DeviationReplicates of(Band band, Replicates replicates) {
         var values = replicates.values();

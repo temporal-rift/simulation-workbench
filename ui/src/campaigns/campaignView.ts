@@ -42,9 +42,9 @@ export function isCancellable(state: CampaignState): boolean {
   return state !== 'COMPLETED' && state !== 'CANCELLED' && state !== 'FAILED'
 }
 
-/** Parallelism may change until the campaign is over. */
+/** Parallelism matters only while the search still has games to play. */
 export function isTuneable(state: CampaignState): boolean {
-  return isCancellable(state)
+  return state === 'QUEUED' || state === 'RUNNING' || state === 'PAUSED'
 }
 
 /** Seconds as hours, minutes and seconds, leaving out the units that are zero from the front. */

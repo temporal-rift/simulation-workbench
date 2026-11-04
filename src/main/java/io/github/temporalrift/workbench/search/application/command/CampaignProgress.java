@@ -11,6 +11,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.github.temporalrift.workbench.search.application.port.in.AdvanceCampaignsUseCase;
 import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignChange;
@@ -62,6 +65,8 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
             CampaignFailure.FIDELITY_NOT_ESTABLISHED,
             "The simulator has no passing fidelity record for the source revisions it embeds");
 
+    private static final Logger LOG = LoggerFactory.getLogger(CampaignProgress.class);
+
     private static final int RECOVERY_ATTEMPTS = 5;
 
     private final CampaignRepository campaigns;
@@ -93,8 +98,18 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
 
     @Override
     public boolean advance() {
+        var advanced = false;
         for (var stored : campaigns.inStates(List.of(CampaignState.QUEUED, CampaignState.RUNNING))) {
-            if (step(stored)) {
+            try {
+                advanced |= step(stored);
+            } catch (RuntimeException e) {
+                // One campaign that cannot be stepped must not starve the ones behind it.
+                LOG.error(
+                        "The campaign {} could not be advanced",
+                        stored.campaign().campaignId(),
+                        e);
+            }
+            if (advanced) {
                 return true;
             }
         }
@@ -142,16 +157,33 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
             return begin(stored, now);
         }
         var step = new Step(stored, now);
-        waveRuns.allow(step.campaign.campaignId(), step.campaign.parallelism());
+        var campaignId = step.campaign.campaignId();
+        allowThenVerify(campaignId, () -> waveRuns.allow(campaignId, step.campaign.parallelism()));
         try {
             return advanceRound(step);
-        } catch (CampaignPlayRefusedException e) {
+        } catch (CampaignPlayRefusedException | IllegalArgumentException e) {
             return fail(step, PLAY_REFUSED, e.getMessage());
         } catch (CampaignEvaluationException e) {
             return fail(step, EVALUATION_FAILED, e.getMessage());
         } catch (CandidateGenerationExhaustedException e) {
             return fail(step, CampaignFailure.CANDIDATE_GENERATION_EXHAUSTED, e.getMessage());
         }
+    }
+
+    /**
+     * Lets runs play and then checks that the campaign still wants them to. A pause or a cancel commits its state
+     * before it holds or cancels the runs, so a step that read the campaign earlier can raise the concurrency after
+     * that hold; reading the state again afterwards puts the hold back, and no later step would otherwise correct it.
+     */
+    private void allowThenVerify(UUID campaignId, Runnable allow) {
+        allow.run();
+        campaigns.find(campaignId).map(found -> found.campaign().state()).ifPresent(state -> {
+            if (state == CampaignState.PAUSED) {
+                waveRuns.hold(campaignId);
+            } else if (state == CampaignState.CANCELLED) {
+                waveRuns.stop(campaignId);
+            }
+        });
     }
 
     /** A campaign resumed before it ever started starts now, or waits for the fidelity gate like a queued one. */
@@ -166,7 +198,7 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
         var round = campaign.round();
         var ledger = Ledger.read(campaigns, campaign.campaignId());
         if (ledger.generatedIn(round).isEmpty()) {
-            return generate(step, ledger);
+            return budgetSpent(step) ? concludeOutOfBudget(step, ledger) : generate(step, ledger);
         }
         var waiting = false;
         for (var wave : ledger.wavesOf(round)) {
@@ -269,21 +301,22 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
     private boolean play(Step step, Ledger ledger, Missing missing) {
         var campaign = step.campaign;
         var definition = campaign.definition();
-        var perWave =
-                Math.max(1, settings.maxCasesPerWave() / (experiments.casesPerGame(definition) * missing.seeds.size()));
+        var casesPerGame = experiments.casesPerGame(definition);
+        // A wave holds at most the configured number of cases: first as many seeds as fit, then as many candidates.
+        var seeds = missing.seeds.subList(0, (int)
+                Math.min(missing.seeds.size(), Math.max(1, settings.maxCasesPerWave() / casesPerGame)));
+        var perWave = Math.max(1, settings.maxCasesPerWave() / (casesPerGame * seeds.size()));
         var candidates = missing.candidates.stream().limit(perWave).toList();
         var index = ledger.waves().size();
-        var experimentId =
-                experiments.freeze(key(campaign, "experiment", index), definition, index, candidates, missing.seeds);
+        var experimentId = experiments.freeze(key(campaign, "experiment", index), definition, index, candidates, seeds);
         var runId = runs.start(experimentId, key(campaign, "run", index));
         runs.setConcurrency(runId, WaveRuns.HELD);
         var games = new ArrayList<Game>();
-        candidates.forEach(
-                candidate -> missing.seeds.forEach(seed -> games.add(new Game(candidate.id(), seed, index))));
+        candidates.forEach(candidate -> seeds.forEach(seed -> games.add(new Game(candidate.id(), seed, index))));
         var applied =
                 campaigns.apply(step.change().playing(new Wave(index, campaign.round(), experimentId, runId), games));
         if (applied) {
-            runs.setConcurrency(runId, campaign.parallelism());
+            allowThenVerify(campaign.campaignId(), () -> runs.setConcurrency(runId, campaign.parallelism()));
         }
         return applied;
     }

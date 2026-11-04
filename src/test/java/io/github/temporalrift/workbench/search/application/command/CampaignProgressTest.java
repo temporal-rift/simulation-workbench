@@ -221,6 +221,71 @@ class CampaignProgressTest {
         assertThat(harness.campaigns.log(id, 1, 0).total()).isPositive();
     }
 
+    @Test
+    void aPauseLandingBetweenReadingTheCampaignAndRaisingTheRunsLeavesTheRunsHeld() {
+        var harness = new Harness(3600);
+        var id = harness.create(4);
+        harness.progress.advance();
+        harness.progress.advance();
+        harness.progress.advance();
+        harness.play.beforeNextRaise(() -> harness.pause.handle(id));
+
+        harness.progress.advance();
+
+        assertThat(harness.campaign(id).state()).isEqualTo(CampaignState.PAUSED);
+        var waves = harness.campaigns.waves(id);
+        assertThat(waves).isNotEmpty();
+        waves.forEach(
+                wave -> assertThat(harness.play.concurrencyOf(wave.runId())).isZero());
+    }
+
+    @Test
+    void aCampaignWhoseBudgetRunsOutBetweenRoundsEndsWithTheShortListOfTheLastDecidedRound() {
+        var harness = new Harness(3600);
+        var id = harness.create(4);
+        harness.driveUntil(
+                id,
+                () -> harness.campaign(id).round() == 1
+                        && harness.campaigns.candidates(id).stream().noneMatch(candidate -> candidate.round() == 1));
+        harness.clock.advance(Duration.ofHours(2));
+
+        harness.progress.advance();
+
+        var campaign = harness.campaign(id);
+        assertThat(campaign.state()).isEqualTo(CampaignState.SEARCH_COMPLETED);
+        assertThat(campaign.shortList()).isNotEmpty();
+    }
+
+    @Test
+    void aWaveNeverHoldsMoreCasesThanTheLimitSoSeedsAreSplitAsWellAsCandidates() {
+        var harness = new Harness(3600, 15);
+        var id = harness.create(4);
+
+        harness.drive(id);
+
+        assertThat(harness.campaign(id).state()).isEqualTo(CampaignState.SEARCH_COMPLETED);
+        assertThat(harness.play.frozen())
+                .isNotEmpty()
+                .allSatisfy(experiment -> assertThat(experiment.candidates().size()
+                                * experiment.seeds().size())
+                        .isEqualTo(1));
+        assertThat(harness.campaigns.games(id).stream().map(game -> game.candidateId() + "/" + game.seed()))
+                .doesNotHaveDuplicates();
+    }
+
+    @Test
+    void aCampaignThatCannotBeSteppedDoesNotStopTheCampaignsBehindIt() {
+        var harness = new Harness(3600);
+        harness.create(4, SimulatedPlay.POISONED);
+        var healthy = harness.create(4);
+
+        for (var step = 0; step < 6; step++) {
+            harness.progress.advance();
+        }
+
+        assertThat(harness.campaigns.candidates(healthy)).isNotEmpty();
+    }
+
     private static List<Integer> sequence(int size) {
         return java.util.stream.IntStream.rangeClosed(1, size).boxed().toList();
     }
@@ -232,6 +297,7 @@ class CampaignProgressTest {
         final SimulatedPlay play = new SimulatedPlay();
         final TestClock clock = new TestClock(START);
         final int budgetSeconds;
+        final int maxCasesPerWave;
         CampaignProgress progress;
         final PauseCampaignCommandHandler pause;
         final ResumeCampaignCommandHandler resume;
@@ -239,7 +305,12 @@ class CampaignProgressTest {
         final SetCampaignParallelismCommandHandler parallelism;
 
         Harness(int budgetSeconds) {
+            this(budgetSeconds, 1_000);
+        }
+
+        Harness(int budgetSeconds, int maxCasesPerWave) {
             this.budgetSeconds = budgetSeconds;
+            this.maxCasesPerWave = maxCasesPerWave;
             this.progress = newProgress();
             this.pause = new PauseCampaignCommandHandler(campaigns, play, clock);
             this.resume = new ResumeCampaignCommandHandler(campaigns, play, clock);
@@ -248,7 +319,8 @@ class CampaignProgressTest {
         }
 
         private CampaignProgress newProgress() {
-            return new CampaignProgress(campaigns, play, play, play, play, new CampaignSettings(1_000), clock);
+            return new CampaignProgress(
+                    campaigns, play, play, play, play, new CampaignSettings(maxCasesPerWave), clock);
         }
 
         /** A new process over the same storage: nothing is remembered but what was persisted. */
@@ -258,11 +330,15 @@ class CampaignProgressTest {
         }
 
         UUID create(int parallelism) {
+            return create(parallelism, "search");
+        }
+
+        UUID create(int parallelism, String name) {
             var mapper = JsonMapper.builder().build();
             var baseline = mapper.createObjectNode();
             baseline.putObject("rulesArtifact").put("digest", "d".repeat(64));
             var definition = new CampaignDefinition(
-                    "search",
+                    name,
                     baseline,
                     1,
                     1,

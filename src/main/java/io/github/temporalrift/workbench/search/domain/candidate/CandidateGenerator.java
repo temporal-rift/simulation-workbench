@@ -123,8 +123,8 @@ public final class CandidateGenerator {
     public int newCandidatesIn(int round) {
         var places = (long) algorithm.initialCandidates();
         var divisor = 2L;
-        for (var step = 0; step < round && divisor <= places; step++) {
-            divisor *= algorithm.eta();
+        for (var step = 1; step < round && divisor <= places; step++) {
+            divisor *= 2;
         }
         return (int) Math.max(1, (places + divisor - 1) / divisor);
     }

@@ -121,6 +121,7 @@ describe('a campaign that ended', () => {
     expect(await screen.findByText('c-0003, c-0007')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Pause campaign' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Resume campaign' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Set games at once' })).not.toBeInTheDocument()
   })
 
   it('shows why a failed campaign failed', async () => {

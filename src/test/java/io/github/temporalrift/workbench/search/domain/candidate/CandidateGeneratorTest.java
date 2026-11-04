@@ -1,6 +1,7 @@
 package io.github.temporalrift.workbench.search.domain.candidate;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
@@ -99,7 +100,7 @@ class CandidateGeneratorTest {
 
         var added = generator.laterRound(1, survivors, earlier, earlier.size());
 
-        assertThat(added).hasSize(generator.newCandidatesIn(1)).hasSize(8);
+        assertThat(added).hasSize(generator.newCandidatesIn(1)).hasSize(16);
         assertThat(added).extracting(Candidate::round).containsOnly(1);
         assertThat(added.getFirst().id()).isEqualTo(Candidate.idOf(earlier.size()));
         var known = new HashSet<>(
@@ -133,9 +134,9 @@ class CandidateGeneratorTest {
     void theNumberOfNewCandidatesShrinksWithTheRoundsAndStaysAtLeastOne() {
         var generator = generator(32, "7");
 
-        assertThat(generator.newCandidatesIn(1)).isEqualTo(8);
-        assertThat(generator.newCandidatesIn(2)).isEqualTo(4);
-        assertThat(generator.newCandidatesIn(3)).isEqualTo(2);
+        assertThat(generator.newCandidatesIn(1)).isEqualTo(16);
+        assertThat(generator.newCandidatesIn(2)).isEqualTo(8);
+        assertThat(generator.newCandidatesIn(3)).isEqualTo(4);
         assertThat(generator.newCandidatesIn(30)).isEqualTo(1);
     }
 
@@ -159,7 +160,8 @@ class CandidateGeneratorTest {
         assertThat(new SearchSeeds("18446744073709551615").gameSeeds(8)).isEqualTo(eight);
         assertThat(new SearchSeeds("1").gameSeeds(8)).isNotEqualTo(eight);
         assertThat(eight)
-                .allSatisfy(seed -> assertThat(Long.parseUnsignedLong(seed)).isNotNull());
+                .allSatisfy(seed ->
+                        assertThatCode(() -> Long.parseUnsignedLong(seed)).doesNotThrowAnyException());
     }
 
     @Test
