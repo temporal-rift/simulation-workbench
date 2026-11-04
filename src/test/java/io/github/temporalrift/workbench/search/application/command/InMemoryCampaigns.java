@@ -56,10 +56,9 @@ final class InMemoryCampaigns implements CampaignRepository {
     }
 
     @Override
-    public synchronized Page<Campaign> list(CampaignState state, int limit, int offset) {
+    public synchronized Page<StoredCampaign> list(CampaignState state, int limit, int offset) {
         var all = campaigns.values().stream()
-                .map(StoredCampaign::campaign)
-                .filter(campaign -> state == null || campaign.state() == state)
+                .filter(stored -> state == null || stored.campaign().state() == state)
                 .toList();
         return Page.of(all, limit, offset);
     }

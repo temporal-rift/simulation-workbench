@@ -13,6 +13,8 @@ import io.github.temporalrift.workbench.experiment.ExperimentRefusedException;
 import io.github.temporalrift.workbench.experiment.LaneBundle;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException;
+import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignException;
+import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignReason;
 import io.github.temporalrift.workbench.search.domain.candidate.Candidate;
 import io.github.temporalrift.workbench.search.domain.candidate.ParameterGrid;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignExperiments;
@@ -63,6 +65,22 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
                             .toList());
         } catch (ExperimentRefusedException | IllegalArgumentException e) {
             throw new CampaignPlayRefusedException(e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public void check(CampaignDefinition definition) {
+        try {
+            experiments.parameterAxes(definition.baselineRulesDigest(), definition.parameterSpaceVersion());
+        } catch (ExperimentRefusedException e) {
+            var unknownSpace =
+                    InvalidCampaignReason.UNKNOWN_PARAMETER_SPACE.name().equals(e.reason());
+            throw new InvalidCampaignException(
+                    unknownSpace
+                            ? InvalidCampaignReason.UNKNOWN_PARAMETER_SPACE
+                            : InvalidCampaignReason.UNKNOWN_BASELINE,
+                    unknownSpace ? "parameterSpaceVersion" : "baseline.rulesArtifact.digest",
+                    e.getMessage());
         }
     }
 

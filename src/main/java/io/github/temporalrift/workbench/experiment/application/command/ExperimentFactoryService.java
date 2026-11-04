@@ -36,7 +36,8 @@ public class ExperimentFactoryService implements ExperimentFactory {
                     .map(axis -> new ParameterAxis(axis.key(), axis.min(), axis.max(), axis.step(), axis.baseline()))
                     .toList();
         } catch (ExperimentValidationException e) {
-            throw new ExperimentRefusedException(e.getMessage(), e);
+            throw new ExperimentRefusedException(
+                    e.getMessage(), e.reason().map(Enum::name).orElse(null), e);
         }
     }
 

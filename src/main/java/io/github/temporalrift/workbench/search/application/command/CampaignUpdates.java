@@ -1,14 +1,11 @@
 package io.github.temporalrift.workbench.search.application.command;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignNotFoundException;
-import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
-import io.github.temporalrift.workbench.search.domain.campaign.StoredCampaign;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRepository;
 
 /**
@@ -44,7 +41,7 @@ class CampaignUpdates {
         for (var attempt = 0; attempt < ATTEMPTS; attempt++) {
             var stored = campaigns.find(campaignId).orElseThrow(() -> new CampaignNotFoundException(campaignId));
             var now = clock.instant();
-            var settled = settle(stored, now);
+            var settled = stored.settledAt(now);
             var next = change.apply(settled.campaign(), now);
             var accruedAt = next.startsCounting() ? now : settled.accruedAt();
             if (next.campaign().equals(stored.campaign()) && accruedAt.equals(stored.accruedAt())) {
@@ -56,17 +53,4 @@ class CampaignUpdates {
         }
         throw new IllegalStateException("Campaign " + campaignId + " keeps changing under the request");
     }
-
-    private static Settled settle(StoredCampaign stored, Instant now) {
-        var campaign = stored.campaign();
-        if (campaign.state() != CampaignState.RUNNING) {
-            return new Settled(campaign, stored.accruedAt());
-        }
-        var whole = Math.max(0, Duration.between(stored.accruedAt(), now).toSeconds());
-        return new Settled(
-                whole == 0 ? campaign : campaign.spend(whole),
-                stored.accruedAt().plusSeconds(whole));
-    }
-
-    private record Settled(Campaign campaign, Instant accruedAt) {}
 }

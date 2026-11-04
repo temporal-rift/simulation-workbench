@@ -32,7 +32,7 @@ public interface CampaignRepository {
     Optional<StoredCampaign> find(UUID campaignId);
 
     /** Campaigns newest first, filtered by state when given. */
-    Page<Campaign> list(CampaignState state, int limit, int offset);
+    Page<StoredCampaign> list(CampaignState state, int limit, int offset);
 
     /** The campaigns in {@code states}, oldest first. */
     List<StoredCampaign> inStates(List<CampaignState> states);

@@ -145,18 +145,26 @@ class CampaignSearchIT {
 
     /** Only the first candidate survives: the others fail the gate, so the short list is the same every round. */
     private static CandidateEvaluation scriptedCriterion() {
-        return (criterionVersion, candidates) -> {
-            var evaluations = new java.util.HashMap<String, CandidateEvaluation.Evaluation>();
-            candidates.forEach(candidate -> {
-                var first = candidate.candidateId().equals("c-0000");
-                evaluations.put(
-                        candidate.candidateId(),
-                        new CandidateEvaluation.Evaluation(
-                                first ? "CONFIRMED" : "REJECTED",
-                                first ? 1.0 : 9.0,
-                                first ? List.of() : List.of("g1")));
-            });
-            return new CandidateEvaluation.Screening(evaluations, java.util.Map.of());
+        return new CandidateEvaluation() {
+            @Override
+            public boolean servesCriterion(int criterionVersion) {
+                return true;
+            }
+
+            @Override
+            public Screening screen(int criterionVersion, List<CandidateGames> candidates) {
+                var evaluations = new java.util.HashMap<String, Evaluation>();
+                candidates.forEach(candidate -> {
+                    var first = candidate.candidateId().equals("c-0000");
+                    evaluations.put(
+                            candidate.candidateId(),
+                            new Evaluation(
+                                    first ? "CONFIRMED" : "REJECTED",
+                                    first ? 1.0 : 9.0,
+                                    first ? List.of() : List.of("g1")));
+                });
+                return new Screening(evaluations, java.util.Map.of());
+            }
         };
     }
 

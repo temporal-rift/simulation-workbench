@@ -2,7 +2,6 @@ package io.github.temporalrift.workbench.search.application.command;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -468,9 +467,9 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
 
         Step(StoredCampaign stored, Instant now) {
             this.stored = stored;
-            var whole = Math.max(0, Duration.between(stored.accruedAt(), now).toSeconds());
-            this.campaign = whole == 0 ? stored.campaign() : stored.campaign().spend(whole);
-            this.accruedAt = stored.accruedAt().plusSeconds(whole);
+            var settled = stored.settledAt(now);
+            this.campaign = settled.campaign();
+            this.accruedAt = settled.accruedAt();
         }
 
         CampaignChange change() {

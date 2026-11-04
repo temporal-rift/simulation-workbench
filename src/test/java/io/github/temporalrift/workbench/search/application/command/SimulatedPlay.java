@@ -62,6 +62,14 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
     }
 
     @Override
+    public void check(CampaignDefinition definition) {}
+
+    @Override
+    public boolean servesCriterion(int criterionVersion) {
+        return criterionVersion == 1;
+    }
+
+    @Override
     public CandidateValidation validation(CampaignDefinition definition) {
         return overrides -> Optional.of(new CandidateValidation.Validated(
                 Sha256.hexUtf8(new java.util.TreeMap<>(overrides).toString()), new java.util.TreeMap<>(overrides)));

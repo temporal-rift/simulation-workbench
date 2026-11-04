@@ -143,14 +143,14 @@ class CampaignRepositoryIT {
         repository.save(older.start(NOW), NOW, 0);
 
         assertThat(repository.list(null, 10, 0).items())
-                .extracting(c -> c.definition().name())
+                .extracting(c -> c.campaign().definition().name())
                 .containsExactly("newer", "older");
         assertThat(repository.list(null, 1, 1).items())
-                .extracting(c -> c.definition().name())
+                .extracting(c -> c.campaign().definition().name())
                 .containsExactly("older");
         assertThat(repository.list(null, 1, 1).total()).isEqualTo(2);
         assertThat(repository.list(CampaignState.RUNNING, 10, 0).items())
-                .extracting(c -> c.definition().name())
+                .extracting(c -> c.campaign().definition().name())
                 .containsExactly("older");
         assertThat(repository.inStates(List.of(CampaignState.QUEUED, CampaignState.RUNNING)))
                 .extracting(stored -> stored.campaign().definition().name())

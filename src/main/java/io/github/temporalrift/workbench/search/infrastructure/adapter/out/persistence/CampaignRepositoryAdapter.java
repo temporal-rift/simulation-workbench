@@ -167,7 +167,7 @@ class CampaignRepositoryAdapter implements CampaignRepository {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<Campaign> list(CampaignState state, int limit, int offset) {
+    public Page<StoredCampaign> list(CampaignState state, int limit, int offset) {
         Condition filter = state == null ? DSL.trueCondition() : STATE.eq(state.name());
         var total = dsl.fetchCount(CAMPAIGN, filter);
         var items = dsl.selectFrom(CAMPAIGN)
@@ -175,7 +175,7 @@ class CampaignRepositoryAdapter implements CampaignRepository {
                 .orderBy(CREATED.desc(), CAMPAIGN_ID.desc())
                 .limit(limit)
                 .offset(offset)
-                .fetch(row -> stored(row).campaign());
+                .fetch(this::stored);
         return new Page<>(items, total);
     }
 

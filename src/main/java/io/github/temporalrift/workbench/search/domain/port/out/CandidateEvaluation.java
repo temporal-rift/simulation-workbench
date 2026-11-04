@@ -7,6 +7,9 @@ import java.util.UUID;
 /** Driven port to the analysis module: what the balance criterion says of candidates and of how they compare. */
 public interface CandidateEvaluation {
 
+    /** Whether the balance criterion version is served. */
+    boolean servesCriterion(int criterionVersion);
+
     /**
      * Screens every candidate over all of its games, which may lie in several runs, and finds which candidates
      * dominate which on the seeds they share.

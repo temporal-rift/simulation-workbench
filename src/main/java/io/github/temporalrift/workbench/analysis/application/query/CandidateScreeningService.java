@@ -39,6 +39,11 @@ public class CandidateScreeningService implements CandidateScreening {
     }
 
     @Override
+    public boolean servesCriterion(int criterionVersion) {
+        return criteria.find(criterionVersion).isPresent();
+    }
+
+    @Override
     public Screening screen(int criterionVersion, List<Candidate> candidates) {
         var criterion = criteria.find(criterionVersion)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown balance criterion " + criterionVersion));

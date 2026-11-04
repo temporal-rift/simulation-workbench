@@ -18,6 +18,13 @@ public interface CampaignExperiments {
      */
     ParameterGrid grid(CampaignDefinition definition);
 
+    /**
+     * Checks that the definition names a served parameter space and a baseline that some lane publishes.
+     *
+     * @throws io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignException when it does not
+     */
+    void check(CampaignDefinition definition);
+
     /** Materialises overrides on the definition's baseline exactly as an experiment variant is. */
     CandidateValidation validation(CampaignDefinition definition);
 

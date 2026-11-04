@@ -16,6 +16,11 @@ public class CandidateEvaluationAdapter implements CandidateEvaluation {
     }
 
     @Override
+    public boolean servesCriterion(int criterionVersion) {
+        return screening.servesCriterion(criterionVersion);
+    }
+
+    @Override
     public Screening screen(int criterionVersion, List<CandidateGames> candidates) {
         var screened = screening.screen(
                 criterionVersion,

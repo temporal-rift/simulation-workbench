@@ -10,6 +10,9 @@ import java.util.UUID;
  */
 public interface CandidateScreening {
 
+    /** Whether the balance criterion version is served. */
+    boolean servesCriterion(int criterionVersion);
+
     /**
      * Evaluates every candidate in {@code SCREENING} mode and finds which candidates dominate which. Only candidates
      * whose evaluation is neither rejected nor invalid take part in dominance, as dominated and as dominating.
