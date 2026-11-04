@@ -77,11 +77,12 @@ recorded a peak heap of 5,972 MiB, 1,591 MiB after GC and 498 MiB non-heap. That
 stalled (see below).
 
 Games per hour grows with the slot count up to 8: 1.56 times from 1 to 2 slots, 1.80 times from 2 to 4 and 1.58 times
-from 4 to 8, which is 78%, 70% and 55% of linear growth from one slot. **From 8 to 12 slots it falls to 0.86 times**,
-so the rate has stopped increasing and the method's stop condition is met. The 16-slot count was not measured. The
-fall cannot be attributed to the slot count alone: the two points are on different game-service revisions and under
-different machine load (see "Other load"). The peak of the rate is at 8 slots, 6,309 games an hour; the lowest figure on
-the plateau of 8 to 12 slots, and the only one measured on the later builds, is 5,402.
+from 4 to 8, which is 78%, 70% and 55% of linear growth from one slot. From 8 to 12 slots the figure is 0.86 times as
+high, but **that does not show where the rate stops increasing**: the 8-slot and 12-slot points are on different
+game-service revisions and under different machine load (see "Builds" and "Other load"), so they are not points of one
+curve. The 1 to 8-slot points are one curve on one set of builds, still rising at 8 slots; the 12-slot point is a single
+measurement on the later builds, and its distance from the 8-slot point is not attributed to the slot count. A curve on
+one set of builds, and the 16-slot count, were not measured.
 
 The peak heap above covers the measured run only. The unmeasured warm-ups, which include class loading, peaked at
 4,224 MiB at 1 slot, 4,688 MiB at 2 and 7,183 MiB at 8; the 4-slot warm-up's figure was lost to a recording error. The

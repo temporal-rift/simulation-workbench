@@ -66,13 +66,15 @@ By pair: `random-v1` ACTIVISTS 0.036, ERASERS −0.024, PROPHETS −0.046, REVIS
 - **Precision.** The standard error of the pooled `ρ`, 0.023, is below the 0.03 the run was sized for. The
   `faction-greedy-v1` figure alone, 0.048, is above it: ERASERS wins nearly every game and the other factions win
   few, so those pairs carry little information.
-- **Against the assumption.** `ρ ≤ 0.07` holds for the estimate, 0.037, but **the upper end of its interval, 0.077,
-  is above 0.07**; the interval does not exclude a correlation that raises the sample. Negative values are sampling
-  noise around a small true correlation. The correlation sits in `faction-greedy-v1`, 0.079, and is absent under
-  `random-v1`.
-- **Confirmation sample.** `max(100, ⌈79 × (1 + 4ρ)⌉)` is `max(100, 91) = 100` seeds at `ρ = 0.037` and
-  `max(100, 104) = 104` at the upper end, 0.077. The 79-seed term exceeds 100 above `ρ = 0.067`. The sample stays at
-  100 seeds at the estimate; at the upper end of the interval it would be 104.
+- **Against the assumption.** The pooled `ρ`, 0.037, is below 0.07, but it averages two different quantities: the
+  correlation sits in `faction-greedy-v1`, 0.079, and is absent under `random-v1`, −0.005, and the confirmation gates
+  are evaluated per policy (G-05 on `faction-greedy-v1`, G-07 on `random-v1`). The pooled figure therefore does not
+  describe G-05, and `ρ ≤ 0.07` does not hold for it. Negative values are sampling noise around a small true
+  correlation.
+- **Confirmation sample.** `⌈79 × (1 + 4ρ)⌉` for G-05 is 104 seeds at `ρ = 0.079`, 80 at the lower end of its interval
+  (0.001) and 135 at the upper end (0.175); for G-07 at `ρ ≈ 0` it is 72, so the criterion's minimum of 100 applies.
+  The sample is 104 seeds at the estimate. The 79-seed term exceeds 100 above `ρ = 0.067`. The greedy estimate is noisy
+  (ERASERS wins about 97% of its games), so 104 is the figure at the estimate and not a bound.
 
 ## Result: faction ratios
 
@@ -88,8 +90,8 @@ By pair: `random-v1` ACTIVISTS 0.036, ERASERS −0.024, PROPHETS −0.046, REVIS
 
 **The highest faction ratio under `random-v1` at five players is 2.20 (REVISIONISTS), 95% interval [1.97, 2.44].** The
 interval of the largest of the five ratios, which allows for choosing the highest, is [2.00, 2.44]. Both are above the
-1.6 the record assumed, and ACTIVISTS at 1.82 is above it too. By the record's rule the confirmation sample stays at
-100 seeds and a candidate whose random-play faction is above 1.6 may end `UNCONFIRMED`. The record's line for
+1.6 the record assumed, and ACTIVISTS at 1.82 is above it too. By the record's rule this assumption does not change
+the confirmation sample, and a candidate whose random-play faction is above 1.6 may end `UNCONFIRMED`. The record's line for
 `random-v1` itself, a ratio of at most 2.0, lies at the lower end of REVISIONISTS' interval.
 
 `faction-greedy-v1` is far more skewed: ERASERS 4.84 [4.74, 4.93], WEAVERS 0.09 [0.03, 0.18], REVISIONISTS 0.03
@@ -100,7 +102,7 @@ interval of the largest of the five ratios, which allows for choosing the highes
 Crediting every winner with a whole win makes the rates sum to the games' mean winners (1.14 under `random-v1`), so
 parity is then 0.227 and ratios taken against 0.2 are about 14% too high there. It gives `ρ = 0.043`
 (standard error 0.023, interval [0.001, 0.085]) and a highest `random-v1` ratio of 2.50 [2.28, 2.74]. Neither changes
-a conclusion: the highest ratio stays above 1.6, and `ρ` stays near the 0.07 the sample is sized for.
+a conclusion: the highest ratio stays above 1.6, and the correlation stays near or above the 0.07 the sample is sized for.
 
 ## Limits
 

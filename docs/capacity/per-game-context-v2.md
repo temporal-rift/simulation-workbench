@@ -22,6 +22,10 @@ measured by `scripts/measure-capacity.sh` (README, "Measuring capacity").
 
 ## Build and bundle
 
+The lane images below are not the builds of [simulator-v2.md](simulator-v2.md): their digests differ from both of that
+report's lane image sets, and the source revisions they were built from were not recorded, so this rate cannot be tied
+to either simulator build.
+
 | Service | Image |
 |---|---|
 | `game-service` | `sha256:2a118e8f93747b7f3e97ab8cdfd7f894df0e14f223cda9fbb2bc9f0d7f55e964` |
