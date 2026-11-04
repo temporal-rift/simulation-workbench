@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+  <changeSet id="004-create-campaign-game" author="simulation-workbench">
+    <!-- The campaign's own ledger of games: a candidate plays a seed once, whichever wave plays it. -->
+    <createTable tableName="campaign_game">
+      <column name="campaign_id" type="UUID">
+        <constraints nullable="false"/>
+      </column>
+      <column name="candidate_id" type="VARCHAR(16)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="seed" type="VARCHAR(20)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="wave_index" type="INT">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+    <addPrimaryKey tableName="campaign_game" columnNames="campaign_id, candidate_id, seed"
+                   constraintName="pk_campaign_game"/>
+    <addForeignKeyConstraint baseTableName="campaign_game" baseColumnNames="campaign_id, candidate_id"
+                             referencedTableName="campaign_candidate"
+                             referencedColumnNames="campaign_id, candidate_id"
+                             constraintName="fk_campaign_game_candidate"/>
+    <addForeignKeyConstraint baseTableName="campaign_game" baseColumnNames="campaign_id, wave_index"
+                             referencedTableName="campaign_wave"
+                             referencedColumnNames="campaign_id, wave_index"
+                             constraintName="fk_campaign_game_wave"/>
+  </changeSet>
+</databaseChangeLog>

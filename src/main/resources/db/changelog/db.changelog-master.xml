@@ -39,4 +39,11 @@
     <include file="db/changelog/analysis/001-create-analysis-case-fact.xml"/>
     <include file="db/changelog/analysis/002-create-analysis-comparison.xml"/>
 
+    <!-- Search module: campaigns, their candidates, waves, games and decision log -->
+    <include file="db/changelog/search/001-create-campaign.xml"/>
+    <include file="db/changelog/search/002-create-campaign-candidate.xml"/>
+    <include file="db/changelog/search/003-create-campaign-wave.xml"/>
+    <include file="db/changelog/search/004-create-campaign-game.xml"/>
+    <include file="db/changelog/search/005-create-campaign-log-entry.xml"/>
+
 </databaseChangeLog>

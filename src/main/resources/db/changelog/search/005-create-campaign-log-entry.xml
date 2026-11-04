@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+  <changeSet id="005-create-campaign-log-entry" author="simulation-workbench">
+    <!-- The decision log, kept as the canonical JSON that the byte-identical guarantee is about. -->
+    <createTable tableName="campaign_log_entry">
+      <column name="campaign_id" type="UUID">
+        <constraints nullable="false" foreignKeyName="fk_campaign_log_campaign" references="campaign(campaign_id)"/>
+      </column>
+      <column name="sequence" type="INT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="entry_json" type="TEXT">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+    <addPrimaryKey tableName="campaign_log_entry" columnNames="campaign_id, sequence"
+                   constraintName="pk_campaign_log_entry"/>
+  </changeSet>
+</databaseChangeLog>
