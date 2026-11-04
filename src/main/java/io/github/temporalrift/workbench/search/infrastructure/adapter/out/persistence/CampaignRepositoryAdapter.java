@@ -125,7 +125,6 @@ class CampaignRepositoryAdapter implements CampaignRepository {
     }
 
     @Override
-    @Transactional(readOnly = true)
     public Optional<CampaignClaim> findClaim(UUID idempotencyKey) {
         return dsl.selectFrom(CAMPAIGN)
                 .where(KEY.eq(idempotencyKey))
