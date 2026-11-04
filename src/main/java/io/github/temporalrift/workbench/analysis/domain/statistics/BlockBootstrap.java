@@ -4,6 +4,8 @@ import java.util.Arrays;
 import java.util.Optional;
 import java.util.function.ToDoubleFunction;
 
+import io.github.temporalrift.workbench.shared.random.SplitMix64;
+
 /**
  * Resampling plans over a cohort's independent blocks: each of the {@value #RESAMPLES} plans draws as many blocks
  * as the cohort has, with replacement, and every statistic of the cohort is recomputed under the same plans.
@@ -43,10 +45,26 @@ public final class BlockBootstrap {
      * undefined (NaN); empty when no plan defines it.
      */
     public Optional<double[]> interval(ToDoubleFunction<int[]> statistic) {
+        return interval(replicates(statistic));
+    }
+
+    /** The statistic under every plan in plan order, NaN where it is undefined. */
+    public double[] replicates(ToDoubleFunction<int[]> statistic) {
         var values = new double[plans.length];
+        for (var index = 0; index < plans.length; index++) {
+            values[index] = statistic.applyAsDouble(plans[index]);
+        }
+        return values;
+    }
+
+    /**
+     * The interval of replicates taken under the same plans, skipping undefined (NaN) ones; empty when none is
+     * defined. Replicates of two statistics subtracted plan by plan give the interval of their paired difference.
+     */
+    public static Optional<double[]> interval(double[] replicates) {
+        var values = new double[replicates.length];
         var defined = 0;
-        for (var plan : plans) {
-            var value = statistic.applyAsDouble(plan);
+        for (var value : replicates) {
             if (!Double.isNaN(value)) {
                 values[defined++] = value;
             }

@@ -1,4 +1,4 @@
-package io.github.temporalrift.workbench.analysis.domain.statistics;
+package io.github.temporalrift.workbench.shared.random;
 
 import java.nio.ByteBuffer;
 

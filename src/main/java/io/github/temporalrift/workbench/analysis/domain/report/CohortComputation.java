@@ -15,8 +15,8 @@ import io.github.temporalrift.workbench.analysis.domain.fact.CaseFacts;
 import io.github.temporalrift.workbench.analysis.domain.game.AnalyzedCase;
 import io.github.temporalrift.workbench.analysis.domain.statistics.BlockBootstrap;
 import io.github.temporalrift.workbench.analysis.domain.statistics.BlockSeries;
-import io.github.temporalrift.workbench.analysis.domain.statistics.SplitMix64;
 import io.github.temporalrift.workbench.shared.execution.FailureCode;
+import io.github.temporalrift.workbench.shared.random.SplitMix64;
 
 /**
  * One cohort's tallies and resampling plans. The report reads its metrics from it, and an evaluation derives further
@@ -25,6 +25,14 @@ import io.github.temporalrift.workbench.shared.execution.FailureCode;
  * cases all failed counts there and nowhere else.
  */
 public final class CohortComputation {
+
+    /**
+     * A statistic's point estimate and its value under each resampling plan.
+     *
+     * @param blocks how many seed blocks the cohort resampled; two cohorts share plans only when these are equal
+     * @param values null when the cohort has too few blocks to resample
+     */
+    public record Replicates(double point, int blocks, double[] values) {}
 
     /** A derived value with the status and interval a report metric would carry. */
     public record Estimate(Double value, MetricStatus status, Interval interval) {}
@@ -178,6 +186,28 @@ public final class CohortComputation {
         return failure == null
                 ? new Estimate(null, MetricStatus.NO_DATA, null)
                 : estimate(statistic, failure.blocks(), failure.bootstrap());
+    }
+
+    /**
+     * The statistic at the point estimate and under every plan of the game series, for comparing it with the same
+     * statistic of another cohort that resampled the same seeds under the same plans.
+     */
+    public Replicates replicates(ToDoubleFunction<int[]> statistic) {
+        return replicates(statistic, tallies.seeds().size(), bootstrap);
+    }
+
+    /** The same for a statistic over the {@code failure_share} series. */
+    public Replicates failureReplicates(ToDoubleFunction<int[]> statistic) {
+        return failure == null
+                ? new Replicates(Double.NaN, 0, null)
+                : replicates(statistic, failure.blocks(), failure.bootstrap());
+    }
+
+    private static Replicates replicates(ToDoubleFunction<int[]> statistic, int blocks, BlockBootstrap resamples) {
+        return new Replicates(
+                statistic.applyAsDouble(BlockBootstrap.identity(blocks)),
+                blocks,
+                resamples == null ? null : resamples.replicates(statistic));
     }
 
     private static Estimate estimate(ToDoubleFunction<int[]> statistic, int blocks, BlockBootstrap resamples) {
