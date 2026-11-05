@@ -27,7 +27,17 @@ export const REASON_LABELS: Readonly<Record<CampaignLogReason, string>> = {
 
 /** A campaign that is still moving by itself or can be moved by the designer; its page keeps reading it. */
 export function isLive(state: CampaignState | undefined): boolean {
-  return state === 'QUEUED' || state === 'RUNNING' || state === 'PAUSED'
+  return state === 'QUEUED' || state === 'RUNNING' || state === 'PAUSED' || state === 'CONFIRMING'
+}
+
+/** Confirmation on fresh seeds can start only once the search has produced its short list. */
+export function isConfirmable(state: CampaignState): boolean {
+  return state === 'SEARCH_COMPLETED'
+}
+
+/** The name a confirmation run goes by: the literal subject `baseline`, or a candidate id. */
+export function describeSubject(subject: string): string {
+  return subject === 'baseline' ? 'Baseline' : `Candidate ${subject}`
 }
 
 export function isPausable(state: CampaignState): boolean {

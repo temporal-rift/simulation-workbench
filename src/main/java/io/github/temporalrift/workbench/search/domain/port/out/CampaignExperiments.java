@@ -1,6 +1,8 @@
 package io.github.temporalrift.workbench.search.domain.port.out;
 
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.SortedMap;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
@@ -41,6 +43,25 @@ public interface CampaignExperiments {
             int waveIndex,
             List<Candidate> candidates,
             List<String> seeds);
+
+    /**
+     * Freezes the experiment that confirms one subject on the deployed lane that is build-equivalent to the
+     * simulator, once per idempotency key: a single variant labelled by the subject, playing every seed over the
+     * full matrix of the definition's policies and player counts, one case at a time.
+     *
+     * @throws io.github.temporalrift.workbench.search.domain.campaign.NoRealLaneException when no such lane exists
+     * @throws io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException when the
+     *     experiment is refused
+     */
+    UUID freezeConfirmation(UUID idempotencyKey, CampaignDefinition definition, Subject subject, List<String> seeds);
+
+    /**
+     * What a confirmation experiment plays.
+     *
+     * @param label the baseline label or a candidate id
+     * @param overrides what differs from the baseline; empty for the baseline itself
+     */
+    record Subject(String label, SortedMap<String, BigDecimal> overrides, String effectiveRulesDigest) {}
 
     /** How many cases a candidate playing one seed has, which sizes a wave. */
     int casesPerGame(CampaignDefinition definition);

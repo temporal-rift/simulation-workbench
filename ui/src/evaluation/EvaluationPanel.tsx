@@ -102,6 +102,12 @@ export function EvaluationPanel({ run }: { readonly run: Run }) {
   )
 }
 
+/** One derived evaluation with its line filter, for pages that show an evaluation without the run's choices. */
+export function EvaluationDetails({ result, stale = false }: { readonly result: RunEvaluation; readonly stale?: boolean }) {
+  const [filter, setFilter] = useState<LineFilter>('ALL')
+  return <EvaluationView result={result} stale={stale} filter={filter} onFilter={setFilter} />
+}
+
 interface ViewProps {
   readonly result: RunEvaluation
   readonly stale: boolean

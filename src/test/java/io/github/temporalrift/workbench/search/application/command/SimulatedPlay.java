@@ -13,6 +13,8 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException;
+import io.github.temporalrift.workbench.search.domain.campaign.NoRealLaneException;
 import io.github.temporalrift.workbench.search.domain.candidate.Candidate;
 import io.github.temporalrift.workbench.search.domain.candidate.ParameterGrid;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignExperiments;
@@ -111,22 +113,62 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
         return 10;
     }
 
+    private boolean realLane = true;
+
+    /** Whether a deployed lane that is build-equivalent to the simulator exists to confirm on. */
+    synchronized void realLane(boolean available) {
+        this.realLane = available;
+    }
+
+    @Override
+    public synchronized UUID freezeConfirmation(
+            UUID idempotencyKey, CampaignDefinition definition, Subject subject, List<String> seeds) {
+        if (!realLane) {
+            throw new NoRealLaneException("no deployed lane is build-equivalent to the simulator");
+        }
+        experiments.putIfAbsent(idempotencyKey, new Experiment(-1, List.of(subject.label()), seeds));
+        return idempotencyKey;
+    }
+
     // --- runs ---
 
     private static final class Run {
         private final UUID experiment;
         private RunPhase phase = RunPhase.ACTIVE;
-        private int concurrency = 1;
+        private int concurrency;
         private String failure;
 
-        Run(UUID experiment) {
+        Run(UUID experiment, int concurrency) {
             this.experiment = experiment;
+            this.concurrency = concurrency;
+        }
+    }
+
+    private boolean runsFit = true;
+
+    /** Whether some configured lane fits the variants of a run being started. */
+    synchronized void runsFit(boolean fit) {
+        this.runsFit = fit;
+    }
+
+    private void requireFit() {
+        if (!runsFit) {
+            throw new CampaignPlayRefusedException("no lane fits the variants");
         }
     }
 
     @Override
     public synchronized UUID start(UUID experimentId, UUID idempotencyKey) {
-        runs.putIfAbsent(idempotencyKey, new Run(experimentId));
+        requireFit();
+        runs.putIfAbsent(idempotencyKey, new Run(experimentId, 1));
+        experimentOfRun.put(idempotencyKey, experimentId);
+        return idempotencyKey;
+    }
+
+    @Override
+    public synchronized UUID startHeld(UUID experimentId, UUID idempotencyKey) {
+        requireFit();
+        runs.putIfAbsent(idempotencyKey, new Run(experimentId, 0));
         experimentOfRun.put(idempotencyKey, experimentId);
         return idempotencyKey;
     }
@@ -202,6 +244,10 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
                 .forEach(run -> run.phase = RunPhase.INTERRUPTED);
     }
 
+    synchronized void finish(UUID runId) {
+        runs.get(runId).phase = RunPhase.COMPLETED;
+    }
+
     synchronized void fail(UUID runId, String message) {
         var run = runs.get(runId);
         run.phase = RunPhase.FAILED;
@@ -228,6 +274,28 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
                             rejected ? List.of("line-" + number) : List.of()));
         }
         return new Screening(evaluations, Map.of());
+    }
+
+    private int confirmationSeedCount = 100;
+    private final Map<String, Evaluation> confirmations = new HashMap<>();
+
+    synchronized void confirmSeeds(int count) {
+        this.confirmationSeedCount = count;
+    }
+
+    /** Scripts what confirming the subject's variant answers; every other subject is confirmed with score 1. */
+    synchronized void confirmationOf(String subject, String verdict, Double score) {
+        confirmations.put(subject, new Evaluation(verdict, score, List.of()));
+    }
+
+    @Override
+    public synchronized int confirmationSeedCount(int criterionVersion) {
+        return confirmationSeedCount;
+    }
+
+    @Override
+    public synchronized Evaluation confirm(int criterionVersion, UUID runId, String variantLabel) {
+        return confirmations.getOrDefault(variantLabel, new Evaluation("CONFIRMED", 1.0, List.of()));
     }
 
     static UUID idOf(String name) {

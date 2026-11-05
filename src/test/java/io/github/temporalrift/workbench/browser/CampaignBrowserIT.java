@@ -92,6 +92,26 @@ class CampaignBrowserIT extends DesignerBrowserTest {
     }
 
     @Test
+    void aDesignerStartsTheConfirmationOfAFinishedSearchAndIsToldWhyItCannotPlayYet() {
+        var campaignId = searchedCampaign();
+
+        signInAndOpen(TestIssuer.DESIGNER, "/campaigns/" + campaignId);
+
+        assertThat(page.getByText("State: Search completed")).isVisible();
+        assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Pause campaign")))
+                .hasCount(0);
+        page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Confirm short list"))
+                .click();
+
+        assertThat(page.getByRole(AriaRole.ALERT)
+                        .filter(new Locator.FilterOptions().setHasText("confirm the campaign")))
+                .isVisible();
+        assertThat(page.getByText("State: Search completed")).isVisible();
+        assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Confirm short list")))
+                .isEnabled();
+    }
+
+    @Test
     void theCampaignsPageListsTheCampaignAndLinksToIt() {
         var campaignId = waitingCampaign();
 
@@ -101,6 +121,15 @@ class CampaignBrowserIT extends DesignerBrowserTest {
         assertThat(table.getByText("browser-search")).isVisible();
         table.getByRole(AriaRole.LINK).first().click();
         page.waitForURL(url -> url.endsWith("/campaigns/" + campaignId));
+    }
+
+    /** A campaign whose search is complete with a short list, as the worker leaves it. */
+    private UUID searchedCampaign() {
+        var waiting = waitingCampaign();
+        var stored = campaigns.find(waiting).orElseThrow();
+        var searched = stored.campaign().start(Instant.now()).completeSearch(List.of("c-0001"));
+        campaigns.apply(CampaignChange.of(stored, searched, Instant.now()));
+        return waiting;
     }
 
     private UUID waitingCampaign() {

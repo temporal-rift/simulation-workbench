@@ -58,6 +58,12 @@ export function describeFailure(error: unknown, context: FailureContext): string
       return `Could not ${context.action}: another fidelity check is queued or running. Wait for it to end.`
     case 'SIMULATOR_NOT_AVAILABLE':
       return `Could not ${context.action}: the simulator is not enabled or no real lane matches its builds.${explanation}`
+    case 'SEED_OVERLAP':
+      return `Could not ${context.action}: a confirmation seed was already played by the search, and confirming on it would confirm the same luck.${explanation}`
+    case 'NO_REAL_LANE':
+      return `Could not ${context.action}: no deployed lane is build-equivalent to the simulator, so there is nowhere real to confirm.${explanation}`
+    case 'CAMPAIGN_PLAY_REFUSED':
+      return `Could not ${context.action}: the experiment it needs was refused.${explanation}`
     case 'INVALID_COMPARISON':
     case 'INCOMPARABLE_RUNS':
       return `Could not ${context.action}: the request was refused.${explanation}`

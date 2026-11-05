@@ -72,7 +72,12 @@ public class StartRunCommandHandler implements StartRunUseCase {
                 })
                 .toList();
         var run = Run.queued(UUID.randomUUID(), command.experimentId(), clock.instant());
-        return switch (runs.create(command.idempotencyKey(), requestHash, run, plan.concurrency(), cases)) {
+        return switch (runs.create(
+                command.idempotencyKey(),
+                requestHash,
+                run,
+                command.concurrency() == null ? plan.concurrency() : command.concurrency(),
+                cases)) {
             case RunCreation.Created _ -> view(run.runId());
             case RunCreation.Existing(var claim) -> replayed(claim, requestHash);
         };

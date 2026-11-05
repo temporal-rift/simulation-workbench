@@ -193,6 +193,47 @@ class CampaignTest {
         assertThat(new SearchAlgorithm(32, 3, 3, 1).seedsInRound(2)).isEqualTo(27);
     }
 
+    @Test
+    void aSearchedCampaignStartsConfirmingAndCompletesWithItsEvaluations() {
+        var searched = queued.start(NOW).completeSearch(List.of("c-0000"));
+        var run = new Confirmation.Run("baseline", new UUID(2, 1), new UUID(3, 1), null);
+        var confirming = searched.startConfirmation(new Confirmation(100, List.of(run)));
+
+        assertThat(confirming.state()).isEqualTo(CampaignState.CONFIRMING);
+        assertThat(confirming.confirmation().evaluated()).isFalse();
+        assertThat(confirming.finishedAt()).isNull();
+
+        var evaluated = confirming
+                .confirmation()
+                .evaluatedAs(java.util.Map.of("baseline", new Confirmation.Evaluation("CONFIRMED", 1.5)));
+        var completed = confirming.completeConfirmation(evaluated, NOW);
+
+        assertThat(completed.state()).isEqualTo(CampaignState.COMPLETED);
+        assertThat(completed.finishedAt()).isEqualTo(NOW);
+        assertThat(completed.confirmation().evaluated()).isTrue();
+    }
+
+    @Test
+    void confirmationStartsOnlyFromACompletedSearchAndCompletesOnlyWhenConfirming() {
+        var confirmation = new Confirmation(100, List.of());
+
+        assertThatThrownBy(() -> queued.startConfirmation(confirmation))
+                .isInstanceOf(InvalidCampaignStateException.class);
+        assertThatThrownBy(() -> queued.start(NOW).completeSearch(List.of()).completeConfirmation(confirmation, NOW))
+                .isInstanceOf(InvalidCampaignStateException.class);
+    }
+
+    @Test
+    void aConfirmingCampaignCanBeCancelledOrFailedButNotPaused() {
+        var confirming =
+                queued.start(NOW).completeSearch(List.of("c-0000")).startConfirmation(new Confirmation(100, List.of()));
+
+        assertThat(confirming.cancel(NOW).state()).isEqualTo(CampaignState.CANCELLED);
+        assertThat(confirming.fail(new CampaignFailure("X", "failed"), NOW).state())
+                .isEqualTo(CampaignState.FAILED);
+        assertThatThrownBy(confirming::pause).isInstanceOf(InvalidCampaignStateException.class);
+    }
+
     private Campaign in(CampaignState state) {
         var running = queued.start(NOW);
         return switch (state) {
@@ -205,6 +246,7 @@ class CampaignTest {
                         0,
                         0,
                         List.of(),
+                        null,
                         null,
                         NOW,
                         NOW,

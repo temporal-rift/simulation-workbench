@@ -152,6 +152,16 @@ class CampaignSearchIT {
             }
 
             @Override
+            public int confirmationSeedCount(int criterionVersion) {
+                return 100;
+            }
+
+            @Override
+            public Evaluation confirm(int criterionVersion, UUID runId, String variantLabel) {
+                throw new UnsupportedOperationException("this search is not confirmed");
+            }
+
+            @Override
             public Screening screen(int criterionVersion, List<CandidateGames> candidates) {
                 var evaluations = new java.util.HashMap<String, Evaluation>();
                 candidates.forEach(candidate -> {

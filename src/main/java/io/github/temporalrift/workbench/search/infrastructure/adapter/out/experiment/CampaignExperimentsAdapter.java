@@ -1,6 +1,8 @@
 package io.github.temporalrift.workbench.search.infrastructure.adapter.out.experiment;
 
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -15,6 +17,7 @@ import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinitio
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignException;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignReason;
+import io.github.temporalrift.workbench.search.domain.campaign.NoRealLaneException;
 import io.github.temporalrift.workbench.search.domain.candidate.Candidate;
 import io.github.temporalrift.workbench.search.domain.candidate.ParameterGrid;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignExperiments;
@@ -107,8 +110,41 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
             List<String> seeds) {
         var simulator =
                 lanes.simulator().orElseThrow(() -> new CampaignPlayRefusedException("The simulator is not enabled"));
+        var name = definition.name() + ", wave " + waveIndex;
+        var variants = candidates.stream()
+                .map(candidate -> variant(
+                        definition, candidate.id(), candidate.overrides(), candidate.effectiveRulesDigest(), simulator))
+                .toList();
         try {
-            return experiments.freeze(idempotencyKey, manifest(definition, waveIndex, candidates, seeds, simulator));
+            return experiments.freeze(idempotencyKey, manifest(definition, name, variants, seeds, simulator));
+        } catch (ExperimentRefusedException e) {
+            throw new CampaignPlayRefusedException(e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public UUID freezeConfirmation(
+            UUID idempotencyKey, CampaignDefinition definition, Subject subject, List<String> seeds) {
+        var seats = definition.playerCounts().stream()
+                .mapToInt(Integer::intValue)
+                .max()
+                .orElse(1);
+        var lane = lanes.equivalentDeployedLane(seats)
+                .orElseThrow(() -> new NoRealLaneException(
+                        "No deployed lane is build-equivalent to the simulator for " + seats + " seats"));
+        var manifest = manifest(
+                definition,
+                definition.name() + ", confirmation of " + subject.label(),
+                List.of(variant(
+                        definition,
+                        subject.label(),
+                        subject.overrides(),
+                        subject.effectiveRulesDigest(),
+                        lane.bundle())),
+                seeds,
+                lane.bundle());
+        try {
+            return experiments.freeze(idempotencyKey, manifest);
         } catch (ExperimentRefusedException e) {
             throw new CampaignPlayRefusedException(e.getMessage(), e);
         }
@@ -124,15 +160,14 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
 
     private ObjectNode manifest(
             CampaignDefinition definition,
-            int waveIndex,
-            List<Candidate> candidates,
+            String name,
+            List<ObjectNode> variants,
             List<String> seeds,
             LaneBundle simulator) {
         var manifest = mapper.createObjectNode();
         manifest.put("schemaVersion", SCHEMA_VERSION);
-        manifest.put("name", definition.name() + ", wave " + waveIndex);
-        var variants = manifest.putArray("variants");
-        candidates.forEach(candidate -> variants.add(variant(definition, candidate, simulator)));
+        manifest.put("name", name);
+        manifest.putArray("variants").addAll(variants);
         var services = manifest.putObject("services");
         services.set("gameService", service(simulator.gameService()));
         services.set("timelineService", service(simulator.timelineService()));
@@ -157,17 +192,22 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
         return manifest;
     }
 
-    private ObjectNode variant(CampaignDefinition definition, Candidate candidate, LaneBundle simulator) {
+    private ObjectNode variant(
+            CampaignDefinition definition,
+            String label,
+            Map<String, BigDecimal> overrides,
+            String effectiveRulesDigest,
+            LaneBundle simulator) {
         var node = mapper.createObjectNode();
-        node.put("label", candidate.id());
+        node.put("label", label);
         node.set("rulesArtifact", definition.baseline().path("rulesArtifact").deepCopy());
         node.set(
                 "contentArtifact", definition.baseline().path("contentArtifact").deepCopy());
-        node.put("effectiveRulesDigest", candidate.effectiveRulesDigest());
+        node.put("effectiveRulesDigest", effectiveRulesDigest);
         node.put("effectiveContentDigest", simulator.effectiveContentDigest());
-        if (!candidate.overrides().isEmpty()) {
-            var overrides = node.putObject("overrides");
-            candidate.overrides().forEach(overrides::put);
+        if (!overrides.isEmpty()) {
+            var overrideNodes = node.putObject("overrides");
+            overrides.forEach(overrideNodes::put);
             node.put("parameterSpaceVersion", definition.parameterSpaceVersion());
         }
         return node;

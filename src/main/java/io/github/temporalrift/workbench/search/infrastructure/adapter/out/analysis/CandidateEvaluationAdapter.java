@@ -2,17 +2,32 @@ package io.github.temporalrift.workbench.search.infrastructure.adapter.out.analy
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.UUID;
 
 import io.github.temporalrift.workbench.analysis.CandidateScreening;
+import io.github.temporalrift.workbench.analysis.RunConfirmation;
 import io.github.temporalrift.workbench.search.domain.port.out.CandidateEvaluation;
 
 /** Evaluates candidates through the analysis module. */
 public class CandidateEvaluationAdapter implements CandidateEvaluation {
 
     private final CandidateScreening screening;
+    private final RunConfirmation confirmation;
 
-    public CandidateEvaluationAdapter(CandidateScreening screening) {
+    public CandidateEvaluationAdapter(CandidateScreening screening, RunConfirmation confirmation) {
         this.screening = screening;
+        this.confirmation = confirmation;
+    }
+
+    @Override
+    public int confirmationSeedCount(int criterionVersion) {
+        return confirmation.minimumSeeds(criterionVersion);
+    }
+
+    @Override
+    public Evaluation confirm(int criterionVersion, UUID runId, String variantLabel) {
+        var result = confirmation.confirm(criterionVersion, runId, variantLabel);
+        return new Evaluation(result.verdict(), result.score(), List.of());
     }
 
     @Override

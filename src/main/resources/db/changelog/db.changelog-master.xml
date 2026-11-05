@@ -46,5 +46,6 @@
     <include file="db/changelog/search/004-create-campaign-game.xml"/>
     <include file="db/changelog/search/005-create-campaign-log-entry.xml"/>
     <include file="db/changelog/search/006-create-campaign-round.xml"/>
+    <include file="db/changelog/search/007-add-campaign-confirmation.xml"/>
 
 </databaseChangeLog>

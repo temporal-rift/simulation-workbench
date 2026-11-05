@@ -27,6 +27,7 @@ import io.github.temporalrift.workbench.search.domain.campaign.CampaignCreation;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignFailure;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
+import io.github.temporalrift.workbench.search.domain.campaign.Confirmation;
 import io.github.temporalrift.workbench.search.domain.campaign.SearchAlgorithm;
 import io.github.temporalrift.workbench.search.domain.candidate.Candidate;
 import io.github.temporalrift.workbench.search.domain.log.LogEntry;
@@ -302,6 +303,67 @@ class CampaignRepositoryIT {
         assertThat(page.items()).containsExactly(first, second);
         assertThat(repository.log(campaign.campaignId(), 2, 2).items()).containsExactly(third);
         assertThat(page.items().get(0).canonicalJson()).isEqualTo(first.canonicalJson());
+    }
+
+    @Test
+    void aConfirmationIsStoredWithTheCampaignAndComesBackWithItsEvaluations() {
+        var campaign = queued("confirming", NOW);
+        store(campaign, NOW);
+        var id = campaign.campaignId();
+        var searched = campaign.start(NOW).completeSearch(List.of("c-0000"));
+        assertThat(repository.save(searched, NOW, 0)).isTrue();
+        var run = new Confirmation.Run(Confirmation.BASELINE, UUID.randomUUID(), UUID.randomUUID(), null);
+        var other = new Confirmation.Run("c-0000", UUID.randomUUID(), UUID.randomUUID(), null);
+        var confirming = searched.startConfirmation(new Confirmation(100, List.of(run, other)));
+        assertThat(repository.apply(CampaignChange.of(repository.find(id).orElseThrow(), confirming, NOW)))
+                .isTrue();
+
+        assertThat(repository.find(id).orElseThrow().campaign()).isEqualTo(confirming);
+
+        var evaluated = confirming.completeConfirmation(
+                confirming
+                        .confirmation()
+                        .evaluatedAs(java.util.Map.of(
+                                Confirmation.BASELINE,
+                                new Confirmation.Evaluation("UNCONFIRMED", 3.0),
+                                "c-0000",
+                                new Confirmation.Evaluation("INVALID", null))),
+                NOW.plusSeconds(5));
+        assertThat(repository.apply(CampaignChange.of(repository.find(id).orElseThrow(), evaluated, NOW)))
+                .isTrue();
+
+        var stored = repository.find(id).orElseThrow().campaign();
+        assertThat(stored).isEqualTo(evaluated);
+        assertThat(stored.confirmation().runs().get(1).evaluation().score()).isNull();
+    }
+
+    @Test
+    void theLoggedSeedsAreEverySeedTheLogRecordsWithoutRepeats() {
+        var campaign = queued("seeds", NOW);
+        store(campaign, NOW);
+        var id = campaign.campaignId();
+        assertThat(repository.loggedSeeds(id)).isEmpty();
+        repository.appendLog(
+                id, List.of(entry(1, List.of("11", "29")), entry(2, List.of("29", "31")), entry(3, List.of())));
+
+        assertThat(repository.loggedSeeds(id)).containsExactlyInAnyOrder("11", "29", "31");
+        assertThat(repository.loggedSeeds(UUID.randomUUID())).isEmpty();
+    }
+
+    private static LogEntry entry(int sequence, List<String> seeds) {
+        return new LogEntry(
+                sequence,
+                0,
+                "c-0000",
+                new TreeMap<>(),
+                "a".repeat(64),
+                seeds,
+                seeds.size(),
+                0,
+                null,
+                LogEntry.Decision.KEPT,
+                null,
+                null);
     }
 
     private void store(Campaign campaign, Instant accruedAt) {

@@ -11,6 +11,20 @@ public interface CandidateEvaluation {
     boolean servesCriterion(int criterionVersion);
 
     /**
+     * The seeds a confirmation sample needs under the criterion version.
+     *
+     * @throws IllegalArgumentException when the criterion is not served
+     */
+    int confirmationSeedCount(int criterionVersion);
+
+    /**
+     * Evaluates a confirmation run's variant in {@code CONFIRMATION} mode.
+     *
+     * @throws IllegalArgumentException when the criterion, run or variant is unknown
+     */
+    Evaluation confirm(int criterionVersion, UUID runId, String variantLabel);
+
+    /**
      * Screens every candidate over all of its games, which may lie in several runs, and finds which candidates
      * dominate which on the seeds they share.
      */

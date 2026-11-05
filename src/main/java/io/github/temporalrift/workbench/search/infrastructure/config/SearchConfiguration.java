@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Configuration;
 import tools.jackson.databind.ObjectMapper;
 
 import io.github.temporalrift.workbench.analysis.CandidateScreening;
+import io.github.temporalrift.workbench.analysis.RunConfirmation;
 import io.github.temporalrift.workbench.execution.LaneEnvironments;
 import io.github.temporalrift.workbench.execution.RunCatalog;
 import io.github.temporalrift.workbench.execution.RunStarter;
@@ -20,6 +21,7 @@ import io.github.temporalrift.workbench.search.application.command.CreateCampaig
 import io.github.temporalrift.workbench.search.application.command.PauseCampaignCommandHandler;
 import io.github.temporalrift.workbench.search.application.command.ResumeCampaignCommandHandler;
 import io.github.temporalrift.workbench.search.application.command.SetCampaignParallelismCommandHandler;
+import io.github.temporalrift.workbench.search.application.command.StartConfirmationCommandHandler;
 import io.github.temporalrift.workbench.search.application.port.in.AdvanceCampaignsUseCase;
 import io.github.temporalrift.workbench.search.application.port.in.CancelCampaignUseCase;
 import io.github.temporalrift.workbench.search.application.port.in.CreateCampaignUseCase;
@@ -29,6 +31,7 @@ import io.github.temporalrift.workbench.search.application.port.in.ListCampaigns
 import io.github.temporalrift.workbench.search.application.port.in.PauseCampaignUseCase;
 import io.github.temporalrift.workbench.search.application.port.in.ResumeCampaignUseCase;
 import io.github.temporalrift.workbench.search.application.port.in.SetCampaignParallelismUseCase;
+import io.github.temporalrift.workbench.search.application.port.in.StartConfirmationUseCase;
 import io.github.temporalrift.workbench.search.application.query.GetCampaignLogQueryHandler;
 import io.github.temporalrift.workbench.search.application.query.GetCampaignQueryHandler;
 import io.github.temporalrift.workbench.search.application.query.ListCampaignsQueryHandler;
@@ -66,8 +69,8 @@ public class SearchConfiguration {
     }
 
     @Bean
-    CandidateEvaluation candidateEvaluation(CandidateScreening screening) {
-        return new CandidateEvaluationAdapter(screening);
+    CandidateEvaluation candidateEvaluation(CandidateScreening screening, RunConfirmation confirmation) {
+        return new CandidateEvaluationAdapter(screening, confirmation);
     }
 
     @Bean
@@ -107,6 +110,15 @@ public class SearchConfiguration {
             MasterSeeds masterSeeds,
             Clock clock) {
         return new CreateCampaignCommandHandler(campaigns, experiments, evaluation, defaults, masterSeeds, clock);
+    }
+
+    @Bean
+    StartConfirmationUseCase startConfirmationUseCase(
+            CampaignRepository campaigns,
+            CampaignExperiments experiments,
+            CampaignRuns runs,
+            CandidateEvaluation evaluation) {
+        return new StartConfirmationCommandHandler(campaigns, experiments, runs, evaluation);
     }
 
     @Bean

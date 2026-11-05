@@ -7,5 +7,13 @@ public interface StartRunUseCase {
 
     RunView handle(Command command);
 
-    record Command(UUID experimentId, UUID idempotencyKey) {}
+    /**
+     * @param concurrency how many cases may execute at once from the start, or null for the experiment's own bound
+     */
+    record Command(UUID experimentId, UUID idempotencyKey, Integer concurrency) {
+
+        public Command(UUID experimentId, UUID idempotencyKey) {
+            this(experimentId, idempotencyKey, null);
+        }
+    }
 }

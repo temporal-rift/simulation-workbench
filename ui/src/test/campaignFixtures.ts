@@ -1,4 +1,4 @@
-import type { Campaign, CampaignLogEntry } from '../api/generated'
+import type { Campaign, CampaignConfirmation, CampaignLogEntry } from '../api/generated'
 import { json } from './fakeService'
 import type { FakeService } from './fakeService'
 
@@ -62,6 +62,33 @@ export function logEntry(overrides: Partial<CampaignLogEntry> = {}): CampaignLog
   }
 }
 
+export const CONFIRMATION_RUNS = {
+  baseline: { experiment: 'e0000000-0000-4000-8000-000000000001', run: 'f0000000-0000-4000-8000-000000000001' },
+  candidate: { experiment: 'e0000000-0000-4000-8000-000000000002', run: 'f0000000-0000-4000-8000-000000000002' },
+} as const
+
+/** The confirmation of a short list of one candidate: the baseline and the candidate, evaluated or still playing. */
+export function confirmation(evaluated: boolean): CampaignConfirmation {
+  return {
+    seedCount: 100,
+    seedOverlap: false,
+    runs: [
+      {
+        candidateId: 'baseline',
+        experimentId: CONFIRMATION_RUNS.baseline.experiment,
+        runId: CONFIRMATION_RUNS.baseline.run,
+        evaluation: evaluated ? { verdict: 'UNCONFIRMED', score: 0.4 } : null,
+      },
+      {
+        candidateId: 'c-0001',
+        experimentId: CONFIRMATION_RUNS.candidate.experiment,
+        runId: CONFIRMATION_RUNS.candidate.run,
+        evaluation: evaluated ? { verdict: 'CONFIRMED', score: 0.1 } : null,
+      },
+    ],
+  }
+}
+
 /** Answers the campaign operations of a test from the given records and lets commands change the first campaign. */
 export function serveCampaigns(service: FakeService, state: { campaigns?: Campaign[]; log?: CampaignLogEntry[] } = {}): { current: Campaign[] } {
   const held = { current: state.campaigns ?? [campaign()] }
@@ -85,6 +112,12 @@ export function serveCampaigns(service: FakeService, state: { campaigns?: Campai
   service.override('POST', /^\/api\/v1\/campaigns\/([^/]+)\/pause$/, change('PAUSED'))
   service.override('POST', /^\/api\/v1\/campaigns\/([^/]+)\/resume$/, change('RUNNING'))
   service.override('POST', /^\/api\/v1\/campaigns\/([^/]+)\/cancel$/, change('CANCELLED'))
+  service.override('POST', /^\/api\/v1\/campaigns\/([^/]+)\/confirmation$/, (_request, match) => {
+    const found = held.current.find((item) => item.campaignId === match[1])!
+    const updated: Campaign = { ...found, state: 'CONFIRMING', confirmation: confirmation(false) }
+    held.current = held.current.map((item) => (item.campaignId === updated.campaignId ? updated : item))
+    return json(updated, 202)
+  })
   service.override('PUT', /^\/api\/v1\/campaigns\/([^/]+)\/parallelism$/, (request, match) => {
     const found = held.current.find((item) => item.campaignId === match[1])!
     const updated = { ...found, parallelism: (request.body as { parallelism: number }).parallelism }

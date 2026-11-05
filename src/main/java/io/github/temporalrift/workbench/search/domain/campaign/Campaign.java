@@ -14,6 +14,7 @@ import java.util.UUID;
  * @param spentSeconds active time spent so far
  * @param round the round being played, or the last one played once the search is complete
  * @param shortList the short-listed candidate ids; empty until the search completes
+ * @param confirmation the confirmation of the short list on fresh seeds, or null until it starts
  * @param failure why the campaign has not started or stopped, when it has not
  */
 public record Campaign(
@@ -24,6 +25,7 @@ public record Campaign(
         long spentSeconds,
         int round,
         List<String> shortList,
+        Confirmation confirmation,
         CampaignFailure failure,
         Instant createdAt,
         Instant startedAt,
@@ -43,7 +45,18 @@ public record Campaign(
     /** A campaign as accepted: queued, with nothing spent. */
     public static Campaign queued(UUID campaignId, CampaignDefinition definition, int parallelism, Instant now) {
         return new Campaign(
-                campaignId, definition, parallelism, CampaignState.QUEUED, 0, 0, List.of(), null, now, null, null);
+                campaignId,
+                definition,
+                parallelism,
+                CampaignState.QUEUED,
+                0,
+                0,
+                List.of(),
+                null,
+                null,
+                now,
+                null,
+                null);
     }
 
     /** Whether the search has spent all the active time it was given. */
@@ -99,6 +112,7 @@ public record Campaign(
                 spentSeconds,
                 round,
                 shortList,
+                confirmation,
                 failure,
                 createdAt,
                 startedAt,
@@ -151,6 +165,7 @@ public record Campaign(
                 spentSeconds + seconds,
                 round,
                 shortList,
+                confirmation,
                 failure,
                 createdAt,
                 startedAt,
@@ -170,6 +185,7 @@ public record Campaign(
                 spentSeconds,
                 round + 1,
                 shortList,
+                confirmation,
                 failure,
                 createdAt,
                 startedAt,
@@ -189,10 +205,53 @@ public record Campaign(
                 spentSeconds,
                 round,
                 shortListed,
+                confirmation,
                 failure,
                 createdAt,
                 startedAt,
                 finishedAt);
+    }
+
+    /** Starts confirming a campaign whose search is complete. */
+    public Campaign startConfirmation(Confirmation started) {
+        if (state != CampaignState.SEARCH_COMPLETED) {
+            throw new InvalidCampaignStateException("startConfirmation", state);
+        }
+        Objects.requireNonNull(started, "confirmation");
+        return new Campaign(
+                campaignId,
+                definition,
+                parallelism,
+                CampaignState.CONFIRMING,
+                spentSeconds,
+                round,
+                shortList,
+                started,
+                failure,
+                createdAt,
+                startedAt,
+                finishedAt);
+    }
+
+    /** Ends a confirming campaign with the evaluation of every confirmation run. */
+    public Campaign completeConfirmation(Confirmation evaluated, Instant now) {
+        if (state != CampaignState.CONFIRMING) {
+            throw new InvalidCampaignStateException("completeConfirmation", state);
+        }
+        Objects.requireNonNull(evaluated, "confirmation");
+        return new Campaign(
+                campaignId,
+                definition,
+                parallelism,
+                CampaignState.COMPLETED,
+                spentSeconds,
+                round,
+                shortList,
+                evaluated,
+                failure,
+                createdAt,
+                startedAt,
+                now);
     }
 
     /** Stops a campaign that is not over because of an error. */
@@ -212,6 +271,7 @@ public record Campaign(
                 spentSeconds,
                 round,
                 shortList,
+                confirmation,
                 reason,
                 createdAt,
                 started,

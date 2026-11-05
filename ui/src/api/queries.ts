@@ -38,6 +38,7 @@ import {
   resumeCampaign,
   resumeRun,
   setCampaignParallelism,
+  startConfirmation,
   startFidelityCheck,
   startRun,
   type CampaignDefinition,
@@ -369,6 +370,9 @@ export const resumeCampaignCommand = (client: Client, campaignId: string, idempo
 
 export const cancelCampaignCommand = (client: Client, campaignId: string, idempotencyKey: string) =>
   unwrap(() => cancelCampaign({ client, path: { campaignId }, headers: { 'Idempotency-Key': idempotencyKey } }))
+
+export const startConfirmationCommand = (client: Client, campaignId: string, idempotencyKey: string) =>
+  unwrap(() => startConfirmation({ client, path: { campaignId }, headers: { 'Idempotency-Key': idempotencyKey } }))
 
 export const setCampaignParallelismCommand = (client: Client, campaignId: string, parallelism: number, idempotencyKey: string) =>
   unwrap(() => setCampaignParallelism({ client, path: { campaignId }, body: { parallelism }, headers: { 'Idempotency-Key': idempotencyKey } }))

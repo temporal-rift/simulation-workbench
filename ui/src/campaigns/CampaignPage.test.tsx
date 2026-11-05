@@ -2,8 +2,9 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { READ_SCOPE } from '../auth/scopes'
-import { CAMPAIGN_IDS, campaign, logEntry, serveCampaigns } from '../test/campaignFixtures'
+import { CAMPAIGN_IDS, CONFIRMATION_RUNS, campaign, confirmation, logEntry, serveCampaigns } from '../test/campaignFixtures'
 import { FakeService, problem } from '../test/fakeService'
+import { evaluation, run } from '../test/fixtures'
 import { renderApp } from '../test/renderApp'
 
 let service: FakeService
@@ -212,5 +213,62 @@ describe('the decision log', () => {
     await renderApp(PATH, service)
 
     expect(await screen.findByText('The campaign has made no decision yet.')).toBeInTheDocument()
+  })
+})
+
+describe('confirming the short list', () => {
+  const searched = () => campaign({ state: 'SEARCH_COMPLETED', shortList: ['c-0001'], finishedAt: null })
+
+  it('offers to confirm only once the search is complete', async () => {
+    serveCampaigns(service, { campaigns: [campaign()] })
+    await renderApp(PATH, service)
+
+    await screen.findByRole('button', { name: 'Pause campaign' })
+    expect(screen.queryByRole('button', { name: 'Confirm short list' })).not.toBeInTheDocument()
+  })
+
+  it('starts the confirmation and shows its runs while they play', async () => {
+    serveCampaigns(service, { campaigns: [searched()] })
+    service.runs.set(CONFIRMATION_RUNS.baseline.run, run({ runId: CONFIRMATION_RUNS.baseline.run }))
+    service.runs.set(CONFIRMATION_RUNS.candidate.run, run({ runId: CONFIRMATION_RUNS.candidate.run, state: 'QUEUED' }))
+    await renderApp(PATH, service)
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Confirm short list' }))
+
+    expect(await screen.findByText('State: Confirming')).toBeInTheDocument()
+    const report = await screen.findByRole('region', { name: 'Confirmation' })
+    expect(within(report).getByText(/100 fresh seeds/)).toBeInTheDocument()
+    expect(within(report).getByRole('region', { name: 'Baseline' })).toBeInTheDocument()
+    expect(within(report).getByRole('region', { name: 'Candidate c-0001' })).toBeInTheDocument()
+    expect(await within(report).findByText(/Waiting for its turn/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Confirm short list' })).not.toBeInTheDocument()
+  })
+
+  it('shows a confirmed candidate with every line, the sample and the human balance statement', async () => {
+    serveCampaigns(service, {
+      campaigns: [{ ...searched(), state: 'COMPLETED', confirmation: confirmation(true), finishedAt: '2026-01-01T05:00:00Z' }],
+    })
+    service.runs.set(CONFIRMATION_RUNS.baseline.run, run({ runId: CONFIRMATION_RUNS.baseline.run, state: 'COMPLETED' }))
+    service.runs.set(CONFIRMATION_RUNS.candidate.run, run({ runId: CONFIRMATION_RUNS.candidate.run, state: 'COMPLETED' }))
+    service.evaluationFor = (variantLabel, criterionVersion, mode) =>
+      evaluation({
+        variantLabel,
+        criterionVersion,
+        mode,
+        verdict: variantLabel === 'c-0001' ? 'CONFIRMED' : 'UNCONFIRMED',
+        confirmationSample: { requiredSeeds: 100, seeds: 100, fullMatrix: true, satisfied: true },
+      })
+    await renderApp(PATH, service)
+
+    const report = await screen.findByRole('region', { name: 'Confirmation' })
+    expect(within(report).getByText('Bot results say nothing about balance among human players.')).toBeInTheDocument()
+    const candidate = await within(report).findByRole('region', { name: 'Candidate c-0001' })
+    expect(await within(candidate).findByText(/Verdict: Confirmed/)).toBeInTheDocument()
+    expect(within(candidate).getByText('Recorded verdict: Confirmed')).toBeInTheDocument()
+    expect(within(candidate).getByText(/100 of 100 seeds, full case matrix: satisfied/)).toBeInTheDocument()
+    expect(within(candidate).getByRole('table', { name: 'Evaluated lines' })).toBeInTheDocument()
+    const baseline = within(report).getByRole('region', { name: 'Baseline' })
+    expect(await within(baseline).findByText(/Verdict: Unconfirmed/)).toBeInTheDocument()
   })
 })

@@ -11,7 +11,8 @@ import io.github.temporalrift.workbench.shared.execution.RunPhase;
 /**
  * Applies what a campaign says to the runs that play its waves. Pausing holds back every case that has not started,
  * and cases already executing finish; resuming and a change of parallelism allow that many cases at once; stopping
- * cancels the runs. Every call is safe to repeat and ignores a run that is over.
+ * cancels the runs, the confirmation runs of a campaign included. Every call is safe to repeat and ignores a run
+ * that is over.
  */
 class WaveRuns {
 
@@ -48,5 +49,9 @@ class WaveRuns {
 
     void stop(UUID campaignId) {
         campaigns.waves(campaignId).forEach(wave -> runs.cancel(wave.runId()));
+        campaigns
+                .find(campaignId)
+                .map(stored -> stored.campaign().confirmation())
+                .ifPresent(confirmation -> confirmation.runs().forEach(run -> runs.cancel(run.runId())));
     }
 }

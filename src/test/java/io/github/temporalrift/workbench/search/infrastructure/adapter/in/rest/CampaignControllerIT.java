@@ -37,15 +37,21 @@ import io.github.temporalrift.workbench.search.application.port.in.ListCampaigns
 import io.github.temporalrift.workbench.search.application.port.in.PauseCampaignUseCase;
 import io.github.temporalrift.workbench.search.application.port.in.ResumeCampaignUseCase;
 import io.github.temporalrift.workbench.search.application.port.in.SetCampaignParallelismUseCase;
+import io.github.temporalrift.workbench.search.application.port.in.StartConfirmationUseCase;
 import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignFailure;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignIdempotencyConflictException;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignNotFoundException;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
+import io.github.temporalrift.workbench.search.domain.campaign.Confirmation;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignException;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignReason;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignStateException;
+import io.github.temporalrift.workbench.search.domain.campaign.NoRealLaneException;
 import io.github.temporalrift.workbench.search.domain.campaign.SearchAlgorithm;
+import io.github.temporalrift.workbench.search.domain.campaign.SeedOverlapException;
 import io.github.temporalrift.workbench.search.domain.log.LogEntry;
 import io.github.temporalrift.workbench.search.infrastructure.config.SearchApiJsonConfiguration;
 import io.github.temporalrift.workbench.shared.Page;
@@ -142,6 +148,9 @@ class CampaignControllerIT {
 
     @MockitoBean
     private SetCampaignParallelismUseCase parallelism;
+
+    @MockitoBean
+    private StartConfirmationUseCase startConfirmation;
 
     private static Campaign campaign() {
         var mapper = JsonMapper.builder().build();
@@ -434,10 +443,76 @@ class CampaignControllerIT {
     }
 
     @Test
-    void confirmingIsNotAvailableYet() throws Exception {
+    void confirmingAnswers202WithTheConfirmationAndNoSeedOverlap() throws Exception {
+        var run = new Confirmation.Run("c-0000", new UUID(2, 2), new UUID(3, 3), null);
+        var baseline = new Confirmation.Run(
+                Confirmation.BASELINE, new UUID(2, 1), new UUID(3, 1), new Confirmation.Evaluation("CONFIRMED", 2.5));
+        var confirming = campaign()
+                .start(NOW)
+                .completeSearch(List.of("c-0000"))
+                .startConfirmation(new Confirmation(100, List.of(baseline, run)));
+        when(startConfirmation.handle(CAMPAIGN)).thenReturn(confirming);
+
         send("/api/v1/campaigns/" + CAMPAIGN + "/confirmation", "", WRITE)
-                .andExpect(status().isNotImplemented())
-                .andExpect(jsonPath("$.code").value("NOT_IMPLEMENTED"));
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.state").value("CONFIRMING"))
+                .andExpect(jsonPath("$.confirmation.seedCount").value(100))
+                .andExpect(jsonPath("$.confirmation.seedOverlap").value(false))
+                .andExpect(jsonPath("$.confirmation.runs.length()").value(2))
+                .andExpect(jsonPath("$.confirmation.runs[0].candidateId").value("baseline"))
+                .andExpect(jsonPath("$.confirmation.runs[0].evaluation.verdict").value("CONFIRMED"))
+                .andExpect(jsonPath("$.confirmation.runs[0].evaluation.score").value(2.5))
+                .andExpect(jsonPath("$.confirmation.runs[1].candidateId").value("c-0000"))
+                .andExpect(jsonPath("$.confirmation.runs[1].evaluation").value((Object) null));
+    }
+
+    @Test
+    void confirmingFromAnotherStateAnswers409() throws Exception {
+        when(startConfirmation.handle(CAMPAIGN))
+                .thenThrow(new InvalidCampaignStateException("startConfirmation", CampaignState.RUNNING));
+
+        send("/api/v1/campaigns/" + CAMPAIGN + "/confirmation", "", WRITE)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_CAMPAIGN_STATE"));
+    }
+
+    @Test
+    void confirmingOnSeedsTheSearchPlayedAnswers409SeedOverlap() throws Exception {
+        when(startConfirmation.handle(CAMPAIGN)).thenThrow(new SeedOverlapException(List.of("42")));
+
+        send("/api/v1/campaigns/" + CAMPAIGN + "/confirmation", "", WRITE)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("SEED_OVERLAP"));
+    }
+
+    @Test
+    void confirmingWithoutARealLaneAnswers503() throws Exception {
+        when(startConfirmation.handle(CAMPAIGN)).thenThrow(new NoRealLaneException("no lane"));
+
+        send("/api/v1/campaigns/" + CAMPAIGN + "/confirmation", "", WRITE)
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("NO_REAL_LANE"));
+    }
+
+    @Test
+    void confirmingWithAnExperimentTheServiceRefusesAnswers422() throws Exception {
+        when(startConfirmation.handle(CAMPAIGN)).thenThrow(new CampaignPlayRefusedException("baseline unknown"));
+
+        send("/api/v1/campaigns/" + CAMPAIGN + "/confirmation", "", WRITE)
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("CAMPAIGN_PLAY_REFUSED"));
+    }
+
+    @Test
+    void confirmingAnUnknownCampaignAnswers404() throws Exception {
+        when(startConfirmation.handle(CAMPAIGN)).thenThrow(new CampaignNotFoundException(CAMPAIGN));
+
+        send("/api/v1/campaigns/" + CAMPAIGN + "/confirmation", "", WRITE).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void confirmingNeedsTheWriteScope() throws Exception {
+        send("/api/v1/campaigns/" + CAMPAIGN + "/confirmation", "", READ).andExpect(status().isForbidden());
     }
 
     @Test
