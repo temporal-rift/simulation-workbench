@@ -31,9 +31,18 @@ public class ShippedCampaignDefaults implements CampaignDefaults {
 
     public ShippedCampaignDefaults(
             ExperimentFactory experiments, CandidateScreening screening, ObjectMapper objectMapper) {
+        this(experiments, screening, objectMapper, shippedRecords());
+    }
+
+    /** Over the given records, so each way a record can be refused is testable without a classpath of its own. */
+    ShippedCampaignDefaults(
+            ExperimentFactory experiments,
+            CandidateScreening screening,
+            ObjectMapper objectMapper,
+            Resource... records) {
         this.experiments = experiments;
         this.screening = screening;
-        this.algorithm = newestAlgorithm(objectMapper);
+        this.algorithm = newestAlgorithm(objectMapper, records);
     }
 
     @Override
@@ -51,13 +60,15 @@ public class ShippedCampaignDefaults implements CampaignDefaults {
         return screening.newestCriterionVersion();
     }
 
-    private static SearchAlgorithm newestAlgorithm(ObjectMapper objectMapper) {
-        Resource[] resources;
+    private static Resource[] shippedRecords() {
         try {
-            resources = new PathMatchingResourcePatternResolver().getResources(LOCATION);
+            return new PathMatchingResourcePatternResolver().getResources(LOCATION);
         } catch (IOException e) {
             throw new UncheckedIOException("The search budget records could not be listed", e);
         }
+    }
+
+    private static SearchAlgorithm newestAlgorithm(ObjectMapper objectMapper, Resource[] resources) {
         var records = Arrays.stream(resources)
                 .map(resource -> read(objectMapper, resource))
                 .sorted(Comparator.comparingInt(BudgetRecord::version))

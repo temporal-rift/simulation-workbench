@@ -140,6 +140,11 @@ function algorithmOf(draft: Draft): SearchAlgorithmRequest | null {
 
 function definitionOf(draft: Draft, bundle: LaneBundle, policy: PolicyBundle): CampaignDefinition {
   const algorithm = algorithmOf(draft)
+  const budget = budgetSeconds(draft.budgetHours)
+  if (budget === null) {
+    // The form validates the budget before it builds a request, so this is a defect, not a user error.
+    throw new Error('The budget was not validated before the definition was built.')
+  }
   return {
     name: draft.name.trim(),
     baseline: { rulesArtifact: bundle.rulesArtifact, contentArtifact: bundle.contentArtifact },
@@ -153,7 +158,7 @@ function definitionOf(draft: Draft, bundle: LaneBundle, policy: PolicyBundle): C
       },
     ],
     playerCounts: [...draft.playerCounts].sort() as CampaignDefinition['playerCounts'],
-    budgetSeconds: budgetSeconds(draft.budgetHours) ?? MINIMUM_BUDGET_SECONDS,
+    budgetSeconds: budget,
     parallelism: Number(draft.parallelism),
     ...(draft.parameterSpaceVersion !== '' && { parameterSpaceVersion: Number(draft.parameterSpaceVersion) }),
     ...(draft.criterionVersion !== '' && { criterionVersion: Number(draft.criterionVersion) }),

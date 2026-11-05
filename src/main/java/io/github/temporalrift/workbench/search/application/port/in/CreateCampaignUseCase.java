@@ -46,6 +46,11 @@ public interface CreateCampaignUseCase {
             String confirmationMasterSeed,
             AlgorithmRequest algorithm) {}
 
-    /** The search parameters a request sets; each null one takes the approved record's value. */
-    record AlgorithmRequest(Integer initialCandidates, Integer screeningSeeds, Integer eta, Integer shortListSize) {}
+    /**
+     * The search parameters a request sets; each null one takes the approved record's value.
+     *
+     * @param version the algorithm, or null for the one the service implements
+     */
+    record AlgorithmRequest(
+            String version, Integer initialCandidates, Integer screeningSeeds, Integer eta, Integer shortListSize) {}
 }

@@ -231,7 +231,9 @@ class CampaignControllerIT {
                                 && command.parallelism() == 4
                                 && command.playerCounts().equals(List.of(3, 4))
                                 && command.searchMasterSeed().equals("7")
-                                && command.algorithm().equals(new CreateCampaignUseCase.AlgorithmRequest(8, 4, 2, 2))));
+                                && command.algorithm()
+                                        .equals(new CreateCampaignUseCase.AlgorithmRequest(
+                                                "SUCCESSIVE_HALVING_V1", 8, 4, 2, 2))));
     }
 
     @Test
@@ -259,8 +261,8 @@ class CampaignControllerIT {
         send("/api/v1/campaigns", partial, WRITE).andExpect(status().isCreated());
 
         verify(create)
-                .handle(org.mockito.ArgumentMatchers.argThat(command ->
-                        command.algorithm().equals(new CreateCampaignUseCase.AlgorithmRequest(10, null, null, null))));
+                .handle(org.mockito.ArgumentMatchers.argThat(command -> command.algorithm()
+                        .equals(new CreateCampaignUseCase.AlgorithmRequest(null, 10, null, null, null))));
     }
 
     @Test

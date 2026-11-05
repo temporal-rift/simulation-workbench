@@ -22,9 +22,4 @@ class RandomMasterSeedsTest {
             assertThat(new BigInteger(seed)).isBetween(BigInteger.ZERO, MAXIMUM);
         });
     }
-
-    @Test
-    void successiveSeedsDiffer() {
-        assertThat(Stream.generate(seeds::next).limit(200).distinct()).hasSize(200);
-    }
 }

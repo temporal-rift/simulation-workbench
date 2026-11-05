@@ -121,7 +121,8 @@ class CreateCampaignCommandHandlerTest {
     @Test
     void aPartialAlgorithmTakesTheRecordsValueForEveryFieldItLeavesOut() {
         drawn.addAll(List.of("11", "22"));
-        var partial = minimalWith(UUID.randomUUID(), new CreateCampaignUseCase.AlgorithmRequest(10, null, null, null));
+        var partial =
+                minimalWith(UUID.randomUUID(), new CreateCampaignUseCase.AlgorithmRequest(null, 10, null, null, null));
 
         var campaign = create.handle(partial);
 
@@ -131,12 +132,38 @@ class CreateCampaignCommandHandlerTest {
     @Test
     void aMergedAlgorithmThatIsInvalidIsRefusedOnTheAlgorithm() {
         drawn.addAll(List.of("11", "22"));
-        var invalid = minimalWith(UUID.randomUUID(), new CreateCampaignUseCase.AlgorithmRequest(null, null, 1, null));
+        var invalid =
+                minimalWith(UUID.randomUUID(), new CreateCampaignUseCase.AlgorithmRequest(null, null, null, 1, null));
 
         assertThatThrownBy(() -> create.handle(invalid)).isInstanceOfSatisfying(InvalidCampaignException.class, e -> {
             assertThat(e.reason()).isEqualTo(InvalidCampaignReason.INVALID_VALUE);
             assertThat(e.field()).isEqualTo("algorithm");
         });
+    }
+
+    @Test
+    void anAlgorithmTheServiceDoesNotImplementIsRefusedOnItsVersion() {
+        var unknown = minimalWith(
+                UUID.randomUUID(),
+                new CreateCampaignUseCase.AlgorithmRequest("SUCCESSIVE_HALVING_V2", null, null, null, null));
+
+        assertThatThrownBy(() -> create.handle(unknown)).isInstanceOfSatisfying(InvalidCampaignException.class, e -> {
+            assertThat(e.reason()).isEqualTo(InvalidCampaignReason.INVALID_VALUE);
+            assertThat(e.field()).isEqualTo("algorithm.version");
+        });
+        assertThat(campaigns.list(null, 10, 0).total()).isZero();
+    }
+
+    @Test
+    void theAlgorithmVersionTheRequestNamesIsPartOfItsIdentity() {
+        var key = UUID.randomUUID();
+        drawn.addAll(List.of("11", "22"));
+        create.handle(minimalWith(key, new CreateCampaignUseCase.AlgorithmRequest(null, 10, null, null, null)));
+
+        var named = minimalWith(
+                key, new CreateCampaignUseCase.AlgorithmRequest("SUCCESSIVE_HALVING_V1", 10, null, null, null));
+
+        assertThatThrownBy(() -> create.handle(named)).isInstanceOf(CampaignIdempotencyConflictException.class);
     }
 
     @Test
@@ -246,7 +273,7 @@ class CreateCampaignCommandHandlerTest {
                 null,
                 "7",
                 "9",
-                new CreateCampaignUseCase.AlgorithmRequest(8, 2, 2, 2));
+                new CreateCampaignUseCase.AlgorithmRequest(null, 8, 2, 2, 2));
 
         assertThatThrownBy(() -> create.handle(blank))
                 .isInstanceOfSatisfying(
@@ -267,7 +294,7 @@ class CreateCampaignCommandHandlerTest {
                 null,
                 searchSeed,
                 confirmationSeed,
-                new CreateCampaignUseCase.AlgorithmRequest(8, 2, 2, 2));
+                new CreateCampaignUseCase.AlgorithmRequest(null, 8, 2, 2, 2));
     }
 
     private static CreateCampaignUseCase.Command minimal(UUID key) {

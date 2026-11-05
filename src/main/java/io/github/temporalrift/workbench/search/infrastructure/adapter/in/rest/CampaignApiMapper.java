@@ -69,6 +69,7 @@ class CampaignApiMapper {
             return null;
         }
         return new CreateCampaignUseCase.AlgorithmRequest(
+                algorithm.getVersion() == null ? null : algorithm.getVersion().getValue(),
                 algorithm.getInitialCandidates(),
                 algorithm.getScreeningSeeds(),
                 algorithm.getEta(),

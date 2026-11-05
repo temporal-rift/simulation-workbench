@@ -2,6 +2,7 @@ package io.github.temporalrift.workbench.search.application.command;
 
 import java.time.Clock;
 import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.search.application.port.in.CreateCampaignUseCase;
@@ -29,6 +30,8 @@ import io.github.temporalrift.workbench.shared.text.Sha256;
  * definition.
  */
 public class CreateCampaignCommandHandler implements CreateCampaignUseCase {
+
+    private static final String SUPPORTED_ALGORITHM = "SUCCESSIVE_HALVING_V1";
 
     private final CampaignRepository campaigns;
     private final CampaignExperiments experiments;
@@ -87,11 +90,11 @@ public class CreateCampaignCommandHandler implements CreateCampaignUseCase {
                     "confirmationMasterSeed",
                     "The search and confirmation master seeds must differ");
         }
+        var algorithm = algorithmOf(command.algorithm());
         var searchSeed = supplied != null ? supplied : drawnDifferentFrom(command.confirmationMasterSeed());
         var confirmationSeed = command.confirmationMasterSeed() != null
                 ? command.confirmationMasterSeed()
                 : drawnDifferentFrom(searchSeed);
-        var algorithm = algorithmOf(command.algorithm());
         try {
             return new CampaignDefinition(
                     command.name(),
@@ -117,6 +120,12 @@ public class CreateCampaignCommandHandler implements CreateCampaignUseCase {
         if (request == null) {
             return approved;
         }
+        if (request.version() != null && !SUPPORTED_ALGORITHM.equals(request.version())) {
+            throw new InvalidCampaignException(
+                    InvalidCampaignReason.INVALID_VALUE,
+                    "algorithm.version",
+                    "Algorithm " + request.version() + " is not supported");
+        }
         try {
             return new SearchAlgorithm(
                     orElse(request.initialCandidates(), approved.initialCandidates()),
@@ -141,6 +150,26 @@ public class CreateCampaignCommandHandler implements CreateCampaignUseCase {
         return seed;
     }
 
+    /** The algorithm settings a request names; the ones it leaves out do not take part. */
+    private static Map<String, Object> algorithmIdentity(AlgorithmRequest request) {
+        if (request == null) {
+            return null;
+        }
+        var identity = new LinkedHashMap<String, Object>();
+        putIfSet(identity, "version", request.version());
+        putIfSet(identity, "initialCandidates", request.initialCandidates());
+        putIfSet(identity, "screeningSeeds", request.screeningSeeds());
+        putIfSet(identity, "eta", request.eta());
+        putIfSet(identity, "shortListSize", request.shortListSize());
+        return identity;
+    }
+
+    private static void putIfSet(Map<String, Object> identity, String key, Object value) {
+        if (value != null) {
+            identity.put(key, value);
+        }
+    }
+
     private static Campaign replay(CampaignClaim claim, String hash, UUID idempotencyKey) {
         if (!claim.requestHash().equals(hash)) {
             throw new CampaignIdempotencyConflictException(idempotencyKey);
@@ -148,7 +177,10 @@ public class CreateCampaignCommandHandler implements CreateCampaignUseCase {
         return claim.campaign();
     }
 
-    /** The identity of a request: its definition with the defaults filled in, whatever order its keys came in. */
+    /**
+     * The identity of a request as sent, whatever order its keys came in: only the budget and parallelism defaults are
+     * filled in, so an omitted input stays omitted.
+     */
     private static String requestHash(Command command, int budgetSeconds, int parallelism) {
         var identity = new LinkedHashMap<String, Object>();
         // The request as sent: an omitted field stays omitted, so a retry hashes the same although the first attempt
@@ -163,7 +195,7 @@ public class CreateCampaignCommandHandler implements CreateCampaignUseCase {
         identity.put("parallelism", parallelism);
         identity.put("searchMasterSeed", command.searchMasterSeed());
         identity.put("confirmationMasterSeed", command.confirmationMasterSeed());
-        identity.put("algorithm", command.algorithm());
+        identity.put("algorithm", algorithmIdentity(command.algorithm()));
         return Sha256.hexUtf8(JsonText.canonical(identity, "a campaign request"));
     }
 }
