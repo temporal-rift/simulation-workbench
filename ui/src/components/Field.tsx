@@ -39,7 +39,7 @@ interface TextFieldProps {
   readonly hint?: string | undefined
   readonly multiline?: boolean
   readonly rows?: number
-  readonly inputMode?: 'numeric' | 'text'
+  readonly inputMode?: 'numeric' | 'decimal' | 'text'
   readonly monospace?: boolean
 }
 

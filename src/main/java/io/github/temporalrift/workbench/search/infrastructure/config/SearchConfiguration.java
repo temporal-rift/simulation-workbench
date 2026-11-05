@@ -32,13 +32,17 @@ import io.github.temporalrift.workbench.search.application.port.in.SetCampaignPa
 import io.github.temporalrift.workbench.search.application.query.GetCampaignLogQueryHandler;
 import io.github.temporalrift.workbench.search.application.query.GetCampaignQueryHandler;
 import io.github.temporalrift.workbench.search.application.query.ListCampaignsQueryHandler;
+import io.github.temporalrift.workbench.search.domain.port.out.CampaignDefaults;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignExperiments;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRepository;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRuns;
 import io.github.temporalrift.workbench.search.domain.port.out.CandidateEvaluation;
 import io.github.temporalrift.workbench.search.domain.port.out.FidelityGate;
+import io.github.temporalrift.workbench.search.domain.port.out.MasterSeeds;
 import io.github.temporalrift.workbench.search.infrastructure.adapter.in.scheduler.CampaignWorker;
 import io.github.temporalrift.workbench.search.infrastructure.adapter.out.analysis.CandidateEvaluationAdapter;
+import io.github.temporalrift.workbench.search.infrastructure.adapter.out.defaults.RandomMasterSeeds;
+import io.github.temporalrift.workbench.search.infrastructure.adapter.out.defaults.ShippedCampaignDefaults;
 import io.github.temporalrift.workbench.search.infrastructure.adapter.out.execution.CampaignRunsAdapter;
 import io.github.temporalrift.workbench.search.infrastructure.adapter.out.experiment.CampaignExperimentsAdapter;
 import io.github.temporalrift.workbench.search.infrastructure.adapter.out.fidelity.FidelityGateAdapter;
@@ -84,12 +88,25 @@ public class SearchConfiguration {
     }
 
     @Bean
+    CampaignDefaults campaignDefaults(
+            ExperimentFactory experiments, CandidateScreening screening, ObjectMapper objectMapper) {
+        return new ShippedCampaignDefaults(experiments, screening, objectMapper);
+    }
+
+    @Bean
+    MasterSeeds masterSeeds() {
+        return new RandomMasterSeeds();
+    }
+
+    @Bean
     CreateCampaignUseCase createCampaignUseCase(
             CampaignRepository campaigns,
             CampaignExperiments experiments,
             CandidateEvaluation evaluation,
+            CampaignDefaults defaults,
+            MasterSeeds masterSeeds,
             Clock clock) {
-        return new CreateCampaignCommandHandler(campaigns, experiments, evaluation, clock);
+        return new CreateCampaignCommandHandler(campaigns, experiments, evaluation, defaults, masterSeeds, clock);
     }
 
     @Bean

@@ -11,6 +11,9 @@ import tools.jackson.databind.JsonNode;
 /** Lets another module prepare and freeze an experiment it composes itself. */
 public interface ExperimentFactory {
 
+    /** The newest parameter space version the service serves. */
+    int newestParameterSpaceVersion();
+
     /**
      * The rules a variant would carry, without persisting anything: the digest to name in the manifest and the
      * overrides as freezing would store them.

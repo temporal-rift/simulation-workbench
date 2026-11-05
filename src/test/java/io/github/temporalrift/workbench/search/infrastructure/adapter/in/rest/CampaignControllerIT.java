@@ -211,7 +211,7 @@ class CampaignControllerIT {
                                 && command.parallelism() == 4
                                 && command.playerCounts().equals(List.of(3, 4))
                                 && command.searchMasterSeed().equals("7")
-                                && command.algorithm().equals(new SearchAlgorithm(8, 4, 2, 2))));
+                                && command.algorithm().equals(new CreateCampaignUseCase.AlgorithmRequest(8, 4, 2, 2))));
     }
 
     @Test

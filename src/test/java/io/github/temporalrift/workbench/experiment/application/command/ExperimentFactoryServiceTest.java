@@ -18,10 +18,12 @@ import io.github.temporalrift.workbench.experiment.ExperimentRefusedException;
 import io.github.temporalrift.workbench.experiment.VariantRulesFixtures;
 import io.github.temporalrift.workbench.experiment.application.port.in.CreateExperimentUseCase;
 import io.github.temporalrift.workbench.experiment.application.query.GetParameterAxesQueryHandler;
+import io.github.temporalrift.workbench.experiment.application.query.ParameterSpaceQueryHandler;
 import io.github.temporalrift.workbench.experiment.application.query.PreviewVariantRulesQueryHandler;
 import io.github.temporalrift.workbench.experiment.domain.ExperimentErrorCode;
 import io.github.temporalrift.workbench.experiment.domain.ExperimentValidationException;
 import io.github.temporalrift.workbench.experiment.domain.IdempotencyConflictException;
+import io.github.temporalrift.workbench.experiment.domain.rules.ParameterSpace;
 
 class ExperimentFactoryServiceTest {
 
@@ -29,7 +31,18 @@ class ExperimentFactoryServiceTest {
     private final ExperimentFactoryService factory = new ExperimentFactoryService(
             new PreviewVariantRulesQueryHandler(VariantRulesFixtures.variantRules()),
             new GetParameterAxesQueryHandler(VariantRulesFixtures.variantRules()),
-            create);
+            create,
+            new ParameterSpaceQueryHandler(VariantRulesFixtures.spaces()));
+
+    @Test
+    void theNewestParameterSpaceVersionIsTheHighestServed() {
+        var served = VariantRulesFixtures.spaces().all().stream()
+                .mapToInt(ParameterSpace::version)
+                .max()
+                .orElseThrow();
+
+        assertThat(factory.newestParameterSpaceVersion()).isEqualTo(served);
+    }
 
     @Test
     void aVariantPreviewNamesItsDigestAndTheOverridesFreezingWouldStore() {

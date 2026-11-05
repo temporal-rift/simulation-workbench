@@ -689,7 +689,7 @@ same definition always gives the same log.
 
 | Operation | Meaning |
 |---|---|
-| `POST /api/v1/campaigns` | Accepts a definition (`simulation:write`, `Idempotency-Key`); `400 INVALID_CAMPAIGN` with the offending `field` and a `reason` (`UNKNOWN_PARAMETER_SPACE`, `UNKNOWN_BASELINE`, `UNKNOWN_CRITERION`, `EQUAL_MASTER_SEEDS`, `INVALID_VALUE`); the same key with the same definition returns the original campaign, with another `409 IDEMPOTENCY_CONFLICT` |
+| `POST /api/v1/campaigns` | Accepts a definition (`simulation:write`, `Idempotency-Key`), which needs only a `name`, a `baseline`, `policies` and `playerCounts`: the service resolves every other omitted field and returns it on the created campaign (see "Defaults of a new campaign"); `400 INVALID_CAMPAIGN` with the offending `field` and a `reason` (`UNKNOWN_PARAMETER_SPACE`, `UNKNOWN_BASELINE`, `UNKNOWN_CRITERION`, `EQUAL_MASTER_SEEDS`, `INVALID_VALUE`); the same key with the same definition returns the original campaign, with another `409 IDEMPOTENCY_CONFLICT` |
 | `GET /api/v1/campaigns`, `.../{id}`, `.../{id}/log` | The campaigns newest first, one campaign with the active time it has spent so far, and its decision log in sequence order |
 | `POST .../{id}/pause`, `.../resume`, `.../cancel` | Pause a queued or running campaign, resume a paused one, cancel one that is not over; repeating the one that already holds changes nothing, any other state answers `409 INVALID_CAMPAIGN_STATE` |
 | `PUT .../{id}/parallelism` | Changes the games played at once; the next game claimed obeys it and games in flight finish |
@@ -723,10 +723,19 @@ of at most `workbench.search.max-cases-per-wave` cases (default `50000`), and
 `workbench.search.case-wall-timeout-seconds` and `workbench.search.max-rejected-candidates-per-window` bound the cases of
 its experiments.
 
-The designer application has a **Campaigns** page that lists campaigns and starts one, and a campaign page with its
-state, active time spent and remaining, round, short list and paged decision log, pause, resume and cancel enabled only
-where the state accepts them, a control for the games at once, and the fidelity gate shown as the reason a campaign has
-not started.
+**Defaults of a new campaign.** A definition may leave out `parameterSpaceVersion`, `criterionVersion`,
+`searchMasterSeed`, `confirmationMasterSeed` and `algorithm` (or any field of it). The service resolves each one when it
+accepts the campaign and freezes the result, so the campaign always reports the values it ran with: the algorithm comes
+from the newest `search-budgets/v*.json` record, the versions from the newest parameter space and balance criterion the
+service serves, and each missing master seed is a random unsigned 64-bit number that differs from the other. A retry with
+the same `Idempotency-Key` and the same body returns the same campaign, with the seeds it was given the first time.
+
+The designer application has a **Campaigns** page that lists campaigns and starts one from a short form (name, rules
+bundle, policy, player counts, budget in hours and games at once; the versions, algorithm and master seeds sit in a
+collapsed **Advanced** block and are sent only when filled in), and a campaign page with its state, active time spent
+and remaining, round, short list, the algorithm, versions and master seeds it runs with, and paged decision log, pause,
+resume and cancel enabled only where the state accepts them, a control for the games at once, and the fidelity gate
+shown as the reason a campaign has not started.
 
 ## Timing metrics
 
