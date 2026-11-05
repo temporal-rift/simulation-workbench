@@ -17,7 +17,7 @@ class RandomMasterSeedsTest {
     void everySeedIsADecimalUnsigned64BitInteger() {
         var drawn = Stream.generate(seeds::next).limit(200).toList();
 
-        assertThat(drawn).allSatisfy(seed -> {
+        assertThat(drawn).isNotEmpty().allSatisfy(seed -> {
             assertThat(seed).matches("0|[1-9][0-9]*");
             assertThat(new BigInteger(seed)).isBetween(BigInteger.ZERO, MAXIMUM);
         });

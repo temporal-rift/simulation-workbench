@@ -23,6 +23,7 @@ import io.github.temporalrift.workbench.search.domain.port.out.CampaignDefaults;
 public class ShippedCampaignDefaults implements CampaignDefaults {
 
     private static final String LOCATION = "classpath*:search-budgets/v*.json";
+    private static final String VERSION = "version";
 
     private final ExperimentFactory experiments;
     private final CandidateScreening screening;
@@ -75,14 +76,14 @@ public class ShippedCampaignDefaults implements CampaignDefaults {
         try (var in = resource.getInputStream()) {
             JsonNode document = objectMapper.readTree(in);
             var algorithm = document.path("algorithm");
-            if (!document.path("version").isInt()) {
+            if (!document.path(VERSION).isInt()) {
                 throw new IllegalStateException("Search budget record " + name + " has no integer version");
             }
-            if (!algorithm.path("version").asString().equals("SUCCESSIVE_HALVING_V1")) {
+            if (!algorithm.path(VERSION).asString().equals("SUCCESSIVE_HALVING_V1")) {
                 throw new IllegalStateException("Search budget record " + name + " names an unknown algorithm");
             }
             return new BudgetRecord(
-                    document.path("version").asInt(),
+                    document.path(VERSION).asInt(),
                     new SearchAlgorithm(
                             integer(algorithm, "initialCandidates", name),
                             integer(algorithm, "screeningSeeds", name),
