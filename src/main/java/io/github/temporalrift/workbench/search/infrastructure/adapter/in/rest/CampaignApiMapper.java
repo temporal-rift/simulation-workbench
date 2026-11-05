@@ -29,6 +29,7 @@ import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.EvaluationVerdict;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Policy;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.SearchAlgorithm;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.SearchAlgorithmRequest;
 
 /**
  * Maps the published campaign representations to and from the domain. The baseline and the policies stay JSON in the
@@ -63,7 +64,7 @@ class CampaignApiMapper {
                 searchAlgorithm(algorithm));
     }
 
-    private static CreateCampaignUseCase.AlgorithmRequest searchAlgorithm(SearchAlgorithm algorithm) {
+    private static CreateCampaignUseCase.AlgorithmRequest searchAlgorithm(SearchAlgorithmRequest algorithm) {
         if (algorithm == null) {
             return null;
         }
