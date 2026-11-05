@@ -11,9 +11,11 @@ import io.github.temporalrift.workbench.experiment.ExperimentFactory;
 import io.github.temporalrift.workbench.experiment.ExperimentRefusedException;
 import io.github.temporalrift.workbench.experiment.application.port.in.CreateExperimentUseCase;
 import io.github.temporalrift.workbench.experiment.application.port.in.GetParameterAxesUseCase;
+import io.github.temporalrift.workbench.experiment.application.port.in.ListParameterSpacesUseCase;
 import io.github.temporalrift.workbench.experiment.application.port.in.PreviewVariantRulesUseCase;
 import io.github.temporalrift.workbench.experiment.domain.ExperimentValidationException;
 import io.github.temporalrift.workbench.experiment.domain.IdempotencyConflictException;
+import io.github.temporalrift.workbench.experiment.domain.rules.ParameterSpace;
 
 /** Offers the preview and freeze use cases to other modules. */
 public class ExperimentFactoryService implements ExperimentFactory {
@@ -21,12 +23,25 @@ public class ExperimentFactoryService implements ExperimentFactory {
     private final PreviewVariantRulesUseCase preview;
     private final GetParameterAxesUseCase axes;
     private final CreateExperimentUseCase create;
+    private final ListParameterSpacesUseCase spaces;
 
     public ExperimentFactoryService(
-            PreviewVariantRulesUseCase preview, GetParameterAxesUseCase axes, CreateExperimentUseCase create) {
+            PreviewVariantRulesUseCase preview,
+            GetParameterAxesUseCase axes,
+            CreateExperimentUseCase create,
+            ListParameterSpacesUseCase spaces) {
         this.preview = preview;
         this.axes = axes;
         this.create = create;
+        this.spaces = spaces;
+    }
+
+    @Override
+    public int newestParameterSpaceVersion() {
+        return spaces.handle().stream()
+                .mapToInt(ParameterSpace::version)
+                .max()
+                .orElseThrow(() -> new IllegalStateException("no parameter space is served"));
     }
 
     @Override

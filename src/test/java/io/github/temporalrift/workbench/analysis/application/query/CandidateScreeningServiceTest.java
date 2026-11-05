@@ -81,6 +81,11 @@ class CandidateScreeningServiceTest {
             }));
 
     @Test
+    void theNewestCriterionVersionIsTheHighestServed() {
+        assertThat(service.newestCriterionVersion()).isEqualTo(criterion.version());
+    }
+
+    @Test
     void aCandidateInOneRunIsEvaluatedAsRunEvaluationDoes() {
         var run = rotating("a", 0, 12, 21);
         play(FIRST_RUN, run);

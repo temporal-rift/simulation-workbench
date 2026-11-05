@@ -20,6 +20,7 @@ import io.github.temporalrift.workbench.experiment.application.port.in.GetVarian
 import io.github.temporalrift.workbench.experiment.application.port.in.ListExperimentTemplatesUseCase;
 import io.github.temporalrift.workbench.experiment.application.port.in.ListExperimentsUseCase;
 import io.github.temporalrift.workbench.experiment.application.port.in.ListLaneBundlesUseCase;
+import io.github.temporalrift.workbench.experiment.application.port.in.ListParameterSpacesUseCase;
 import io.github.temporalrift.workbench.experiment.application.port.in.PreviewExperimentUseCase;
 import io.github.temporalrift.workbench.experiment.application.port.in.PreviewMatrixUseCase;
 import io.github.temporalrift.workbench.experiment.application.port.in.PreviewVariantRulesUseCase;
@@ -140,8 +141,11 @@ public class ExperimentConfiguration {
 
     @Bean
     ExperimentFactory experimentFactory(
-            PreviewVariantRulesUseCase preview, GetParameterAxesUseCase axes, CreateExperimentUseCase create) {
-        return new ExperimentFactoryService(preview, axes, create);
+            PreviewVariantRulesUseCase preview,
+            GetParameterAxesUseCase axes,
+            CreateExperimentUseCase create,
+            ListParameterSpacesUseCase spaces) {
+        return new ExperimentFactoryService(preview, axes, create, spaces);
     }
 
     @Bean

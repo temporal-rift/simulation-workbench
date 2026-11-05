@@ -26,6 +26,30 @@ describe('a running campaign', () => {
     expect(screen.getByText('None yet')).toBeInTheDocument()
   })
 
+  it('shows the algorithm, versions and master seeds the service resolved', async () => {
+    serveCampaigns(service, {
+      campaigns: [campaign({
+        parameterSpaceVersion: 2,
+        criterionVersion: 3,
+        searchMasterSeed: '12345678901234567890',
+        confirmationMasterSeed: '98765432109876543210',
+        algorithm: { version: 'SUCCESSIVE_HALVING_V1', initialCandidates: 32, screeningSeeds: 2, eta: 2, shortListSize: 1 },
+      })],
+    })
+    await renderApp(PATH, service)
+
+    await screen.findByRole('heading', { name: /Campaign threshold-halving-01/ })
+    const value = (term: string) => screen.getByText(term).nextElementSibling
+    expect(value('Candidates in round 0')).toHaveTextContent('32')
+    expect(value('Seeds in round 0')).toHaveTextContent('2')
+    expect(value('Eta')).toHaveTextContent('2')
+    expect(value('Short list size')).toHaveTextContent('1')
+    expect(value('Parameter space version')).toHaveTextContent('2')
+    expect(value('Criterion version')).toHaveTextContent('3')
+    expect(value('Search master seed')).toHaveTextContent('12345678901234567890')
+    expect(value('Confirmation master seed')).toHaveTextContent('98765432109876543210')
+  })
+
   it('offers pause and cancel but not resume', async () => {
     serveCampaigns(service)
     await renderApp(PATH, service)

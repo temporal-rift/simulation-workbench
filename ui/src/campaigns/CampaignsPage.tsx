@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { useState } from 'react'
 import { ApiProblemError } from '../api/client'
-import type { CampaignDefinition, LaneBundle, PolicyBundle } from '../api/generated'
+import type { CampaignDefinition, LaneBundle, PolicyBundle, SearchAlgorithmRequest } from '../api/generated'
 import { describeFailure } from '../api/problems'
 import { PAGE_SIZE, campaignsQuery, createCampaignCommand, laneBundlesQuery, policiesQuery, useApiClient } from '../api/queries'
 import { useIntentKeys } from '../api/useIntentKeys'
@@ -39,10 +39,11 @@ interface Draft {
   bundle: number
   policy: number
   playerCounts: number[]
+  budgetHours: string
+  parallelism: string
+  // The rest is optional: an empty value is left out of the request and the service decides.
   parameterSpaceVersion: string
   criterionVersion: string
-  budgetSeconds: string
-  parallelism: string
   searchMasterSeed: string
   confirmationMasterSeed: string
   initialCandidates: string
@@ -56,16 +57,34 @@ const INITIAL: Draft = {
   bundle: 0,
   policy: 0,
   playerCounts: [3],
-  parameterSpaceVersion: '1',
-  criterionVersion: '1',
-  budgetSeconds: '14400',
+  budgetHours: '4',
   parallelism: '4',
+  parameterSpaceVersion: '',
+  criterionVersion: '',
   searchMasterSeed: '',
   confirmationMasterSeed: '',
-  initialCandidates: '20',
-  screeningSeeds: '4',
-  eta: '2',
-  shortListSize: '3',
+  initialCandidates: '',
+  screeningSeeds: '',
+  eta: '',
+  shortListSize: '',
+}
+
+const ADVANCED = [
+  'parameterSpaceVersion',
+  'criterionVersion',
+  'searchMasterSeed',
+  'confirmationMasterSeed',
+  'initialCandidates',
+  'screeningSeeds',
+  'eta',
+  'shortListSize',
+] as const satisfies readonly (keyof Draft)[]
+
+const MINIMUM_BUDGET_SECONDS = 60
+
+/** The budget the designer typed, in seconds of active time; null when it is not a number of hours. */
+function budgetSeconds(hours: string): number | null {
+  return /^[0-9]+(\.[0-9]+)?$/.test(hours) ? Math.round(Number(hours) * 3600) : null
 }
 
 /** What is wrong with the draft that the designer can fix before sending it; the service stays the authority. */
@@ -77,38 +96,58 @@ function problems(draft: Draft): Partial<Record<keyof Draft, string>> {
   if (draft.playerCounts.length === 0) {
     found.playerCounts = 'Choose at least one player count.'
   }
-  const positive: [keyof Draft, number][] = [
+  const seconds = budgetSeconds(draft.budgetHours)
+  if (seconds === null || seconds < MINIMUM_BUDGET_SECONDS) {
+    found.budgetHours = 'Enter a number of hours of at least 0.02 (one minute).'
+  }
+  if (!isWholeNumber(draft.parallelism, 1)) {
+    found.parallelism = 'Enter a whole number of at least 1.'
+  }
+  const optional: [keyof Draft, number][] = [
     ['parameterSpaceVersion', 1],
     ['criterionVersion', 1],
-    ['budgetSeconds', 60],
-    ['parallelism', 1],
     ['initialCandidates', 2],
     ['screeningSeeds', 2],
     ['eta', 2],
     ['shortListSize', 1],
   ]
-  for (const [key, minimum] of positive) {
-    if (!isWholeNumber(String(draft[key]), minimum)) {
-      found[key] = `Enter a whole number of at least ${minimum}.`
+  for (const [key, minimum] of optional) {
+    if (String(draft[key]) !== '' && !isWholeNumber(String(draft[key]), minimum)) {
+      found[key] = `Enter a whole number of at least ${minimum}, or leave it empty.`
     }
   }
   for (const key of ['searchMasterSeed', 'confirmationMasterSeed'] as const) {
-    if (!isMasterSeed(draft[key])) {
-      found[key] = 'Enter a whole number from 0 to 18446744073709551615.'
+    if (draft[key] !== '' && !isMasterSeed(draft[key])) {
+      found[key] = 'Enter a whole number from 0 to 18446744073709551615, or leave it empty.'
     }
   }
-  if (!found.searchMasterSeed && !found.confirmationMasterSeed && draft.searchMasterSeed === draft.confirmationMasterSeed) {
+  if (!found.searchMasterSeed && !found.confirmationMasterSeed && draft.searchMasterSeed !== '' && draft.searchMasterSeed === draft.confirmationMasterSeed) {
     found.confirmationMasterSeed = 'The confirmation master seed must differ from the search master seed.'
   }
   return found
 }
 
+/** The search parameters the designer set; null when none, so the service uses its approved plan. */
+function algorithmOf(draft: Draft): SearchAlgorithmRequest | null {
+  const set = {
+    ...(draft.initialCandidates !== '' && { initialCandidates: Number(draft.initialCandidates) }),
+    ...(draft.screeningSeeds !== '' && { screeningSeeds: Number(draft.screeningSeeds) }),
+    ...(draft.eta !== '' && { eta: Number(draft.eta) }),
+    ...(draft.shortListSize !== '' && { shortListSize: Number(draft.shortListSize) }),
+  }
+  return Object.keys(set).length === 0 ? null : set
+}
+
 function definitionOf(draft: Draft, bundle: LaneBundle, policy: PolicyBundle): CampaignDefinition {
+  const algorithm = algorithmOf(draft)
+  const budget = budgetSeconds(draft.budgetHours)
+  if (budget === null) {
+    // The form validates the budget before it builds a request, so this is a defect, not a user error.
+    throw new Error('The budget was not validated before the definition was built.')
+  }
   return {
     name: draft.name.trim(),
     baseline: { rulesArtifact: bundle.rulesArtifact, contentArtifact: bundle.contentArtifact },
-    parameterSpaceVersion: Number(draft.parameterSpaceVersion),
-    criterionVersion: Number(draft.criterionVersion),
     policies: [
       {
         id: policy.id,
@@ -119,17 +158,13 @@ function definitionOf(draft: Draft, bundle: LaneBundle, policy: PolicyBundle): C
       },
     ],
     playerCounts: [...draft.playerCounts].sort() as CampaignDefinition['playerCounts'],
-    budgetSeconds: Number(draft.budgetSeconds),
+    budgetSeconds: budget,
     parallelism: Number(draft.parallelism),
-    searchMasterSeed: draft.searchMasterSeed,
-    confirmationMasterSeed: draft.confirmationMasterSeed,
-    algorithm: {
-      version: 'SUCCESSIVE_HALVING_V1',
-      initialCandidates: Number(draft.initialCandidates),
-      screeningSeeds: Number(draft.screeningSeeds),
-      eta: Number(draft.eta),
-      shortListSize: Number(draft.shortListSize),
-    },
+    ...(draft.parameterSpaceVersion !== '' && { parameterSpaceVersion: Number(draft.parameterSpaceVersion) }),
+    ...(draft.criterionVersion !== '' && { criterionVersion: Number(draft.criterionVersion) }),
+    ...(draft.searchMasterSeed !== '' && { searchMasterSeed: draft.searchMasterSeed }),
+    ...(draft.confirmationMasterSeed !== '' && { confirmationMasterSeed: draft.confirmationMasterSeed }),
+    ...(algorithm !== null && { algorithm }),
   }
 }
 
@@ -166,6 +201,7 @@ function StartForm({ bundles, policies }: { readonly bundles: readonly LaneBundl
   const keys = useIntentKeys()
   const [draft, setDraft] = useState<Draft>(INITIAL)
   const [attempted, setAttempted] = useState(false)
+  const [advancedOpen, setAdvancedOpen] = useState(false)
   const found = problems(draft)
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((current) => ({ ...current, [key]: value }))
 
@@ -244,36 +280,43 @@ function StartForm({ bundles, policies }: { readonly bundles: readonly LaneBundl
         ))}
         {shown('playerCounts') && <p className="field-error">{shown('playerCounts')}</p>}
       </fieldset>
-      <TextField label="Parameter space version" value={draft.parameterSpaceVersion} onChange={(value) => set('parameterSpaceVersion', value)} inputMode="numeric" error={shown('parameterSpaceVersion')} />
-      <TextField label="Criterion version" value={draft.criterionVersion} onChange={(value) => set('criterionVersion', value)} inputMode="numeric" error={shown('criterionVersion')} />
       <TextField
-        label="Budget (seconds of active time)"
-        value={draft.budgetSeconds}
-        onChange={(value) => set('budgetSeconds', value)}
-        inputMode="numeric"
-        error={shown('budgetSeconds')}
-        hint="At least 60. Time spent paused or queued is not counted."
+        label="Budget (hours of active time)"
+        value={draft.budgetHours}
+        onChange={(value) => set('budgetHours', value)}
+        inputMode="decimal"
+        error={shown('budgetHours')}
+        hint="Time spent paused or queued is not counted."
       />
       <TextField label="Games at once" value={draft.parallelism} onChange={(value) => set('parallelism', value)} inputMode="numeric" error={shown('parallelism')} />
-      <TextField label="Search master seed" value={draft.searchMasterSeed} onChange={(value) => set('searchMasterSeed', value)} inputMode="numeric" error={shown('searchMasterSeed')} />
-      <TextField
-        label="Confirmation master seed"
-        value={draft.confirmationMasterSeed}
-        onChange={(value) => set('confirmationMasterSeed', value)}
-        inputMode="numeric"
-        error={shown('confirmationMasterSeed')}
-      />
-      <TextField label="Candidates in round 0" value={draft.initialCandidates} onChange={(value) => set('initialCandidates', value)} inputMode="numeric" error={shown('initialCandidates')} />
-      <TextField label="Seeds in round 0" value={draft.screeningSeeds} onChange={(value) => set('screeningSeeds', value)} inputMode="numeric" error={shown('screeningSeeds')} />
-      <TextField
-        label="Eta"
-        value={draft.eta}
-        onChange={(value) => set('eta', value)}
-        inputMode="numeric"
-        error={shown('eta')}
-        hint="Each round keeps 1/eta of its candidates and plays eta times as many seeds."
-      />
-      <TextField label="Short list size" value={draft.shortListSize} onChange={(value) => set('shortListSize', value)} inputMode="numeric" error={shown('shortListSize')} />
+      <details open={advancedOpen || ADVANCED.some((key) => shown(key) !== undefined)} onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}>
+        <summary>Advanced</summary>
+        <p className="hint">
+          Leave these empty to use the service&apos;s defaults: the approved search plan, the newest parameter space and criterion, and two random master
+          seeds. The campaign page shows what was used.
+        </p>
+        <TextField label="Parameter space version" value={draft.parameterSpaceVersion} onChange={(value) => set('parameterSpaceVersion', value)} inputMode="numeric" error={shown('parameterSpaceVersion')} />
+        <TextField label="Criterion version" value={draft.criterionVersion} onChange={(value) => set('criterionVersion', value)} inputMode="numeric" error={shown('criterionVersion')} />
+        <TextField label="Search master seed" value={draft.searchMasterSeed} onChange={(value) => set('searchMasterSeed', value)} inputMode="numeric" error={shown('searchMasterSeed')} />
+        <TextField
+          label="Confirmation master seed"
+          value={draft.confirmationMasterSeed}
+          onChange={(value) => set('confirmationMasterSeed', value)}
+          inputMode="numeric"
+          error={shown('confirmationMasterSeed')}
+        />
+        <TextField label="Candidates in round 0" value={draft.initialCandidates} onChange={(value) => set('initialCandidates', value)} inputMode="numeric" error={shown('initialCandidates')} />
+        <TextField label="Seeds in round 0" value={draft.screeningSeeds} onChange={(value) => set('screeningSeeds', value)} inputMode="numeric" error={shown('screeningSeeds')} />
+        <TextField
+          label="Eta"
+          value={draft.eta}
+          onChange={(value) => set('eta', value)}
+          inputMode="numeric"
+          error={shown('eta')}
+          hint="Each round keeps 1/eta of its candidates and plays eta times as many seeds."
+        />
+        <TextField label="Short list size" value={draft.shortListSize} onChange={(value) => set('shortListSize', value)} inputMode="numeric" error={shown('shortListSize')} />
+      </details>
       <div className="actions">
         <ScopedButton scope={WRITE_SCOPE} aria-busy={start.isPending} disabled={start.isPending} onAction={submit}>
           Start campaign

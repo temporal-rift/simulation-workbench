@@ -17,6 +17,7 @@ import io.github.temporalrift.workbench.experiment.VariantRulesFixtures;
 import io.github.temporalrift.workbench.experiment.application.command.ExperimentFactoryService;
 import io.github.temporalrift.workbench.experiment.application.port.in.CreateExperimentUseCase;
 import io.github.temporalrift.workbench.experiment.application.query.GetParameterAxesQueryHandler;
+import io.github.temporalrift.workbench.experiment.application.query.ParameterSpaceQueryHandler;
 import io.github.temporalrift.workbench.experiment.application.query.PreviewVariantRulesQueryHandler;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException;
@@ -36,7 +37,8 @@ class CampaignExperimentsAdapterTest {
             new ExperimentFactoryService(
                     new PreviewVariantRulesQueryHandler(VariantRulesFixtures.variantRules()),
                     new GetParameterAxesQueryHandler(VariantRulesFixtures.variantRules()),
-                    mock(CreateExperimentUseCase.class)),
+                    mock(CreateExperimentUseCase.class),
+                    new ParameterSpaceQueryHandler(VariantRulesFixtures.spaces())),
             mock(LaneEnvironments.class),
             MAPPER,
             new CampaignExperimentsAdapter.Bounds(3600, 10));

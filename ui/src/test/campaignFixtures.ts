@@ -30,7 +30,7 @@ export function campaign(overrides: Partial<Campaign> = {}): Campaign {
     parallelism: 4,
     searchMasterSeed: '7',
     confirmationMasterSeed: '9',
-    algorithm: { version: 'SUCCESSIVE_HALVING_V1', initialCandidates: 20, screeningSeeds: 4, eta: 2, shortListSize: 3 },
+    algorithm: { version: 'SUCCESSIVE_HALVING_V1', initialCandidates: 32, screeningSeeds: 2, eta: 2, shortListSize: 1 },
     state: 'RUNNING',
     spentSeconds: 3725,
     round: 1,

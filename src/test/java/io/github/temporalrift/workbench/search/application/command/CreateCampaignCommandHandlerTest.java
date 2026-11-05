@@ -11,6 +11,8 @@ import static org.mockito.Mockito.when;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.List;
 import java.util.UUID;
 
@@ -24,8 +26,10 @@ import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignException;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignReason;
 import io.github.temporalrift.workbench.search.domain.campaign.SearchAlgorithm;
+import io.github.temporalrift.workbench.search.domain.port.out.CampaignDefaults;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignExperiments;
 import io.github.temporalrift.workbench.search.domain.port.out.CandidateEvaluation;
+import io.github.temporalrift.workbench.search.domain.port.out.MasterSeeds;
 
 class CreateCampaignCommandHandlerTest {
 
@@ -34,11 +38,17 @@ class CreateCampaignCommandHandlerTest {
     private final InMemoryCampaigns campaigns = new InMemoryCampaigns();
     private final CampaignExperiments experiments = mock(CampaignExperiments.class);
     private final CandidateEvaluation evaluation = mock(CandidateEvaluation.class);
-    private final CreateCampaignCommandHandler create =
-            new CreateCampaignCommandHandler(campaigns, experiments, evaluation, Clock.fixed(NOW, ZoneOffset.UTC));
+    private final CampaignDefaults defaults = mock(CampaignDefaults.class);
+    private final Deque<String> drawn = new ArrayDeque<>();
+    private final MasterSeeds seeds = drawn::removeFirst;
+    private final CreateCampaignCommandHandler create = new CreateCampaignCommandHandler(
+            campaigns, experiments, evaluation, defaults, seeds, Clock.fixed(NOW, ZoneOffset.UTC));
 
     CreateCampaignCommandHandlerTest() {
         when(evaluation.servesCriterion(1)).thenReturn(true);
+        when(defaults.algorithm()).thenReturn(new SearchAlgorithm(32, 2, 2, 1));
+        when(defaults.parameterSpaceVersion()).thenReturn(1);
+        when(defaults.criterionVersion()).thenReturn(1);
     }
 
     @Test
@@ -72,6 +82,146 @@ class CreateCampaignCommandHandlerTest {
         var another = command(key, "7", "10");
 
         assertThatThrownBy(() -> create.handle(another)).isInstanceOf(CampaignIdempotencyConflictException.class);
+    }
+
+    @Test
+    void aMinimalDefinitionIsCompletedWithTheRecordsAndTwoDrawnSeeds() {
+        drawn.addAll(List.of("11", "22"));
+
+        var campaign = create.handle(minimal(UUID.randomUUID()));
+
+        var definition = campaign.definition();
+        assertThat(definition.algorithm()).isEqualTo(new SearchAlgorithm(32, 2, 2, 1));
+        assertThat(definition.parameterSpaceVersion()).isOne();
+        assertThat(definition.criterionVersion()).isOne();
+        assertThat(definition.searchMasterSeed()).isEqualTo("11");
+        assertThat(definition.confirmationMasterSeed()).isEqualTo("22");
+    }
+
+    @Test
+    void theNewestParameterSpaceVersionIsUsedWhenTheDefinitionNamesNone() {
+        when(defaults.parameterSpaceVersion()).thenReturn(4);
+        drawn.addAll(List.of("11", "22"));
+
+        var campaign = create.handle(minimal(UUID.randomUUID()));
+
+        assertThat(campaign.definition().parameterSpaceVersion()).isEqualTo(4);
+    }
+
+    @Test
+    void valuesTheDefinitionSuppliesAreKeptAndNothingIsDrawn() {
+        var campaign = create.handle(command(UUID.randomUUID(), "7", "9"));
+
+        var definition = campaign.definition();
+        assertThat(definition.searchMasterSeed()).isEqualTo("7");
+        assertThat(definition.confirmationMasterSeed()).isEqualTo("9");
+        assertThat(definition.algorithm()).isEqualTo(new SearchAlgorithm(8, 2, 2, 2));
+    }
+
+    @Test
+    void aPartialAlgorithmTakesTheRecordsValueForEveryFieldItLeavesOut() {
+        drawn.addAll(List.of("11", "22"));
+        var partial =
+                minimalWith(UUID.randomUUID(), new CreateCampaignUseCase.AlgorithmRequest(null, 10, null, null, null));
+
+        var campaign = create.handle(partial);
+
+        assertThat(campaign.definition().algorithm()).isEqualTo(new SearchAlgorithm(10, 2, 2, 1));
+    }
+
+    @Test
+    void aMergedAlgorithmThatIsInvalidIsRefusedOnTheAlgorithm() {
+        drawn.addAll(List.of("11", "22"));
+        var invalid =
+                minimalWith(UUID.randomUUID(), new CreateCampaignUseCase.AlgorithmRequest(null, null, null, 1, null));
+
+        assertThatThrownBy(() -> create.handle(invalid)).isInstanceOfSatisfying(InvalidCampaignException.class, e -> {
+            assertThat(e.reason()).isEqualTo(InvalidCampaignReason.INVALID_VALUE);
+            assertThat(e.field()).isEqualTo("algorithm");
+        });
+    }
+
+    @Test
+    void anAlgorithmTheServiceDoesNotImplementIsRefusedOnItsVersion() {
+        var unknown = minimalWith(
+                UUID.randomUUID(),
+                new CreateCampaignUseCase.AlgorithmRequest("SUCCESSIVE_HALVING_V2", null, null, null, null));
+
+        assertThatThrownBy(() -> create.handle(unknown)).isInstanceOfSatisfying(InvalidCampaignException.class, e -> {
+            assertThat(e.reason()).isEqualTo(InvalidCampaignReason.INVALID_VALUE);
+            assertThat(e.field()).isEqualTo("algorithm.version");
+        });
+        assertThat(campaigns.list(null, 10, 0).total()).isZero();
+    }
+
+    @Test
+    void theAlgorithmVersionTheRequestNamesIsPartOfItsIdentity() {
+        var key = UUID.randomUUID();
+        drawn.addAll(List.of("11", "22"));
+        create.handle(minimalWith(key, new CreateCampaignUseCase.AlgorithmRequest(null, 10, null, null, null)));
+
+        var named = minimalWith(
+                key, new CreateCampaignUseCase.AlgorithmRequest("SUCCESSIVE_HALVING_V1", 10, null, null, null));
+
+        assertThatThrownBy(() -> create.handle(named)).isInstanceOf(CampaignIdempotencyConflictException.class);
+    }
+
+    @Test
+    void aGeneratedSeedDiffersFromTheSeedTheDefinitionSupplies() {
+        drawn.addAll(List.of("7", "31"));
+        var onlySearch = new CreateCampaignUseCase.Command(
+                UUID.randomUUID(),
+                "search",
+                baseline(),
+                null,
+                null,
+                policies(),
+                List.of(3),
+                null,
+                null,
+                "7",
+                null,
+                null);
+
+        var campaign = create.handle(onlySearch);
+
+        assertThat(campaign.definition().searchMasterSeed()).isEqualTo("7");
+        assertThat(campaign.definition().confirmationMasterSeed()).isEqualTo("31");
+    }
+
+    @Test
+    void aDrawnSeedThatEqualsTheOtherOneIsDrawnAgain() {
+        drawn.addAll(List.of("11", "11", "22"));
+
+        var campaign = create.handle(minimal(UUID.randomUUID()));
+
+        assertThat(campaign.definition().searchMasterSeed()).isEqualTo("11");
+        assertThat(campaign.definition().confirmationMasterSeed()).isEqualTo("22");
+    }
+
+    @Test
+    void aRetryOfAMinimalDefinitionReturnsTheSameSeedsAndDrawsNothingElse() {
+        var key = UUID.randomUUID();
+        drawn.addAll(List.of("11", "22"));
+        var first = create.handle(minimal(key));
+
+        var repeated = create.handle(minimal(key));
+
+        assertThat(repeated).isEqualTo(first);
+        assertThat(repeated.definition().searchMasterSeed()).isEqualTo("11");
+        assertThat(drawn).isEmpty();
+        assertThat(campaigns.list(null, 10, 0).total()).isOne();
+    }
+
+    @Test
+    void aMinimalDefinitionIsNotTheSameRequestAsOneThatNamesTheValuesItResolvedTo() {
+        var key = UUID.randomUUID();
+        drawn.addAll(List.of("11", "22"));
+        create.handle(minimal(key));
+
+        var explicit = command(key, "11", "22");
+
+        assertThatThrownBy(() -> create.handle(explicit)).isInstanceOf(CampaignIdempotencyConflictException.class);
     }
 
     @Test
@@ -123,7 +273,7 @@ class CreateCampaignCommandHandlerTest {
                 null,
                 "7",
                 "9",
-                new SearchAlgorithm(8, 2, 2, 2));
+                new CreateCampaignUseCase.AlgorithmRequest(null, 8, 2, 2, 2));
 
         assertThatThrownBy(() -> create.handle(blank))
                 .isInstanceOfSatisfying(
@@ -144,7 +294,17 @@ class CreateCampaignCommandHandlerTest {
                 null,
                 searchSeed,
                 confirmationSeed,
-                new SearchAlgorithm(8, 2, 2, 2));
+                new CreateCampaignUseCase.AlgorithmRequest(null, 8, 2, 2, 2));
+    }
+
+    private static CreateCampaignUseCase.Command minimal(UUID key) {
+        return minimalWith(key, null);
+    }
+
+    private static CreateCampaignUseCase.Command minimalWith(
+            UUID key, CreateCampaignUseCase.AlgorithmRequest algorithm) {
+        return new CreateCampaignUseCase.Command(
+                key, "search", baseline(), null, null, policies(), List.of(3), null, null, null, null, algorithm);
     }
 
     private static tools.jackson.databind.JsonNode baseline() {

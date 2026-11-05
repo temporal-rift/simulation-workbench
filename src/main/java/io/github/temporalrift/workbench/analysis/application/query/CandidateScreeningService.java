@@ -9,6 +9,7 @@ import java.util.UUID;
 
 import io.github.temporalrift.workbench.analysis.CandidateScreening;
 import io.github.temporalrift.workbench.analysis.domain.AnalysisVersion;
+import io.github.temporalrift.workbench.analysis.domain.criterion.BalanceCriterion;
 import io.github.temporalrift.workbench.analysis.domain.criterion.CriterionRole;
 import io.github.temporalrift.workbench.analysis.domain.evaluation.DeviationProfile;
 import io.github.temporalrift.workbench.analysis.domain.evaluation.EvaluatedLine;
@@ -41,6 +42,14 @@ public class CandidateScreeningService implements CandidateScreening {
     @Override
     public boolean servesCriterion(int criterionVersion) {
         return criteria.find(criterionVersion).isPresent();
+    }
+
+    @Override
+    public int newestCriterionVersion() {
+        return criteria.all().stream()
+                .mapToInt(BalanceCriterion::version)
+                .max()
+                .orElseThrow(() -> new IllegalStateException("no balance criterion is served"));
     }
 
     @Override

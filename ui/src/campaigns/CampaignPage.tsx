@@ -131,6 +131,22 @@ function CampaignDetail({ campaign, stale }: { readonly campaign: Campaign; read
         <dd>{campaign.playerCounts.join(', ')}</dd>
         <dt>Short list</dt>
         <dd>{campaign.shortList.length === 0 ? 'None yet' : campaign.shortList.join(', ')}</dd>
+        <dt>Candidates in round 0</dt>
+        <dd>{campaign.algorithm.initialCandidates}</dd>
+        <dt>Seeds in round 0</dt>
+        <dd>{campaign.algorithm.screeningSeeds}</dd>
+        <dt>Eta</dt>
+        <dd>{campaign.algorithm.eta}</dd>
+        <dt>Short list size</dt>
+        <dd>{campaign.algorithm.shortListSize}</dd>
+        <dt>Parameter space version</dt>
+        <dd>{campaign.parameterSpaceVersion}</dd>
+        <dt>Criterion version</dt>
+        <dd>{campaign.criterionVersion}</dd>
+        <dt>Search master seed</dt>
+        <dd>{campaign.searchMasterSeed}</dd>
+        <dt>Confirmation master seed</dt>
+        <dd>{campaign.confirmationMasterSeed}</dd>
         <dt>Created</dt>
         <dd>{formatInstant(campaign.createdAt)}</dd>
         <dt>Started</dt>

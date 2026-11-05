@@ -12,8 +12,6 @@ import java.util.stream.Collectors;
 import tools.jackson.databind.ObjectMapper;
 
 import io.github.temporalrift.workbench.search.application.port.in.CreateCampaignUseCase;
-import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignException;
-import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignReason;
 import io.github.temporalrift.workbench.search.domain.log.LogEntry;
 import io.github.temporalrift.workbench.shared.Page;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Campaign;
@@ -31,6 +29,7 @@ import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.EvaluationVerdict;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Policy;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.SearchAlgorithm;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.SearchAlgorithmRequest;
 
 /**
  * Maps the published campaign representations to and from the domain. The baseline and the policies stay JSON in the
@@ -65,17 +64,16 @@ class CampaignApiMapper {
                 searchAlgorithm(algorithm));
     }
 
-    private static io.github.temporalrift.workbench.search.domain.campaign.SearchAlgorithm searchAlgorithm(
-            SearchAlgorithm algorithm) {
-        try {
-            return new io.github.temporalrift.workbench.search.domain.campaign.SearchAlgorithm(
-                    algorithm.getInitialCandidates(),
-                    algorithm.getScreeningSeeds(),
-                    algorithm.getEta(),
-                    algorithm.getShortListSize());
-        } catch (IllegalArgumentException e) {
-            throw new InvalidCampaignException(InvalidCampaignReason.INVALID_VALUE, "algorithm", e.getMessage());
+    private static CreateCampaignUseCase.AlgorithmRequest searchAlgorithm(SearchAlgorithmRequest algorithm) {
+        if (algorithm == null) {
+            return null;
         }
+        return new CreateCampaignUseCase.AlgorithmRequest(
+                algorithm.getVersion() == null ? null : algorithm.getVersion().getValue(),
+                algorithm.getInitialCandidates(),
+                algorithm.getScreeningSeeds(),
+                algorithm.getEta(),
+                algorithm.getShortListSize());
     }
 
     Campaign toApi(io.github.temporalrift.workbench.search.domain.campaign.Campaign campaign) {

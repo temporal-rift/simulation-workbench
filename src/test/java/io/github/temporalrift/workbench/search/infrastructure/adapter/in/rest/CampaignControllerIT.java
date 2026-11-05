@@ -96,6 +96,26 @@ class CampaignControllerIT {
             }
             """.formatted("a".repeat(64), "b".repeat(64), "c".repeat(64));
 
+    private static final String MINIMAL = """
+            {
+              "name": "threshold-halving-01",
+              "baseline": {
+                "rulesArtifact": {"digest": "%s"},
+                "contentArtifact": {"digest": "%s"}
+              },
+              "policies": [{
+                "id": "faction-greedy",
+                "version": "1.0.0",
+                "artifactDigest": "%s",
+                "parameters": {},
+                "seatAssignment": [
+                  {"seatIndex": 0, "policyId": "faction-greedy", "policyVersion": "1.0.0"}
+                ]
+              }],
+              "playerCounts": [3]
+            }
+            """.formatted("a".repeat(64), "b".repeat(64), "c".repeat(64));
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -211,7 +231,38 @@ class CampaignControllerIT {
                                 && command.parallelism() == 4
                                 && command.playerCounts().equals(List.of(3, 4))
                                 && command.searchMasterSeed().equals("7")
-                                && command.algorithm().equals(new SearchAlgorithm(8, 4, 2, 2))));
+                                && command.algorithm()
+                                        .equals(new CreateCampaignUseCase.AlgorithmRequest(
+                                                "SUCCESSIVE_HALVING_V1", 8, 4, 2, 2))));
+    }
+
+    @Test
+    void aMinimalDefinitionLeavesTheResolvingToTheService() throws Exception {
+        when(create.handle(any())).thenReturn(campaign());
+
+        send("/api/v1/campaigns", MINIMAL, WRITE).andExpect(status().isCreated());
+
+        verify(create)
+                .handle(org.mockito.ArgumentMatchers.argThat(command -> command.parameterSpaceVersion() == null
+                        && command.criterionVersion() == null
+                        && command.searchMasterSeed() == null
+                        && command.confirmationMasterSeed() == null
+                        && command.algorithm() == null
+                        && command.budgetSeconds() == 14_400
+                        && command.parallelism() == 4));
+    }
+
+    @Test
+    void aPartialAlgorithmPassesOnlyTheFieldsItSets() throws Exception {
+        when(create.handle(any())).thenReturn(campaign());
+        var partial = MINIMAL.replace(
+                "\"playerCounts\": [3]", "\"playerCounts\": [3], \"algorithm\": {\"initialCandidates\": 10}");
+
+        send("/api/v1/campaigns", partial, WRITE).andExpect(status().isCreated());
+
+        verify(create)
+                .handle(org.mockito.ArgumentMatchers.argThat(command -> command.algorithm()
+                        .equals(new CreateCampaignUseCase.AlgorithmRequest(null, 10, null, null, null))));
     }
 
     @Test
