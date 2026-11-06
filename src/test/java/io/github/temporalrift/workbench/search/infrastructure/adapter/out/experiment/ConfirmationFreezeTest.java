@@ -51,6 +51,7 @@ class ConfirmationFreezeTest {
         when(catalog.list())
                 .thenReturn(List.of(
                         new PolicyDescriptor("faction-greedy", "1.0.0", "a".repeat(64), "greedy"),
+                        new PolicyDescriptor("random", "1.10.0", "e".repeat(64), "latest"),
                         new PolicyDescriptor("random", "1.2.0", "b".repeat(64), "random"),
                         new PolicyDescriptor("random", "2.0.0", "c".repeat(64), "newer")));
     }
@@ -73,7 +74,7 @@ class ConfirmationFreezeTest {
         var policies = manifest.getValue().path("policies");
         assertThat(policies).hasSize(2);
         assertThat(policies.get(0).path("id").asString()).isEqualTo("faction-greedy");
-        assertThat(policies.get(1).path("version").asString()).isEqualTo("1.2.0");
+        assertThat(policies.get(1).path("version").asString()).isEqualTo("1.10.0");
         assertThat(policies.get(1).path("seatAssignment")).hasSize(5);
     }
 

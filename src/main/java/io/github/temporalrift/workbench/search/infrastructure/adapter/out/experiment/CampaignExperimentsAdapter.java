@@ -1,6 +1,7 @@
 package io.github.temporalrift.workbench.search.infrastructure.adapter.out.experiment;
 
 import java.math.BigDecimal;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -15,6 +16,7 @@ import io.github.temporalrift.workbench.experiment.ExperimentFactory;
 import io.github.temporalrift.workbench.experiment.ExperimentRefusedException;
 import io.github.temporalrift.workbench.experiment.LaneBundle;
 import io.github.temporalrift.workbench.policy.PolicyCatalog;
+import io.github.temporalrift.workbench.policy.PolicyDescriptor;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignException;
@@ -185,7 +187,7 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
             var bundle = catalog.list().stream()
                     .filter(candidate -> candidate.id().equals(wanted.id())
                             && candidate.version().startsWith(wanted.majorVersion() + "."))
-                    .findFirst()
+                    .max(Comparator.comparing(PolicyDescriptor::version, CampaignExperimentsAdapter::compareVersions))
                     .orElseThrow(() -> new CampaignPlayRefusedException(
                             "No policy bundle serves " + wanted.id() + " version " + wanted.majorVersion()));
             var node = mapper.createObjectNode();
@@ -246,6 +248,20 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
         manifest.put("caseWallTimeoutSeconds", bounds.caseWallTimeoutSeconds());
         manifest.put("maxRejectedCandidatesPerWindow", bounds.maxRejectedCandidatesPerWindow());
         return manifest;
+    }
+
+    /** Orders dotted versions by their numbers, so 1.10.0 is newer than 1.2.0. */
+    static int compareVersions(String left, String right) {
+        var a = left.split("[.]");
+        var b = right.split("[.]");
+        for (var index = 0; index < Math.max(a.length, b.length); index++) {
+            var x = index < a.length ? Integer.parseInt(a[index]) : 0;
+            var y = index < b.length ? Integer.parseInt(b[index]) : 0;
+            if (x != y) {
+                return Integer.compare(x, y);
+            }
+        }
+        return 0;
     }
 
     private static List<JsonNode> definitionPolicies(CampaignDefinition definition) {
