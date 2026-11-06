@@ -29,18 +29,20 @@ export function PreviewPanel({ preview, outdated, busy, onPage }: Props) {
         Manifest digest <code>{preview.manifestDigest}</code>
       </p>
       <table>
-        <caption>Cases per variant and player count</caption>
+        <caption>Cases per variant, table and player count</caption>
         <thead>
           <tr>
             <th scope="col">Variant</th>
+            <th scope="col">Table</th>
             <th scope="col">Players</th>
             <th scope="col">Cases</th>
           </tr>
         </thead>
         <tbody>
           {preview.breakdown.map((row) => (
-            <tr key={`${row.variantLabel}/${row.playerCount}`}>
+            <tr key={`${row.variantLabel}/${row.tableId}/${row.playerCount}`}>
               <th scope="row">{row.variantLabel}</th>
+              <td>{row.tableId}</td>
               <td>{row.playerCount}</td>
               <td>{row.caseCount}</td>
             </tr>
@@ -54,6 +56,7 @@ export function PreviewPanel({ preview, outdated, busy, onPage }: Props) {
         <thead>
           <tr>
             <th scope="col">Variant</th>
+            <th scope="col">Table</th>
             <th scope="col">Seed</th>
             <th scope="col">Players</th>
             <th scope="col">Seats</th>
@@ -63,6 +66,7 @@ export function PreviewPanel({ preview, outdated, busy, onPage }: Props) {
           {preview.cases.map((matrixCase) => (
             <tr key={matrixCase.caseKey}>
               <th scope="row">{matrixCase.variantLabel}</th>
+              <td>{matrixCase.tableId}</td>
               <td>{matrixCase.seed}</td>
               <td>{matrixCase.playerCount}</td>
               <td>

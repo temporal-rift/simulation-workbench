@@ -214,6 +214,7 @@ class GetCaseReplayQueryHandlerTest {
                 UUID.randomUUID(),
                 0,
                 "base",
+                "random",
                 new BundleDigests(DIGEST, DIGEST),
                 new LaneFit("f".repeat(64)),
                 "1",

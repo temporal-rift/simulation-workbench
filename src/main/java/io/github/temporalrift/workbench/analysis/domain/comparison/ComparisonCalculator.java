@@ -12,6 +12,7 @@ import java.util.UUID;
 
 import io.github.temporalrift.workbench.analysis.domain.fact.CaseFacts;
 import io.github.temporalrift.workbench.analysis.domain.game.AnalyzedCase;
+import io.github.temporalrift.workbench.analysis.domain.game.SeatPolicy;
 import io.github.temporalrift.workbench.analysis.domain.report.BlockTallies;
 import io.github.temporalrift.workbench.analysis.domain.report.CohortKey;
 import io.github.temporalrift.workbench.analysis.domain.report.Interval;
@@ -29,7 +30,7 @@ import io.github.temporalrift.workbench.shared.random.SplitMix64;
 
 /**
  * Pairs the two sides' cases and estimates differences from complete matched blocks only. A pair shares seed,
- * player count, policy and seat-to-faction assignment; in a cohort a seed is matched only when every pair of the
+ * player count, table and seat-to-faction assignment; in a cohort a seed is matched only when every pair of the
  * cohort in that seed succeeded on both sides, so dropping a failed pair never unbalances seats or factions.
  */
 public final class ComparisonCalculator {
@@ -201,15 +202,21 @@ public final class ComparisonCalculator {
                 : ExclusionReason.UNFINISHED;
         return new ExcludedPair(
                 pair.seed(),
+                pair.baseline().tableId(),
                 pair.baseline().playerCount(),
-                pair.baseline().policyId(),
-                pair.baseline().policyVersion(),
+                pooledPolicy(pair.baseline()),
                 pair.baseline().seatFactions(),
                 pair.baseline().caseId(),
                 pair.candidate().caseId(),
                 baselineState,
                 candidateState,
                 reason);
+    }
+
+    /** The policy that plays every seat of the case; null when its table mixes policies. */
+    private static SeatPolicy pooledPolicy(AnalyzedCase analyzedCase) {
+        var first = analyzedCase.seatPolicies().getFirst();
+        return analyzedCase.seatPolicies().stream().allMatch(first::equals) ? first : null;
     }
 
     private static boolean isFailure(CaseState status) {
@@ -228,15 +235,13 @@ public final class ComparisonCalculator {
     }
 
     /** What makes two cases of compatible runs the same game but for the variant. */
-    private record Coordinate(
-            String seed, int playerCount, String policyId, String policyVersion, List<Faction> seats) {
+    private record Coordinate(String seed, int playerCount, String tableId, List<Faction> seats) {
 
         static Coordinate of(AnalyzedCase analyzedCase) {
             return new Coordinate(
                     analyzedCase.seed(),
                     analyzedCase.playerCount(),
-                    analyzedCase.policyId(),
-                    analyzedCase.policyVersion(),
+                    analyzedCase.tableId(),
                     analyzedCase.seatFactions());
         }
     }

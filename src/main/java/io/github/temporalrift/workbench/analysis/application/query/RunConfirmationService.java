@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import io.github.temporalrift.workbench.analysis.RunConfirmation;
 import io.github.temporalrift.workbench.analysis.application.port.in.GetRunEvaluationUseCase;
+import io.github.temporalrift.workbench.analysis.domain.criterion.CriterionPhase;
 import io.github.temporalrift.workbench.analysis.domain.evaluation.EvaluationMode;
 import io.github.temporalrift.workbench.analysis.domain.port.out.BalanceCriteria;
 
@@ -35,6 +36,21 @@ public class RunConfirmationService implements RunConfirmation {
                 .policies()
                 .stream()
                 .map(RunConfirmationService::parse)
+                .toList();
+    }
+
+    @Override
+    public List<Table> screeningTables(int criterionVersion) {
+        return criteria
+                .find(criterionVersion)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown balance criterion " + criterionVersion))
+                .tables(CriterionPhase.SCREENING)
+                .stream()
+                .map(table -> new Table(
+                        table.id(),
+                        table.seats().stream()
+                                .map(RunConfirmationService::parse)
+                                .toList()))
                 .toList();
     }
 

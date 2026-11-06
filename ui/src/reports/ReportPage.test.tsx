@@ -20,7 +20,7 @@ describe('a complete report', () => {
   it('shows each cohort with its denominators, blocks and intervals', async () => {
     await renderApp(path, service)
 
-    expect(await screen.findByRole('heading', { name: /baseline · random@v1 · 3 players · all faction sets · all seats/ })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /baseline · table random · random@v1 · 3 players · all faction sets · all seats/ })).toBeInTheDocument()
     expect(screen.getByText(/4 eligible games in 2 independent blocks/)).toBeInTheDocument()
     const table = screen.getByRole('table', { name: /Metrics of baseline/ })
     const win = within(table).getByRole('row', { name: /faction_win_rate/ })

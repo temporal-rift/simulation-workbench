@@ -5,7 +5,7 @@ import { reportQuery, runQuery, useApiClient } from '../api/queries'
 import { ExportButtons } from '../components/ExportButtons'
 import { shortDigest } from '../components/format'
 import { QueryView } from '../components/QueryView'
-import { STATUS_LABELS, describeDimensions, describeFactionSet, describeSeat, formatInterval, formatValue } from './metricView'
+import { STATUS_LABELS, describeDimensions, describeFactionSet, describePolicy, describeSeat, formatInterval, formatValue } from './metricView'
 
 export function ReportPage() {
   const { runId } = useParams({ from: '/runs/$runId/report' })
@@ -60,7 +60,7 @@ function ReportView({ report, stale }: { readonly report: Report; readonly stale
 }
 
 function cohortTitle(cohort: Cohort): string {
-  return `${cohort.variantLabel} · ${cohort.policyId}@${cohort.policyVersion} · ${cohort.playerCount} players · ${describeFactionSet(cohort.factionSet)} · ${describeSeat(cohort.seatIndex)}`
+  return `${cohort.variantLabel} · table ${cohort.tableId} · ${describePolicy(cohort)} · ${cohort.playerCount} players · ${describeFactionSet(cohort.factionSet)} · ${describeSeat(cohort.seatIndex)}`
 }
 
 function CohortSection({ cohort, index }: { readonly cohort: Cohort; readonly index: number }) {

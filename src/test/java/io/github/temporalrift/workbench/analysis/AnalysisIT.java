@@ -97,7 +97,7 @@ class AnalysisIT {
         var json = read(report(runId, MediaType.APPLICATION_JSON).andExpect(status().isOk()));
         var report = objectMapper.readTree(json);
 
-        assertThat(report.path("formatVersion").asInt()).isEqualTo(2);
+        assertThat(report.path("formatVersion").asInt()).isEqualTo(3);
         assertThat(report.path("complete").asBoolean()).isTrue();
         assertThat(report.path("analysisVersion").asString()).isEqualTo("2");
         assertThat(report.path("caseCounts").path("succeeded").asInt()).isEqualTo(18);
@@ -137,8 +137,8 @@ class AnalysisIT {
         }
         assertThat(lines).hasSize(1 + metrics);
         assertThat(lines[1])
-                .startsWith("2," + runId + "," + report.path("manifestDigest").asString() + ",2,1,true," + BASELINE
-                        + ",random,");
+                .startsWith("3," + runId + "," + report.path("manifestDigest").asString() + ",2,1,true," + BASELINE
+                        + ",random,random,");
         assertThat(csv).doesNotContainIgnoringCase("bearer").doesNotContainIgnoringCase("token");
         assertThat(read(report(runId, CSV))).isEqualTo(csv);
     }

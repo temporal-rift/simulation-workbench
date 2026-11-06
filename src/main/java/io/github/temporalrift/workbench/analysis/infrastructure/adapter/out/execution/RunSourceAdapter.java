@@ -32,6 +32,7 @@ import io.github.temporalrift.workbench.analysis.domain.game.CaseOutcome;
 import io.github.temporalrift.workbench.analysis.domain.game.GameEvent;
 import io.github.temporalrift.workbench.analysis.domain.game.GameRecord;
 import io.github.temporalrift.workbench.analysis.domain.game.ParadoxType;
+import io.github.temporalrift.workbench.analysis.domain.game.SeatPolicy;
 import io.github.temporalrift.workbench.analysis.domain.port.out.RunSource;
 import io.github.temporalrift.workbench.execution.CaseEvidence;
 import io.github.temporalrift.workbench.execution.RunCase;
@@ -80,14 +81,15 @@ public class RunSourceAdapter implements RunSource {
     }
 
     private static AnalyzedCase analyzed(RunCase runCase) {
-        var policy = runCase.seats().getFirst();
         return new AnalyzedCase(
                 runCase.caseId(),
                 runCase.variantLabel(),
+                runCase.tableId(),
                 runCase.seed(),
                 runCase.playerCount(),
-                policy.policyId(),
-                policy.policyVersion(),
+                runCase.seats().stream()
+                        .map(seat -> new SeatPolicy(seat.policyId(), seat.policyVersion()))
+                        .toList(),
                 runCase.seats().stream().map(RunCase.Seat::faction).toList(),
                 runCase.state(),
                 runCase.result() == null ? null : outcome(runCase),

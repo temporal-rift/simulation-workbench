@@ -7,6 +7,7 @@ import java.util.UUID;
 import io.github.temporalrift.workbench.analysis.CandidateScreening;
 import io.github.temporalrift.workbench.analysis.RunConfirmation;
 import io.github.temporalrift.workbench.search.domain.campaign.PolicyRef;
+import io.github.temporalrift.workbench.search.domain.campaign.SeatTable;
 import io.github.temporalrift.workbench.search.domain.port.out.CandidateEvaluation;
 
 /** Evaluates candidates through the analysis module. */
@@ -29,6 +30,17 @@ public class CandidateEvaluationAdapter implements CandidateEvaluation {
     public List<PolicyRef> confirmationPolicies(int criterionVersion) {
         return confirmation.policies(criterionVersion).stream()
                 .map(policy -> new PolicyRef(policy.id(), policy.majorVersion()))
+                .toList();
+    }
+
+    @Override
+    public List<SeatTable> screeningTables(int criterionVersion) {
+        return confirmation.screeningTables(criterionVersion).stream()
+                .map(table -> new SeatTable(
+                        table.id(),
+                        table.seats().stream()
+                                .map(policy -> new PolicyRef(policy.id(), policy.majorVersion()))
+                                .toList()))
                 .toList();
     }
 

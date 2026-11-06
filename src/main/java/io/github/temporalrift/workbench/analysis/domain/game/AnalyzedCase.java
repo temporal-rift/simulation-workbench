@@ -10,8 +10,9 @@ import io.github.temporalrift.workbench.shared.game.Faction;
 
 /**
  * A logical case as analysis sees it: its matrix coordinate, its status, and its outcome once it succeeded.
- * The matrix assigns one policy to every seat of a case.
+ * The table it was played on assigns a policy to every seat.
  *
+ * @param seatPolicies the policy of each seat, indexed by seat
  * @param seatFactions the faction of each seat, indexed by seat
  * @param outcome present only when the case succeeded
  * @param failureCode present only when the case failed
@@ -19,10 +20,10 @@ import io.github.temporalrift.workbench.shared.game.Faction;
 public record AnalyzedCase(
         UUID caseId,
         String variantLabel,
+        String tableId,
         String seed,
         int playerCount,
-        String policyId,
-        String policyVersion,
+        List<SeatPolicy> seatPolicies,
         List<Faction> seatFactions,
         CaseState status,
         CaseOutcome outcome,
@@ -30,21 +31,23 @@ public record AnalyzedCase(
 
     public AnalyzedCase {
         Objects.requireNonNull(caseId, "caseId");
+        Objects.requireNonNull(tableId, "tableId");
         Objects.requireNonNull(status, "status");
+        seatPolicies = List.copyOf(seatPolicies);
         seatFactions = List.copyOf(seatFactions);
     }
 
     public AnalyzedCase(
             UUID caseId,
             String variantLabel,
+            String tableId,
             String seed,
             int playerCount,
-            String policyId,
-            String policyVersion,
+            List<SeatPolicy> seatPolicies,
             List<Faction> seatFactions,
             CaseState status,
             CaseOutcome outcome) {
-        this(caseId, variantLabel, seed, playerCount, policyId, policyVersion, seatFactions, status, outcome, null);
+        this(caseId, variantLabel, tableId, seed, playerCount, seatPolicies, seatFactions, status, outcome, null);
     }
 
     /** Whether the case reached a final state that counts in a failure share. */

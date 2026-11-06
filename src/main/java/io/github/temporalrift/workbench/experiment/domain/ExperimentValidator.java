@@ -3,6 +3,7 @@ package io.github.temporalrift.workbench.experiment.domain;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +36,10 @@ public final class ExperimentValidator {
     public static final int MAX_CASE_TIMEOUT_SECONDS = 86_400;
     public static final int MAX_REJECTED_CANDIDATES = 1_000;
 
+    private static final int SCHEMA_VERSION = 2;
+    private static final int LEGACY_SCHEMA_VERSION = 1;
+    private static final Pattern TABLE_ID = Pattern.compile("^[a-z0-9][a-z0-9-]{0,62}$");
+    private static final int MAX_SEATS = 5;
     private static final String SERVICES_PREFIX = "services.";
     private static final String SCHEMA_VERSION_FIELD = "schemaVersion";
     private static final String LABEL_FIELD = "label";
@@ -62,22 +67,39 @@ public final class ExperimentValidator {
 
     private ExperimentValidator() {}
 
-    /** Structural validation only; policy references are not resolved against defined bundles. */
+    /**
+     * Structural validation of a request manifest, which is always {@code schemaVersion} 2; policy references are not
+     * resolved against defined bundles.
+     */
     public static ManifestView validate(JsonNode manifest) {
         return validate(manifest, null);
     }
 
-    /** Structural validation plus resolution of every policy reference through the verifier. */
+    /** Structural validation of a request manifest plus resolution of every policy reference through the verifier. */
     public static ManifestView validate(JsonNode manifest, PolicyReferenceVerifier policyVerifier) {
+        return validate(manifest, policyVerifier, false);
+    }
+
+    /**
+     * Reads a manifest that was frozen earlier. A {@code schemaVersion} 1 manifest is still readable: each of its
+     * policy entries reads as one uniform table named for the policy.
+     */
+    public static ManifestView validateStored(JsonNode manifest) {
+        return validate(manifest, null, true);
+    }
+
+    private static ManifestView validate(JsonNode manifest, PolicyReferenceVerifier policyVerifier, boolean stored) {
         if (manifest == null || !manifest.isObject()) {
             throw invalid("manifest must be a JSON object");
         }
         if (!manifest.has(SCHEMA_VERSION_FIELD)) {
             throw invalid(SCHEMA_VERSION_FIELD, "schemaVersion is required");
         }
-        if (manifest.get(SCHEMA_VERSION_FIELD).asInt(-1) != 1) {
-            throw invalid(SCHEMA_VERSION_FIELD, "schemaVersion must be 1");
+        int schemaVersion = manifest.get(SCHEMA_VERSION_FIELD).asInt(-1);
+        if (schemaVersion != SCHEMA_VERSION && !(stored && schemaVersion == LEGACY_SCHEMA_VERSION)) {
+            throw invalid(SCHEMA_VERSION_FIELD, "schemaVersion must be " + SCHEMA_VERSION);
         }
+        boolean legacy = schemaVersion == LEGACY_SCHEMA_VERSION;
         var name = text(manifest, "name");
         if (name == null || name.isBlank() || name.length() > 120) {
             throw invalid("name", "name must be 1..120 characters");
@@ -85,18 +107,19 @@ public final class ExperimentValidator {
         var variants = validateVariants(manifest.get("variants"));
         validateServices(manifest.get("services"));
         validateContracts(manifest.get("contracts"));
-        var policies = validatePolicies(manifest.get("policies"), policyVerifier);
+        var policies = validatePolicies(manifest.get("policies"), policyVerifier, legacy);
         var seeds = validateSeeds(manifest.get("seeds"));
         var playerCounts = validatePlayerCounts(manifest.get("playerCounts"));
         var factionSets = validateFactionSets(manifest.get("factionSets"), playerCounts);
+        var tables = legacy ? legacyTables(policies) : validateTables(manifest.get("tables"), policies, playerCounts);
         validateEnum(manifest, "seatRotationMode", "CYCLIC");
         validateEnum(manifest, "timingMode", "LOGICAL");
         validateBoundedInt(manifest, "concurrency", MAX_CONCURRENCY);
         validateBoundedInt(manifest, "caseWallTimeoutSeconds", MAX_CASE_TIMEOUT_SECONDS);
         validateBoundedInt(manifest, "maxRejectedCandidatesPerWindow", MAX_REJECTED_CANDIDATES);
-        validateMatrixSize(variants, policies, seeds, factionSets);
+        validateMatrixSize(variants, tables, seeds, factionSets);
         rejectSecretsAndLocalPaths(manifest);
-        return new ManifestView(name, variants, policies, seeds, playerCounts, factionSets);
+        return new ManifestView(name, schemaVersion, variants, policies, tables, seeds, playerCounts, factionSets);
     }
 
     private static List<String> validateVariants(JsonNode variants) {
@@ -197,18 +220,25 @@ public final class ExperimentValidator {
         }
     }
 
-    private static List<PolicyRef> validatePolicies(JsonNode policies, PolicyReferenceVerifier verifier) {
+    private static List<PolicyRef> validatePolicies(
+            JsonNode policies, PolicyReferenceVerifier verifier, boolean legacy) {
         if (policies == null || !policies.isArray() || policies.isEmpty()) {
             throw invalid("policies", "policies must be a nonempty array");
         }
         var refs = new ArrayList<PolicyRef>();
+        var seen = new HashSet<PolicyRef>();
         for (int i = 0; i < policies.size(); i++) {
-            refs.add(validatePolicy(policies.get(i), "policies[" + i + "]", verifier));
+            var ref = validatePolicy(policies.get(i), "policies[" + i + "]", verifier, legacy);
+            if (!legacy && !seen.add(ref)) {
+                throw invalid("policies[" + i + "]", "policies must be unique by id and version: " + ref.key());
+            }
+            refs.add(ref);
         }
         return List.copyOf(refs);
     }
 
-    private static PolicyRef validatePolicy(JsonNode policy, String path, PolicyReferenceVerifier verifier) {
+    private static PolicyRef validatePolicy(
+            JsonNode policy, String path, PolicyReferenceVerifier verifier, boolean legacy) {
         var id = text(policy, "id");
         var version = text(policy, "version");
         if (id == null || id.isBlank()) {
@@ -225,8 +255,80 @@ public final class ExperimentValidator {
         if (verifier != null) {
             verifyReference(verifier, path, id, version, artifactDigest, parameters.size());
         }
-        validateSeatAssignment(policy.get("seatAssignment"), path + ".seatAssignment");
+        if (legacy) {
+            validateSeatAssignment(policy.get("seatAssignment"), path + ".seatAssignment");
+        }
         return new PolicyRef(id, version);
+    }
+
+    /** A schema-version-1 policy entry plays every seat, so it reads as one uniform table of that policy. */
+    private static List<TableRef> legacyTables(List<PolicyRef> policies) {
+        return policies.stream()
+                .map(policy -> new TableRef(policy.id(), Collections.nCopies(MAX_SEATS, policy)))
+                .toList();
+    }
+
+    private static List<TableRef> validateTables(JsonNode tables, List<PolicyRef> policies, Set<Integer> playerCounts) {
+        if (tables == null || !tables.isArray() || tables.isEmpty()) {
+            throw invalid("tables", "tables must be a nonempty array");
+        }
+        int seatCount = playerCounts.stream().mapToInt(Integer::intValue).max().orElseThrow();
+        var known = new HashSet<>(policies);
+        var used = new HashSet<PolicyRef>();
+        var ids = new HashSet<String>();
+        var refs = new ArrayList<TableRef>();
+        for (int i = 0; i < tables.size(); i++) {
+            refs.add(validateTable(tables.get(i), "tables[" + i + "]", seatCount, known, used, ids));
+        }
+        for (int i = 0; i < policies.size(); i++) {
+            if (!used.contains(policies.get(i))) {
+                throw invalid(
+                        "policies[" + i + "]",
+                        "no table seat plays policy " + policies.get(i).key());
+            }
+        }
+        return List.copyOf(refs);
+    }
+
+    private static TableRef validateTable(
+            JsonNode table, String path, int seatCount, Set<PolicyRef> known, Set<PolicyRef> used, Set<String> ids) {
+        var id = text(table, "id");
+        if (id == null || !TABLE_ID.matcher(id).matches()) {
+            throw invalid(path + ".id", "table id must match " + TABLE_ID.pattern());
+        }
+        if (!ids.add(id)) {
+            throw invalid(path + ".id", "table ids must be unique: " + id);
+        }
+        var seats = table.get("seats");
+        if (seats == null || !seats.isArray()) {
+            throw invalid(path + ".seats", "table seats must be an array");
+        }
+        var bySeat = new PolicyRef[seatCount];
+        for (int j = 0; j < seats.size(); j++) {
+            var seatPath = path + ".seats[" + j + "]";
+            var seat = seats.get(j);
+            var index = seat != null && seat.isObject() ? seat.get(SEAT_INDEX_FIELD) : null;
+            if (index == null || !index.isInt() || index.asInt() < 0 || index.asInt() >= seatCount) {
+                throw invalid(seatPath, "seatIndex must be an integer from 0 to " + (seatCount - 1));
+            }
+            if (bySeat[index.asInt()] != null) {
+                throw invalid(seatPath, "seat " + index.asInt() + " repeats");
+            }
+            var policyId = text(seat, POLICY_ID_FIELD);
+            var policyVersion = text(seat, POLICY_VERSION_FIELD);
+            var policy = policyId == null || policyVersion == null ? null : new PolicyRef(policyId, policyVersion);
+            if (policy == null || !known.contains(policy)) {
+                throw invalid(seatPath + "." + POLICY_ID_FIELD, "seat names no policies entry");
+            }
+            bySeat[index.asInt()] = policy;
+            used.add(policy);
+        }
+        for (int seat = 0; seat < seatCount; seat++) {
+            if (bySeat[seat] == null) {
+                throw invalid(path + ".seats", "table needs an entry for seat " + seat);
+            }
+        }
+        return new TableRef(id, List.of(bySeat));
     }
 
     private static void verifyReference(
@@ -370,9 +472,9 @@ public final class ExperimentValidator {
     }
 
     private static void validateMatrixSize(
-            List<String> variants, List<PolicyRef> policies, List<String> seeds, List<List<String>> factionSets) {
+            List<String> variants, List<TableRef> tables, List<String> seeds, List<List<String>> factionSets) {
         long coordinatesPerSeed = factionSets.stream().mapToLong(List::size).sum();
-        long cases = (long) seeds.size() * variants.size() * policies.size() * coordinatesPerSeed;
+        long cases = (long) seeds.size() * variants.size() * tables.size() * coordinatesPerSeed;
         if (cases > MAX_CASES) {
             throw invalid("the manifest expands to " + cases + " cases; at most " + MAX_CASES + " are allowed");
         }
@@ -479,12 +581,25 @@ public final class ExperimentValidator {
     /** Validated, normalized view of a manifest for freeze and matrix enumeration. */
     public record ManifestView(
             String name,
+            int schemaVersion,
             List<String> variantLabels,
             List<PolicyRef> policies,
+            List<TableRef> tables,
             List<String> seeds,
             Set<Integer> playerCounts,
             List<List<String>> factionSets) {}
 
-    /** Homogeneous policy reference applied to every seat of a case. */
-    public record PolicyRef(String id, String version) {}
+    /** A policy bundle by id and version. */
+    public record PolicyRef(String id, String version) {
+        String key() {
+            return id + "@" + version;
+        }
+    }
+
+    /** A named assignment of a policy to each seat index, in seat order. */
+    public record TableRef(String id, List<PolicyRef> seats) {
+        public boolean uniform() {
+            return seats.stream().distinct().count() == 1;
+        }
+    }
 }

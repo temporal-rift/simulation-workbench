@@ -233,6 +233,7 @@ export class FakeService {
             caseKey: candidate.caseKey,
             runId: candidate.runId,
             variantLabel: candidate.variantLabel,
+            tableId: candidate.tableId,
             seed: candidate.seed,
             playerCount: candidate.playerCount,
             state: candidate.state,

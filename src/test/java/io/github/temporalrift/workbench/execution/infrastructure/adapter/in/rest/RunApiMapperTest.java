@@ -156,6 +156,7 @@ class RunApiMapperTest {
                 new UUID(6, 6),
                 0,
                 "baseline",
+                "random",
                 new BundleDigests("a".repeat(64), "b".repeat(64)),
                 new LaneFit("f".repeat(64)),
                 "42",

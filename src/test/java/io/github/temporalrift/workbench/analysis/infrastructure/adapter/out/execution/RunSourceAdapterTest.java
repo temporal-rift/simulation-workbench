@@ -50,6 +50,7 @@ class RunSourceAdapterTest {
             CASE,
             new UUID(0, 99),
             "base",
+            "random",
             "42",
             3,
             List.of(
@@ -146,7 +147,10 @@ class RunSourceAdapterTest {
     void casesCarryTheirCoordinateAndOutcomeBySeat() {
         var analyzed = adapter(null).cases(RUN).getFirst();
 
-        assertThat(analyzed.policyId()).isEqualTo("random");
+        assertThat(analyzed.tableId()).isEqualTo("random");
+        assertThat(analyzed.seatPolicies())
+                .hasSize(3)
+                .allMatch(policy -> policy.id().equals("random"));
         assertThat(analyzed.outcome().scores()).containsExactly(10, 21, 7);
         assertThat(analyzed.outcome().winnerSeats()).containsExactly(1);
     }

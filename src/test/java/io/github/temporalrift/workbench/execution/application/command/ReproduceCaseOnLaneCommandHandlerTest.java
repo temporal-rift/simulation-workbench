@@ -97,6 +97,7 @@ class ReproduceCaseOnLaneCommandHandlerTest {
                 new UUID(4, 4),
                 0,
                 "baseline",
+                "random",
                 DIGESTS,
                 SIMULATOR.fit(),
                 "42",

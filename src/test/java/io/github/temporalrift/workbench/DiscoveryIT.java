@@ -300,7 +300,7 @@ class DiscoveryIT {
         assertThat(defaults.path("maxRejectedCandidatesPerWindow").asInt()).isEqualTo(10);
 
         var manifest = (ObjectNode) defaults.deepCopy();
-        manifest.put("schemaVersion", 1);
+        manifest.put("schemaVersion", 2);
         manifest.put("name", "threshold 20 against 22");
         var variants = manifest.putArray("variants");
         for (var index = 0; index < 2; index++) {

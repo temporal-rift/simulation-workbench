@@ -5,12 +5,16 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.JsonNodeFactory;
+
 import io.github.temporalrift.workbench.search.application.port.in.CreateCampaignUseCase;
 import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignClaim;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignCreation;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignIdempotencyConflictException;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignException;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignReason;
 import io.github.temporalrift.workbench.search.domain.campaign.SearchAlgorithm;
@@ -91,6 +95,8 @@ public class CreateCampaignCommandHandler implements CreateCampaignUseCase {
                     "The search and confirmation master seeds must differ");
         }
         var algorithm = algorithmOf(command.algorithm());
+        var criterionVersion =
+                command.criterionVersion() != null ? command.criterionVersion() : defaults.criterionVersion();
         var searchSeed = supplied != null ? supplied : drawnDifferentFrom(command.confirmationMasterSeed());
         var confirmationSeed = command.confirmationMasterSeed() != null
                 ? command.confirmationMasterSeed()
@@ -102,8 +108,8 @@ public class CreateCampaignCommandHandler implements CreateCampaignUseCase {
                     command.parameterSpaceVersion() != null
                             ? command.parameterSpaceVersion()
                             : defaults.parameterSpaceVersion(),
-                    command.criterionVersion() != null ? command.criterionVersion() : defaults.criterionVersion(),
-                    command.policies(),
+                    criterionVersion,
+                    policiesOf(command.policies(), criterionVersion),
                     command.playerCounts(),
                     budgetSeconds,
                     searchSeed,
@@ -112,6 +118,37 @@ public class CreateCampaignCommandHandler implements CreateCampaignUseCase {
         } catch (IllegalArgumentException e) {
             throw new InvalidCampaignException(InvalidCampaignReason.INVALID_VALUE, null, e.getMessage());
         }
+    }
+
+    /**
+     * The policy bundles the campaign plays. A request that names none gets the newest bundle of each policy the
+     * criterion's tables name; one that names some must serve every one of those policies.
+     */
+    private JsonNode policiesOf(JsonNode supplied, int criterionVersion) {
+        if (!evaluation.servesCriterion(criterionVersion)) {
+            // Refused as an unknown criterion once the rest of the definition has been checked.
+            return supplied != null ? supplied : JsonNodeFactory.instance.arrayNode();
+        }
+        var required = evaluation.confirmationPolicies(criterionVersion);
+        if (supplied == null) {
+            try {
+                return JsonNodeFactory.instance.arrayNode().addAll(experiments.bundles(required));
+            } catch (CampaignPlayRefusedException e) {
+                throw new InvalidCampaignException(InvalidCampaignReason.INVALID_VALUE, "policies", e.getMessage());
+            }
+        }
+        for (var policy : required) {
+            var served = supplied.valueStream()
+                    .anyMatch(bundle -> policy.id().equals(bundle.path("id").asString())
+                            && bundle.path("version").asString().startsWith(policy.majorVersion() + "."));
+            if (!served) {
+                throw new InvalidCampaignException(
+                        InvalidCampaignReason.INVALID_VALUE,
+                        "policies",
+                        "policies lack a bundle for " + policy.id() + " version " + policy.majorVersion());
+            }
+        }
+        return supplied;
     }
 
     /** The approved record's parameters, with each one the designer set in place of the record's. */

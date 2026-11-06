@@ -84,10 +84,7 @@ class CampaignControllerIT {
                 "id": "faction-greedy",
                 "version": "1.0.0",
                 "artifactDigest": "%s",
-                "parameters": {},
-                "seatAssignment": [
-                  {"seatIndex": 0, "policyId": "faction-greedy", "policyVersion": "1.0.0"}
-                ]
+                "parameters": {}
               }],
               "playerCounts": [3, 4],
               "searchMasterSeed": "7",
@@ -113,10 +110,7 @@ class CampaignControllerIT {
                 "id": "faction-greedy",
                 "version": "1.0.0",
                 "artifactDigest": "%s",
-                "parameters": {},
-                "seatAssignment": [
-                  {"seatIndex": 0, "policyId": "faction-greedy", "policyVersion": "1.0.0"}
-                ]
+                "parameters": {}
               }],
               "playerCounts": [3]
             }
@@ -162,11 +156,6 @@ class CampaignControllerIT {
                 .put("version", "1.0.0")
                 .put("artifactDigest", "c".repeat(64));
         policy.putObject("parameters");
-        policy.putArray("seatAssignment")
-                .addObject()
-                .put("seatIndex", 0)
-                .put("policyId", "faction-greedy")
-                .put("policyVersion", "1.0.0");
         var definition = new CampaignDefinition(
                 "threshold-halving-01",
                 baseline,

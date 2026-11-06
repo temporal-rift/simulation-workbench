@@ -64,6 +64,7 @@ public class StartRunCommandHandler implements StartRunUseCase {
                             coordinate.caseKey(),
                             ordinal,
                             coordinate.variantLabel(),
+                            coordinate.tableId(),
                             variants.get(coordinate.variantLabel()).bundle(),
                             variants.get(coordinate.variantLabel()).fit(),
                             coordinate.seed(),

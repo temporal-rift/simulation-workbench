@@ -13,8 +13,9 @@ import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ExperimentTemplatePage;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Faction;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.LaneBundlePage;
-import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Policy;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.PolicyBundleReference;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.SeatPolicyAssignment;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.SeatTable;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ServiceProvenance;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ServiceProvenanceMap;
 
@@ -79,19 +80,24 @@ final class ExperimentSetupMapper {
                         defaults.policies().stream()
                                 .map(ExperimentSetupMapper::policy)
                                 .toList(),
+                        defaults.tables().stream()
+                                .map(ExperimentSetupMapper::table)
+                                .toList(),
                         defaults.concurrency(),
                         defaults.caseWallTimeoutSeconds(),
                         defaults.maxRejectedCandidatesPerWindow()));
     }
 
-    private static Policy policy(ExperimentTemplate.Policy policy) {
-        return new Policy(
-                policy.id(),
-                policy.version(),
-                policy.artifactDigest(),
-                Map.of(),
-                policy.seats().stream()
-                        .map(seat -> new SeatPolicyAssignment(seat, policy.id(), policy.version()))
-                        .collect(Collectors.toCollection(LinkedHashSet::new)));
+    private static PolicyBundleReference policy(ExperimentTemplate.Policy policy) {
+        return new PolicyBundleReference(policy.id(), policy.version(), policy.artifactDigest(), Map.of());
+    }
+
+    private static SeatTable table(ExperimentTemplate.Table table) {
+        var seats = new LinkedHashSet<SeatPolicyAssignment>();
+        for (int index = 0; index < table.seats().size(); index++) {
+            var policy = table.seats().get(index);
+            seats.add(new SeatPolicyAssignment(index, policy.id(), policy.version()));
+        }
+        return new SeatTable(table.id(), seats);
     }
 }

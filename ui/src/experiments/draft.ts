@@ -1,5 +1,5 @@
 import { shortDigest } from '../components/format'
-import type { EnumsFaction, ExperimentManifest, ExperimentTemplate, LaneBundle } from '../api/generated'
+import type { EnumsFaction, ExperimentManifest, ExperimentTemplate, LaneBundle, StoredExperimentManifest } from '../api/generated'
 
 export const FACTIONS: readonly EnumsFaction[] = ['ERASERS', 'PROPHETS', 'REVISIONISTS', 'WEAVERS', 'ACTIVISTS']
 export const PLAYER_COUNTS = [3, 4, 5] as const
@@ -51,13 +51,23 @@ export interface DraftPolicy {
   artifactDigest: string
   /** Edited as JSON text; it must be a JSON object to be sent. */
   parameters: string
-  /** Seat indexes as typed, so a half-edited value is kept. */
+}
+
+/** The seats of the largest case, which every table assigns a policy to. */
+export const SEAT_COUNT = 5
+
+/**
+ * A seat table: its id and the policy that plays each seat, as `id@version` of one of the draft's policies. An empty
+ * entry is a seat not assigned yet.
+ */
+export interface DraftTable {
+  id: string
   seats: string[]
 }
 
 /**
  * The experiment under edit, shaped like the manifest it becomes so that the path the service reports for a
- * refused value (`policies[0].seatAssignment[1].seatIndex`) leads straight to the input holding it. Values the
+ * refused value (`tables[0].seats[1].policyId`) leads straight to the input holding it. Values the
  * designer types are kept as text until the draft is sent; the manifest's services and contracts are those of the
  * selected bundles.
  */
@@ -65,6 +75,7 @@ export interface Draft {
   name: string
   variants: DraftVariant[]
   policies: DraftPolicy[]
+  tables: DraftTable[]
   seeds: string
   playerCounts: number[]
   factionSets: EnumsFaction[][]
@@ -78,7 +89,21 @@ export function emptyVariant(): DraftVariant {
 }
 
 export function emptyPolicy(): DraftPolicy {
-  return { id: '', version: '', artifactDigest: '', parameters: '{}', seats: [''] }
+  return { id: '', version: '', artifactDigest: '', parameters: '{}' }
+}
+
+export function emptyTable(): DraftTable {
+  return { id: '', seats: Array.from({ length: SEAT_COUNT }, () => '') }
+}
+
+/** Identifies a policy bundle as a table seat names it. */
+export function policyKey(policy: { readonly id: string; readonly version: string }): string {
+  return `${policy.id}@${policy.version}`
+}
+
+function seatPolicy(key: string): { policyId: string; policyVersion: string } {
+  const at = key.lastIndexOf('@')
+  return at < 0 ? { policyId: '', policyVersion: '' } : { policyId: key.slice(0, at), policyVersion: key.slice(at + 1) }
 }
 
 export function emptyDraft(): Draft {
@@ -86,6 +111,7 @@ export function emptyDraft(): Draft {
     name: '',
     variants: [emptyVariant()],
     policies: [],
+    tables: [],
     seeds: '',
     playerCounts: [],
     factionSets: [],
@@ -298,7 +324,7 @@ export function draftToManifest(draft: Draft, rulesDigests: readonly (string | u
   const pinned = pinnedProvenance(draft)
   const service = (name: ServiceName) => ({ ...(pinned?.services[name] ?? { imageDigest: '', sourceRevision: '' }) })
   const manifest = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     name: draft.name.trim(),
     variants: draft.variants.map((variant, index) => ({
       label: variant.label.trim(),
@@ -321,7 +347,11 @@ export function draftToManifest(draft: Draft, rulesDigests: readonly (string | u
       version: policy.version,
       artifactDigest: policy.artifactDigest,
       parameters: parsedParameters(policy.parameters) ?? {},
-      seatAssignment: policy.seats.map((seat) => ({ seatIndex: wholeNumber(seat), policyId: policy.id, policyVersion: policy.version })),
+    })),
+    tables: draft.tables.map((table) => ({
+      id: table.id.trim(),
+      // A table assigns exactly the seats of the largest player count; none are sent until a count is chosen.
+      seats: table.seats.slice(0, Math.max(0, ...draft.playerCounts)).map((key, seatIndex) => ({ seatIndex, ...seatPolicy(key) })),
     })),
     seeds: seedList(draft.seeds),
     playerCounts: [...draft.playerCounts].sort((a, b) => a - b),
@@ -336,8 +366,23 @@ export function draftToManifest(draft: Draft, rulesDigests: readonly (string | u
   return manifest as unknown as ExperimentManifest
 }
 
+/**
+ * The seat tables of a stored manifest. One frozen before seat tables has none: each of its policy entries read as a
+ * uniform table named for the policy.
+ */
+export function tablesOf(manifest: StoredExperimentManifest): { id: string; seats: { seatIndex: number; policyId: string; policyVersion: string }[] }[] {
+  if (manifest.schemaVersion === 2) {
+    return manifest.tables.map((table) => ({ id: table.id, seats: table.seats.map((seat) => ({ ...seat })) }))
+  }
+  const seatCount = Math.max(0, ...manifest.playerCounts)
+  return manifest.policies.map((policy) => ({
+    id: policy.id,
+    seats: Array.from({ length: seatCount }, (_, seatIndex) => ({ seatIndex, policyId: policy.id, policyVersion: policy.version })),
+  }))
+}
+
 /** The draft that reproduces a manifest, for starting a new experiment from a frozen one. */
-export function manifestToDraft(manifest: ExperimentManifest): Draft {
+export function manifestToDraft(manifest: StoredExperimentManifest): Draft {
   return {
     name: manifest.name,
     variants: manifest.variants.map((variant) => ({
@@ -362,7 +407,13 @@ export function manifestToDraft(manifest: ExperimentManifest): Draft {
       version: policy.version,
       artifactDigest: policy.artifactDigest,
       parameters: JSON.stringify(policy.parameters),
-      seats: policy.seatAssignment.map((seat) => String(seat.seatIndex)),
+    })),
+    tables: tablesOf(manifest).map((table) => ({
+      id: table.id,
+      seats: Array.from({ length: SEAT_COUNT }, (_, seatIndex) => {
+        const seat = table.seats.find((candidate) => candidate.seatIndex === seatIndex)
+        return seat ? policyKey({ id: seat.policyId, version: seat.policyVersion }) : ''
+      }),
     })),
     seeds: manifest.seeds.join('\n'),
     playerCounts: [...manifest.playerCounts],
@@ -397,7 +448,13 @@ export function applyTemplate(draft: Draft, template: ExperimentTemplate, bundle
       version: policy.version,
       artifactDigest: policy.artifactDigest,
       parameters: JSON.stringify(policy.parameters),
-      seats: policy.seatAssignment.map((seat) => String(seat.seatIndex)),
+    })),
+    tables: defaults.tables.map((table) => ({
+      id: table.id,
+      seats: Array.from({ length: SEAT_COUNT }, (_, seatIndex) => {
+        const seat = table.seats.find((candidate) => candidate.seatIndex === seatIndex)
+        return seat ? policyKey({ id: seat.policyId, version: seat.policyVersion }) : ''
+      }),
     })),
     seeds: defaults.seeds.join('\n'),
     playerCounts: [...defaults.playerCounts],
@@ -423,7 +480,7 @@ export function errorWithin(errors: FieldErrors, path: string): string | undefin
   return key === undefined ? undefined : errors[key]
 }
 
-const STORAGE_KEY = 'workbench.experiment-draft.v2'
+const STORAGE_KEY = 'workbench.experiment-draft.v3'
 
 export interface StoredDraft {
   readonly draft: Draft

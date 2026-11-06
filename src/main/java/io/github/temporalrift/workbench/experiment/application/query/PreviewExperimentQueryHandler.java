@@ -29,7 +29,8 @@ public class PreviewExperimentQueryHandler implements PreviewExperimentUseCase {
         var size = MatrixPreviewService.size(view);
         var window = MatrixPreviewService.page(view, digest, query.offset(), query.limit());
         var breakdown = size.breakdown().stream()
-                .map(slice -> new Breakdown(slice.variantLabel(), slice.playerCount(), slice.caseCount()))
+                .map(slice ->
+                        new Breakdown(slice.variantLabel(), slice.tableId(), slice.playerCount(), slice.caseCount()))
                 .toList();
         return new Result(digest, size.total(), breakdown, window, query.limit(), query.offset());
     }

@@ -77,7 +77,8 @@ class ReproductionRepositoryIT {
                 "hash",
                 run,
                 1,
-                List.of(new RunRepository.NewCase(UUID.randomUUID(), 0, "baseline", BUNDLE, FIT, "42", 3, List.of())));
+                List.of(new RunRepository.NewCase(
+                        UUID.randomUUID(), 0, "baseline", "random", BUNDLE, FIT, "42", 3, List.of())));
         caseId = jdbc.queryForObject("SELECT case_id FROM run_case WHERE run_id = ?", UUID.class, runId);
     }
 

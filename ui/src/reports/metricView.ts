@@ -30,3 +30,8 @@ export function describeFactionSet(factionSet: FactionSet | null): string {
 export function describeSeat(seatIndex: number | null): string {
   return seatIndex === null ? 'all seats' : `seat ${seatIndex}`
 }
+
+/** The policy that plays a cohort's seats, or a note that they play more than one. */
+export function describePolicy(subject: { readonly policyId?: string | null; readonly policyVersion?: string | null }): string {
+  return subject.policyId && subject.policyVersion ? `${subject.policyId}@${subject.policyVersion}` : 'several policies'
+}

@@ -76,7 +76,9 @@ class ConfirmationFreezeTest {
         assertThat(policies).hasSize(2);
         assertThat(policies.get(0).path("id").asString()).isEqualTo("faction-greedy");
         assertThat(policies.get(1).path("version").asString()).isEqualTo("1.10.0");
-        assertThat(policies.get(1).path("seatAssignment")).hasSize(5);
+        var tables = manifest.getValue().path("tables");
+        assertThat(tables).hasSize(2);
+        assertThat(tables.get(1).path("seats")).hasSize(5);
     }
 
     @Test

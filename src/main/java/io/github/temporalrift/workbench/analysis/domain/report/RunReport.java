@@ -9,7 +9,7 @@ import io.github.temporalrift.workbench.analysis.domain.AnalysisVersion;
 public record RunReport(
         UUID runId, String manifestDigest, AnalysisVersion analysis, CaseCounts caseCounts, List<Cohort> cohorts) {
 
-    public static final int FORMAT_VERSION = 2;
+    public static final int FORMAT_VERSION = 3;
 
     public RunReport {
         cohorts = List.copyOf(cohorts);

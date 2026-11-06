@@ -142,11 +142,6 @@ class CampaignBrowserIT extends DesignerBrowserTest {
                 .put("version", "1.0.0")
                 .put("artifactDigest", "c".repeat(64));
         policy.putObject("parameters");
-        policy.putArray("seatAssignment")
-                .addObject()
-                .put("seatIndex", 0)
-                .put("policyId", "faction-greedy")
-                .put("policyVersion", "1.0.0");
         var definition = new CampaignDefinition(
                 "browser-search",
                 baseline,

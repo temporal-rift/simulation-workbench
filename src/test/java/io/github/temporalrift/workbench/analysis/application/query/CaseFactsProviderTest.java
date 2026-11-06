@@ -16,6 +16,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 import io.github.temporalrift.workbench.analysis.domain.AnalysisVersion;
+import io.github.temporalrift.workbench.analysis.domain.SeatPolicies;
 import io.github.temporalrift.workbench.analysis.domain.fact.CaseFacts;
 import io.github.temporalrift.workbench.analysis.domain.game.AnalyzedCase;
 import io.github.temporalrift.workbench.analysis.domain.game.CaseOutcome;
@@ -110,10 +111,10 @@ class CaseFactsProviderTest {
         return new AnalyzedCase(
                 caseId,
                 "base",
+                "random",
                 "1",
                 3,
-                "random",
-                "1.0.0",
+                SeatPolicies.uniform("random", "1.0.0", 3),
                 SEATS,
                 CaseState.SUCCEEDED,
                 new CaseOutcome(EndReason.WIN_CONDITION_MET, Set.of(0), List.of(20, 15, 10), 3, 9, 30));

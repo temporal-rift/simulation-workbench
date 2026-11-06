@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.TreeMap;
 
 import io.github.temporalrift.workbench.analysis.domain.criterion.BalanceCriterion;
+import io.github.temporalrift.workbench.analysis.domain.criterion.CriterionPhase;
 import io.github.temporalrift.workbench.analysis.domain.criterion.PolicyReference;
 import io.github.temporalrift.workbench.analysis.domain.evaluation.Validity.Reason;
 import io.github.temporalrift.workbench.analysis.domain.game.AnalyzedCase;
@@ -61,9 +62,7 @@ final class EvidenceRules {
         var seeds = new HashSet<String>();
         cases.forEach(analyzedCase -> seeds.add(analyzedCase.seed()));
         return new ConfirmationSample(
-                criterion.evidence().confirmationMinimumSeeds(),
-                seeds.size(),
-                fullMatrix(criterion.policies(), seeds, cases));
+                criterion.evidence().confirmationMinimumSeeds(), seeds.size(), fullMatrix(criterion, seeds, cases));
     }
 
     private static Optional<Reason> unfinished(List<AnalyzedCase> cases) {
@@ -87,7 +86,7 @@ final class EvidenceRules {
             if (!analyzedCase.finished()) {
                 continue;
             }
-            var group = reference(analyzedCase) + " at " + analyzedCase.playerCount() + " players";
+            var group = analyzedCase.tableId() + " at " + analyzedCase.playerCount() + " players";
             finished.merge(group, 1, Integer::sum);
             if (analyzedCase.failureCode() == FailureCode.EXECUTION_FAILED) {
                 failed.merge(group, 1, Integer::sum);
@@ -107,22 +106,24 @@ final class EvidenceRules {
     }
 
     /**
-     * Every policy the criterion names has, for every player count and every seed, every faction set of that size
-     * with exactly one seat ordering per cyclic rotation.
+     * Every table the criterion's confirmation plays has, for every player count and every seed, every faction set of
+     * that size with exactly one seat ordering per cyclic rotation.
      */
-    private static boolean fullMatrix(Set<String> policies, Set<String> seeds, List<AnalyzedCase> cases) {
+    private static boolean fullMatrix(BalanceCriterion criterion, Set<String> seeds, List<AnalyzedCase> cases) {
         var byCell = new HashMap<List<Object>, Map<List<Faction>, Set<List<Faction>>>>();
         for (var analyzedCase : cases) {
+            var table = criterion
+                    .tableOf(analyzedCase.tableId(), pooledReference(analyzedCase))
+                    .orElse(analyzedCase.tableId());
             byCell.computeIfAbsent(
-                            List.of(reference(analyzedCase), analyzedCase.playerCount(), analyzedCase.seed()),
-                            ignored -> new HashMap<>())
+                            List.of(table, analyzedCase.playerCount(), analyzedCase.seed()), ignored -> new HashMap<>())
                     .computeIfAbsent(CohortKey.factionSetOf(analyzedCase), ignored -> new HashSet<>())
                     .add(analyzedCase.seatFactions());
         }
-        for (var policy : policies) {
+        for (var table : criterion.tables(CriterionPhase.CONFIRMATION)) {
             for (var playerCount : PLAYER_COUNTS) {
                 for (var seed : seeds) {
-                    var sets = byCell.get(List.<Object>of(policy, playerCount, seed));
+                    var sets = byCell.get(List.<Object>of(table.id(), playerCount, seed));
                     if (sets == null || !complete(sets, playerCount)) {
                         return false;
                     }
@@ -132,8 +133,12 @@ final class EvidenceRules {
         return !seeds.isEmpty();
     }
 
-    private static String reference(AnalyzedCase analyzedCase) {
-        return PolicyReference.of(analyzedCase.policyId(), analyzedCase.policyVersion());
+    /** The criterion reference of the policy on every seat of the case; null when its seats play more than one. */
+    private static String pooledReference(AnalyzedCase analyzedCase) {
+        var first = analyzedCase.seatPolicies().getFirst();
+        return analyzedCase.seatPolicies().stream().allMatch(first::equals)
+                ? PolicyReference.of(first.id(), first.version())
+                : null;
     }
 
     private static boolean complete(Map<List<Faction>, Set<List<Faction>>> sets, int playerCount) {

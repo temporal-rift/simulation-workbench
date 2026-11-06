@@ -180,18 +180,19 @@ started.
 ### 1. Configure and preview
 
 **Experiments → New experiment.** Optionally **Start from** a template: *Baseline policy comparison* (one variant, the
-random and faction-greedy policies each on every seat) or *Rules variant comparison* (two variants, the random policy on
-every seat). A template fills the variant slots with the bundles the lanes serve, in order, and sets seeds `42`, player
+faction-greedy and random policies each on every seat of a table of its own) or *Rules variant comparison* (two variants,
+the random policy on every seat of one table). A template fills the variant slots with the bundles the lanes serve, in order, and sets seeds `42`, player
 counts 3, 4 and 5, every faction set, and the execution bounds; every value stays editable and your experiment name is
 kept. Then name the experiment, label each variant and choose its **Bundle** from those the configured lanes serve. The
 bundle's artifacts and effective digests, and the service images and contract versions it pins, are shown read-only:
 nothing that identifies a bundle is typed. Variants are comparable only when their bundles pin the same services and
 contracts; otherwise the page names the differing fields and the draft cannot be previewed or frozen. Pick bot policies
-from the catalog and the seats each one plays, and set seeds, player counts, faction sets and the execution bounds. If
+from the catalog, then define seat tables: each has an id and one of those policies for every seat, so a table can seat
+one policy everywhere or mix them; and set seeds, player counts, faction sets and the execution bounds. If
 no lane is configured the page says so and nothing can be frozen. A value the service refuses is marked on its field,
 and your unsent draft survives a reload and an expired session.
 
-Press **Preview matrix**. The page shows the exact case count, the count per variant and player count, and a browsable
+Press **Preview matrix**. The page shows the exact case count, the count per variant, table and player count, and a browsable
 page of case coordinates, all as the service computed them. Nothing is stored yet.
 
 ### 2. Freeze
@@ -209,7 +210,7 @@ link to the case. Anything that has not succeeded is marked **Partial** and is n
 
 ### 4. Read the report
 
-Open **Report** on the run. Each cohort (variant, policy, player count, faction set, seat) shows its eligible games and
+Open **Report** on the run. Each cohort (variant, table, player count, faction set, seat) shows its eligible games and
 independent blocks, then every metric with its value, numerator and denominator, and its interval. A metric supported
 by fewer than two independent blocks shows its value with **Insufficient sample** and no interval; a metric with a
 denominator of 0 shows **No data**; opportunities whose playability is unknown are counted beside it, not in it.
@@ -285,7 +286,7 @@ Idempotency: repeating a key with a byte-identical body returns the original exp
 key with a changed body returns `409 IDEMPOTENCY_CONFLICT`.
 
 A refusal that is attributable to one manifest value also carries `field`, its path in the manifest (for example
-`seeds[1]` or `policies[0].seatAssignment[2].seatIndex`), so a client can place the problem on the input that caused it.
+`seeds[1]` or `tables[1].seats[3].policyId`), so a client can place the problem on the input that caused it.
 
 Error codes (RFC 9457 problem details): `400 INVALID_EXPERIMENT` (structural validation, including
 duplicate factions, bad counts/seeds, credentials or machine-local paths), `409 MANIFEST_MISMATCH`
@@ -337,10 +338,12 @@ variant with overrides matches no lane until lanes adopt per-game rules.
 ## Cohort-matrix preview
 
 `MatrixPreviewService` deterministically enumerates every case coordinate (seed, faction set, seat
-rotation, policy assignment, variant) of a frozen manifest: complete faction sets (10 combinations
+rotation, seat table, variant) of a frozen manifest: complete faction sets (10 combinations
 at 3 players, 5 at 4, 1 at 5) under `CYCLIC` rotation place every faction in every seat, giving
-30 + 20 + 5 = 55 base cases per seed, policy, and variant — 220 cases per seed with two homogeneous
-policies and two variants. Ordering is stable and every coordinate carries a deterministic `caseKey`;
+30 + 20 + 5 = 55 base cases per seed, table, and variant — 220 cases per seed with two tables and two
+variants. Seat `i` of a case plays the policy of seat `i` of its table. A manifest frozen before seat tables
+(`schemaVersion` 1) keeps its digest and case keys and reads as one uniform table per policy entry, named for the
+policy; requests are always `schemaVersion` 2. Ordering is stable and every coordinate carries a deterministic `caseKey`;
 the durable runner persists these keys without recomputation.
 
 `POST /api/v1/experiment-previews` (`simulation:write`, no `Idempotency-Key`) previews a manifest without
@@ -647,7 +650,7 @@ A **fidelity check** validates that. It plays on the simulator the full case mat
 every faction set and seat rotation, the policies `faction-greedy` and `random` on every seat) for three variants, then
 reproduces every case on one real lane. The variants are the baseline and the two edge variants `low` and `high`, which
 set as many parameters as the constraints allow at the minimum and the maximum of their ranges
-([docs/fidelity/v1.md](docs/fidelity/v1.md)). That is 55 cases per policy and variant, 330 in all.
+([docs/fidelity/v1.md](docs/fidelity/v1.md)). That is 55 cases per table and variant, 330 in all.
 
 | Operation | Meaning |
 |---|---|

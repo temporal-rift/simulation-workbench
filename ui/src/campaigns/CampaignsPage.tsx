@@ -2,9 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { useState } from 'react'
 import { ApiProblemError } from '../api/client'
-import type { CampaignDefinition, LaneBundle, PolicyBundle, SearchAlgorithmRequest } from '../api/generated'
+import type { CampaignDefinition, LaneBundle, SearchAlgorithmRequest } from '../api/generated'
 import { describeFailure } from '../api/problems'
-import { PAGE_SIZE, campaignsQuery, createCampaignCommand, laneBundlesQuery, policiesQuery, useApiClient } from '../api/queries'
+import { PAGE_SIZE, campaignsQuery, createCampaignCommand, laneBundlesQuery, useApiClient } from '../api/queries'
 import { useIntentKeys } from '../api/useIntentKeys'
 import { WRITE_SCOPE } from '../auth/scopes'
 import { useAnnounce } from '../components/announceContext'
@@ -16,7 +16,6 @@ import { QueryView } from '../components/QueryView'
 import { ScopedButton } from '../components/ScopedButton'
 import { CAMPAIGN_STATE_LABELS, formatSeconds, isMasterSeed, isWholeNumber } from './campaignView'
 
-const SEATS = 5
 const PLAYER_COUNTS = [3, 4, 5] as const
 
 export function CampaignsPage() {
@@ -37,7 +36,6 @@ export function CampaignsPage() {
 interface Draft {
   name: string
   bundle: number
-  policy: number
   playerCounts: number[]
   budgetHours: string
   parallelism: string
@@ -55,7 +53,6 @@ interface Draft {
 const INITIAL: Draft = {
   name: '',
   bundle: 0,
-  policy: 0,
   playerCounts: [3],
   budgetHours: '4',
   parallelism: '4',
@@ -138,7 +135,7 @@ function algorithmOf(draft: Draft): SearchAlgorithmRequest | null {
   return Object.keys(set).length === 0 ? null : set
 }
 
-function definitionOf(draft: Draft, bundle: LaneBundle, policy: PolicyBundle): CampaignDefinition {
+function definitionOf(draft: Draft, bundle: LaneBundle): CampaignDefinition {
   const algorithm = algorithmOf(draft)
   const budget = budgetSeconds(draft.budgetHours)
   if (budget === null) {
@@ -148,15 +145,6 @@ function definitionOf(draft: Draft, bundle: LaneBundle, policy: PolicyBundle): C
   return {
     name: draft.name.trim(),
     baseline: { rulesArtifact: bundle.rulesArtifact, contentArtifact: bundle.contentArtifact },
-    policies: [
-      {
-        id: policy.id,
-        version: policy.version,
-        artifactDigest: policy.artifactDigest,
-        parameters: {},
-        seatAssignment: Array.from({ length: SEATS }, (_, seatIndex) => ({ seatIndex, policyId: policy.id, policyVersion: policy.version })),
-      },
-    ],
     playerCounts: [...draft.playerCounts].sort() as CampaignDefinition['playerCounts'],
     budgetSeconds: budget,
     parallelism: Number(draft.parallelism),
@@ -171,28 +159,23 @@ function definitionOf(draft: Draft, bundle: LaneBundle, policy: PolicyBundle): C
 function StartSection() {
   const client = useApiClient()
   const bundles = useQuery(laneBundlesQuery(client))
-  const policies = useQuery(policiesQuery(client))
   return (
     <section aria-labelledby="campaign-start">
       <h2 id="campaign-start">Start a campaign</h2>
       <QueryView query={bundles} failure={{ action: 'load the rules bundles' }}>
-        {(bundleList) => (
-          <QueryView query={policies} failure={{ action: 'load the policies' }}>
-            {(catalog) =>
-              bundleList.items.length === 0 || catalog.items.length === 0 ? (
-                <p>A campaign needs a rules bundle some lane serves and a policy; none is available.</p>
-              ) : (
-                <StartForm bundles={bundleList.items} policies={catalog.items} />
-              )
-            }
-          </QueryView>
-        )}
+        {(bundleList) =>
+          bundleList.items.length === 0 ? (
+            <p>A campaign needs a rules bundle some lane serves; none is available.</p>
+          ) : (
+            <StartForm bundles={bundleList.items} />
+          )
+        }
       </QueryView>
     </section>
   )
 }
 
-function StartForm({ bundles, policies }: { readonly bundles: readonly LaneBundle[]; readonly policies: readonly PolicyBundle[] }) {
+function StartForm({ bundles }: { readonly bundles: readonly LaneBundle[] }) {
   const client = useApiClient()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -207,11 +190,11 @@ function StartForm({ bundles, policies }: { readonly bundles: readonly LaneBundl
 
   const start = useMutation({
     mutationFn: () => {
-      const definition = definitionOf(draft, bundles[draft.bundle]!, policies[draft.policy]!)
+      const definition = definitionOf(draft, bundles[draft.bundle]!)
       return createCampaignCommand(client, definition, keys.keyFor(JSON.stringify(definition)))
     },
     onSuccess: async (campaign) => {
-      keys.clear(JSON.stringify(definitionOf(draft, bundles[draft.bundle]!, policies[draft.policy]!)))
+      keys.clear(JSON.stringify(definitionOf(draft, bundles[draft.bundle]!)))
       queryClient.setQueryData(['campaign', campaign.campaignId], campaign)
       await queryClient.invalidateQueries({ queryKey: ['campaigns'] })
       announce('Campaign started.')
@@ -248,17 +231,6 @@ function StartForm({ bundles, policies }: { readonly bundles: readonly LaneBundl
             {bundles.map((bundle, index) => (
               <option key={`${bundle.rulesArtifact.digest}-${bundle.contentArtifact.digest}`} value={index}>
                 {bundle.rulesArtifact.name ?? shortDigest(bundle.rulesArtifact.digest)} with {bundle.contentArtifact.name ?? shortDigest(bundle.contentArtifact.digest)}
-              </option>
-            ))}
-          </select>
-        )}
-      </Field>
-      <Field label="Policy on every seat">
-        {(props) => (
-          <select {...props} value={draft.policy} onChange={(event) => set('policy', Number(event.target.value))}>
-            {policies.map((policy, index) => (
-              <option key={`${policy.id}@${policy.version}`} value={index}>
-                {policy.id} {policy.version}
               </option>
             ))}
           </select>

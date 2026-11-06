@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.SortedMap;
 import java.util.UUID;
 
+import tools.jackson.databind.JsonNode;
+
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
 import io.github.temporalrift.workbench.search.domain.candidate.Candidate;
 import io.github.temporalrift.workbench.search.domain.candidate.ParameterGrid;
@@ -31,8 +33,16 @@ public interface CampaignExperiments {
     CandidateValidation validation(CampaignDefinition definition);
 
     /**
+     * The policy bundles that serve the policies, each the newest bundle of its major version.
+     *
+     * @throws io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException when a policy has no
+     *     bundle
+     */
+    List<JsonNode> bundles(List<io.github.temporalrift.workbench.search.domain.campaign.PolicyRef> policies);
+
+    /**
      * Freezes the experiment of one wave, once per idempotency key: a variant per candidate, labelled by its id, each
-     * playing every seed over the full matrix of the definition's policies and player counts.
+     * playing every seed over the full matrix of the given tables and the definition's player counts.
      *
      * @throws io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException when the
      *     experiment is refused
@@ -42,7 +52,8 @@ public interface CampaignExperiments {
             CampaignDefinition definition,
             int waveIndex,
             List<Candidate> candidates,
-            List<String> seeds);
+            List<String> seeds,
+            List<io.github.temporalrift.workbench.search.domain.campaign.SeatTable> tables);
 
     /**
      * Freezes the experiment that confirms one subject on the deployed lane that is build-equivalent to the
@@ -69,6 +80,8 @@ public interface CampaignExperiments {
      */
     record Subject(String label, SortedMap<String, BigDecimal> overrides, String effectiveRulesDigest) {}
 
-    /** How many cases a candidate playing one seed has, which sizes a wave. */
-    int casesPerGame(CampaignDefinition definition);
+    /** How many cases a candidate playing one seed over the tables has, which sizes a wave. */
+    int casesPerGame(
+            CampaignDefinition definition,
+            List<io.github.temporalrift.workbench.search.domain.campaign.SeatTable> tables);
 }

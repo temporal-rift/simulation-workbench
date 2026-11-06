@@ -1,6 +1,7 @@
 package io.github.temporalrift.workbench.analysis.infrastructure.adapter.in.rest;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 
 import io.github.temporalrift.workbench.analysis.domain.criterion.BalanceCriterion;
@@ -15,7 +16,10 @@ import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CriterionEvidence;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CriterionLine;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CriterionPooling;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CriterionPopulation;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CriterionRole;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CriterionTable;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CriterionTableSeatsInner;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.EvaluatedLine;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.EvaluatedLineDimensions;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.EvaluationMode;
@@ -48,6 +52,9 @@ final class EvaluationApiMapper {
                 .digest(criterion.digest())
                 .title(criterion.title())
                 .analysisVersion(criterion.analysisVersion())
+                .tables(criterion.tables().stream()
+                        .map(EvaluationApiMapper::table)
+                        .toList())
                 .lines(criterion.lines().stream().map(EvaluationApiMapper::line).toList())
                 .aggregation(CriterionAggregation.WEIGHTED_SUM_OF_SQUARED_DEVIATIONS)
                 .evidence(new CriterionEvidence()
@@ -62,6 +69,23 @@ final class EvaluationApiMapper {
                                 .map(reason -> TerminalEndReason.fromValue(reason.name()))
                                 .toList())
                         .confirmationMinimumSeeds(evidence.confirmationMinimumSeeds()));
+    }
+
+    private static CriterionTable table(
+            io.github.temporalrift.workbench.analysis.domain.criterion.CriterionTable table) {
+        var seats = new ArrayList<CriterionTableSeatsInner>();
+        for (var seat = 0; seat < table.seats().size(); seat++) {
+            seats.add(new CriterionTableSeatsInner()
+                    .seatIndex(seat)
+                    .policy(table.seats().get(seat)));
+        }
+        return new CriterionTable()
+                .id(table.id())
+                .seats(seats)
+                .phases(table.phases().stream()
+                        .sorted()
+                        .map(phase -> EvaluationMode.fromValue(phase.name()))
+                        .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new)));
     }
 
     private static CriterionLine line(io.github.temporalrift.workbench.analysis.domain.criterion.CriterionLine line) {
@@ -84,7 +108,11 @@ final class EvaluationApiMapper {
                                         : dimension.failureCodes().stream()
                                                 .map(code -> AttemptFailureCode.fromValue(code.name()))
                                                 .toList()))
-                .policies(line.policies())
+                .populations(line.populations().stream()
+                        .map(population -> new CriterionPopulation()
+                                .table(population.table())
+                                .policy(population.policy()))
+                        .toList())
                 .playerCounts(line.playerCounts().stream()
                         .map(CriterionLine.PlayerCountsEnum::fromValue)
                         .toList())
@@ -155,6 +183,7 @@ final class EvaluationApiMapper {
                                         : dimensions.failureCodes().stream()
                                                 .map(code -> AttemptFailureCode.fromValue(code.name()))
                                                 .toList()))
+                .tableId(line.tableId())
                 .policyId(line.policyId())
                 .playerCount(EvaluatedLine.PlayerCountEnum.fromValue(line.playerCount()))
                 .factionSet(line.factionSet() == null ? null : AnalysisApiMapper.factions(line.factionSet()))

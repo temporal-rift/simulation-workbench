@@ -12,7 +12,7 @@ import { formatInstant } from '../components/format'
 import { QueryView } from '../components/QueryView'
 import { ScopedButton } from '../components/ScopedButton'
 import { RUN_STATE_LABELS } from '../runs/runView'
-import { hasUnsentDraft, manifestToDraft, saveDraft } from './draft'
+import { hasUnsentDraft, manifestToDraft, saveDraft, tablesOf } from './draft'
 
 export function ExperimentPage() {
   const { experimentId } = useParams({ from: '/experiments/$experimentId' })
@@ -123,8 +123,16 @@ function FrozenExperiment({ experiment }: { readonly experiment: Experiment }) {
       <ul>
         {manifest.policies.map((policy) => (
           <li key={`${policy.id}@${policy.version}`}>
-            {policy.id}@{policy.version} — seats {policy.seatAssignment.map((seat) => seat.seatIndex).join(', ')}
+            {policy.id}@{policy.version}
             {Object.keys(policy.parameters).length > 0 && <> — parameters <code>{JSON.stringify(policy.parameters)}</code></>}
+          </li>
+        ))}
+      </ul>
+      <h2>Seat tables</h2>
+      <ul>
+        {tablesOf(manifest).map((table) => (
+          <li key={table.id}>
+            {table.id} — {table.seats.map((seat) => `${seat.seatIndex + 1}: ${seat.policyId}@${seat.policyVersion}`).join('; ')}
           </li>
         ))}
       </ul>

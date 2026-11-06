@@ -133,8 +133,13 @@ class CampaignExperimentsAdapterTest {
     }
 
     @Test
-    void aGameIsTheFullMatrixOfTheCampaignsPlayerCountsAndPolicies() {
-        assertThat(adapter.casesPerGame(definition(VariantRulesFixtures.ARTIFACT_DIGEST, 1)))
+    void aGameIsTheFullMatrixOfTheCampaignsPlayerCountsAndTables() {
+        var table =
+                new io.github.temporalrift.workbench.search.domain.campaign.SeatTable("random-v1", java.util.List.of());
+        assertThat(adapter.casesPerGame(definition(VariantRulesFixtures.ARTIFACT_DIGEST, 1), java.util.List.of(table)))
                 .isEqualTo(55);
+        assertThat(adapter.casesPerGame(
+                        definition(VariantRulesFixtures.ARTIFACT_DIGEST, 1), java.util.List.of(table, table)))
+                .isEqualTo(110);
     }
 }
