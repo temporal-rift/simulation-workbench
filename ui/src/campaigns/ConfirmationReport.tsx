@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import type { Campaign, ConfirmationRun } from '../api/generated'
+import type { Campaign, ConfirmationRun, Run } from '../api/generated'
 import { evaluationQuery, runQuery, useApiClient } from '../api/queries'
 import { QueryView } from '../components/QueryView'
 import { EvaluationDetails } from '../evaluation/EvaluationPanel'
@@ -45,13 +45,31 @@ function Progress({ runId }: { readonly runId: string }) {
   const query = useQuery(runQuery(client, runId))
   return (
     <QueryView query={query} failure={{ action: 'load the confirmation run' }}>
-      {(run) => (
-        <p role="status">
-          {run.state === 'QUEUED' ? 'Waiting for its turn' : `Playing: ${run.counts.succeeded + run.counts.failed} of ${run.counts.requested} cases done`}.
-        </p>
-      )}
+      {(run) => <p role="status">{describeRun(run)}</p>}
     </QueryView>
   )
+}
+
+/** What the run is doing now, from its own state: a run that failed or was cancelled never says it is playing. */
+function describeRun(run: Run): string {
+  const { counts } = run
+  const done = counts.succeeded + counts.failed + counts.cancelled
+  const progress = `${done} of ${counts.requested} cases done`
+  switch (run.state) {
+    case 'QUEUED':
+      return 'Waiting for its turn.'
+    case 'RUNNING':
+      return `Playing: ${progress}.`
+    case 'INTERRUPTED':
+      return `Interrupted, resuming: ${progress}.`
+    case 'CANCELLING':
+    case 'CANCELLED':
+      return `Cancelled: ${progress}.`
+    case 'FAILED':
+      return `Failed: ${progress}${run.failure ? `. ${run.failure.message}` : '.'}`
+    case 'COMPLETED':
+      return `Played all ${counts.requested} cases; waiting for the other runs before it is evaluated.`
+  }
 }
 
 function Evaluated({ campaign, run }: { readonly campaign: Campaign; readonly run: ConfirmationRun }) {

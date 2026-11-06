@@ -12,8 +12,9 @@ final class ConfirmationKeys {
         return of(campaignId, "experiment", subject);
     }
 
-    static UUID run(UUID campaignId, String subject) {
-        return of(campaignId, "run", subject);
+    /** A run plays one experiment, so its key names the experiment as well as the subject. */
+    static UUID run(UUID campaignId, String subject, UUID experimentId) {
+        return of(campaignId, "run", subject + ":" + experimentId);
     }
 
     private static UUID of(UUID campaignId, String purpose, String subject) {

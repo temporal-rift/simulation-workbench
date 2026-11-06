@@ -28,6 +28,7 @@ import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
 import io.github.temporalrift.workbench.search.domain.campaign.Confirmation;
+import io.github.temporalrift.workbench.search.domain.campaign.PolicyRef;
 import io.github.temporalrift.workbench.search.domain.campaign.SearchAlgorithm;
 import io.github.temporalrift.workbench.search.domain.candidate.ConfirmationSeeds;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignExperiments;
@@ -147,7 +148,7 @@ class CampaignConfirmationIT {
             assertThat(run.evaluation().score()).isEqualTo(expected.score());
         });
         var confirmationSeeds = new ConfirmationSeeds("9").seeds(CONFIRMATION_SEEDS);
-        assertThat(confirmationSeeds).doesNotContainAnyElementsOf(campaigns.loggedSeeds(id));
+        assertThat(campaigns.loggedAmong(id, confirmationSeeds)).isEmpty();
         completed.confirmation().runs().forEach(run -> {
             assertThat(seedsOf(run.runId())).containsExactlyInAnyOrderElementsOf(confirmationSeeds);
             assertThat(lanesOf(run.runId())).containsExactly("lane-1");
@@ -257,6 +258,11 @@ class CampaignConfirmationIT {
         @Override
         public int confirmationSeedCount(int criterionVersion) {
             return CONFIRMATION_SEEDS;
+        }
+
+        @Override
+        public List<PolicyRef> confirmationPolicies(int criterionVersion) {
+            return real.confirmationPolicies(criterionVersion);
         }
 
         @Override

@@ -1,5 +1,6 @@
 package io.github.temporalrift.workbench.analysis.application.query;
 
+import java.util.List;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.analysis.RunConfirmation;
@@ -24,6 +25,23 @@ public class RunConfirmationService implements RunConfirmation {
                 .orElseThrow(() -> new IllegalArgumentException("Unknown balance criterion " + criterionVersion))
                 .evidence()
                 .confirmationMinimumSeeds();
+    }
+
+    @Override
+    public List<PolicyRef> policies(int criterionVersion) {
+        return criteria
+                .find(criterionVersion)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown balance criterion " + criterionVersion))
+                .policies()
+                .stream()
+                .map(RunConfirmationService::parse)
+                .toList();
+    }
+
+    /** A criterion names a policy as the id and the major version, as in {@code faction-greedy-v1}. */
+    private static PolicyRef parse(String reference) {
+        var split = reference.lastIndexOf("-v");
+        return new PolicyRef(reference.substring(0, split), reference.substring(split + 2));
     }
 
     @Override

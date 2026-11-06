@@ -245,6 +245,21 @@ describe('confirming the short list', () => {
     expect(screen.queryByRole('button', { name: 'Confirm short list' })).not.toBeInTheDocument()
   })
 
+  it('says what each run is doing, including one that was cancelled or is done and waiting', async () => {
+    serveCampaigns(service, { campaigns: [{ ...searched(), state: 'CONFIRMING', confirmation: confirmation(false) }] })
+    service.runs.set(CONFIRMATION_RUNS.baseline.run, run({ runId: CONFIRMATION_RUNS.baseline.run, state: 'COMPLETED' }))
+    service.runs.set(
+      CONFIRMATION_RUNS.candidate.run,
+      run({ runId: CONFIRMATION_RUNS.candidate.run, state: 'CANCELLED', counts: { requested: 4, pending: 0, running: 0, succeeded: 1, failed: 0, cancelled: 3 } }),
+    )
+    await renderApp(PATH, service)
+
+    const report = await screen.findByRole('region', { name: 'Confirmation' })
+    expect(await within(report).findByText(/waiting for the other runs/)).toBeInTheDocument()
+    expect(await within(report).findByText('Cancelled: 4 of 4 cases done.')).toBeInTheDocument()
+    expect(within(report).queryByText(/Playing/)).not.toBeInTheDocument()
+  })
+
   it('shows a confirmed candidate with every line, the sample and the human balance statement', async () => {
     serveCampaigns(service, {
       campaigns: [{ ...searched(), state: 'COMPLETED', confirmation: confirmation(true), finishedAt: '2026-01-01T05:00:00Z' }],

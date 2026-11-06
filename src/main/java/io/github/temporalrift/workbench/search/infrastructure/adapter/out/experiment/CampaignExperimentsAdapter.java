@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -13,11 +14,13 @@ import io.github.temporalrift.workbench.execution.LaneEnvironments;
 import io.github.temporalrift.workbench.experiment.ExperimentFactory;
 import io.github.temporalrift.workbench.experiment.ExperimentRefusedException;
 import io.github.temporalrift.workbench.experiment.LaneBundle;
+import io.github.temporalrift.workbench.policy.PolicyCatalog;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignException;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignReason;
 import io.github.temporalrift.workbench.search.domain.campaign.NoRealLaneException;
+import io.github.temporalrift.workbench.search.domain.campaign.PolicyRef;
 import io.github.temporalrift.workbench.search.domain.candidate.Candidate;
 import io.github.temporalrift.workbench.search.domain.candidate.ParameterGrid;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignExperiments;
@@ -34,17 +37,26 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
 
     private static final int SCHEMA_VERSION = 1;
 
+    /** The seats of the largest case of the matrix. */
+    private static final int MAX_SEATS = 5;
+
     /** A wave plays one case at a time until the campaign allows more, so the frozen bounds never depend on it. */
     private static final int FROZEN_CONCURRENCY = 1;
 
     private final ExperimentFactory experiments;
+    private final PolicyCatalog catalog;
     private final LaneEnvironments lanes;
     private final ObjectMapper mapper;
     private final Bounds bounds;
 
     public CampaignExperimentsAdapter(
-            ExperimentFactory experiments, LaneEnvironments lanes, ObjectMapper mapper, Bounds bounds) {
+            ExperimentFactory experiments,
+            PolicyCatalog catalog,
+            LaneEnvironments lanes,
+            ObjectMapper mapper,
+            Bounds bounds) {
         this.experiments = experiments;
+        this.catalog = catalog;
         this.lanes = lanes;
         this.mapper = mapper;
         this.bounds = bounds;
@@ -116,7 +128,9 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
                         definition, candidate.id(), candidate.overrides(), candidate.effectiveRulesDigest(), simulator))
                 .toList();
         try {
-            return experiments.freeze(idempotencyKey, manifest(definition, name, variants, seeds, simulator));
+            return experiments.freeze(
+                    idempotencyKey,
+                    manifest(definition, name, definitionPolicies(definition), variants, seeds, simulator));
         } catch (ExperimentRefusedException e) {
             throw new CampaignPlayRefusedException(e.getMessage(), e);
         }
@@ -124,7 +138,11 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
 
     @Override
     public UUID freezeConfirmation(
-            UUID idempotencyKey, CampaignDefinition definition, Subject subject, List<String> seeds) {
+            UUID idempotencyKey,
+            CampaignDefinition definition,
+            Subject subject,
+            List<String> seeds,
+            List<PolicyRef> required) {
         var seats = definition.playerCounts().stream()
                 .mapToInt(Integer::intValue)
                 .max()
@@ -135,6 +153,7 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
         var manifest = manifest(
                 definition,
                 definition.name() + ", confirmation of " + subject.label(),
+                policies(required),
                 List.of(variant(
                         definition,
                         subject.label(),
@@ -144,10 +163,46 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
                 seeds,
                 lane.bundle());
         try {
-            return experiments.freeze(idempotencyKey, manifest);
+            return experiments.freeze(builtOn(idempotencyKey, lane.bundle()), manifest);
         } catch (ExperimentRefusedException e) {
             throw new CampaignPlayRefusedException(e.getMessage(), e);
         }
+    }
+
+    /** The key of the experiment on these builds: a lane redeployed since an earlier attempt starts a new one. */
+    private static UUID builtOn(UUID idempotencyKey, LaneBundle bundle) {
+        var builds = bundle.gameService().imageDigest()
+                + bundle.timelineService().imageDigest()
+                + bundle.readService().imageDigest();
+        return UUID.nameUUIDFromBytes(
+                (idempotencyKey + ":" + builds).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    /** The bundles of the policies the criterion names, every seat of the matrix playing the same one. */
+    private List<JsonNode> policies(List<PolicyRef> required) {
+        var nodes = new java.util.ArrayList<JsonNode>();
+        for (var wanted : required) {
+            var bundle = catalog.list().stream()
+                    .filter(candidate -> candidate.id().equals(wanted.id())
+                            && candidate.version().startsWith(wanted.majorVersion() + "."))
+                    .findFirst()
+                    .orElseThrow(() -> new CampaignPlayRefusedException(
+                            "No policy bundle serves " + wanted.id() + " version " + wanted.majorVersion()));
+            var node = mapper.createObjectNode();
+            node.put("id", bundle.id());
+            node.put("version", bundle.version());
+            node.put("artifactDigest", bundle.artifactDigest());
+            node.putObject("parameters");
+            var seats = node.putArray("seatAssignment");
+            for (var seat = 0; seat < MAX_SEATS; seat++) {
+                seats.addObject()
+                        .put("seatIndex", seat)
+                        .put("policyId", bundle.id())
+                        .put("policyVersion", bundle.version());
+            }
+            nodes.add(node);
+        }
+        return nodes;
     }
 
     @Override
@@ -161,6 +216,7 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
     private ObjectNode manifest(
             CampaignDefinition definition,
             String name,
+            List<? extends JsonNode> policies,
             List<ObjectNode> variants,
             List<String> seeds,
             LaneBundle simulator) {
@@ -174,7 +230,7 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
         services.set("readService", service(simulator.readService()));
         var contracts = manifest.putObject("contracts");
         simulator.contracts().forEach(contracts::put);
-        manifest.set("policies", definition.policies().deepCopy());
+        manifest.putArray("policies").addAll(policies);
         var seedNodes = manifest.putArray("seeds");
         seeds.forEach(seedNodes::add);
         var counts = manifest.putArray("playerCounts");
@@ -190,6 +246,12 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
         manifest.put("caseWallTimeoutSeconds", bounds.caseWallTimeoutSeconds());
         manifest.put("maxRejectedCandidatesPerWindow", bounds.maxRejectedCandidatesPerWindow());
         return manifest;
+    }
+
+    private static List<JsonNode> definitionPolicies(CampaignDefinition definition) {
+        var nodes = new java.util.ArrayList<JsonNode>();
+        definition.policies().forEach(policy -> nodes.add(policy.deepCopy()));
+        return nodes;
     }
 
     private ObjectNode variant(

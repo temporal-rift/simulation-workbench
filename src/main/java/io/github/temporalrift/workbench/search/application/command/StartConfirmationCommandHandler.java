@@ -16,6 +16,7 @@ import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
 import io.github.temporalrift.workbench.search.domain.campaign.Confirmation;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignStateException;
 import io.github.temporalrift.workbench.search.domain.campaign.NoRealLaneException;
+import io.github.temporalrift.workbench.search.domain.campaign.PolicyRef;
 import io.github.temporalrift.workbench.search.domain.campaign.SeedOverlapException;
 import io.github.temporalrift.workbench.search.domain.candidate.Candidate;
 import io.github.temporalrift.workbench.search.domain.candidate.ConfirmationSeeds;
@@ -27,10 +28,11 @@ import io.github.temporalrift.workbench.search.domain.port.out.CandidateEvaluati
 /**
  * Confirms a finished search's short list. The seeds derive from the confirmation master seed only and are checked
  * against every seed the campaign's log records before anything is frozen. One experiment per subject, the baseline
- * and each short-listed candidate, is frozen on the real lane and one run per experiment is started: the first plays,
- * the others wait their turn so only one confirmation case executes at a time. Experiments and runs are requested
- * with keys derived from the campaign and the subject, so a request that crashed or lost its write is repeated into
- * the same ones.
+ * and each short-listed candidate, is frozen on the real lane and one run per experiment is started held: the
+ * campaign write releases the first, and the worker releases each next one when the one before it is complete, so only
+ * one confirmation case executes at a time and nothing plays before the campaign records the confirmation.
+ * Experiments and runs are requested with keys derived from the campaign and the subject, so a request that crashed
+ * or lost its write is repeated into the same ones.
  */
 public class StartConfirmationCommandHandler implements StartConfirmationUseCase {
 
@@ -60,11 +62,16 @@ public class StartConfirmationCommandHandler implements StartConfirmationUseCase
         var seedCount = evaluation.confirmationSeedCount(definition.criterionVersion());
         var seeds = new ConfirmationSeeds(definition.confirmationMasterSeed()).seeds(seedCount);
         rejectOverlap(campaignId, seeds);
-        var confirmation = freezeAndStart(stored.campaign(), seedCount, seeds);
+        var policies = evaluation.confirmationPolicies(definition.criterionVersion());
+        var confirmation = freezeAndStart(stored.campaign(), seedCount, seeds, policies);
         for (var attempt = 0; attempt < ATTEMPTS; attempt++) {
             var current = campaigns.find(campaignId).orElseThrow(() -> new CampaignNotFoundException(campaignId));
             if (current.campaign().state() != CampaignState.SEARCH_COMPLETED) {
-                // Another request or a designer moved the campaign; the runs keyed to it belong to that request.
+                // A confirming campaign owns these runs through another request; a campaign that ended while they
+                // were being set up must not leave them waiting.
+                if (current.campaign().state() != CampaignState.CONFIRMING) {
+                    cancel(confirmation);
+                }
                 throw new InvalidCampaignStateException(
                         "startConfirmation", current.campaign().state());
             }
@@ -77,6 +84,17 @@ public class StartConfirmationCommandHandler implements StartConfirmationUseCase
         throw new IllegalStateException("Campaign " + campaignId + " keeps changing under the request");
     }
 
+    /** Runs that wait for their turn are held, so a setup that fails or loses leaves nothing playing. */
+    private void cancel(Confirmation confirmation) {
+        confirmation.runs().forEach(run -> {
+            try {
+                runs.cancel(run.runId());
+            } catch (RuntimeException e) {
+                // every other run is still cancelled; a run that stays held plays nothing
+            }
+        });
+    }
+
     private static void requireSearchCompleted(Campaign campaign) {
         if (campaign.state() != CampaignState.SEARCH_COMPLETED) {
             throw new InvalidCampaignStateException("startConfirmation", campaign.state());
@@ -84,39 +102,34 @@ public class StartConfirmationCommandHandler implements StartConfirmationUseCase
     }
 
     private void rejectOverlap(UUID campaignId, List<String> seeds) {
-        var logged = campaigns.loggedSeeds(campaignId);
-        var shared = seeds.stream().filter(logged::contains).sorted().toList();
+        var shared = campaigns.loggedAmong(campaignId, seeds).stream().sorted().toList();
         if (!shared.isEmpty()) {
             throw new SeedOverlapException(shared);
         }
     }
 
-    private Confirmation freezeAndStart(Campaign campaign, int seedCount, List<String> seeds) {
+    private Confirmation freezeAndStart(
+            Campaign campaign, int seedCount, List<String> seeds, List<PolicyRef> policies) {
         var definition = campaign.definition();
         var subjects = subjects(campaign);
         var started = new ArrayList<Confirmation.Run>();
-        try {
-            for (var subject : subjects) {
-                var experimentId = experiments.freezeConfirmation(
-                        ConfirmationKeys.experiment(campaign.campaignId(), subject.label()),
-                        definition,
-                        subject,
-                        seeds);
-                var runKey = ConfirmationKeys.run(campaign.campaignId(), subject.label());
-                var runId = startRun(started.isEmpty(), experimentId, runKey);
-                started.add(new Confirmation.Run(subject.label(), experimentId, runId, null));
-            }
-        } catch (RuntimeException e) {
-            started.forEach(run -> runs.cancel(run.runId()));
-            throw e;
+        for (var subject : subjects) {
+            var experimentId = experiments.freezeConfirmation(
+                    ConfirmationKeys.experiment(campaign.campaignId(), subject.label()),
+                    definition,
+                    subject,
+                    seeds,
+                    policies);
+            var runKey = ConfirmationKeys.run(campaign.campaignId(), subject.label(), experimentId);
+            started.add(new Confirmation.Run(subject.label(), experimentId, startRun(experimentId, runKey), null));
         }
         return new Confirmation(seedCount, started);
     }
 
     /** A run no lane fits is a confirmation no real lane can play. */
-    private UUID startRun(boolean first, UUID experimentId, UUID key) {
+    private UUID startRun(UUID experimentId, UUID key) {
         try {
-            return first ? runs.start(experimentId, key) : runs.startHeld(experimentId, key);
+            return runs.startHeld(experimentId, key);
         } catch (CampaignPlayRefusedException e) {
             throw new NoRealLaneException(e.getMessage(), e);
         }

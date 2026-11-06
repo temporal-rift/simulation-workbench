@@ -70,8 +70,8 @@ public interface CampaignRepository {
     /** The campaign's games in candidate then seed order. */
     List<Game> games(UUID campaignId);
 
-    /** Every seed the campaign's log records, in any order, without repeats. */
-    java.util.Set<String> loggedSeeds(UUID campaignId);
+    /** Those of {@code seeds} that the campaign's log records, read in bounded batches. */
+    java.util.Set<String> loggedAmong(UUID campaignId, java.util.Collection<String> seeds);
 
     /** Appends entries to the decision log; an entry already stored at its sequence is left as it is. */
     void appendLog(UUID campaignId, List<LogEntry> entries);

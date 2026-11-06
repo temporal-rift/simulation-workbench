@@ -13,6 +13,14 @@ public interface RunConfirmation {
     int minimumSeeds(int criterionVersion);
 
     /**
+     * The bot policies the criterion names, each as an id and a major version: what a confirmation sample must
+     * contain.
+     *
+     * @throws IllegalArgumentException when the criterion is unknown
+     */
+    java.util.List<PolicyRef> policies(int criterionVersion);
+
+    /**
      * Evaluates the variant of the run in {@code CONFIRMATION} mode, exactly as {@code getRunEvaluation} does.
      *
      * @return {@code REJECTED}, {@code CONFIRMED}, {@code UNCONFIRMED} or {@code INVALID} with the score, which is
@@ -20,6 +28,11 @@ public interface RunConfirmation {
      * @throws IllegalArgumentException when the criterion, the run or the variant is unknown
      */
     Result confirm(int criterionVersion, UUID runId, String variantLabel);
+
+    /**
+     * @param majorVersion the major version of the policy, as in {@code 1} for {@code 1.2.0}
+     */
+    record PolicyRef(String id, String majorVersion) {}
 
     /**
      * @param score null when the evaluation is invalid; lower is better

@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import io.github.temporalrift.workbench.analysis.CandidateScreening;
 import io.github.temporalrift.workbench.analysis.RunConfirmation;
+import io.github.temporalrift.workbench.search.domain.campaign.PolicyRef;
 import io.github.temporalrift.workbench.search.domain.port.out.CandidateEvaluation;
 
 /** Evaluates candidates through the analysis module. */
@@ -22,6 +23,13 @@ public class CandidateEvaluationAdapter implements CandidateEvaluation {
     @Override
     public int confirmationSeedCount(int criterionVersion) {
         return confirmation.minimumSeeds(criterionVersion);
+    }
+
+    @Override
+    public List<PolicyRef> confirmationPolicies(int criterionVersion) {
+        return confirmation.policies(criterionVersion).stream()
+                .map(policy -> new PolicyRef(policy.id(), policy.majorVersion()))
+                .toList();
     }
 
     @Override

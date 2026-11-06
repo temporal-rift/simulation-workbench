@@ -101,12 +101,11 @@ class ConfirmationProgress {
 
     private boolean fail(StoredCampaign stored, String message) {
         var campaign = stored.campaign();
+        // The runs stop first: a failure that stopped halfway is seen again, because the campaign is still
+        // confirming and every run it names is already over.
+        waveRuns.stop(campaign.campaignId());
         var next =
                 campaign.fail(new CampaignFailure(CampaignFailure.CONFIRMATION_RUN_FAILED, message), clock.instant());
-        var applied = campaigns.apply(CampaignChange.of(stored, next, stored.accruedAt()));
-        if (applied) {
-            waveRuns.stop(campaign.campaignId());
-        }
-        return applied;
+        return campaigns.apply(CampaignChange.of(stored, next, stored.accruedAt()));
     }
 }

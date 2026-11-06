@@ -28,6 +28,7 @@ import io.github.temporalrift.workbench.search.application.port.in.SetCampaignPa
 import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
+import io.github.temporalrift.workbench.search.domain.campaign.PolicyRef;
 import io.github.temporalrift.workbench.search.domain.campaign.SearchAlgorithm;
 import io.github.temporalrift.workbench.search.domain.log.LogEntry;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignExperiments;
@@ -154,6 +155,11 @@ class CampaignSearchIT {
             @Override
             public int confirmationSeedCount(int criterionVersion) {
                 return 100;
+            }
+
+            @Override
+            public List<PolicyRef> confirmationPolicies(int criterionVersion) {
+                return List.of();
             }
 
             @Override

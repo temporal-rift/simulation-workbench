@@ -239,6 +239,9 @@ public record Campaign(
             throw new InvalidCampaignStateException("completeConfirmation", state);
         }
         Objects.requireNonNull(evaluated, "confirmation");
+        if (!evaluated.evaluated() || !evaluated.sameRunsAs(confirmation)) {
+            throw new IllegalArgumentException("a confirmation completes with an evaluation of each of its runs");
+        }
         return new Campaign(
                 campaignId,
                 definition,

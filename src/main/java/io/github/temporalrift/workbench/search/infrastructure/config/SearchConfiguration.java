@@ -15,6 +15,7 @@ import io.github.temporalrift.workbench.execution.RunCatalog;
 import io.github.temporalrift.workbench.execution.RunStarter;
 import io.github.temporalrift.workbench.experiment.ExperimentFactory;
 import io.github.temporalrift.workbench.fidelity.SimulatorFidelityGate;
+import io.github.temporalrift.workbench.policy.PolicyCatalog;
 import io.github.temporalrift.workbench.search.application.command.CampaignProgress;
 import io.github.temporalrift.workbench.search.application.command.CancelCampaignCommandHandler;
 import io.github.temporalrift.workbench.search.application.command.CreateCampaignCommandHandler;
@@ -57,10 +58,11 @@ public class SearchConfiguration {
     @Bean
     CampaignExperiments campaignExperiments(
             ExperimentFactory experiments,
+            PolicyCatalog policies,
             LaneEnvironments lanes,
             ObjectMapper objectMapper,
             SearchProperties properties) {
-        return new CampaignExperimentsAdapter(experiments, lanes, objectMapper, properties.bounds());
+        return new CampaignExperimentsAdapter(experiments, policies, lanes, objectMapper, properties.bounds());
     }
 
     @Bean

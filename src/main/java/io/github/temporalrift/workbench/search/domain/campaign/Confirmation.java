@@ -28,6 +28,19 @@ public record Confirmation(int seedCount, List<Run> runs) {
         return runs.stream().allMatch(run -> run.evaluation() != null);
     }
 
+    /** Whether {@code other} has the same subjects, experiments and runs in the same order. */
+    public boolean sameRunsAs(Confirmation other) {
+        return other != null
+                && runs.size() == other.runs.size()
+                && java.util.stream.IntStream.range(0, runs.size()).allMatch(index -> {
+                    var mine = runs.get(index);
+                    var theirs = other.runs.get(index);
+                    return mine.subject().equals(theirs.subject())
+                            && mine.experimentId().equals(theirs.experimentId())
+                            && mine.runId().equals(theirs.runId());
+                });
+    }
+
     /** The same confirmation with the evaluations of its runs, by subject. */
     public Confirmation evaluatedAs(java.util.Map<String, Evaluation> bySubject) {
         return new Confirmation(

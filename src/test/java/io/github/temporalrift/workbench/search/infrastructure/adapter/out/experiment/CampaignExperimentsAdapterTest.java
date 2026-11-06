@@ -19,6 +19,7 @@ import io.github.temporalrift.workbench.experiment.application.port.in.CreateExp
 import io.github.temporalrift.workbench.experiment.application.query.GetParameterAxesQueryHandler;
 import io.github.temporalrift.workbench.experiment.application.query.ParameterSpaceQueryHandler;
 import io.github.temporalrift.workbench.experiment.application.query.PreviewVariantRulesQueryHandler;
+import io.github.temporalrift.workbench.policy.PolicyCatalog;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignException;
@@ -39,6 +40,7 @@ class CampaignExperimentsAdapterTest {
                     new GetParameterAxesQueryHandler(VariantRulesFixtures.variantRules()),
                     mock(CreateExperimentUseCase.class),
                     new ParameterSpaceQueryHandler(VariantRulesFixtures.spaces())),
+            mock(PolicyCatalog.class),
             mock(LaneEnvironments.class),
             MAPPER,
             new CampaignExperimentsAdapter.Bounds(3600, 10));

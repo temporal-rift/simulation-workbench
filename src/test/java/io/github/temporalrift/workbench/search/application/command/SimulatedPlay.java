@@ -15,6 +15,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException;
 import io.github.temporalrift.workbench.search.domain.campaign.NoRealLaneException;
+import io.github.temporalrift.workbench.search.domain.campaign.PolicyRef;
 import io.github.temporalrift.workbench.search.domain.candidate.Candidate;
 import io.github.temporalrift.workbench.search.domain.candidate.ParameterGrid;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignExperiments;
@@ -122,7 +123,11 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
 
     @Override
     public synchronized UUID freezeConfirmation(
-            UUID idempotencyKey, CampaignDefinition definition, Subject subject, List<String> seeds) {
+            UUID idempotencyKey,
+            CampaignDefinition definition,
+            Subject subject,
+            List<String> seeds,
+            List<PolicyRef> policies) {
         if (!realLane) {
             throw new NoRealLaneException("no deployed lane is build-equivalent to the simulator");
         }
@@ -286,6 +291,11 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
     /** Scripts what confirming the subject's variant answers; every other subject is confirmed with score 1. */
     synchronized void confirmationOf(String subject, String verdict, Double score) {
         confirmations.put(subject, new Evaluation(verdict, score, List.of()));
+    }
+
+    @Override
+    public List<PolicyRef> confirmationPolicies(int criterionVersion) {
+        return List.of(new PolicyRef("faction-greedy", "1"), new PolicyRef("random", "1"));
     }
 
     @Override

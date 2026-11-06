@@ -47,13 +47,19 @@ public interface CampaignExperiments {
     /**
      * Freezes the experiment that confirms one subject on the deployed lane that is build-equivalent to the
      * simulator, once per idempotency key: a single variant labelled by the subject, playing every seed over the
-     * full matrix of the definition's policies and player counts, one case at a time.
+     * full matrix of the given policies and the definition's player counts, one case at a time. The key is combined
+     * with the builds of the lane, so a lane redeployed since an earlier attempt gets an experiment of its own.
      *
      * @throws io.github.temporalrift.workbench.search.domain.campaign.NoRealLaneException when no such lane exists
      * @throws io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException when the
      *     experiment is refused
      */
-    UUID freezeConfirmation(UUID idempotencyKey, CampaignDefinition definition, Subject subject, List<String> seeds);
+    UUID freezeConfirmation(
+            UUID idempotencyKey,
+            CampaignDefinition definition,
+            Subject subject,
+            List<String> seeds,
+            List<io.github.temporalrift.workbench.search.domain.campaign.PolicyRef> policies);
 
     /**
      * What a confirmation experiment plays.

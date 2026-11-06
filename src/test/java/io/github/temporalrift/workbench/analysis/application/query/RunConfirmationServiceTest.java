@@ -48,6 +48,14 @@ class RunConfirmationServiceTest {
     }
 
     @Test
+    void thePoliciesAreTheOnesTheCriterionNamesAsIdAndMajorVersion() {
+        assertThat(service.policies(criterion.version()))
+                .containsExactlyInAnyOrder(
+                        new io.github.temporalrift.workbench.analysis.RunConfirmation.PolicyRef("faction-greedy", "1"),
+                        new io.github.temporalrift.workbench.analysis.RunConfirmation.PolicyRef("random", "1"));
+    }
+
+    @Test
     void anUnknownCriterionIsRefused() {
         assertThatThrownBy(() -> service.minimumSeeds(99)).isInstanceOf(IllegalArgumentException.class);
     }

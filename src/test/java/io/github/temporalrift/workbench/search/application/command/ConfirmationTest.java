@@ -97,6 +97,19 @@ class ConfirmationTest {
     }
 
     @Test
+    void aConfirmationRefusedForWantOfALaneCanBeStartedOnceOneExists() {
+        var id = searched("c-0000");
+        play.realLane(false);
+        assertThatThrownBy(() -> start.handle(id)).isInstanceOf(NoRealLaneException.class);
+        play.realLane(true);
+
+        var confirming = start.handle(id);
+
+        assertThat(confirming.state()).isEqualTo(CampaignState.CONFIRMING);
+        assertThat(concurrencies(confirming.confirmation().runs())).containsExactly(1, 0);
+    }
+
+    @Test
     void whenNoLaneFitsTheRunsTheConfirmationIsRefusedAsHavingNoRealLaneAndLeavesNothingPlaying() {
         var id = searched("c-0000");
         play.runsFit(false);

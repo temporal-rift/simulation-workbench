@@ -14,6 +14,7 @@ import java.util.Optional;
 import java.util.TreeMap;
 import java.util.UUID;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import tools.jackson.databind.JsonNode;
@@ -22,8 +23,12 @@ import tools.jackson.databind.json.JsonMapper;
 import io.github.temporalrift.workbench.execution.LaneEnvironments;
 import io.github.temporalrift.workbench.experiment.ExperimentFactory;
 import io.github.temporalrift.workbench.experiment.LaneBundle;
+import io.github.temporalrift.workbench.policy.PolicyCatalog;
+import io.github.temporalrift.workbench.policy.PolicyDescriptor;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException;
 import io.github.temporalrift.workbench.search.domain.campaign.NoRealLaneException;
+import io.github.temporalrift.workbench.search.domain.campaign.PolicyRef;
 import io.github.temporalrift.workbench.search.domain.campaign.SearchAlgorithm;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignExperiments;
 
@@ -35,8 +40,74 @@ class ConfirmationFreezeTest {
 
     private final ExperimentFactory experiments = mock(ExperimentFactory.class);
     private final LaneEnvironments lanes = mock(LaneEnvironments.class);
-    private final CampaignExperimentsAdapter adapter =
-            new CampaignExperimentsAdapter(experiments, lanes, MAPPER, new CampaignExperimentsAdapter.Bounds(3600, 10));
+    private final PolicyCatalog catalog = mock(PolicyCatalog.class);
+    private final CampaignExperimentsAdapter adapter = new CampaignExperimentsAdapter(
+            experiments, catalog, lanes, MAPPER, new CampaignExperimentsAdapter.Bounds(3600, 10));
+    private static final List<PolicyRef> CRITERION_POLICIES =
+            List.of(new PolicyRef("faction-greedy", "1"), new PolicyRef("random", "1"));
+
+    @BeforeEach
+    void theCatalogServesTheCriterionPolicies() {
+        when(catalog.list())
+                .thenReturn(List.of(
+                        new PolicyDescriptor("faction-greedy", "1.0.0", "a".repeat(64), "greedy"),
+                        new PolicyDescriptor("random", "1.2.0", "b".repeat(64), "random"),
+                        new PolicyDescriptor("random", "2.0.0", "c".repeat(64), "newer")));
+    }
+
+    @Test
+    void theManifestPlaysEveryPolicyTheCriterionNamesWhateverThePoliciesOfTheCampaign() {
+        when(lanes.equivalentDeployedLane(5))
+                .thenReturn(Optional.of(new LaneEnvironments.DeployedLane("lane-1", bundle("deployed"))));
+        when(experiments.freeze(any(), any())).thenReturn(UUID.randomUUID());
+
+        adapter.freezeConfirmation(
+                KEY,
+                definition(),
+                new CampaignExperiments.Subject("baseline", new TreeMap<>(), "d".repeat(64)),
+                List.of("11"),
+                CRITERION_POLICIES);
+
+        var manifest = ArgumentCaptor.forClass(JsonNode.class);
+        verify(experiments).freeze(any(), manifest.capture());
+        var policies = manifest.getValue().path("policies");
+        assertThat(policies).hasSize(2);
+        assertThat(policies.get(0).path("id").asString()).isEqualTo("faction-greedy");
+        assertThat(policies.get(1).path("version").asString()).isEqualTo("1.2.0");
+        assertThat(policies.get(1).path("seatAssignment")).hasSize(5);
+    }
+
+    @Test
+    void aRedeployedLaneGetsAnExperimentKeyOfItsOwn() {
+        when(experiments.freeze(any(), any())).thenReturn(UUID.randomUUID());
+        var subject = new CampaignExperiments.Subject("baseline", new TreeMap<>(), "d".repeat(64));
+        when(lanes.equivalentDeployedLane(5))
+                .thenReturn(Optional.of(new LaneEnvironments.DeployedLane("lane-1", bundle("deployed"))));
+        adapter.freezeConfirmation(KEY, definition(), subject, List.of("11"), CRITERION_POLICIES);
+        when(lanes.equivalentDeployedLane(5))
+                .thenReturn(Optional.of(new LaneEnvironments.DeployedLane("lane-1", bundle("redeployed"))));
+        adapter.freezeConfirmation(KEY, definition(), subject, List.of("11"), CRITERION_POLICIES);
+
+        var keys = ArgumentCaptor.forClass(UUID.class);
+        verify(experiments, org.mockito.Mockito.times(2)).freeze(keys.capture(), any());
+        assertThat(keys.getAllValues()).doesNotHaveDuplicates();
+    }
+
+    @Test
+    void aCriterionPolicyNoBundleServesIsRefusedBeforeAnythingIsFrozen() {
+        when(lanes.equivalentDeployedLane(5))
+                .thenReturn(Optional.of(new LaneEnvironments.DeployedLane("lane-1", bundle("deployed"))));
+
+        assertThatThrownBy(() -> adapter.freezeConfirmation(
+                        KEY,
+                        definition(),
+                        new CampaignExperiments.Subject("baseline", new TreeMap<>(), "d".repeat(64)),
+                        List.of("11"),
+                        List.of(new PolicyRef("missing", "1"))))
+                .isInstanceOf(CampaignPlayRefusedException.class);
+
+        verifyNoInteractions(experiments);
+    }
 
     @Test
     void theManifestNamesTheBuildsOfTheRealLaneAndNeverTheSimulators() {
@@ -53,7 +124,8 @@ class ConfirmationFreezeTest {
                 KEY,
                 definition(),
                 new CampaignExperiments.Subject("c-0001", overrides, "e".repeat(64)),
-                List.of("11", "12", "13"));
+                List.of("11", "12", "13"),
+                CRITERION_POLICIES);
 
         var manifest = ArgumentCaptor.forClass(JsonNode.class);
         verify(experiments).freeze(any(), manifest.capture());
@@ -89,7 +161,8 @@ class ConfirmationFreezeTest {
                 KEY,
                 definition(),
                 new CampaignExperiments.Subject("baseline", new TreeMap<>(), "d".repeat(64)),
-                List.of("11"));
+                List.of("11"),
+                CRITERION_POLICIES);
 
         var manifest = ArgumentCaptor.forClass(JsonNode.class);
         verify(experiments).freeze(any(), manifest.capture());
@@ -104,7 +177,8 @@ class ConfirmationFreezeTest {
                         KEY,
                         definition(),
                         new CampaignExperiments.Subject("baseline", new TreeMap<>(), "d".repeat(64)),
-                        List.of("11")))
+                        List.of("11"),
+                        CRITERION_POLICIES))
                 .isInstanceOf(NoRealLaneException.class);
 
         verifyNoInteractions(experiments);

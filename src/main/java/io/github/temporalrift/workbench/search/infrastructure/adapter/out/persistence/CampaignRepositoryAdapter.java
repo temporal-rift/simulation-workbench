@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -53,6 +54,9 @@ class CampaignRepositoryAdapter implements CampaignRepository {
 
     /** Keeps a statement under the driver's bind-parameter limit. */
     private static final int ROWS_PER_STATEMENT = 500;
+
+    /** How many log entries are read at a time when looking for seeds. */
+    private static final int LOG_BATCH = 200;
 
     private static final TypeReference<List<String>> STRINGS = new TypeReference<>() {};
     private static final TypeReference<List<RoundResult.Survivor>> SURVIVOR_LIST = new TypeReference<>() {};
@@ -350,15 +354,25 @@ class CampaignRepositoryAdapter implements CampaignRepository {
 
     @Override
     @Transactional(readOnly = true)
-    public Set<String> loggedSeeds(UUID campaignId) {
-        var seeds = new HashSet<String>();
-        dsl.select(ENTRY)
-                .from(LOG)
-                .where(CAMPAIGN_ID.eq(campaignId))
-                .fetch(row -> row.get(ENTRY))
-                .forEach(text ->
-                        json.read(text, JsonNode.class).path("seeds").forEach(seed -> seeds.add(seed.asString())));
-        return seeds;
+    public Set<String> loggedAmong(UUID campaignId, Collection<String> seeds) {
+        var found = new HashSet<String>();
+        for (var offset = 0; ; offset += LOG_BATCH) {
+            var batch = dsl.select(ENTRY)
+                    .from(LOG)
+                    .where(CAMPAIGN_ID.eq(campaignId))
+                    .orderBy(SEQUENCE.asc())
+                    .limit(LOG_BATCH)
+                    .offset(offset)
+                    .fetch(row -> row.get(ENTRY));
+            batch.forEach(text -> json.read(text, JsonNode.class).path("seeds").forEach(seed -> {
+                if (seeds.contains(seed.asString())) {
+                    found.add(seed.asString());
+                }
+            }));
+            if (batch.size() < LOG_BATCH) {
+                return found;
+            }
+        }
     }
 
     @Override

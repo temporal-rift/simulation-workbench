@@ -338,16 +338,18 @@ class CampaignRepositoryIT {
     }
 
     @Test
-    void theLoggedSeedsAreEverySeedTheLogRecordsWithoutRepeats() {
+    void theLoggedSeedsAmongThoseAskedAreTheOnesTheLogRecords() {
         var campaign = queued("seeds", NOW);
         store(campaign, NOW);
         var id = campaign.campaignId();
-        assertThat(repository.loggedSeeds(id)).isEmpty();
+        var asked = List.of("11", "29", "31", "47");
+        assertThat(repository.loggedAmong(id, asked)).isEmpty();
         repository.appendLog(
                 id, List.of(entry(1, List.of("11", "29")), entry(2, List.of("29", "31")), entry(3, List.of())));
 
-        assertThat(repository.loggedSeeds(id)).containsExactlyInAnyOrder("11", "29", "31");
-        assertThat(repository.loggedSeeds(UUID.randomUUID())).isEmpty();
+        assertThat(repository.loggedAmong(id, asked)).containsExactlyInAnyOrder("11", "29", "31");
+        assertThat(repository.loggedAmong(id, List.of("29", "99"))).containsExactly("29");
+        assertThat(repository.loggedAmong(UUID.randomUUID(), asked)).isEmpty();
     }
 
     private static LogEntry entry(int sequence, List<String> seeds) {

@@ -196,8 +196,9 @@ class CampaignTest {
     @Test
     void aSearchedCampaignStartsConfirmingAndCompletesWithItsEvaluations() {
         var searched = queued.start(NOW).completeSearch(List.of("c-0000"));
-        var run = new Confirmation.Run("baseline", new UUID(2, 1), new UUID(3, 1), null);
-        var confirming = searched.startConfirmation(new Confirmation(100, List.of(run)));
+        var baseline = new Confirmation.Run("baseline", new UUID(2, 1), new UUID(3, 1), null);
+        var candidate = new Confirmation.Run("c-0000", new UUID(2, 2), new UUID(3, 2), null);
+        var confirming = searched.startConfirmation(new Confirmation(100, List.of(baseline, candidate)));
 
         assertThat(confirming.state()).isEqualTo(CampaignState.CONFIRMING);
         assertThat(confirming.confirmation().evaluated()).isFalse();
@@ -205,12 +206,18 @@ class CampaignTest {
 
         var evaluated = confirming
                 .confirmation()
-                .evaluatedAs(java.util.Map.of("baseline", new Confirmation.Evaluation("CONFIRMED", 1.5)));
+                .evaluatedAs(java.util.Map.of(
+                        "baseline", new Confirmation.Evaluation("UNCONFIRMED", 2.5),
+                        "c-0000", new Confirmation.Evaluation("CONFIRMED", 1.5)));
+        assertThatThrownBy(() -> confirming.completeConfirmation(confirming.confirmation(), NOW))
+                .isInstanceOf(IllegalArgumentException.class);
         var completed = confirming.completeConfirmation(evaluated, NOW);
 
         assertThat(completed.state()).isEqualTo(CampaignState.COMPLETED);
         assertThat(completed.finishedAt()).isEqualTo(NOW);
-        assertThat(completed.confirmation().evaluated()).isTrue();
+        assertThat(completed.confirmation().runs())
+                .extracting(run -> run.subject() + ":" + run.evaluation().verdict())
+                .containsExactly("baseline:UNCONFIRMED", "c-0000:CONFIRMED");
     }
 
     @Test
