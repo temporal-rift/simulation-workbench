@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -87,7 +88,7 @@ class StartRunCommandHandlerTest {
         handler.handle(new StartRunUseCase.Command(EXPERIMENT, UUID.randomUUID()));
 
         var concurrency = ArgumentCaptor.forClass(Integer.class);
-        verify(runs, org.mockito.Mockito.times(2)).create(any(), anyString(), any(), concurrency.capture(), any());
+        verify(runs, times(2)).create(any(), anyString(), any(), concurrency.capture(), any());
         assertThat(concurrency.getAllValues()).containsExactly(0, 1);
     }
 

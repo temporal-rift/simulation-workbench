@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -90,7 +91,7 @@ class ConfirmationFreezeTest {
         adapter.freezeConfirmation(KEY, definition(), subject, List.of("11"), CRITERION_POLICIES);
 
         var keys = ArgumentCaptor.forClass(UUID.class);
-        verify(experiments, org.mockito.Mockito.times(2)).freeze(keys.capture(), any());
+        verify(experiments, times(2)).freeze(keys.capture(), any());
         assertThat(keys.getAllValues()).doesNotHaveDuplicates();
     }
 
@@ -99,12 +100,10 @@ class ConfirmationFreezeTest {
         when(lanes.equivalentDeployedLane(5))
                 .thenReturn(Optional.of(new LaneEnvironments.DeployedLane("lane-1", bundle("deployed"))));
 
-        assertThatThrownBy(() -> adapter.freezeConfirmation(
-                        KEY,
-                        definition(),
-                        new CampaignExperiments.Subject("baseline", new TreeMap<>(), "d".repeat(64)),
-                        List.of("11"),
-                        List.of(new PolicyRef("missing", "1"))))
+        var definition = definition();
+        var subject = new CampaignExperiments.Subject("baseline", new TreeMap<>(), "d".repeat(64));
+        var missing = List.of(new PolicyRef("missing", "1"));
+        assertThatThrownBy(() -> adapter.freezeConfirmation(KEY, definition, subject, List.of("11"), missing))
                 .isInstanceOf(CampaignPlayRefusedException.class);
 
         verifyNoInteractions(experiments);
@@ -174,12 +173,10 @@ class ConfirmationFreezeTest {
     void withoutAnEquivalentDeployedLaneNothingIsFrozen() {
         when(lanes.equivalentDeployedLane(5)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> adapter.freezeConfirmation(
-                        KEY,
-                        definition(),
-                        new CampaignExperiments.Subject("baseline", new TreeMap<>(), "d".repeat(64)),
-                        List.of("11"),
-                        CRITERION_POLICIES))
+        var definition = definition();
+        var subject = new CampaignExperiments.Subject("baseline", new TreeMap<>(), "d".repeat(64));
+        assertThatThrownBy(
+                        () -> adapter.freezeConfirmation(KEY, definition, subject, List.of("11"), CRITERION_POLICIES))
                 .isInstanceOf(NoRealLaneException.class);
 
         verifyNoInteractions(experiments);

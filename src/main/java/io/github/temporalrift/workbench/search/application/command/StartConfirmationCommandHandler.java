@@ -89,7 +89,7 @@ public class StartConfirmationCommandHandler implements StartConfirmationUseCase
         confirmation.runs().forEach(run -> {
             try {
                 runs.cancel(run.runId());
-            } catch (RuntimeException e) {
+            } catch (RuntimeException _) {
                 // every other run is still cancelled; a run that stays held plays nothing
             }
         });

@@ -209,7 +209,8 @@ class CampaignTest {
                 .evaluatedAs(java.util.Map.of(
                         "baseline", new Confirmation.Evaluation("UNCONFIRMED", 2.5),
                         "c-0000", new Confirmation.Evaluation("CONFIRMED", 1.5)));
-        assertThatThrownBy(() -> confirming.completeConfirmation(confirming.confirmation(), NOW))
+        var unevaluated = confirming.confirmation();
+        assertThatThrownBy(() -> confirming.completeConfirmation(unevaluated, NOW))
                 .isInstanceOf(IllegalArgumentException.class);
         var completed = confirming.completeConfirmation(evaluated, NOW);
 
@@ -226,7 +227,8 @@ class CampaignTest {
 
         assertThatThrownBy(() -> queued.startConfirmation(confirmation))
                 .isInstanceOf(InvalidCampaignStateException.class);
-        assertThatThrownBy(() -> queued.start(NOW).completeSearch(List.of()).completeConfirmation(confirmation, NOW))
+        var searched = queued.start(NOW).completeSearch(List.of());
+        assertThatThrownBy(() -> searched.completeConfirmation(confirmation, NOW))
                 .isInstanceOf(InvalidCampaignStateException.class);
     }
 

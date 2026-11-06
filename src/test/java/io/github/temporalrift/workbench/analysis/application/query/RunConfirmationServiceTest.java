@@ -93,7 +93,8 @@ class RunConfirmationServiceTest {
                         RUN, "gone", criterion.version(), EvaluationMode.CONFIRMATION)))
                 .thenThrow(new AnalysisResourceNotFoundException("Variant", "gone"));
 
-        assertThatThrownBy(() -> service.confirm(criterion.version(), RUN, "gone"))
+        var version = criterion.version();
+        assertThatThrownBy(() -> service.confirm(version, RUN, "gone"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("gone");
     }
