@@ -1,6 +1,7 @@
 package io.github.temporalrift.workbench.search.application.command;
 
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.HashMap;
 
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignChange;
@@ -44,7 +45,7 @@ class ConfirmationProgress {
     boolean step(StoredCampaign stored) {
         var campaign = stored.campaign();
         var confirmation = campaign.confirmation();
-        Confirmation.Run current = null;
+        var unfinished = new ArrayList<Unfinished>();
         for (var run : confirmation.runs()) {
             var progress = runs.progress(run.runId());
             if (progress.isEmpty()) {
@@ -63,22 +64,23 @@ class ConfirmationProgress {
                 case COMPLETED -> {
                     // played to the end
                 }
-                case ACTIVE, INTERRUPTED -> {
-                    if (current == null) {
-                        current = run;
-                        if (progress.get().phase() == RunPhase.INTERRUPTED) {
-                            runs.resume(run.runId());
-                        }
-                    }
-                }
+                case ACTIVE, INTERRUPTED ->
+                    unfinished.add(new Unfinished(run, progress.get().phase()));
             }
         }
-        if (current != null) {
-            runs.setConcurrency(current.runId(), ONE_CASE_AT_A_TIME);
+        if (!unfinished.isEmpty()) {
+            var current = unfinished.getFirst();
+            if (current.phase() == RunPhase.INTERRUPTED) {
+                runs.resume(current.run().runId());
+            }
+            runs.setConcurrency(current.run().runId(), ONE_CASE_AT_A_TIME);
             return false;
         }
         return complete(stored);
     }
+
+    /** A run that has not finished, and the phase it is in. */
+    private record Unfinished(Confirmation.Run run, RunPhase phase) {}
 
     private boolean complete(StoredCampaign stored) {
         var campaign = stored.campaign();
