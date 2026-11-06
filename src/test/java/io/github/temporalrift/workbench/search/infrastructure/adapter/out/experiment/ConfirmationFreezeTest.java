@@ -176,8 +176,8 @@ class ConfirmationFreezeTest {
 
         var definition = definition();
         var subject = new CampaignExperiments.Subject("baseline", new TreeMap<>(), "d".repeat(64));
-        assertThatThrownBy(
-                        () -> adapter.freezeConfirmation(KEY, definition, subject, List.of("11"), CRITERION_POLICIES))
+        var seeds = List.of("11");
+        assertThatThrownBy(() -> adapter.freezeConfirmation(KEY, definition, subject, seeds, CRITERION_POLICIES))
                 .isInstanceOf(NoRealLaneException.class);
 
         verifyNoInteractions(experiments);
