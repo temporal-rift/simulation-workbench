@@ -56,6 +56,7 @@ public class ExperimentCatalogQueryHandler implements ExperimentCatalog {
                 coordinate.caseKey(),
                 coordinate.seed(),
                 coordinate.variantLabel(),
+                coordinate.tableId(),
                 coordinate.playerCount(),
                 coordinate.seats().stream()
                         .map(seat -> new ExperimentSeat(

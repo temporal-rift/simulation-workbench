@@ -122,8 +122,8 @@ describe('configuring an experiment', () => {
 
     expect(screen.getByText(/in total\. Nothing is frozen yet/)).toHaveTextContent('4 cases in total')
     expect(screen.getByText('7'.repeat(64))).toBeInTheDocument()
-    const breakdown = screen.getByRole('table', { name: 'Cases per variant and player count' })
-    expect(within(breakdown).getByRole('row', { name: /baseline 3 2/ })).toBeInTheDocument()
+    const breakdown = screen.getByRole('table', { name: 'Cases per variant, table and player count' })
+    expect(within(breakdown).getByRole('row', { name: /baseline random 3 2/ })).toBeInTheDocument()
     expect(within(screen.getByRole('table', { name: /Case coordinates/ })).getByText('42')).toBeInTheDocument()
     expect(service.count('POST', EXPERIMENTS)).toBe(0)
   })
@@ -277,12 +277,13 @@ describe('choosing bundles and templates', () => {
       effectiveContentDigest: bundle!.effectiveContentDigest,
     })
     expect(sent).toEqual({
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: 'threshold 20 against 22',
       variants: [variant('baseline', a), variant('candidate', b)],
       services: a!.services,
       contracts: a!.contracts,
       policies: defaults.policies,
+      tables: defaults.tables,
       seeds: defaults.seeds,
       playerCounts: defaults.playerCounts,
       factionSets: defaults.factionSets,

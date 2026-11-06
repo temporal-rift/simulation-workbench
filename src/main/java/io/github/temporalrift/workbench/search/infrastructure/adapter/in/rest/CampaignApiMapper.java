@@ -30,7 +30,7 @@ import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CampaignState;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ConfirmationRun;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.EvaluationVerdict;
-import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Policy;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.PolicyBundleReference;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.SearchAlgorithm;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.SearchAlgorithmRequest;
 
@@ -58,7 +58,7 @@ class CampaignApiMapper {
                 mapper.valueToTree(definition.getBaseline()),
                 definition.getParameterSpaceVersion(),
                 definition.getCriterionVersion(),
-                mapper.valueToTree(definition.getPolicies()),
+                definition.getPolicies() == null ? null : mapper.valueToTree(definition.getPolicies()),
                 playerCounts,
                 definition.getBudgetSeconds(),
                 definition.getParallelism(),
@@ -135,9 +135,14 @@ class CampaignApiMapper {
         return new CampaignEvaluation(EvaluationVerdict.valueOf(evaluation.verdict()), score);
     }
 
-    private List<Policy> policies(tools.jackson.databind.JsonNode node) {
-        var policies = new ArrayList<Policy>();
-        node.forEach(policy -> policies.add(mapper.treeToValue(policy, Policy.class)));
+    private List<PolicyBundleReference> policies(tools.jackson.databind.JsonNode node) {
+        var policies = new ArrayList<PolicyBundleReference>();
+        node.forEach(policy -> {
+            // A campaign stored before seat tables also carries the seat assignment of its policies, never played.
+            var bundle = policy.deepCopy();
+            ((tools.jackson.databind.node.ObjectNode) bundle).remove("seatAssignment");
+            policies.add(mapper.treeToValue(bundle, PolicyBundleReference.class));
+        });
         return policies;
     }
 

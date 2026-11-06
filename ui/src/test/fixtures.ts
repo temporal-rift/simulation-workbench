@@ -12,7 +12,7 @@ const digest = (character: string) => character.repeat(64)
 
 export function manifest(overrides: Partial<ExperimentManifest> = {}): ExperimentManifest {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     name: 'threshold experiment',
     variants: [
       {
@@ -42,13 +42,9 @@ export function manifest(overrides: Partial<ExperimentManifest> = {}): Experimen
         version: 'v1',
         artifactDigest: digest('9'),
         parameters: {},
-        seatAssignment: [
-          { seatIndex: 0, policyId: 'random', policyVersion: 'v1' },
-          { seatIndex: 1, policyId: 'random', policyVersion: 'v1' },
-          { seatIndex: 2, policyId: 'random', policyVersion: 'v1' },
-        ],
       },
     ],
+    tables: [{ id: 'random', seats: everySeat('random', 'v1').slice(0, 3) }],
     seeds: ['42', '43'],
     playerCounts: [3],
     factionSets: [['ERASERS', 'PROPHETS', 'WEAVERS']],
@@ -116,33 +112,39 @@ function everySeat(id: string, version: string) {
 }
 
 export function experimentTemplates(): ExperimentTemplate[] {
-  const defaults = (policies: ExperimentTemplate['defaults']['policies']): ExperimentTemplate['defaults'] => ({
+  const defaults = (
+    policies: ExperimentTemplate['defaults']['policies'],
+    tables: ExperimentTemplate['defaults']['tables'],
+  ): ExperimentTemplate['defaults'] => ({
     seeds: ['42'],
     playerCounts: [3, 4, 5],
     factionSets: EVERY_FACTION_SET.map((set) => [...set]),
     seatRotationMode: 'CYCLIC',
     timingMode: 'LOGICAL',
     policies,
+    tables,
     concurrency: 3,
     caseWallTimeoutSeconds: 3600,
     maxRejectedCandidatesPerWindow: 10,
   })
-  const random = { id: 'random', version: 'v1', artifactDigest: digest('9'), parameters: {}, seatAssignment: everySeat('random', 'v1') }
-  const greedy = { id: 'faction-greedy', version: 'v1', artifactDigest: digest('8'), parameters: {}, seatAssignment: everySeat('faction-greedy', 'v1') }
+  const random = { id: 'random', version: 'v1', artifactDigest: digest('9'), parameters: {} }
+  const randomTable = { id: 'random', seats: everySeat('random', 'v1') }
+  const greedy = { id: 'faction-greedy', version: 'v1', artifactDigest: digest('8'), parameters: {} }
+  const greedyTable = { id: 'faction-greedy', version: 'v1', seats: everySeat('faction-greedy', 'v1') }
   return [
     {
       templateId: 'baseline-policy-comparison',
       name: 'Baseline policy comparison',
       description: 'Compares the random and faction-greedy baseline policies under one bundle.',
       variantCount: 1,
-      defaults: defaults([random, greedy]),
+      defaults: defaults([greedy, random], [{ id: greedyTable.id, seats: greedyTable.seats }, randomTable]),
     },
     {
       templateId: 'rules-variant-comparison',
       name: 'Rules variant comparison',
       description: 'Compares two bundles with the random baseline policy on every seat.',
       variantCount: 2,
-      defaults: defaults([random]),
+      defaults: defaults([random], [randomTable]),
     },
   ]
 }
@@ -162,13 +164,14 @@ export function preview(overrides: Partial<ExperimentPreview> = {}): ExperimentP
     manifestDigest: digest('7'),
     caseCount: 4,
     breakdown: [
-      { variantLabel: 'baseline', playerCount: 3, caseCount: 2 },
-      { variantLabel: 'candidate', playerCount: 3, caseCount: 2 },
+      { variantLabel: 'baseline', tableId: 'random', playerCount: 3, caseCount: 2 },
+      { variantLabel: 'candidate', tableId: 'random', playerCount: 3, caseCount: 2 },
     ],
     cases: [
       {
         caseKey: IDS.caseA,
         variantLabel: 'baseline',
+        tableId: 'random',
         seed: '42',
         playerCount: 3,
         assignments: [
@@ -204,6 +207,7 @@ export function caseDetail(overrides: Partial<Case> = {}): Case {
     caseKey: IDS.caseB,
     runId: IDS.run,
     variantLabel: 'baseline',
+    tableId: 'random',
     seed: '42',
     playerCount: 3,
     assignments: [
@@ -255,7 +259,7 @@ export function metric(overrides: Partial<Metric> = {}): Metric {
 
 export function report(overrides: Partial<Report> = {}): Report {
   return {
-    formatVersion: 2,
+    formatVersion: 3,
     runId: IDS.run,
     manifestDigest: digest('7'),
     analysisVersion: '1',
@@ -265,6 +269,7 @@ export function report(overrides: Partial<Report> = {}): Report {
     cohorts: [
       {
         variantLabel: 'baseline',
+        tableId: 'random',
         policyId: 'random',
         policyVersion: 'v1',
         playerCount: 3,
@@ -291,7 +296,7 @@ export const COMPARISON_ID = '4d5e6f70-8192-4a3b-9c4d-5e6f708192a3'
 
 export function comparison(overrides: Partial<Comparison> = {}): Comparison {
   return {
-    formatVersion: 1,
+    formatVersion: 2,
     comparisonId: COMPARISON_ID,
     baseline: { runId: IDS.run, variantLabel: 'baseline' },
     candidate: { runId: IDS.run, variantLabel: 'candidate' },
@@ -305,6 +310,7 @@ export function comparison(overrides: Partial<Comparison> = {}): Comparison {
     excludedPairs: [],
     cohorts: [
       {
+        tableId: 'random',
         policyId: 'random',
         policyVersion: 'v1',
         playerCount: 3,
@@ -362,6 +368,19 @@ export function criterion(overrides: Partial<BalanceCriterion> = {}): BalanceCri
     digest: digest('5'),
     title: 'Balance criterion version 1',
     analysisVersion: '2',
+    tables: [
+      {
+        id: 'faction-greedy-v1',
+        seats: [
+          { seatIndex: 0, policy: 'faction-greedy-v1' },
+          { seatIndex: 1, policy: 'faction-greedy-v1' },
+          { seatIndex: 2, policy: 'faction-greedy-v1' },
+          { seatIndex: 3, policy: 'faction-greedy-v1' },
+          { seatIndex: 4, policy: 'faction-greedy-v1' },
+        ],
+        phases: ['SCREENING', 'CONFIRMATION'],
+      },
+    ],
     lines: [],
     aggregation: 'WEIGHTED_SUM_OF_SQUARED_DEVIATIONS',
     evidence: {
@@ -381,6 +400,7 @@ export function evaluatedLine(overrides: Partial<EvaluatedLine> = {}): Evaluated
     role: 'SCORED',
     metric: 'faction_win_rate',
     dimensions: { faction: 'ERASERS' },
+    tableId: 'faction-greedy-v1',
     policyId: 'faction-greedy-v1',
     playerCount: 3,
     factionSet: null,

@@ -16,6 +16,7 @@ import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinitio
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException;
 import io.github.temporalrift.workbench.search.domain.campaign.NoRealLaneException;
 import io.github.temporalrift.workbench.search.domain.campaign.PolicyRef;
+import io.github.temporalrift.workbench.search.domain.campaign.SeatTable;
 import io.github.temporalrift.workbench.search.domain.candidate.Candidate;
 import io.github.temporalrift.workbench.search.domain.candidate.ParameterGrid;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignExperiments;
@@ -102,7 +103,8 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
             CampaignDefinition definition,
             int waveIndex,
             List<Candidate> candidates,
-            List<String> seeds) {
+            List<String> seeds,
+            List<SeatTable> tables) {
         experiments.putIfAbsent(
                 idempotencyKey,
                 new Experiment(waveIndex, candidates.stream().map(Candidate::id).toList(), seeds));
@@ -110,8 +112,13 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
     }
 
     @Override
-    public int casesPerGame(CampaignDefinition definition) {
+    public int casesPerGame(CampaignDefinition definition, List<SeatTable> tables) {
         return 10;
+    }
+
+    @Override
+    public List<tools.jackson.databind.JsonNode> bundles(List<PolicyRef> policies) {
+        return List.of();
     }
 
     private int refuseFreezeAt = -1;
@@ -308,6 +315,14 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
     @Override
     public List<PolicyRef> confirmationPolicies(int criterionVersion) {
         return List.of(new PolicyRef("faction-greedy", "1"), new PolicyRef("random", "1"));
+    }
+
+    @Override
+    public List<SeatTable> screeningTables(int criterionVersion) {
+        return List.of(
+                new SeatTable(
+                        "faction-greedy-v1", java.util.Collections.nCopies(5, new PolicyRef("faction-greedy", "1"))),
+                new SeatTable("random-v1", java.util.Collections.nCopies(5, new PolicyRef("random", "1"))));
     }
 
     @Override

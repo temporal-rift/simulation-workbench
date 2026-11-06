@@ -49,6 +49,7 @@ class Mappings {
                 entity.caseKey(),
                 entity.ordinal(),
                 entity.variantLabel(),
+                entity.tableId(),
                 new BundleDigests(entity.rulesDigest(), entity.contentDigest()),
                 new LaneFit(entity.laneFit()),
                 entity.seed(),

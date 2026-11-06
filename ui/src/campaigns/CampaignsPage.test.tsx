@@ -142,7 +142,8 @@ describe('starting a campaign', () => {
       searchMasterSeed: '7',
       confirmationMasterSeed: '9',
     })
-    expect((request.body as { policies: { seatAssignment: unknown[] }[] }).policies[0]!.seatAssignment).toHaveLength(5)
+    // The service resolves the policies from the criterion's tables, so the request names none.
+    expect(request.body).not.toHaveProperty('policies')
     expect(await screen.findByRole('heading', { name: /Campaign threshold-halving-01/ })).toBeInTheDocument()
   })
 

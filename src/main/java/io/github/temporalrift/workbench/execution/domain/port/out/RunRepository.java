@@ -82,6 +82,7 @@ public interface RunRepository {
             UUID caseKey,
             int ordinal,
             String variantLabel,
+            String tableId,
             BundleDigests bundle,
             LaneFit fit,
             String seed,

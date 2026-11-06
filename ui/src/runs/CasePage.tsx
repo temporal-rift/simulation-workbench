@@ -31,7 +31,9 @@ function CaseDetail({ loaded }: { readonly loaded: Case }) {
         {' · '}
         <strong>State: {CASE_STATE_LABELS[loaded.state]}</strong>
       </p>
-      <p>{loaded.playerCount} players</p>
+      <p>
+        {loaded.playerCount} players, table {loaded.tableId}
+      </p>
       <table>
         <caption>Seat assignments</caption>
         <thead>

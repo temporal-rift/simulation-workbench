@@ -36,9 +36,18 @@ final class DraftJson {
             entry.put("version", policy.get("version").asString());
             entry.put("artifactDigest", policy.get("artifactDigest").asString());
             entry.put("parameters", MAPPER.writeValueAsString(policy.get("parameters")));
+        });
+        var tables = draft.putArray("tables");
+        manifest.get("tables").forEach(table -> {
+            var entry = tables.addObject();
+            entry.put("id", table.get("id").asString());
             var seats = entry.putArray("seats");
-            policy.get("seatAssignment")
-                    .forEach(seat -> seats.add(seat.get("seatIndex").asString()));
+            table.get("seats")
+                    .forEach(seat -> seats.add(seat.get("policyId").asString() + "@"
+                            + seat.get("policyVersion").asString()));
+            while (seats.size() < 5) {
+                seats.add("");
+            }
         });
         var seeds = new ArrayList<String>();
         manifest.get("seeds").forEach(seed -> seeds.add(seed.asString()));

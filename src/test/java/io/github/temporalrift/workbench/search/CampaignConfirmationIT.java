@@ -102,7 +102,7 @@ class CampaignConfirmationIT {
 
     @Test
     void aShortListIsConfirmedOnFreshSeedsOnTheDeployedLaneAndTheEvaluationsAreRecorded() {
-        var evaluation = new ScriptedSearch(realEvaluation);
+        var evaluation = new ScriptedSearch(realEvaluation, uniformTable());
         var progress = new CampaignProgress(
                 campaigns, experiments, runs, evaluation, () -> true, new CampaignSettings(50_000), clock);
         var id = searched(progress);
@@ -203,13 +203,6 @@ class CampaignConfirmationIT {
                 .put("version", policy.version())
                 .put("artifactDigest", policy.artifactDigest());
         node.putObject("parameters");
-        var seats = node.putArray("seatAssignment");
-        for (var seat = 0; seat < 5; seat++) {
-            seats.addObject()
-                    .put("seatIndex", seat)
-                    .put("policyId", policy.id())
-                    .put("policyVersion", policy.version());
-        }
         var definition = new CampaignDefinition(
                 "it confirmation",
                 baseline,
@@ -244,11 +237,23 @@ class CampaignConfirmationIT {
                 .isTrue();
     }
 
+    /** One table on which the first catalogued policy plays every seat. */
+    private io.github.temporalrift.workbench.search.domain.campaign.SeatTable uniformTable() {
+        var policy = policies.list().getFirst();
+        var major = policy.version().substring(0, policy.version().indexOf('.'));
+        return new io.github.temporalrift.workbench.search.domain.campaign.SeatTable(
+                "it-table",
+                java.util.Collections.nCopies(
+                        5, new io.github.temporalrift.workbench.search.domain.campaign.PolicyRef(policy.id(), major)));
+    }
+
     /**
      * The real evaluation for confirmation, with a small confirmation sample so the test stays quick, and a scripted
      * screening in which only the first candidate survives.
      */
-    private record ScriptedSearch(CandidateEvaluation real) implements CandidateEvaluation {
+    private record ScriptedSearch(
+            CandidateEvaluation real, io.github.temporalrift.workbench.search.domain.campaign.SeatTable table)
+            implements CandidateEvaluation {
 
         @Override
         public boolean servesCriterion(int criterionVersion) {
@@ -258,6 +263,12 @@ class CampaignConfirmationIT {
         @Override
         public int confirmationSeedCount(int criterionVersion) {
             return CONFIRMATION_SEEDS;
+        }
+
+        @Override
+        public java.util.List<io.github.temporalrift.workbench.search.domain.campaign.SeatTable> screeningTables(
+                int criterionVersion) {
+            return java.util.List.of(table);
         }
 
         @Override

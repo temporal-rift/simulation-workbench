@@ -40,6 +40,7 @@ final class LineExpansion {
             set == null ? "" : set.stream().map(Faction::name).toList().toString());
 
     private static final Comparator<EvaluatedLine> ORDER = Comparator.comparing(EvaluatedLine::lineId)
+            .thenComparing(EvaluatedLine::tableId)
             .thenComparing(EvaluatedLine::policyId)
             .thenComparingInt(EvaluatedLine::playerCount)
             .thenComparing(EvaluatedLine::factionSet, Comparator.nullsFirst(FACTION_SETS))
@@ -50,7 +51,7 @@ final class LineExpansion {
 
     /**
      * @param cases the cases of the one variant being evaluated
-     * @return the evaluated lines ordered by line id, policy, player count, faction set and faction
+     * @return the evaluated lines ordered by line id, table, policy, player count, faction set and faction
      */
     static List<EvaluatedLine> expand(
             BalanceCriterion criterion,
@@ -66,7 +67,7 @@ final class LineExpansion {
         var lines = new ArrayList<EvaluatedLine>();
         for (var line : criterion.lines()) {
             for (var key : keys) {
-                if (covers(line, key)) {
+                if (covers(criterion, line, key)) {
                     var cohort = computations.computeIfAbsent(
                             key,
                             ignored -> CohortComputation.of(key, cases, facts, vocabulary, failureCodes, analysis));
@@ -102,13 +103,14 @@ final class LineExpansion {
                 continue;
             }
             for (var key : keys) {
-                if (covers(line, key)) {
+                if (covers(criterion, line, key)) {
                     var cohort = computations.computeIfAbsent(
                             key,
                             ignored -> CohortComputation.of(key, cases, facts, vocabulary, failureCodes, analysis));
                     for (var measure : measures(line, key, cohort, vocabulary)) {
                         var instance = new LineInstance(
                                 line.id(),
+                                key.tableId(),
                                 PolicyReference.of(key.policyId(), key.policyVersion()),
                                 key.playerCount(),
                                 key.factionSet(),
@@ -121,8 +123,9 @@ final class LineExpansion {
         return deviations;
     }
 
-    private static boolean covers(CriterionLine line, CohortKey key) {
-        return line.policies().contains(PolicyReference.of(key.policyId(), key.policyVersion()))
+    private static boolean covers(BalanceCriterion criterion, CriterionLine line, CohortKey key) {
+        var policy = key.policyId() == null ? null : PolicyReference.of(key.policyId(), key.policyVersion());
+        return line.populations().stream().anyMatch(population -> criterion.covers(population, key.tableId(), policy))
                 && line.playerCounts().contains(key.playerCount())
                 && (line.pooling() == Pooling.POOLED) == (key.factionSet() == null);
     }
@@ -240,6 +243,7 @@ final class LineExpansion {
                 line.role(),
                 line.metric(),
                 dimensions,
+                key.tableId(),
                 PolicyReference.of(key.policyId(), key.policyVersion()),
                 key.playerCount(),
                 key.factionSet(),

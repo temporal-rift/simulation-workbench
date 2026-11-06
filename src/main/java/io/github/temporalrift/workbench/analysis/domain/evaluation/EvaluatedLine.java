@@ -9,7 +9,7 @@ import io.github.temporalrift.workbench.analysis.domain.report.MetricStatus;
 import io.github.temporalrift.workbench.shared.game.Faction;
 
 /**
- * One criterion line expanded for one cohort and dimension value.
+ * One criterion line expanded for one population, cohort and dimension value.
  *
  * @param factionSet null when the cohort pools every faction set
  * @param deviation 0 inside the band, and for a line without data
@@ -20,6 +20,7 @@ public record EvaluatedLine(
         CriterionRole role,
         String metric,
         LineDimensions dimensions,
+        String tableId,
         String policyId,
         int playerCount,
         List<Faction> factionSet,

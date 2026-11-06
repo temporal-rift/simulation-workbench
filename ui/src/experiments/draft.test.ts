@@ -40,14 +40,35 @@ describe('the draft and its manifest', () => {
     expect(sent.caseWallTimeoutSeconds).toBeNaN()
   })
 
-  it('derives each seat from its policy', () => {
+  it('assigns each seat of a table the policy chosen for it, for as many seats as the largest player count', () => {
     const draft = manifestToDraft(manifest())
-    draft.policies[0]!.seats = ['1', '']
+    draft.tables[0]!.seats = ['random@v1', 'faction-greedy@v1', '', '', '']
 
-    expect(draftToManifest(draft).policies[0]!.seatAssignment).toEqual([
-      { seatIndex: 1, policyId: 'random', policyVersion: 'v1' },
-      { seatIndex: undefined, policyId: 'random', policyVersion: 'v1' },
+    expect(draftToManifest(draft).tables[0]!.seats).toEqual([
+      { seatIndex: 0, policyId: 'random', policyVersion: 'v1' },
+      { seatIndex: 1, policyId: 'faction-greedy', policyVersion: 'v1' },
+      { seatIndex: 2, policyId: '', policyVersion: '' },
     ])
+  })
+
+  it('reads a manifest frozen before seat tables as one uniform table for each of its policies', () => {
+    const frozen = {
+      ...manifest(),
+      schemaVersion: 1 as const,
+      tables: undefined,
+      policies: [
+        {
+          id: 'random',
+          version: 'v1',
+          artifactDigest: 'a'.repeat(64),
+          parameters: {},
+          seatAssignment: [{ seatIndex: 0, policyId: 'random', policyVersion: 'v1' }],
+        },
+      ],
+    }
+    const draft = manifestToDraft(frozen as never)
+
+    expect(draft.tables).toEqual([{ id: 'random', seats: ['random@v1', 'random@v1', 'random@v1', '', ''] }])
   })
 
   it('finds the parameters that are not a JSON object before anything is sent', () => {
@@ -120,7 +141,8 @@ describe('the draft and its manifest', () => {
     expect(filled.seeds).toBe('42')
     expect(filled.playerCounts).toEqual([3, 4, 5])
     expect(filled.factionSets).toHaveLength(16)
-    expect(filled.policies).toEqual([{ id: 'random', version: 'v1', artifactDigest: '9'.repeat(64), parameters: '{}', seats: ['0', '1', '2', '3', '4'] }])
+    expect(filled.policies).toEqual([{ id: 'random', version: 'v1', artifactDigest: '9'.repeat(64), parameters: '{}' }])
+    expect(filled.tables).toEqual([{ id: 'random', seats: Array.from({ length: 5 }, () => 'random@v1') }])
     expect([filled.concurrency, filled.caseWallTimeoutSeconds, filled.maxRejectedCandidatesPerWindow]).toEqual(['3', '3600', '10'])
   })
 
@@ -207,7 +229,7 @@ describe('variant overrides', () => {
 
   it('fills variants a draft kept before overrides existed', () => {
     window.sessionStorage.setItem(
-      'workbench.experiment-draft.v2',
+      'workbench.experiment-draft.v3',
       JSON.stringify({ draft: { name: 'old', variants: [{ label: 'baseline', bundle: null }] } }),
     )
 
@@ -237,10 +259,10 @@ describe('draft persistence', () => {
   })
 
   it('ignores storage it cannot read and fills what an older draft lacks', () => {
-    window.sessionStorage.setItem('workbench.experiment-draft.v2', 'not json')
+    window.sessionStorage.setItem('workbench.experiment-draft.v3', 'not json')
     expect(loadDraft()).toBeNull()
 
-    window.sessionStorage.setItem('workbench.experiment-draft.v2', JSON.stringify({ draft: { name: 'old' } }))
+    window.sessionStorage.setItem('workbench.experiment-draft.v3', JSON.stringify({ draft: { name: 'old' } }))
     expect(loadDraft()?.draft).toEqual({ ...emptyDraft(), name: 'old' })
   })
 

@@ -139,8 +139,10 @@ class StartRunCommandHandlerTest {
                 .thenReturn(Optional.of(new ExperimentSource.Snapshot(
                         new ExperimentSource.Plan("digest", "{}", 1, 60, 1, variants),
                         List.of(
-                                new ExperimentSource.PlannedCase(new UUID(2, 2), "42", "baseline", 3, List.of()),
-                                new ExperimentSource.PlannedCase(new UUID(3, 3), "42", "candidate", 3, List.of())))));
+                                new ExperimentSource.PlannedCase(
+                                        new UUID(2, 2), "42", "baseline", "random", 3, List.of()),
+                                new ExperimentSource.PlannedCase(
+                                        new UUID(3, 3), "42", "candidate", "random", 3, List.of())))));
     }
 
     private static ExperimentSource.Variant variant(String label, BundleDigests bundle) {

@@ -2,6 +2,7 @@ package io.github.temporalrift.workbench.experiment.domain.template;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import io.github.temporalrift.workbench.experiment.domain.ExperimentValidator;
@@ -14,7 +15,7 @@ public final class ExperimentTemplates {
     private static final List<String> FACTIONS =
             Arrays.stream(Faction.values()).map(Faction::name).toList();
     private static final List<Integer> PLAYER_COUNTS = List.of(3, 4, 5);
-    private static final List<Integer> EVERY_SEAT = List.of(0, 1, 2, 3, 4);
+    private static final int SEATS = 5;
     private static final String BASELINE_VERSION = "1.0.0";
 
     private ExperimentTemplates() {}
@@ -26,11 +27,11 @@ public final class ExperimentTemplates {
                 new ExperimentTemplate(
                         "baseline-policy-comparison",
                         "Baseline policy comparison",
-                        "Compares the random and faction-greedy baseline policies, each on every seat, under one"
-                                + " rules and content bundle.",
+                        "Compares the faction-greedy and random baseline policies, each on every seat of its own table,"
+                                + " under one rules and content bundle.",
                         1,
                         defaults(
-                                List.of(policy("random", policies), policy("faction-greedy", policies)),
+                                List.of(policy("faction-greedy", policies), policy("random", policies)),
                                 concurrency,
                                 bounds)),
                 new ExperimentTemplate(
@@ -62,6 +63,9 @@ public final class ExperimentTemplates {
 
     private static ExperimentTemplate.Defaults defaults(
             List<ExperimentTemplate.Policy> policies, int concurrency, TemplateBounds bounds) {
+        var tables = policies.stream()
+                .map(policy -> new ExperimentTemplate.Table(policy.id(), Collections.nCopies(SEATS, policy)))
+                .toList();
         return new ExperimentTemplate.Defaults(
                 List.of("42"),
                 PLAYER_COUNTS,
@@ -69,6 +73,7 @@ public final class ExperimentTemplates {
                 "CYCLIC",
                 "LOGICAL",
                 policies,
+                tables,
                 concurrency,
                 bounds.caseWallTimeoutSeconds(),
                 bounds.maxRejectedCandidatesPerWindow());
@@ -78,6 +83,6 @@ public final class ExperimentTemplates {
         var digest = policies.artifactDigest(id, BASELINE_VERSION)
                 .orElseThrow(() -> new IllegalStateException(
                         "baseline policy " + id + "@" + BASELINE_VERSION + " is not defined"));
-        return new ExperimentTemplate.Policy(id, BASELINE_VERSION, digest, EVERY_SEAT);
+        return new ExperimentTemplate.Policy(id, BASELINE_VERSION, digest);
     }
 }

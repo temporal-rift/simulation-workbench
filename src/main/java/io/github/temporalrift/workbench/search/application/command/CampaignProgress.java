@@ -312,14 +312,16 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
     private boolean play(Step step, Ledger ledger, Missing missing) {
         var campaign = step.campaign;
         var definition = campaign.definition();
-        var casesPerGame = experiments.casesPerGame(definition);
+        var tables = evaluation.screeningTables(definition.criterionVersion());
+        var casesPerGame = experiments.casesPerGame(definition, tables);
         // A wave holds at most the configured number of cases: first as many seeds as fit, then as many candidates.
         var seeds = missing.seeds.subList(
                 0, Math.clamp(settings.maxCasesPerWave() / casesPerGame, 1, missing.seeds.size()));
         var perWave = Math.max(1, settings.maxCasesPerWave() / (casesPerGame * seeds.size()));
         var candidates = missing.candidates.stream().limit(perWave).toList();
         var index = ledger.waves().size();
-        var experimentId = experiments.freeze(key(campaign, "experiment", index), definition, index, candidates, seeds);
+        var experimentId =
+                experiments.freeze(key(campaign, "experiment", index), definition, index, candidates, seeds, tables);
         var runId = runs.start(experimentId, key(campaign, "run", index));
         runs.setConcurrency(runId, WaveRuns.HELD);
         var games = new ArrayList<Game>();

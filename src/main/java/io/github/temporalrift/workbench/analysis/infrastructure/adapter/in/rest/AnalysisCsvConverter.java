@@ -53,6 +53,7 @@ public class AnalysisCsvConverter extends AbstractHttpMessageConverter<Object> {
                     "analysisSeed",
                     "complete",
                     "variantLabel",
+                    "tableId",
                     "policyId",
                     "policyVersion",
                     "playerCount",
@@ -88,6 +89,7 @@ public class AnalysisCsvConverter extends AbstractHttpMessageConverter<Object> {
                     "analysisVersion",
                     "analysisSeed",
                     "complete",
+                    "tableId",
                     "policyId",
                     "policyVersion",
                     "playerCount",
@@ -140,6 +142,7 @@ public class AnalysisCsvConverter extends AbstractHttpMessageConverter<Object> {
                         report.getAnalysisSeed(),
                         report.getComplete(),
                         cohort.getVariantLabel(),
+                        cohort.getTableId(),
                         cohort.getPolicyId(),
                         cohort.getPolicyVersion(),
                         cohort.getPlayerCount().getValue()));
@@ -178,6 +181,7 @@ public class AnalysisCsvConverter extends AbstractHttpMessageConverter<Object> {
                         comparison.getAnalysisVersion(),
                         comparison.getAnalysisSeed(),
                         comparison.getComplete(),
+                        cohort.getTableId(),
                         cohort.getPolicyId(),
                         cohort.getPolicyVersion(),
                         cohort.getPlayerCount().getValue()));

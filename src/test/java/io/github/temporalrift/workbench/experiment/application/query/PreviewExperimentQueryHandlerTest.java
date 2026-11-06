@@ -46,15 +46,22 @@ class PreviewExperimentQueryHandlerTest {
         assertThat(preview.breakdown())
                 .extracting(
                         PreviewExperimentUseCase.Breakdown::variantLabel,
+                        PreviewExperimentUseCase.Breakdown::tableId,
                         PreviewExperimentUseCase.Breakdown::playerCount,
                         PreviewExperimentUseCase.Breakdown::caseCount)
                 .containsExactly(
-                        org.assertj.core.groups.Tuple.tuple("baseline", 3, 60),
-                        org.assertj.core.groups.Tuple.tuple("baseline", 4, 40),
-                        org.assertj.core.groups.Tuple.tuple("baseline", 5, 10),
-                        org.assertj.core.groups.Tuple.tuple("candidate", 3, 60),
-                        org.assertj.core.groups.Tuple.tuple("candidate", 4, 40),
-                        org.assertj.core.groups.Tuple.tuple("candidate", 5, 10));
+                        org.assertj.core.groups.Tuple.tuple("baseline", "random", 3, 30),
+                        org.assertj.core.groups.Tuple.tuple("baseline", "random", 4, 20),
+                        org.assertj.core.groups.Tuple.tuple("baseline", "random", 5, 5),
+                        org.assertj.core.groups.Tuple.tuple("baseline", "faction-greedy", 3, 30),
+                        org.assertj.core.groups.Tuple.tuple("baseline", "faction-greedy", 4, 20),
+                        org.assertj.core.groups.Tuple.tuple("baseline", "faction-greedy", 5, 5),
+                        org.assertj.core.groups.Tuple.tuple("candidate", "random", 3, 30),
+                        org.assertj.core.groups.Tuple.tuple("candidate", "random", 4, 20),
+                        org.assertj.core.groups.Tuple.tuple("candidate", "random", 5, 5),
+                        org.assertj.core.groups.Tuple.tuple("candidate", "faction-greedy", 3, 30),
+                        org.assertj.core.groups.Tuple.tuple("candidate", "faction-greedy", 4, 20),
+                        org.assertj.core.groups.Tuple.tuple("candidate", "faction-greedy", 5, 5));
     }
 
     @Test

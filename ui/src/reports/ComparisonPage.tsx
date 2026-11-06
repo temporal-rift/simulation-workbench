@@ -6,7 +6,7 @@ import { ExportButtons } from '../components/ExportButtons'
 import { shortDigest } from '../components/format'
 import { QueryView } from '../components/QueryView'
 import { CASE_STATE_LABELS } from '../runs/runView'
-import { STATUS_LABELS, describeDimensions, describeFactionSet, describeSeat, formatInterval, formatValue } from './metricView'
+import { STATUS_LABELS, describeDimensions, describeFactionSet, describePolicy, describeSeat, formatInterval, formatValue } from './metricView'
 
 export function ComparisonPage() {
   const { comparisonId } = useParams({ from: '/comparisons/$comparisonId' })
@@ -99,7 +99,7 @@ function ComparisonView({ comparison, stale }: { readonly comparison: Comparison
 }
 
 function cohortTitle(cohort: ComparisonCohort): string {
-  return `${cohort.policyId}@${cohort.policyVersion} · ${cohort.playerCount} players · ${describeFactionSet(cohort.factionSet)} · ${describeSeat(cohort.seatIndex)}`
+  return `table ${cohort.tableId} · ${describePolicy(cohort)} · ${cohort.playerCount} players · ${describeFactionSet(cohort.factionSet)} · ${describeSeat(cohort.seatIndex)}`
 }
 
 function CohortSection({ cohort, index }: { readonly cohort: ComparisonCohort; readonly index: number }) {
@@ -168,7 +168,7 @@ function ExcludedSection({ pairs }: { readonly pairs: readonly ExcludedPair[] })
                 <th scope="row">{pair.seed}</th>
                 <td>{pair.playerCount}</td>
                 <td>
-                  {pair.policyId}@{pair.policyVersion}
+                  {pair.tableId} · {describePolicy(pair)}
                 </td>
                 <td>{CASE_STATE_LABELS[pair.baselineState]}</td>
                 <td>{CASE_STATE_LABELS[pair.candidateState]}</td>

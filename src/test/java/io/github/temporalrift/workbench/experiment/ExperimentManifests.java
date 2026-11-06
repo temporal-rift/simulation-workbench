@@ -26,7 +26,7 @@ public final class ExperimentManifests {
 
     public static JsonNode valid(String seed, String rulesDigest, String contentDigest) {
         var manifest = MAPPER.createObjectNode();
-        manifest.put("schemaVersion", 1);
+        manifest.put("schemaVersion", 2);
         manifest.put("name", "threshold experiment");
         var variants = MAPPER.createArrayNode();
         variants.add(variant("baseline", rulesDigest, contentDigest));
@@ -41,6 +41,7 @@ public final class ExperimentManifests {
         policies.add(policy(BaselinePolicies.RANDOM_V1));
         policies.add(policy(BaselinePolicies.FACTION_GREEDY_V1));
         manifest.set("policies", policies);
+        manifest.set("tables", tables(policies, 5));
         var seeds = MAPPER.createArrayNode();
         seeds.add(seed);
         manifest.set("seeds", seeds);
@@ -70,6 +71,7 @@ public final class ExperimentManifests {
         var policies = MAPPER.createArrayNode();
         policies.add(policy(BaselinePolicies.RANDOM_V1));
         manifest.set("policies", policies);
+        manifest.set("tables", tables(policies, 5));
         return manifest;
     }
 
@@ -87,6 +89,7 @@ public final class ExperimentManifests {
         var counts = MAPPER.createArrayNode();
         counts.add(4);
         manifest.set("playerCounts", counts);
+        manifest.set("tables", tables((ArrayNode) manifest.get("policies"), 4));
         var sets = MAPPER.createArrayNode();
         combinations(FACTIONS, 4).forEach(combo -> sets.add(set(combo)));
         manifest.set("factionSets", sets);
@@ -101,6 +104,7 @@ public final class ExperimentManifests {
         policies.add(policy(BaselinePolicies.RANDOM_V1));
         policies.add(policy(BaselinePolicies.FACTION_GREEDY_V1));
         manifest.set("policies", policies);
+        manifest.set("tables", tables(policies, 5));
         var counts = MAPPER.createArrayNode();
         List.of(3, 4, 5).forEach(counts::add);
         manifest.set("playerCounts", counts);
@@ -124,6 +128,7 @@ public final class ExperimentManifests {
         var counts = MAPPER.createArrayNode();
         counts.add(3);
         manifest.set("playerCounts", counts);
+        manifest.set("tables", tables((ArrayNode) manifest.get("policies"), 3));
         var sets = MAPPER.createArrayNode();
         sets.add(set(List.of("ERASERS", "PROPHETS", "WEAVERS")));
         manifest.set("factionSets", sets);
@@ -215,13 +220,23 @@ public final class ExperimentManifests {
         policy.put("version", version);
         policy.put("artifactDigest", bundle.artifactDigest());
         policy.set("parameters", MAPPER.createObjectNode());
-        var seats = MAPPER.createArrayNode();
-        var seat = MAPPER.createObjectNode();
-        seat.put("seatIndex", 0);
-        seat.put("policyId", id);
-        seat.put("policyVersion", version);
-        seats.add(seat);
-        policy.set("seatAssignment", seats);
         return policy;
+    }
+
+    /** A uniform table of each policy, named for it, with a policy on each of the seats. */
+    private static ArrayNode tables(ArrayNode policies, int seatCount) {
+        var tables = MAPPER.createArrayNode();
+        policies.forEach(policy -> {
+            var table = tables.addObject();
+            table.put("id", policy.get("id").asString());
+            var seats = table.putArray("seats");
+            for (var index = 0; index < seatCount; index++) {
+                seats.addObject()
+                        .put("seatIndex", index)
+                        .put("policyId", policy.get("id").asString())
+                        .put("policyVersion", policy.get("version").asString());
+            }
+        });
+        return tables;
     }
 }

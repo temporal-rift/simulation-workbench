@@ -9,7 +9,9 @@ import io.github.temporalrift.workbench.shared.game.Faction;
 
 /**
  * The gameplay-affecting definition a frozen manifest fixes: everything other modules compare or run, without the
- * designer-facing metadata. Pinned services, contracts and policies keep the shape they were frozen with.
+ * designer-facing metadata. Pinned services, contracts and policy bundles keep the shape they were frozen with.
+ * {@code tables} are the seat tables with a policy on every seat index; an experiment frozen before seat tables read
+ * as one uniform table per policy entry, named for the policy.
  */
 public record FrozenManifest(
         Map<String, Object> services,
@@ -20,6 +22,7 @@ public record FrozenManifest(
         List<String> seeds,
         List<Integer> playerCounts,
         List<Map<String, Object>> policies,
+        List<Map<String, Object>> tables,
         List<List<Faction>> factionSets,
         List<ExperimentVariant> variants) {
 
@@ -29,6 +32,7 @@ public record FrozenManifest(
         seeds = List.copyOf(seeds);
         playerCounts = List.copyOf(playerCounts);
         policies = policies.stream().map(FrozenManifest::readOnly).toList();
+        tables = tables.stream().map(FrozenManifest::readOnly).toList();
         factionSets = factionSets.stream().map(List::copyOf).toList();
         variants = List.copyOf(variants);
     }

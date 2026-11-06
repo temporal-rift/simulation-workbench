@@ -101,6 +101,7 @@ final class AnalysisApiMapper {
         var key = cohort.key();
         return new Cohort()
                 .variantLabel(key.variantLabel())
+                .tableId(key.tableId())
                 .policyId(key.policyId())
                 .policyVersion(key.policyVersion())
                 .playerCount(Cohort.PlayerCountEnum.fromValue(key.playerCount()))
@@ -131,6 +132,7 @@ final class AnalysisApiMapper {
             io.github.temporalrift.workbench.analysis.domain.comparison.ComparisonCohort cohort) {
         var key = cohort.key();
         return new ComparisonCohort()
+                .tableId(key.tableId())
                 .policyId(key.policyId())
                 .policyVersion(key.policyVersion())
                 .playerCount(ComparisonCohort.PlayerCountEnum.fromValue(key.playerCount()))
@@ -165,9 +167,10 @@ final class AnalysisApiMapper {
         }
         return new ExcludedPair()
                 .seed(pair.seed())
+                .tableId(pair.tableId())
                 .playerCount(ExcludedPair.PlayerCountEnum.fromValue(pair.playerCount()))
-                .policyId(pair.policyId())
-                .policyVersion(pair.policyVersion())
+                .policyId(pair.policy() == null ? null : pair.policy().id())
+                .policyVersion(pair.policy() == null ? null : pair.policy().version())
                 .seats(seats)
                 .baselineCaseId(pair.baselineCaseId())
                 .candidateCaseId(pair.candidateCaseId())

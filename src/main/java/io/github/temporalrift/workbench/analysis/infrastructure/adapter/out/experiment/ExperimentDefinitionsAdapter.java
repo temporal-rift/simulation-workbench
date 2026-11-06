@@ -15,8 +15,8 @@ import io.github.temporalrift.workbench.shared.text.JsonText;
 
 /**
  * Reads frozen manifests through the experiment module's public API and renders each gameplay-affecting definition
- * as canonical text. Sets (seeds, player counts, faction sets, policies) compare regardless of order, and object
- * keys are sorted, so only a change of meaning makes two definitions differ.
+ * as canonical text. Sets (seeds, player counts, faction sets, policies, tables) compare regardless of order, and
+ * object keys are sorted, so only a change of meaning makes two definitions differ.
  */
 public class ExperimentDefinitionsAdapter implements ExperimentDefinitions {
 
@@ -42,6 +42,7 @@ public class ExperimentDefinitionsAdapter implements ExperimentDefinitions {
         gameplay.put("seeds", canonicalSet(manifest.seeds()));
         gameplay.put("playerCounts", canonicalSet(manifest.playerCounts()));
         gameplay.put("policies", canonicalSet(manifest.policies()));
+        gameplay.put("tables", canonicalSet(manifest.tables()));
         var factionSets = new ArrayList<String>();
         manifest.factionSets().forEach(set -> factionSets.add(canonicalSet(set)));
         gameplay.put("factionSets", sortedList(factionSets));

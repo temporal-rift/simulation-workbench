@@ -4,9 +4,12 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -23,7 +26,10 @@ import io.github.temporalrift.workbench.analysis.domain.criterion.Band;
 import io.github.temporalrift.workbench.analysis.domain.criterion.CriterionDimension;
 import io.github.temporalrift.workbench.analysis.domain.criterion.CriterionEvidence;
 import io.github.temporalrift.workbench.analysis.domain.criterion.CriterionLine;
+import io.github.temporalrift.workbench.analysis.domain.criterion.CriterionPhase;
+import io.github.temporalrift.workbench.analysis.domain.criterion.CriterionPopulation;
 import io.github.temporalrift.workbench.analysis.domain.criterion.CriterionRole;
+import io.github.temporalrift.workbench.analysis.domain.criterion.CriterionTable;
 import io.github.temporalrift.workbench.analysis.domain.criterion.Derivation;
 import io.github.temporalrift.workbench.analysis.domain.criterion.Pooling;
 import io.github.temporalrift.workbench.analysis.domain.port.out.BalanceCriteria;
@@ -99,10 +105,50 @@ public class ConfiguredBalanceCriteria implements BalanceCriteria {
                 digestOf(document),
                 document.get("title").asString(),
                 document.get("analysisVersion").asString(),
+                tables(document),
                 StreamSupport.stream(document.get("lines").spliterator(), false)
                         .map(ConfiguredBalanceCriteria::line)
                         .toList(),
                 evidence(document.get("evidence")));
+    }
+
+    /**
+     * The tables a document declares. A document that declares none, as version 1 does, plays one uniform table per
+     * policy its lines name, called by the policy reference and played in both phases.
+     */
+    private static List<CriterionTable> tables(JsonNode document) {
+        var declared = document.get("tables");
+        if (declared != null && !declared.isNull()) {
+            return StreamSupport.stream(declared.spliterator(), false)
+                    .map(node -> new CriterionTable(
+                            node.get("id").asString(),
+                            strings(node.get("seats")),
+                            strings(node.get("phases")).stream()
+                                    .map(CriterionPhase::valueOf)
+                                    .collect(Collectors.toSet())))
+                    .toList();
+        }
+        var policies = new LinkedHashSet<String>();
+        document.get("lines").forEach(line -> policies.addAll(strings(line.get("policies"))));
+        return policies.stream()
+                .map(policy ->
+                        new CriterionTable(policy, Collections.nCopies(5, policy), Set.of(CriterionPhase.values())))
+                .toList();
+    }
+
+    /** The populations a line declares, or one population per policy it names, on the table called by the policy. */
+    private static List<CriterionPopulation> populations(JsonNode node) {
+        var declared = node.get("populations");
+        if (declared != null && !declared.isNull()) {
+            return StreamSupport.stream(declared.spliterator(), false)
+                    .map(population -> new CriterionPopulation(
+                            population.get("table").asString(),
+                            population.get("policy").asString()))
+                    .toList();
+        }
+        return strings(node.get("policies")).stream()
+                .map(policy -> new CriterionPopulation(policy, policy))
+                .toList();
     }
 
     private static CriterionLine line(JsonNode node) {
@@ -113,7 +159,7 @@ public class ConfiguredBalanceCriteria implements BalanceCriteria {
                 node.get("metric").asString(),
                 Derivation.valueOf(node.get("derivation").asString()),
                 dimension(node.get("dimension")),
-                strings(node.get("policies")),
+                populations(node),
                 StreamSupport.stream(node.get("playerCounts").spliterator(), false)
                         .map(JsonNode::asInt)
                         .toList(),
