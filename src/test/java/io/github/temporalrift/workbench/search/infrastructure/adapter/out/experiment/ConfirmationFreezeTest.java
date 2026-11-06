@@ -183,6 +183,16 @@ class ConfirmationFreezeTest {
         verifyNoInteractions(experiments);
     }
 
+    @Test
+    void versionsAreOrderedByTheirNumbersAndMissingPartsCountAsZero() {
+        assertThat(CampaignExperimentsAdapter.compareVersions("1.10.0", "1.2.0"))
+                .isPositive();
+        assertThat(CampaignExperimentsAdapter.compareVersions("1.2.0", "1.10.0"))
+                .isNegative();
+        assertThat(CampaignExperimentsAdapter.compareVersions("1.0", "1.0.0")).isZero();
+        assertThat(CampaignExperimentsAdapter.compareVersions("1.0.1", "1.0")).isPositive();
+    }
+
     private static CampaignDefinition definition() {
         var baseline = MAPPER.createObjectNode();
         baseline.putObject("rulesArtifact").put("digest", "d".repeat(64));

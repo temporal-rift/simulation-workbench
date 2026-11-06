@@ -1,6 +1,7 @@
 package io.github.temporalrift.workbench.search.infrastructure.adapter.out.experiment;
 
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -252,16 +253,15 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
 
     /** Orders dotted versions by their numbers, so 1.10.0 is newer than 1.2.0. */
     static int compareVersions(String left, String right) {
-        var a = left.split("[.]");
-        var b = right.split("[.]");
-        for (var index = 0; index < Math.max(a.length, b.length); index++) {
-            var x = index < a.length ? Integer.parseInt(a[index]) : 0;
-            var y = index < b.length ? Integer.parseInt(b[index]) : 0;
-            if (x != y) {
-                return Integer.compare(x, y);
-            }
-        }
-        return 0;
+        var a = numbers(left);
+        var b = numbers(right);
+        var length = Math.max(a.length, b.length);
+        return Arrays.compare(Arrays.copyOf(a, length), Arrays.copyOf(b, length));
+    }
+
+    /** The numbers of a dotted version, as in {@code [1, 10, 0]} for {@code 1.10.0}. */
+    private static int[] numbers(String version) {
+        return Arrays.stream(version.split("[.]")).mapToInt(Integer::parseInt).toArray();
     }
 
     private static List<JsonNode> definitionPolicies(CampaignDefinition definition) {
