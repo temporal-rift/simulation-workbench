@@ -13,6 +13,14 @@ public interface RunStarter {
     UUID start(UUID experimentId, UUID idempotencyKey);
 
     /**
+     * Creates a queued run like {@link #start}, but with no case allowed to execute until {@link #setConcurrency}
+     * raises the bound, so it cannot play a case before its caller says so.
+     *
+     * @throws ExecutionRefusedException when some variant has no configured lane that fits it
+     */
+    UUID startHeld(UUID experimentId, UUID idempotencyKey);
+
+    /**
      * Resumes an interrupted run, which makes no progress until it is.
      *
      * @throws ExecutionRefusedException when the run is not interrupted or does not exist

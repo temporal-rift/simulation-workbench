@@ -142,6 +142,14 @@ final class InMemoryCampaigns implements CampaignRepository {
     }
 
     @Override
+    public synchronized java.util.Set<String> loggedAmong(UUID campaignId, java.util.Collection<String> seeds) {
+        return log.getOrDefault(campaignId, new TreeMap<>()).values().stream()
+                .flatMap(entry -> entry.seeds().stream())
+                .filter(seeds::contains)
+                .collect(java.util.stream.Collectors.toSet());
+    }
+
+    @Override
     public synchronized Page<LogEntry> log(UUID campaignId, int limit, int offset) {
         return Page.of(
                 new ArrayList<>(log.getOrDefault(campaignId, new TreeMap<>()).values()), limit, offset);

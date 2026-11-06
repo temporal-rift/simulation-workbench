@@ -12,6 +12,7 @@ import {
   pauseCampaignCommand,
   resumeCampaignCommand,
   setCampaignParallelismCommand,
+  startConfirmationCommand,
   useApiClient,
 } from '../api/queries'
 import { useIntentKeys } from '../api/useIntentKeys'
@@ -29,6 +30,7 @@ import {
   REASON_LABELS,
   formatSeconds,
   isCancellable,
+  isConfirmable,
   isLive,
   isPausable,
   isResumable,
@@ -36,8 +38,9 @@ import {
   isWholeNumber,
   remainingSeconds,
 } from './campaignView'
+import { ConfirmationReport } from './ConfirmationReport'
 
-type Command = 'pause' | 'resume' | 'cancel'
+type Command = 'pause' | 'resume' | 'cancel' | 'confirm'
 
 const FIDELITY_NOT_ESTABLISHED = 'FIDELITY_NOT_ESTABLISHED'
 
@@ -70,14 +73,31 @@ function CampaignDetail({ campaign, stale }: { readonly campaign: Campaign; read
     mutationFn: (name: Command) => {
       const key = keys.keyFor(name)
       const id = campaign.campaignId
-      return name === 'pause' ? pauseCampaignCommand(client, id, key) : name === 'resume' ? resumeCampaignCommand(client, id, key) : cancelCampaignCommand(client, id, key)
+      switch (name) {
+        case 'pause':
+          return pauseCampaignCommand(client, id, key)
+        case 'resume':
+          return resumeCampaignCommand(client, id, key)
+        case 'confirm':
+          return startConfirmationCommand(client, id, key)
+        default:
+          return cancelCampaignCommand(client, id, key)
+      }
     },
     onMutate: () => setRefused(false),
     onSuccess: (updated, name) => {
       keys.clear(name)
       queryClient.setQueryData(['campaign', campaign.campaignId], updated)
       void queryClient.invalidateQueries({ queryKey: ['campaigns'] })
-      announce(name === 'pause' ? 'Campaign paused.' : name === 'resume' ? 'Campaign resumed.' : 'Campaign cancelled.')
+      announce(
+        name === 'pause'
+          ? 'Campaign paused.'
+          : name === 'resume'
+            ? 'Campaign resumed.'
+            : name === 'confirm'
+              ? 'Confirmation started.'
+              : 'Campaign cancelled.',
+      )
     },
     onError: async (error, name) => {
       if (error instanceof ApiProblemError && error.isCode('INVALID_CAMPAIGN_STATE')) {
@@ -165,6 +185,11 @@ function CampaignDetail({ campaign, stale }: { readonly campaign: Campaign; read
             Resume campaign
           </ScopedButton>
         )}
+        {isConfirmable(campaign.state) && (
+          <ScopedButton scope={WRITE_SCOPE} aria-busy={command.isPending} disabled={command.isPending} onAction={() => command.mutate('confirm')}>
+            Confirm short list
+          </ScopedButton>
+        )}
         {isCancellable(campaign.state) && (
           <ScopedButton scope={WRITE_SCOPE} aria-busy={command.isPending} disabled={command.isPending} onAction={() => command.mutate('cancel')}>
             Cancel campaign
@@ -183,6 +208,7 @@ function CampaignDetail({ campaign, stale }: { readonly campaign: Campaign; read
         />
       )}
       {isTuneable(campaign.state) && <ParallelismControl campaign={campaign} />}
+      <ConfirmationReport campaign={campaign} />
     </>
   )
 }

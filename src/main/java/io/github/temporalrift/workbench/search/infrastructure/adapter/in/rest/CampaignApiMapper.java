@@ -12,10 +12,12 @@ import java.util.stream.Collectors;
 import tools.jackson.databind.ObjectMapper;
 
 import io.github.temporalrift.workbench.search.application.port.in.CreateCampaignUseCase;
+import io.github.temporalrift.workbench.search.domain.campaign.Confirmation;
 import io.github.temporalrift.workbench.search.domain.log.LogEntry;
 import io.github.temporalrift.workbench.shared.Page;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Campaign;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CampaignBaseline;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CampaignConfirmation;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CampaignDefinition;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CampaignEvaluation;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CampaignFailure;
@@ -26,6 +28,7 @@ import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CampaignLogPage;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CampaignLogReason;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CampaignState;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ConfirmationRun;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.EvaluationVerdict;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Policy;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.SearchAlgorithm;
@@ -104,11 +107,32 @@ class CampaignApiMapper {
                 Math.toIntExact(campaign.spentSeconds()),
                 campaign.round(),
                 campaign.shortList(),
-                null,
+                confirmation(campaign.confirmation()),
                 failure == null ? null : new CampaignFailure(failure.code(), failure.message()),
                 utc(campaign.createdAt()),
                 utc(campaign.startedAt()),
                 utc(campaign.finishedAt()));
+    }
+
+    private static CampaignConfirmation confirmation(Confirmation confirmation) {
+        if (confirmation == null) {
+            return null;
+        }
+        return new CampaignConfirmation(
+                confirmation.seedCount(),
+                confirmation.runs().stream()
+                        .map(run -> new ConfirmationRun(
+                                run.subject(), run.experimentId(), run.runId(), evaluation(run.evaluation())))
+                        .toList(),
+                false);
+    }
+
+    private static CampaignEvaluation evaluation(Confirmation.Evaluation evaluation) {
+        if (evaluation == null) {
+            return null;
+        }
+        var score = evaluation.score() == null ? null : BigDecimal.valueOf(evaluation.score());
+        return new CampaignEvaluation(EvaluationVerdict.valueOf(evaluation.verdict()), score);
     }
 
     private List<Policy> policies(tools.jackson.databind.JsonNode node) {

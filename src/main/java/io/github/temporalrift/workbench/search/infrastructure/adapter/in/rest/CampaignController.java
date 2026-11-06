@@ -10,7 +10,7 @@ import io.github.temporalrift.workbench.search.application.port.in.CreateCampaig
 import io.github.temporalrift.workbench.search.application.port.in.GetCampaignLogUseCase;
 import io.github.temporalrift.workbench.search.application.port.in.GetCampaignUseCase;
 import io.github.temporalrift.workbench.search.application.port.in.ListCampaignsUseCase;
-import io.github.temporalrift.workbench.search.domain.campaign.ConfirmationNotAvailableException;
+import io.github.temporalrift.workbench.search.application.port.in.StartConfirmationUseCase;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.CampaignsApi;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Campaign;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CampaignDefinition;
@@ -25,6 +25,7 @@ class CampaignController implements CampaignsApi {
     private final GetCampaignUseCase getCampaign;
     private final ListCampaignsUseCase listCampaigns;
     private final GetCampaignLogUseCase getLog;
+    private final StartConfirmationUseCase startConfirmation;
     private final CampaignControls controls;
     private final CampaignApiMapper mapper;
 
@@ -33,12 +34,14 @@ class CampaignController implements CampaignsApi {
             GetCampaignUseCase getCampaign,
             ListCampaignsUseCase listCampaigns,
             GetCampaignLogUseCase getLog,
+            StartConfirmationUseCase startConfirmation,
             CampaignControls controls,
             ObjectMapper objectMapper) {
         this.createCampaign = createCampaign;
         this.getCampaign = getCampaign;
         this.listCampaigns = listCampaigns;
         this.getLog = getLog;
+        this.startConfirmation = startConfirmation;
         this.controls = controls;
         this.mapper = new CampaignApiMapper(objectMapper);
     }
@@ -88,6 +91,6 @@ class CampaignController implements CampaignsApi {
 
     @Override
     public ResponseEntity<Campaign> startConfirmation(UUID campaignId, UUID idempotencyKey) {
-        throw new ConfirmationNotAvailableException();
+        return ResponseEntity.accepted().body(mapper.toApi(startConfirmation.handle(campaignId)));
     }
 }

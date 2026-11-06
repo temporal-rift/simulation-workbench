@@ -193,6 +193,56 @@ class CampaignTest {
         assertThat(new SearchAlgorithm(32, 3, 3, 1).seedsInRound(2)).isEqualTo(27);
     }
 
+    @Test
+    void aSearchedCampaignStartsConfirmingAndCompletesWithItsEvaluations() {
+        var searched = queued.start(NOW).completeSearch(List.of("c-0000"));
+        var baseline = new Confirmation.Run("baseline", new UUID(2, 1), new UUID(3, 1), null);
+        var candidate = new Confirmation.Run("c-0000", new UUID(2, 2), new UUID(3, 2), null);
+        var confirming = searched.startConfirmation(new Confirmation(100, List.of(baseline, candidate)));
+
+        assertThat(confirming.state()).isEqualTo(CampaignState.CONFIRMING);
+        assertThat(confirming.confirmation().evaluated()).isFalse();
+        assertThat(confirming.finishedAt()).isNull();
+
+        var evaluated = confirming
+                .confirmation()
+                .evaluatedAs(java.util.Map.of(
+                        "baseline", new Confirmation.Evaluation("UNCONFIRMED", 2.5),
+                        "c-0000", new Confirmation.Evaluation("CONFIRMED", 1.5)));
+        var unevaluated = confirming.confirmation();
+        assertThatThrownBy(() -> confirming.completeConfirmation(unevaluated, NOW))
+                .isInstanceOf(IllegalArgumentException.class);
+        var completed = confirming.completeConfirmation(evaluated, NOW);
+
+        assertThat(completed.state()).isEqualTo(CampaignState.COMPLETED);
+        assertThat(completed.finishedAt()).isEqualTo(NOW);
+        assertThat(completed.confirmation().runs())
+                .extracting(run -> run.subject() + ":" + run.evaluation().verdict())
+                .containsExactly("baseline:UNCONFIRMED", "c-0000:CONFIRMED");
+    }
+
+    @Test
+    void confirmationStartsOnlyFromACompletedSearchAndCompletesOnlyWhenConfirming() {
+        var confirmation = new Confirmation(100, List.of());
+
+        assertThatThrownBy(() -> queued.startConfirmation(confirmation))
+                .isInstanceOf(InvalidCampaignStateException.class);
+        var searched = queued.start(NOW).completeSearch(List.of());
+        assertThatThrownBy(() -> searched.completeConfirmation(confirmation, NOW))
+                .isInstanceOf(InvalidCampaignStateException.class);
+    }
+
+    @Test
+    void aConfirmingCampaignCanBeCancelledOrFailedButNotPaused() {
+        var confirming =
+                queued.start(NOW).completeSearch(List.of("c-0000")).startConfirmation(new Confirmation(100, List.of()));
+
+        assertThat(confirming.cancel(NOW).state()).isEqualTo(CampaignState.CANCELLED);
+        assertThat(confirming.fail(new CampaignFailure("X", "failed"), NOW).state())
+                .isEqualTo(CampaignState.FAILED);
+        assertThatThrownBy(confirming::pause).isInstanceOf(InvalidCampaignStateException.class);
+    }
+
     private Campaign in(CampaignState state) {
         var running = queued.start(NOW);
         return switch (state) {
@@ -205,6 +255,7 @@ class CampaignTest {
                         0,
                         0,
                         List.of(),
+                        null,
                         null,
                         NOW,
                         NOW,

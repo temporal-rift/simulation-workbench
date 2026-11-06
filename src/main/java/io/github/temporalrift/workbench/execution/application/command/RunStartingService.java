@@ -33,10 +33,17 @@ public class RunStartingService implements RunStarter {
 
     @Override
     public UUID start(UUID experimentId, UUID idempotencyKey) {
+        return start(new StartRunUseCase.Command(experimentId, idempotencyKey));
+    }
+
+    @Override
+    public UUID startHeld(UUID experimentId, UUID idempotencyKey) {
+        return start(new StartRunUseCase.Command(experimentId, idempotencyKey, 0));
+    }
+
+    private UUID start(StartRunUseCase.Command command) {
         try {
-            return startRun.handle(new StartRunUseCase.Command(experimentId, idempotencyKey))
-                    .run()
-                    .runId();
+            return startRun.handle(command).run().runId();
         } catch (UnservedVariantsException e) {
             throw new ExecutionRefusedException(e.getMessage(), e);
         }

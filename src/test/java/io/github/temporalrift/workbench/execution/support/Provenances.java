@@ -14,7 +14,23 @@ public final class Provenances {
     private static final BundleProvenance.ServiceBuild BUILD =
             new BundleProvenance.ServiceBuild("sha256:" + "e".repeat(64), "abc1234");
 
+    /** The image a deployed lane runs: a container image never shares a digest with the simulator's embedded jars. */
+    private static final BundleProvenance.ServiceBuild DEPLOYED_BUILD =
+            new BundleProvenance.ServiceBuild("sha256:" + "f".repeat(64), "abc1234");
+
     private Provenances() {}
+
+    /** The provenance of a deployed lane serving {@code bundle}: the simulator's, on container images of its own. */
+    public static BundleProvenance deployed(BundleDigests bundle) {
+        var simulated = of(bundle);
+        return new BundleProvenance(
+                simulated.rulesArtifact(),
+                simulated.contentArtifact(),
+                DEPLOYED_BUILD,
+                DEPLOYED_BUILD,
+                DEPLOYED_BUILD,
+                simulated.contracts());
+    }
 
     public static BundleProvenance sample() {
         return sample("c".repeat(64));

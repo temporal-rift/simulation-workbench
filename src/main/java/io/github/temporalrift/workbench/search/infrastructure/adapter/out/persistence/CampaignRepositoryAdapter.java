@@ -5,8 +5,11 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 
@@ -29,6 +32,7 @@ import io.github.temporalrift.workbench.search.domain.campaign.CampaignCreation;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignFailure;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
+import io.github.temporalrift.workbench.search.domain.campaign.Confirmation;
 import io.github.temporalrift.workbench.search.domain.campaign.StoredCampaign;
 import io.github.temporalrift.workbench.search.domain.candidate.Candidate;
 import io.github.temporalrift.workbench.search.domain.log.LogEntry;
@@ -51,6 +55,9 @@ class CampaignRepositoryAdapter implements CampaignRepository {
     /** Keeps a statement under the driver's bind-parameter limit. */
     private static final int ROWS_PER_STATEMENT = 500;
 
+    /** How many log entries are read at a time when looking for seeds. */
+    private static final int LOG_BATCH = 200;
+
     private static final TypeReference<List<String>> STRINGS = new TypeReference<>() {};
     private static final TypeReference<List<RoundResult.Survivor>> SURVIVOR_LIST = new TypeReference<>() {};
     private static final TypeReference<List<Integer>> INTEGERS = new TypeReference<>() {};
@@ -67,6 +74,7 @@ class CampaignRepositoryAdapter implements CampaignRepository {
     private static final Field<Long> SPENT = DSL.field(DSL.name("spent_seconds"), SQLDataType.BIGINT);
     private static final Field<Integer> ROUND = DSL.field(DSL.name("round"), SQLDataType.INTEGER);
     private static final Field<String> SHORT_LIST = DSL.field(DSL.name("short_list_json"), SQLDataType.CLOB);
+    private static final Field<String> CONFIRMATION = DSL.field(DSL.name("confirmation_json"), SQLDataType.CLOB);
     private static final Field<String> FAILURE_CODE = DSL.field(DSL.name("failure_code"), SQLDataType.VARCHAR);
     private static final Field<String> FAILURE_MESSAGE = DSL.field(DSL.name("failure_message"), SQLDataType.CLOB);
     private static final Field<OffsetDateTime> ACCRUED =
@@ -201,6 +209,7 @@ class CampaignRepositoryAdapter implements CampaignRepository {
                         .set(SPENT, next.spentSeconds())
                         .set(ROUND, next.round())
                         .set(SHORT_LIST, json.write(next.shortList()))
+                        .set(CONFIRMATION, next.confirmation() == null ? null : json.write(next.confirmation()))
                         .set(FAILURE_CODE, failure == null ? null : failure.code())
                         .set(FAILURE_MESSAGE, failure == null ? null : failure.message())
                         .set(ACCRUED, utc(accruedAt))
@@ -344,6 +353,29 @@ class CampaignRepositoryAdapter implements CampaignRepository {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Set<String> loggedAmong(UUID campaignId, Collection<String> seeds) {
+        var found = new HashSet<String>();
+        for (var offset = 0; ; offset += LOG_BATCH) {
+            var batch = dsl.select(ENTRY)
+                    .from(LOG)
+                    .where(CAMPAIGN_ID.eq(campaignId))
+                    .orderBy(SEQUENCE.asc())
+                    .limit(LOG_BATCH)
+                    .offset(offset)
+                    .fetch(row -> row.get(ENTRY));
+            batch.forEach(text -> json.read(text, JsonNode.class).path("seeds").forEach(seed -> {
+                if (seeds.contains(seed.asString())) {
+                    found.add(seed.asString());
+                }
+            }));
+            if (batch.size() < LOG_BATCH) {
+                return found;
+            }
+        }
+    }
+
+    @Override
     @Transactional
     public void appendLog(UUID campaignId, List<LogEntry> entries) {
         writeLog(campaignId, entries);
@@ -381,6 +413,7 @@ class CampaignRepositoryAdapter implements CampaignRepository {
                 row.get(SPENT),
                 row.get(ROUND),
                 json.read(row.get(SHORT_LIST), STRINGS),
+                row.get(CONFIRMATION) == null ? null : json.read(row.get(CONFIRMATION), Confirmation.class),
                 code == null ? null : new CampaignFailure(code, row.get(FAILURE_MESSAGE)),
                 instant(row.get(CREATED)),
                 instant(row.get(STARTED)),

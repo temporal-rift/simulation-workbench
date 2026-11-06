@@ -18,6 +18,9 @@ describe('describeFailure', () => {
     ['INSUFFICIENT_SCOPE', 403, 'You cannot freeze the experiment: your session lacks the simulation:write scope.'],
     ['INVALID_COMPARISON', 400, 'Could not freeze the experiment: the request was refused. the service said so'],
     ['INVALID_REPLAY_PERSPECTIVE', 400, 'Could not freeze the experiment: that perspective or seat cannot be shown for this case. the service said so'],
+    ['SEED_OVERLAP', 409, 'Could not freeze the experiment: a confirmation seed was already played by the search, and confirming on it would confirm the same luck. the service said so'],
+    ['NO_REAL_LANE', 503, 'Could not freeze the experiment: no deployed lane is build-equivalent to the simulator, so there is nowhere real to confirm. the service said so'],
+    ['CAMPAIGN_PLAY_REFUSED', 422, 'Could not freeze the experiment: the experiment it needs was refused. the service said so'],
     ['INCOMPARABLE_RUNS', 422, 'Could not freeze the experiment: the request was refused. the service said so'],
   ])('words %s plainly', (code, status, expected) => {
     expect(describeFailure(problem(status, code), context)).toBe(expected)

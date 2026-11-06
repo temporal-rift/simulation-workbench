@@ -34,6 +34,15 @@ public class CampaignRunsAdapter implements CampaignRuns {
     }
 
     @Override
+    public UUID startHeld(UUID experimentId, UUID idempotencyKey) {
+        try {
+            return runs.startHeld(experimentId, idempotencyKey);
+        } catch (ExecutionRefusedException e) {
+            throw new CampaignPlayRefusedException(e.getMessage(), e);
+        }
+    }
+
+    @Override
     public Optional<RunProgress> progress(UUID runId) {
         return catalog.run(runId).map(run -> new RunProgress(run.phase(), run.failureMessage()));
     }

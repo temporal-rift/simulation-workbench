@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -73,6 +74,22 @@ class StartRunCommandHandlerTest {
                 .containsExactly(
                         tuple("baseline", BASELINE, Provenances.fitOf(BASELINE)),
                         tuple("candidate", CANDIDATE, Provenances.fitOf(CANDIDATE)));
+    }
+
+    @Test
+    void aRunStartedHeldAllowsNoCaseUntilItsConcurrencyIsRaised() {
+        givenExperiment(List.of(variant("baseline", BASELINE), variant("candidate", CANDIDATE)));
+        when(lanes.servedBundles()).thenReturn(served(BASELINE, CANDIDATE));
+        when(runs.create(any(), anyString(), any(), anyInt(), any())).thenReturn(new RunCreation.Created());
+        when(runs.find(any())).thenAnswer(call -> Optional.of(Run.queued(call.getArgument(0), EXPERIMENT, NOW)));
+        when(runs.counts(any())).thenReturn(new CaseCounts(2, 2, 0, 0, 0, 0));
+
+        handler.handle(new StartRunUseCase.Command(EXPERIMENT, UUID.randomUUID(), 0));
+        handler.handle(new StartRunUseCase.Command(EXPERIMENT, UUID.randomUUID()));
+
+        var concurrency = ArgumentCaptor.forClass(Integer.class);
+        verify(runs, times(2)).create(any(), anyString(), any(), concurrency.capture(), any());
+        assertThat(concurrency.getAllValues()).containsExactly(0, 1);
     }
 
     @Test

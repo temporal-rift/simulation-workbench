@@ -693,7 +693,7 @@ same definition always gives the same log.
 | `GET /api/v1/campaigns`, `.../{id}`, `.../{id}/log` | The campaigns newest first, one campaign with the active time it has spent so far, and its decision log in sequence order |
 | `POST .../{id}/pause`, `.../resume`, `.../cancel` | Pause a queued or running campaign, resume a paused one, cancel one that is not over; repeating the one that already holds changes nothing, any other state answers `409 INVALID_CAMPAIGN_STATE` |
 | `PUT .../{id}/parallelism` | Changes the games played at once; the next game claimed obeys it and games in flight finish |
-| `POST .../{id}/confirmation` | Answers `501 NOT_IMPLEMENTED` until confirmation on fresh seeds is built |
+| `POST .../{id}/confirmation` | From `SEARCH_COMPLETED` only (`simulation:write`, `Idempotency-Key`): freezes and starts the confirmation of the short list on fresh seeds (see "Confirming the short list") and answers `202` with the campaign now `CONFIRMING`; `409 SEED_OVERLAP` when a confirmation seed is already in the log, `409 INVALID_CAMPAIGN_STATE` from any other state, `503 NO_REAL_LANE` when no deployed lane can play it, `422 CAMPAIGN_PLAY_REFUSED` when the experiment is refused |
 
 **The search.** Round 0 generates `initialCandidates`: the baseline, its one-step perturbations in key order, then a Latin
 hypercube sample of the parameter space. Every candidate plays the same seeds, which derive from `searchMasterSeed` and
@@ -723,6 +723,23 @@ of at most `workbench.search.max-cases-per-wave` cases (default `50000`), and
 `workbench.search.case-wall-timeout-seconds` and `workbench.search.max-rejected-candidates-per-window` bound the cases of
 its experiments.
 
+**Confirming the short list.** Each short-listed candidate is the best of many noisy candidates measured on the same
+search seeds, so its score is optimistically biased. `startConfirmation` therefore confirms on fresh seeds through the
+real services. It derives the criterion's `confirmationMinimumSeeds` (100 for version 1) from `confirmationMasterSeed`
+alone, compares them with every seed in the campaign log and, on any overlap, answers `409 SEED_OVERLAP` having frozen
+nothing. Otherwise it freezes one experiment for the unmodified baseline and one for each short-listed candidate, each over
+those seeds, the full case matrix of the campaign's player counts and the policies the criterion names (the sample is
+only satisfied when each played it, whatever policies the search used), and starts one run per experiment. The experiments pin the builds of the deployed lane that is build-equivalent to the simulator (the lane the
+fidelity record is made against); a container image never shares a digest with the simulator's embedded jars, so no case
+can be claimed by the simulator. The runs play one after another and each plays one case at a time, so a campaign never has
+more than one confirmation case executing, whatever its `parallelism`; the worker releases the next run when the one
+before it is complete and resumes an interrupted run after a restart. When every run is complete the worker evaluates each
+in `CONFIRMATION` mode, records the verdict and score of each on the campaign (`confirmation.runs[].evaluation`) in one
+write and moves the campaign to `COMPLETED`, whatever the verdicts. A confirmation run that fails or is cancelled fails the
+campaign (`CONFIRMATION_RUN_FAILED`) and stops the other runs; cancelling a `CONFIRMING` campaign cancels its runs and keeps
+the cases already played. A request that crashed after freezing is repeated into the same experiments and runs, because
+their idempotency keys derive from the campaign and the subject.
+
 **Defaults of a new campaign.** A definition may leave out `parameterSpaceVersion`, `criterionVersion`,
 `searchMasterSeed`, `confirmationMasterSeed` and `algorithm` (or any field of it). The service resolves each one when it
 accepts the campaign and freezes the result, so the campaign always reports the values it ran with: the algorithm comes
@@ -735,7 +752,11 @@ bundle, policy, player counts, budget in hours and games at once; the versions, 
 collapsed **Advanced** block and are sent only when filled in), and a campaign page with its state, active time spent
 and remaining, round, short list, the algorithm, versions and master seeds it runs with, and paged decision log, pause,
 resume and cancel enabled only where the state accepts them, a control for the games at once, and the fidelity gate
-shown as the reason a campaign has not started.
+shown as the reason a campaign has not started. Once the search is complete the page offers **Confirm short list**; from
+then on it shows a **Confirmation** report for the baseline and for each short-listed candidate: the progress of the run
+while it plays, then the verdict, every criterion line's verdict, the confirmation sample (seeds played against seeds
+required and whether the full case matrix was played) and the statement that bot results say nothing about balance among
+human players.
 
 ## Timing metrics
 

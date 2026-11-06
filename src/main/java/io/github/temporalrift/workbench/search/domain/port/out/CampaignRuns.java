@@ -16,6 +16,14 @@ public interface CampaignRuns {
      */
     UUID start(UUID experimentId, UUID idempotencyKey);
 
+    /**
+     * Creates the run of a frozen experiment like {@link #start}, with no case allowed to execute until
+     * {@link #setConcurrency} raises the bound.
+     *
+     * @throws io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException when no lane fits
+     */
+    UUID startHeld(UUID experimentId, UUID idempotencyKey);
+
     /** Where the run stands, or empty for an unknown run. */
     Optional<RunProgress> progress(UUID runId);
 

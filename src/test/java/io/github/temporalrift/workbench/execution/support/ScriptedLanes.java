@@ -20,6 +20,7 @@ import io.github.temporalrift.workbench.execution.domain.port.out.EvidenceLedger
 import io.github.temporalrift.workbench.execution.domain.port.out.GameSession;
 import io.github.temporalrift.workbench.execution.domain.port.out.LaneProvider;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
+import io.github.temporalrift.workbench.execution.domain.run.BundleProvenance;
 import io.github.temporalrift.workbench.execution.domain.run.FinalScore;
 import io.github.temporalrift.workbench.execution.domain.run.LaneFit;
 import io.github.temporalrift.workbench.execution.domain.run.LaneProfile;
@@ -117,6 +118,21 @@ public class ScriptedLanes implements LaneProvider {
         roster = prepared();
     }
 
+    /**
+     * Like {@link #serve}, but every lane after {@code lane-0} runs container images of its own, as a deployed lane
+     * does, so a case that pins its builds fits only the deployed lanes and never the simulator.
+     */
+    public synchronized void serveDeployedOnOwnImages(BundleDigests... bundles) {
+        deployedOnOwnImages = true;
+        serve(bundles);
+    }
+
+    private boolean deployedOnOwnImages;
+
+    private BundleProvenance provenanceOf(int index, BundleDigests bundle) {
+        return deployedOnOwnImages && index > 0 ? Provenances.deployed(bundle) : Provenances.of(bundle);
+    }
+
     /** Gives every idle lane a reset hook, as a redeployment would, and the scheduler that runs its recoveries. */
     public synchronized void resetThrough(LaneResets hook, ResetScheduler resetScheduler) {
         resets = hook;
@@ -146,6 +162,7 @@ public class ScriptedLanes implements LaneProvider {
 
     public synchronized void reset() {
         script = DECISIVE;
+        deployedOnOwnImages = false;
         laneBundles = defaultBundles;
         resets = null;
         scheduler = NEVER;
@@ -182,8 +199,9 @@ public class ScriptedLanes implements LaneProvider {
 
     @Override
     public List<ServedBundle> servedBundles() {
-        return ServedBundle.counted(laneBundles.stream()
-                .map(bundle -> ServedBundle.ofLane(bundle, Provenances.of(bundle)))
+        return ServedBundle.counted(IntStream.range(0, laneBundles.size())
+                .mapToObj(index ->
+                        ServedBundle.ofLane(laneBundles.get(index), provenanceOf(index, laneBundles.get(index))))
                 .toList());
     }
 
@@ -197,12 +215,13 @@ public class ScriptedLanes implements LaneProvider {
         var bundles = laneBundles;
         for (var index = 0; index < bundles.size(); index++) {
             var bundle = bundles.get(index);
+            var provenance = provenanceOf(index, bundle);
             profiles.put(
                     laneId(index),
                     new LaneProfile(
-                            Provenances.fitOf(bundle),
+                            LaneFit.of(bundle.contentDigest(), provenance),
                             bundle,
-                            Provenances.of(bundle),
+                            provenance,
                             index == 0 ? LaneProfile.Kind.IN_PROCESS : LaneProfile.Kind.DEPLOYED,
                             BOT_PLAYER_IDS));
         }
@@ -234,8 +253,10 @@ public class ScriptedLanes implements LaneProvider {
     private LaneRoster roster() {
         var hook = resets;
         var members = IntStream.range(0, laneBundles.size())
-                .mapToObj(index ->
-                        new LaneRoster.Member(laneId(index), Provenances.fitOf(laneBundles.get(index)), hook != null))
+                .mapToObj(index -> new LaneRoster.Member(
+                        laneId(index),
+                        LaneFit.of(laneBundles.get(index).contentDigest(), provenanceOf(index, laneBundles.get(index))),
+                        hook != null))
                 .toList();
         return new LaneRoster(
                 members,

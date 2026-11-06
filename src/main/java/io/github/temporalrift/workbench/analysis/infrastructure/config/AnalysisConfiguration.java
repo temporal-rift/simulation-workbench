@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Configuration;
 import tools.jackson.databind.ObjectMapper;
 
 import io.github.temporalrift.workbench.analysis.CandidateScreening;
+import io.github.temporalrift.workbench.analysis.RunConfirmation;
 import io.github.temporalrift.workbench.analysis.application.command.CreateComparisonCommandHandler;
 import io.github.temporalrift.workbench.analysis.application.port.in.CreateComparisonUseCase;
 import io.github.temporalrift.workbench.analysis.application.port.in.GetComparisonUseCase;
@@ -24,6 +25,7 @@ import io.github.temporalrift.workbench.analysis.application.query.GetComparison
 import io.github.temporalrift.workbench.analysis.application.query.GetRunEvaluationQueryHandler;
 import io.github.temporalrift.workbench.analysis.application.query.GetRunReportQueryHandler;
 import io.github.temporalrift.workbench.analysis.application.query.ListComparisonsQueryHandler;
+import io.github.temporalrift.workbench.analysis.application.query.RunConfirmationService;
 import io.github.temporalrift.workbench.analysis.domain.port.out.BalanceCriteria;
 import io.github.temporalrift.workbench.analysis.domain.port.out.CaseFactsRepository;
 import io.github.temporalrift.workbench.analysis.domain.port.out.ComparisonRepository;
@@ -113,6 +115,11 @@ public class AnalysisConfiguration {
     @Bean
     CandidateScreening candidateScreening(RunSource runs, BalanceCriteria criteria, CaseFactsProvider facts) {
         return new CandidateScreeningService(runs, criteria, facts);
+    }
+
+    @Bean
+    RunConfirmation runConfirmation(GetRunEvaluationUseCase evaluations, BalanceCriteria criteria) {
+        return new RunConfirmationService(evaluations, criteria);
     }
 
     @Bean

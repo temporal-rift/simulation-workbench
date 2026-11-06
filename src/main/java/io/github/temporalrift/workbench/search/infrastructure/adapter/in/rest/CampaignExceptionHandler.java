@@ -10,10 +10,12 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignIdempotencyConflictException;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignNotFoundException;
-import io.github.temporalrift.workbench.search.domain.campaign.ConfirmationNotAvailableException;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignException;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignReason;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignStateException;
+import io.github.temporalrift.workbench.search.domain.campaign.NoRealLaneException;
+import io.github.temporalrift.workbench.search.domain.campaign.SeedOverlapException;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.ProblemDetails;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.RestAdviceOrder;
 
@@ -59,9 +61,19 @@ class CampaignExceptionHandler {
         return invalid(ex.getMessage(), null, InvalidCampaignReason.INVALID_VALUE);
     }
 
-    @ExceptionHandler(ConfirmationNotAvailableException.class)
-    ProblemDetail handleConfirmationNotAvailable(ConfirmationNotAvailableException ex) {
-        return ProblemDetails.of(HttpStatus.NOT_IMPLEMENTED, ex.getMessage(), "NOT_IMPLEMENTED");
+    @ExceptionHandler(SeedOverlapException.class)
+    ProblemDetail handleSeedOverlap(SeedOverlapException ex) {
+        return ProblemDetails.of(HttpStatus.CONFLICT, ex.getMessage(), "SEED_OVERLAP");
+    }
+
+    @ExceptionHandler(CampaignPlayRefusedException.class)
+    ProblemDetail handlePlayRefused(CampaignPlayRefusedException ex) {
+        return ProblemDetails.of(HttpStatus.UNPROCESSABLE_CONTENT, ex.getMessage(), "CAMPAIGN_PLAY_REFUSED");
+    }
+
+    @ExceptionHandler(NoRealLaneException.class)
+    ProblemDetail handleNoRealLane(NoRealLaneException ex) {
+        return ProblemDetails.of(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage(), "NO_REAL_LANE");
     }
 
     private static ProblemDetail invalid(String detail, String field, InvalidCampaignReason reason) {

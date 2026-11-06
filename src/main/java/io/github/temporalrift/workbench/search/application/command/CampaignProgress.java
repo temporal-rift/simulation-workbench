@@ -52,6 +52,9 @@ import io.github.temporalrift.workbench.search.domain.wave.Wave;
  *   <li>The search ends with a short list when the budget is spent, when nothing survives, or when the short list has
  *       stayed the same through two rounds.
  * </ol>
+ *
+ * A campaign whose search is complete and whose short list is being confirmed on fresh seeds is stepped by
+ * {@link ConfirmationProgress}.
  */
 public class CampaignProgress implements AdvanceCampaignsUseCase {
 
@@ -77,6 +80,7 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
     private final CampaignSettings settings;
     private final Clock clock;
     private final WaveRuns waveRuns;
+    private final ConfirmationProgress confirmation;
 
     public CampaignProgress(
             CampaignRepository campaigns,
@@ -94,12 +98,14 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
         this.settings = settings;
         this.clock = clock;
         this.waveRuns = new WaveRuns(campaigns, runs);
+        this.confirmation = new ConfirmationProgress(campaigns, runs, evaluation, waveRuns, clock);
     }
 
     @Override
     public boolean advance() {
         var advanced = false;
-        for (var stored : campaigns.inStates(List.of(CampaignState.QUEUED, CampaignState.RUNNING))) {
+        for (var stored :
+                campaigns.inStates(List.of(CampaignState.QUEUED, CampaignState.RUNNING, CampaignState.CONFIRMING))) {
             try {
                 advanced |= step(stored);
             } catch (RuntimeException e) {
@@ -135,6 +141,7 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
         return switch (stored.campaign().state()) {
             case QUEUED -> queued(stored);
             case RUNNING -> running(stored);
+            case CONFIRMING -> confirmation.step(stored);
             default -> false;
         };
     }
