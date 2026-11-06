@@ -18,6 +18,7 @@ import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignChange;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignFailure;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
 import io.github.temporalrift.workbench.search.domain.campaign.Confirmation;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignStateException;
@@ -107,6 +108,27 @@ class ConfirmationTest {
 
         assertThat(confirming.state()).isEqualTo(CampaignState.CONFIRMING);
         assertThat(concurrencies(confirming.confirmation().runs())).containsExactly(1, 0);
+    }
+
+    @Test
+    void aSetupThatFailsAfterStartingARunLeavesItHeldAndARetryReusesIt() {
+        var id = searched("c-0000", "c-0001");
+        play.refuseConfirmationFreezeNumber(2);
+
+        assertThatThrownBy(() -> start.handle(id)).isInstanceOf(CampaignPlayRefusedException.class);
+
+        assertThat(state(id)).isEqualTo(CampaignState.SEARCH_COMPLETED);
+        var orphan = play.runIds().getFirst();
+        assertThat(play.concurrencyOf(orphan))
+                .as("nothing plays before the campaign records the runs")
+                .isZero();
+        assertThat(play.playAllowed()).isFalse();
+
+        var confirming = start.handle(id);
+
+        assertThat(confirming.confirmation().runs().getFirst().runId()).isEqualTo(orphan);
+        assertThat(play.runIds()).hasSize(3);
+        assertThat(concurrencies(confirming.confirmation().runs())).containsExactly(1, 0, 0);
     }
 
     @Test

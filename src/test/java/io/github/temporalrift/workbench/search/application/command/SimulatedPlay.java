@@ -114,6 +114,15 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
         return 10;
     }
 
+    private int refuseFreezeAt = -1;
+    private int freezes;
+
+    /** Makes the n-th confirmation experiment frozen from now on (counting from 1) be refused, once. */
+    synchronized void refuseConfirmationFreezeNumber(int number) {
+        this.freezes = 0;
+        this.refuseFreezeAt = number;
+    }
+
     private boolean realLane = true;
 
     /** Whether a deployed lane that is build-equivalent to the simulator exists to confirm on. */
@@ -130,6 +139,9 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
             List<PolicyRef> policies) {
         if (!realLane) {
             throw new NoRealLaneException("no deployed lane is build-equivalent to the simulator");
+        }
+        if (++freezes == refuseFreezeAt) {
+            throw new CampaignPlayRefusedException("the experiment is refused");
         }
         experiments.putIfAbsent(idempotencyKey, new Experiment(-1, List.of(subject.label()), seeds));
         return idempotencyKey;
