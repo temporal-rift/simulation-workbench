@@ -103,7 +103,8 @@ class ConfirmationFreezeTest {
         var definition = definition();
         var subject = new CampaignExperiments.Subject("baseline", new TreeMap<>(), "d".repeat(64));
         var missing = List.of(new PolicyRef("missing", "1"));
-        assertThatThrownBy(() -> adapter.freezeConfirmation(KEY, definition, subject, List.of("11"), missing))
+        var seeds = List.of("11");
+        assertThatThrownBy(() -> adapter.freezeConfirmation(KEY, definition, subject, seeds, missing))
                 .isInstanceOf(CampaignPlayRefusedException.class);
 
         verifyNoInteractions(experiments);
