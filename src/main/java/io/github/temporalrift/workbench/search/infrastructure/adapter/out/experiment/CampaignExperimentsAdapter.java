@@ -40,6 +40,7 @@ import io.github.temporalrift.workbench.shared.game.FactionSets;
  */
 public class CampaignExperimentsAdapter implements CampaignExperiments {
 
+    private static final String VERSION_FIELD = "version";
     private static final int SCHEMA_VERSION = 2;
 
     /** A wave plays one case at a time until the campaign allows more, so the frozen bounds never depend on it. */
@@ -198,7 +199,7 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
                             "No policy bundle serves " + wanted.id() + " version " + wanted.majorVersion()));
             var node = mapper.createObjectNode();
             node.put("id", bundle.id());
-            node.put("version", bundle.version());
+            node.put(VERSION_FIELD, bundle.version());
             node.put("artifactDigest", bundle.artifactDigest());
             node.putObject("parameters");
             nodes.add(node);
@@ -220,9 +221,9 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
                 .policies()
                 .valueStream()
                 .filter(bundle -> policy.id().equals(bundle.path("id").asString())
-                        && bundle.path("version").asString().startsWith(policy.majorVersion() + "."))
+                        && bundle.path(VERSION_FIELD).asString().startsWith(policy.majorVersion() + "."))
                 .max(Comparator.comparing(
-                        (JsonNode bundle) -> bundle.path("version").asString(),
+                        (JsonNode bundle) -> bundle.path(VERSION_FIELD).asString(),
                         CampaignExperimentsAdapter::compareVersions))
                 .orElseThrow(() -> new CampaignPlayRefusedException(
                         "The campaign has no policy bundle for " + policy.id() + " version " + policy.majorVersion()));
@@ -238,7 +239,9 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
                 // A campaign stored before seat tables also carries a seat assignment, which was never played.
                 ((ObjectNode) copy).remove("seatAssignment");
                 used.putIfAbsent(
-                        copy.path("id").asString() + "@" + copy.path("version").asString(), copy);
+                        copy.path("id").asString() + "@"
+                                + copy.path(VERSION_FIELD).asString(),
+                        copy);
             }
         }
         return List.copyOf(used.values());
@@ -260,7 +263,7 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
                 seats.addObject()
                         .put("seatIndex", seat)
                         .put("policyId", bundle.path("id").asString())
-                        .put("policyVersion", bundle.path("version").asString());
+                        .put("policyVersion", bundle.path(VERSION_FIELD).asString());
             }
             nodes.add(node);
         }
@@ -279,7 +282,7 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
                 seats.addObject()
                         .put("seatIndex", seat)
                         .put("policyId", bundle.path("id").asString())
-                        .put("policyVersion", bundle.path("version").asString());
+                        .put("policyVersion", bundle.path(VERSION_FIELD).asString());
             }
             nodes.add(node);
         }

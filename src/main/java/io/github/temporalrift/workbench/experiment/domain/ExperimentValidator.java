@@ -228,13 +228,17 @@ public final class ExperimentValidator {
         var refs = new ArrayList<PolicyRef>();
         var seen = new HashSet<PolicyRef>();
         for (int i = 0; i < policies.size(); i++) {
-            var ref = validatePolicy(policies.get(i), "policies[" + i + "]", verifier, legacy);
+            var ref = validatePolicy(policies.get(i), policyPath(i), verifier, legacy);
             if (!legacy && !seen.add(ref)) {
-                throw invalid("policies[" + i + "]", "policies must be unique by id and version: " + ref.key());
+                throw invalid(policyPath(i), "policies must be unique by id and version: " + ref.key());
             }
             refs.add(ref);
         }
         return List.copyOf(refs);
+    }
+
+    private static String policyPath(int index) {
+        return "policies[" + index + "]";
     }
 
     private static PolicyRef validatePolicy(
@@ -283,7 +287,7 @@ public final class ExperimentValidator {
         for (int i = 0; i < policies.size(); i++) {
             if (!used.contains(policies.get(i))) {
                 throw invalid(
-                        "policies[" + i + "]",
+                        policyPath(i),
                         "no table seat plays policy " + policies.get(i).key());
             }
         }
@@ -306,22 +310,12 @@ public final class ExperimentValidator {
         var bySeat = new PolicyRef[seatCount];
         for (int j = 0; j < seats.size(); j++) {
             var seatPath = path + ".seats[" + j + "]";
-            var seat = seats.get(j);
-            var index = seat != null && seat.isObject() ? seat.get(SEAT_INDEX_FIELD) : null;
-            if (index == null || !index.isInt() || index.asInt() < 0 || index.asInt() >= seatCount) {
-                throw invalid(seatPath, "seatIndex must be an integer from 0 to " + (seatCount - 1));
+            var index = seatIndex(seats.get(j), seatPath, seatCount);
+            if (bySeat[index] != null) {
+                throw invalid(seatPath, "seat " + index + " repeats");
             }
-            if (bySeat[index.asInt()] != null) {
-                throw invalid(seatPath, "seat " + index.asInt() + " repeats");
-            }
-            var policyId = text(seat, POLICY_ID_FIELD);
-            var policyVersion = text(seat, POLICY_VERSION_FIELD);
-            var policy = policyId == null || policyVersion == null ? null : new PolicyRef(policyId, policyVersion);
-            if (policy == null || !known.contains(policy)) {
-                throw invalid(seatPath + "." + POLICY_ID_FIELD, "seat names no policies entry");
-            }
-            bySeat[index.asInt()] = policy;
-            used.add(policy);
+            bySeat[index] = seatPolicy(seats.get(j), seatPath, known);
+            used.add(bySeat[index]);
         }
         for (int seat = 0; seat < seatCount; seat++) {
             if (bySeat[seat] == null) {
@@ -329,6 +323,24 @@ public final class ExperimentValidator {
             }
         }
         return new TableRef(id, List.of(bySeat));
+    }
+
+    private static int seatIndex(JsonNode seat, String seatPath, int seatCount) {
+        var index = seat != null && seat.isObject() ? seat.get(SEAT_INDEX_FIELD) : null;
+        if (index == null || !index.isInt() || index.asInt() < 0 || index.asInt() >= seatCount) {
+            throw invalid(seatPath, "seatIndex must be an integer from 0 to " + (seatCount - 1));
+        }
+        return index.asInt();
+    }
+
+    private static PolicyRef seatPolicy(JsonNode seat, String seatPath, Set<PolicyRef> known) {
+        var policyId = text(seat, POLICY_ID_FIELD);
+        var policyVersion = text(seat, POLICY_VERSION_FIELD);
+        var policy = policyId == null || policyVersion == null ? null : new PolicyRef(policyId, policyVersion);
+        if (policy == null || !known.contains(policy)) {
+            throw invalid(seatPath + "." + POLICY_ID_FIELD, "seat names no policies entry");
+        }
+        return policy;
     }
 
     private static void verifyReference(

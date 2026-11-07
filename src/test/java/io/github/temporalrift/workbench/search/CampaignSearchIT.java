@@ -144,7 +144,6 @@ class CampaignSearchIT {
                 campaigns, experiments, runs, scriptedCriterion(), () -> true, new CampaignSettings(50_000), clock);
     }
 
-    /** Only the first candidate survives: the others fail the gate, so the short list is the same every round. */
     /** One table on which the first catalogued policy plays every seat. */
     private io.github.temporalrift.workbench.search.domain.campaign.SeatTable uniformTable() {
         var policy = policies.list().getFirst();
@@ -155,6 +154,7 @@ class CampaignSearchIT {
                         5, new io.github.temporalrift.workbench.search.domain.campaign.PolicyRef(policy.id(), major)));
     }
 
+    /** Only the first candidate survives: the others fail the gate, so the short list is the same every round. */
     private CandidateEvaluation scriptedCriterion() {
         return new CandidateEvaluation() {
             @Override

@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import io.github.temporalrift.workbench.analysis.RunConfirmation;
 import io.github.temporalrift.workbench.analysis.application.port.in.GetRunEvaluationUseCase;
+import io.github.temporalrift.workbench.analysis.domain.criterion.BalanceCriterion;
 import io.github.temporalrift.workbench.analysis.domain.criterion.CriterionPhase;
 import io.github.temporalrift.workbench.analysis.domain.evaluation.EvaluationMode;
 import io.github.temporalrift.workbench.analysis.domain.port.out.BalanceCriteria;
@@ -22,36 +23,30 @@ public class RunConfirmationService implements RunConfirmation {
 
     @Override
     public int minimumSeeds(int criterionVersion) {
-        return criteria.find(criterionVersion)
-                .orElseThrow(() -> new IllegalArgumentException("Unknown balance criterion " + criterionVersion))
-                .evidence()
-                .confirmationMinimumSeeds();
+        return criterion(criterionVersion).evidence().confirmationMinimumSeeds();
     }
 
     @Override
     public List<PolicyRef> policies(int criterionVersion) {
-        return criteria
-                .find(criterionVersion)
-                .orElseThrow(() -> new IllegalArgumentException("Unknown balance criterion " + criterionVersion))
-                .policies()
-                .stream()
+        return criterion(criterionVersion).policies().stream()
                 .map(RunConfirmationService::parse)
                 .toList();
     }
 
     @Override
     public List<Table> screeningTables(int criterionVersion) {
-        return criteria
-                .find(criterionVersion)
-                .orElseThrow(() -> new IllegalArgumentException("Unknown balance criterion " + criterionVersion))
-                .tables(CriterionPhase.SCREENING)
-                .stream()
+        return criterion(criterionVersion).tables(CriterionPhase.SCREENING).stream()
                 .map(table -> new Table(
                         table.id(),
                         table.seats().stream()
                                 .map(RunConfirmationService::parse)
                                 .toList()))
                 .toList();
+    }
+
+    private BalanceCriterion criterion(int criterionVersion) {
+        return criteria.find(criterionVersion)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown balance criterion " + criterionVersion));
     }
 
     /** A criterion names a policy as the id and the major version, as in {@code faction-greedy-v1}. */

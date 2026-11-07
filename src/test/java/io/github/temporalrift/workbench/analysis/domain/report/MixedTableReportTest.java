@@ -28,8 +28,9 @@ class MixedTableReportTest {
 
         var keys = ReportCalculator.cohortKeys(List.of(played));
 
-        assertThat(keys).hasSize(1 + 3 + 1 + 3);
-        assertThat(keys).allSatisfy(key -> assertThat(key.tableId()).isEqualTo("random-seat-0"));
+        assertThat(keys)
+                .hasSize(1 + 3 + 1 + 3)
+                .allSatisfy(key -> assertThat(key.tableId()).isEqualTo("random-seat-0"));
         var pooled = keys.stream()
                 .filter(key -> key.factionSet() == null && key.seatIndex() == null)
                 .findFirst();
