@@ -57,6 +57,7 @@ final class RunApiMapper {
                 logicalCase.caseKey(),
                 logicalCase.runId(),
                 logicalCase.variantLabel(),
+                logicalCase.tableId(),
                 logicalCase.seed(),
                 ModelCase.PlayerCountEnum.fromValue(logicalCase.playerCount()),
                 logicalCase.seats().stream()
@@ -88,6 +89,7 @@ final class RunApiMapper {
                 logicalCase.caseKey(),
                 logicalCase.runId(),
                 logicalCase.variantLabel(),
+                logicalCase.tableId(),
                 logicalCase.seed(),
                 CaseSummary.PlayerCountEnum.fromValue(logicalCase.playerCount()),
                 CaseState.valueOf(logicalCase.state().name()),

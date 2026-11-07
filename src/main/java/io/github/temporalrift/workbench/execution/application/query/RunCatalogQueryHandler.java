@@ -71,6 +71,7 @@ public class RunCatalogQueryHandler implements RunCatalog {
                 logicalCase.caseId(),
                 logicalCase.caseKey(),
                 logicalCase.variantLabel(),
+                logicalCase.tableId(),
                 logicalCase.seed(),
                 logicalCase.playerCount(),
                 logicalCase.seats().stream()

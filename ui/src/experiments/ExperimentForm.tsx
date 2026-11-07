@@ -8,7 +8,10 @@ import {
   bundleFromLane,
   bundleKey,
   bundleLabel,
+  SEAT_COUNT,
   emptyPolicy,
+  emptyTable,
+  policyKey,
   emptyVariant,
   errorAt,
   errorWithin,
@@ -53,6 +56,7 @@ export function ExperimentForm({ draft, edit, errors, catalog, bundles, spaces, 
       <VariantsSection draft={draft} edit={edit} errors={errors} bundles={bundles} spaces={spaces} rulesDigests={rulesDigests} />
       <ProvenanceSection draft={draft} errors={errors} />
       <PoliciesSection draft={draft} edit={edit} errors={errors} catalog={catalog} />
+      <TablesSection draft={draft} edit={edit} errors={errors} />
       <MatrixSection draft={draft} edit={edit} errors={errors} />
       <BoundsSection draft={draft} edit={edit} errors={errors} />
     </div>
@@ -247,6 +251,61 @@ function ProvenanceSection({ draft, errors }: Pick<Props, 'draft' | 'errors'>) {
   )
 }
 
+function TablesSection({ draft, edit, errors }: SectionProps) {
+  const chosen = draft.policies.filter((policy) => policy.id !== '')
+  const seatCount = draft.playerCounts.length > 0 ? Math.max(...draft.playerCounts) : SEAT_COUNT
+  return (
+    <section aria-labelledby="tables-heading">
+      <h2 id="tables-heading">Seat tables</h2>
+      <p className="hint">A table names the policy that plays each seat; a case with p players uses the first p seats of its table.</p>
+      {errorAt(errors, 'tables') && <p className="field-error">{errorAt(errors, 'tables')}</p>}
+      {draft.tables.length === 0 && <p>No table yet. Add at least one.</p>}
+      {draft.tables.map((table, index) => {
+        const path = `tables[${index}]`
+        return (
+          <fieldset key={index}>
+            <legend>Table {index + 1}</legend>
+            <TextField
+              label="Table id"
+              value={table.id}
+              error={errorAt(errors, `${path}.id`)}
+              onChange={(value) => edit((d) => void (d.tables[index]!.id = value))}
+            />
+            {errorAt(errors, `${path}.seats`) && <p className="field-error">{errorAt(errors, `${path}.seats`)}</p>}
+            {Array.from({ length: seatCount }, (_, seat) => (
+              <Field
+                key={seat}
+                label={`Seat ${seat + 1} policy of table ${index + 1}`}
+                error={errorAt(errors, `${path}.seats[${seat}].policyId`) ?? errorAt(errors, `${path}.seats[${seat}]`)}
+              >
+                {(props) => (
+                  <select {...props} value={table.seats[seat] ?? ''} onChange={(event) => edit((d) => void (d.tables[index]!.seats[seat] = event.target.value))}>
+                    <option value="">Choose a policy…</option>
+                    {table.seats[seat] && !chosen.some((policy) => policyKey(policy) === table.seats[seat]) && (
+                      <option value={table.seats[seat]}>{table.seats[seat]} (not among the policies)</option>
+                    )}
+                    {chosen.map((policy) => (
+                      <option key={policyKey(policy)} value={policyKey(policy)}>
+                        {policyKey(policy)}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </Field>
+            ))}
+            <button type="button" onClick={() => edit((d) => void d.tables.splice(index, 1))}>
+              Remove table {index + 1}
+            </button>
+          </fieldset>
+        )
+      })}
+      <button type="button" onClick={() => edit((d) => void d.tables.push(emptyTable()))}>
+        Add table
+      </button>
+    </section>
+  )
+}
+
 function PoliciesSection({ draft, edit, errors, catalog }: SectionProps & { readonly catalog: readonly PolicyBundle[] }) {
   return (
     <section aria-labelledby="policies-heading">
@@ -306,32 +365,6 @@ function PoliciesSection({ draft, edit, errors, catalog }: SectionProps & { read
               }
               onChange={(value) => edit((d) => void (d.policies[index]!.parameters = value))}
             />
-            <div role="group" aria-labelledby={`${path}-seats`}>
-              <p id={`${path}-seats`}>Seats played by this policy</p>
-              {errorAt(errors, `${path}.seatAssignment`) && <p className="field-error">{errorAt(errors, `${path}.seatAssignment`)}</p>}
-              {policy.seats.map((seat, seatIndex) => (
-                <div key={seatIndex} className="inline">
-                  <TextField
-                    label={`Seat ${seatIndex + 1} index`}
-                    inputMode="numeric"
-                    value={seat}
-                    error={errorAt(errors, `${path}.seatAssignment[${seatIndex}].seatIndex`) ?? errorAt(errors, `${path}.seatAssignment[${seatIndex}]`)}
-                    onChange={(value) => edit((d) => void (d.policies[index]!.seats[seatIndex] = value))}
-                  />
-                  {policy.seats.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => edit((d) => void d.policies[index]!.seats.splice(seatIndex, 1))}
-                    >
-                      Remove seat {seatIndex + 1}
-                    </button>
-                  )}
-                </div>
-              ))}
-              <button type="button" onClick={() => edit((d) => void d.policies[index]!.seats.push(''))}>
-                Add seat to policy {index + 1}
-              </button>
-            </div>
             <button type="button" onClick={() => edit((d) => void d.policies.splice(index, 1))}>
               Remove policy {index + 1}
             </button>

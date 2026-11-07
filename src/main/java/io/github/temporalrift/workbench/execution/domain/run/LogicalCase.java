@@ -8,7 +8,8 @@ import io.github.temporalrift.workbench.shared.execution.CaseState;
 /**
  * One logical case of a run. It contributes at most one result however many attempts executed or
  * recovered it; {@code result} is present only once {@code state} is {@link CaseState#SUCCEEDED}. It plays only on
- * a lane that fits {@code fit}; {@code bundle} holds its variant's frozen rules and content digests.
+ * a lane that fits {@code fit}; {@code bundle} holds its variant's frozen rules and content digests, and
+ * {@code tableId} names the seat table whose policies play its seats.
  */
 public record LogicalCase(
         UUID caseId,
@@ -16,6 +17,7 @@ public record LogicalCase(
         UUID caseKey,
         int ordinal,
         String variantLabel,
+        String tableId,
         BundleDigests bundle,
         LaneFit fit,
         String seed,

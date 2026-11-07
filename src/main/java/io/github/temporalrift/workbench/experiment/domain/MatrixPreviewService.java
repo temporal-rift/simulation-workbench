@@ -14,7 +14,7 @@ import io.github.temporalrift.workbench.shared.game.Faction;
 
 /**
  * Deterministically enumerates every case coordinate of a frozen experiment. Ordering is stable:
- * seeds numerically, faction sets lexicographically, variants and policies in manifest order, and
+ * seeds numerically, faction sets lexicographically, variants and tables in manifest order, and
  * {@code CYCLIC} rotations ascending. Every coordinate carries a deterministic {@code caseKey}.
  */
 public final class MatrixPreviewService {
@@ -22,7 +22,7 @@ public final class MatrixPreviewService {
     private MatrixPreviewService() {}
 
     public static List<CaseCoordinate> preview(JsonNode manifest, String manifestDigest) {
-        var view = ExperimentValidator.validate(manifest);
+        var view = ExperimentValidator.validateStored(manifest);
         var cases = new ArrayList<CaseCoordinate>();
         page(view, manifestDigest, 0, Integer.MAX_VALUE, cases::add);
         return List.copyOf(cases);
@@ -30,21 +30,23 @@ public final class MatrixPreviewService {
 
     /** The size of the matrix of a manifest, computed arithmetically without visiting any coordinate. */
     public static MatrixSize size(JsonNode manifest) {
-        return size(ExperimentValidator.validate(manifest));
+        return size(ExperimentValidator.validateStored(manifest));
     }
 
     /** The size of the matrix of an already validated manifest. */
     public static MatrixSize size(ExperimentValidator.ManifestView view) {
         var coordinatesByPlayers = new TreeMap<Integer, Integer>();
         view.factionSets().forEach(set -> coordinatesByPlayers.merge(set.size(), set.size(), Integer::sum));
-        long perVariantAndPolicy = (long) view.seeds().size() * view.policies().size();
+        long perVariantAndTable = view.seeds().size();
         var breakdown = new ArrayList<Slice>();
         long total = 0;
         for (String variant : view.variantLabels()) {
-            for (var entry : coordinatesByPlayers.entrySet()) {
-                int count = Math.toIntExact(perVariantAndPolicy * entry.getValue());
-                breakdown.add(new Slice(variant, entry.getKey(), count));
-                total += count;
+            for (var table : view.tables()) {
+                for (var entry : coordinatesByPlayers.entrySet()) {
+                    int count = Math.toIntExact(perVariantAndTable * entry.getValue());
+                    breakdown.add(new Slice(variant, table.id(), entry.getKey(), count));
+                    total += count;
+                }
             }
         }
         return new MatrixSize(Math.toIntExact(total), List.copyOf(breakdown));
@@ -76,17 +78,18 @@ public final class MatrixPreviewService {
                 .toList();
         long perBlock = sets.stream().mapToLong(List::size).sum();
         int variants = view.variantLabels().size();
-        int policies = view.policies().size();
-        long total = seeds.size() * (long) variants * policies * perBlock;
+        int tables = view.tables().size();
+        long total = seeds.size() * (long) variants * tables * perBlock;
         long start = Math.max(0, offset);
         long end = Math.min(total, start + Math.max(0, limit));
         for (long index = start; index < end; index++) {
             long block = index / perBlock;
             visitor.accept(blockCoordinate(
                     manifestDigest,
-                    seeds.get((int) (block / policies / variants)),
-                    view.variantLabels().get((int) (block / policies % variants)),
-                    view.policies().get((int) (block % policies)),
+                    view.schemaVersion(),
+                    seeds.get((int) (block / tables / variants)),
+                    view.variantLabels().get((int) (block / tables % variants)),
+                    view.tables().get((int) (block % tables)),
                     sets,
                     (int) (index % perBlock)));
         }
@@ -94,15 +97,16 @@ public final class MatrixPreviewService {
 
     private static CaseCoordinate blockCoordinate(
             String manifestDigest,
+            int schemaVersion,
             String seed,
             String variant,
-            ExperimentValidator.PolicyRef policy,
+            ExperimentValidator.TableRef table,
             List<List<String>> sets,
             int positionInBlock) {
         int remaining = positionInBlock;
         for (List<String> set : sets) {
             if (remaining < set.size()) {
-                return coordinate(manifestDigest, seed, variant, policy, set, remaining);
+                return coordinate(manifestDigest, schemaVersion, seed, variant, table, set, remaining);
             }
             remaining -= set.size();
         }
@@ -111,33 +115,57 @@ public final class MatrixPreviewService {
 
     private static CaseCoordinate coordinate(
             String manifestDigest,
+            int schemaVersion,
             String seed,
             String variant,
-            ExperimentValidator.PolicyRef policy,
+            ExperimentValidator.TableRef table,
             List<String> sortedFactions,
             int rotation) {
         int players = sortedFactions.size();
         var seats = new ArrayList<SeatAssignment>();
         for (int seat = 0; seat < players; seat++) {
+            var policy = table.seats().get(seat);
             seats.add(new SeatAssignment(
                     seat,
                     Faction.valueOf(sortedFactions.get((seat + rotation) % players)),
                     policy.id(),
                     policy.version()));
         }
-        var key = String.join(
-                "|",
-                manifestDigest,
-                seed,
-                variant,
-                policy.id(),
-                policy.version(),
-                String.valueOf(players),
-                String.join(",", sortedFactions),
-                String.valueOf(rotation));
-        var caseKey = UUID.nameUUIDFromBytes(key.getBytes(StandardCharsets.UTF_8));
+        var caseKey = UUID.nameUUIDFromBytes(
+                key(manifestDigest, schemaVersion, seed, variant, table, sortedFactions, rotation)
+                        .getBytes(StandardCharsets.UTF_8));
         return new CaseCoordinate(
-                caseKey, seed, variant, players, List.copyOf(sortedFactions), rotation, List.copyOf(seats));
+                caseKey, seed, variant, table.id(), players, List.copyOf(sortedFactions), rotation, List.copyOf(seats));
+    }
+
+    /**
+     * The coordinate text a case key hashes. A table is the sole part of a version-2 coordinate that names its
+     * policies; a version-1 manifest keeps the key it was frozen with, which names its one policy and its version.
+     */
+    private static String key(
+            String manifestDigest,
+            int schemaVersion,
+            String seed,
+            String variant,
+            ExperimentValidator.TableRef table,
+            List<String> sortedFactions,
+            int rotation) {
+        var players = String.valueOf(sortedFactions.size());
+        var factions = String.join(",", sortedFactions);
+        if (schemaVersion == 1) {
+            var policy = table.seats().getFirst();
+            return String.join(
+                    "|",
+                    manifestDigest,
+                    seed,
+                    variant,
+                    policy.id(),
+                    policy.version(),
+                    players,
+                    factions,
+                    String.valueOf(rotation));
+        }
+        return String.join("|", manifestDigest, seed, variant, table.id(), players, factions, String.valueOf(rotation));
     }
 
     private static int compareUint64(String left, String right) {
@@ -156,14 +184,18 @@ public final class MatrixPreviewService {
     /** The number of coordinates of a matrix and how they split over variants and player counts. */
     public record MatrixSize(int total, List<Slice> breakdown) {}
 
-    /** The coordinates of one variant at one player count; variants in manifest order, player counts ascending. */
-    public record Slice(String variantLabel, int playerCount, int caseCount) {}
+    /**
+     * The coordinates of one variant and table at one player count; variants and tables in manifest order, player
+     * counts ascending.
+     */
+    public record Slice(String variantLabel, String tableId, int playerCount, int caseCount) {}
 
     /** One deterministic case coordinate of the cohort matrix. */
     public record CaseCoordinate(
             UUID caseKey,
             String seed,
             String variantLabel,
+            String tableId,
             int playerCount,
             List<String> factionSet,
             int rotation,

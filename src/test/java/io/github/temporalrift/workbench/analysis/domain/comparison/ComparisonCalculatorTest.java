@@ -14,6 +14,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 import io.github.temporalrift.workbench.analysis.domain.AnalysisVersion;
+import io.github.temporalrift.workbench.analysis.domain.SeatPolicies;
 import io.github.temporalrift.workbench.analysis.domain.fact.CaseFacts;
 import io.github.temporalrift.workbench.analysis.domain.fact.FactExtractor;
 import io.github.temporalrift.workbench.analysis.domain.game.AnalyzedCase;
@@ -71,6 +72,18 @@ class ComparisonCalculatorTest {
     }
 
     @Test
+    void runsWhoseTablesDifferAreIncomparableAndNameTheTables() {
+        var baseline = experiment(Map.of("seeds", "[1,2]", "tables", "[random:random,random,random]"));
+        var candidate = experiment(Map.of("seeds", "[1,2]", "tables", "[random:greedy,random,random]"));
+
+        assertThatThrownBy(() -> ComparisonDefinition.define(
+                        COMPARISON, BASELINE, baseline, CANDIDATE, candidate, AnalysisVersion.CURRENT))
+                .isInstanceOfSatisfying(
+                        IncomparableRunsException.class,
+                        error -> assertThat(error.differences()).containsExactly("tables"));
+    }
+
+    @Test
     void aChangedRulesVariantIsADeclaredDifference() {
         var experiment = experiment(Map.of("seeds", "[1,2]"));
 
@@ -88,7 +101,17 @@ class ComparisonCalculatorTest {
         }
         var failed = new UUID(7, 7);
         candidateCases.set(
-                1, new AnalyzedCase(failed, "threshold-22", "1", 3, "random", "1.0.0", PWE, CaseState.FAILED, null));
+                1,
+                new AnalyzedCase(
+                        failed,
+                        "threshold-22",
+                        "random",
+                        "1",
+                        3,
+                        SeatPolicies.uniform("random", "1.0.0", 3),
+                        PWE,
+                        CaseState.FAILED,
+                        null));
 
         var result = compare();
         var pooled = result.cohorts().getFirst();
@@ -111,7 +134,15 @@ class ComparisonCalculatorTest {
         candidateCases.set(
                 0,
                 new AnalyzedCase(
-                        new UUID(8, 8), "threshold-22", "1", 3, "random", "1.0.0", EPW, CaseState.RUNNING, null));
+                        new UUID(8, 8),
+                        "threshold-22",
+                        "random",
+                        "1",
+                        3,
+                        SeatPolicies.uniform("random", "1.0.0", 3),
+                        EPW,
+                        CaseState.RUNNING,
+                        null));
 
         var result = compare();
 
@@ -258,7 +289,15 @@ class ComparisonCalculatorTest {
     private AnalyzedCase succeeded(String variant, String seed, List<Faction> seats, Set<Integer> winners) {
         var outcome = new CaseOutcome(EndReason.WIN_CONDITION_MET, winners, List.of(20, 15, 10), 3, 9, 30);
         var analyzed = new AnalyzedCase(
-                new UUID(2, facts.size()), variant, seed, 3, "random", "1.0.0", seats, CaseState.SUCCEEDED, outcome);
+                new UUID(2, facts.size()),
+                variant,
+                "random",
+                seed,
+                3,
+                SeatPolicies.uniform("random", "1.0.0", 3),
+                seats,
+                CaseState.SUCCEEDED,
+                outcome);
         facts.put(
                 analyzed.caseId(),
                 FactExtractor.extract(

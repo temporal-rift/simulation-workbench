@@ -1,8 +1,10 @@
 package io.github.temporalrift.workbench.experiment.domain;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.IntStream;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import tools.jackson.databind.JsonNode;
@@ -59,9 +61,49 @@ public final class StoredManifests {
                         document.maxRejectedCandidatesPerWindow(),
                         document.seeds(),
                         document.playerCounts(),
-                        document.policies(),
+                        bundles(document),
+                        tables(document),
                         document.factionSets(),
                         variants));
+    }
+
+    /** The policy bundles; an entry frozen before seat tables also carried a seat assignment that was never played. */
+    private static List<Map<String, Object>> bundles(Document document) {
+        return document.policies().stream()
+                .map(policy -> {
+                    var bundle = new LinkedHashMap<>(policy);
+                    bundle.remove("seatAssignment");
+                    return (Map<String, Object>) bundle;
+                })
+                .toList();
+    }
+
+    /** The seat tables, or one uniform table per policy entry for a manifest frozen before seat tables. */
+    private static List<Map<String, Object>> tables(Document document) {
+        if (document.tables() != null) {
+            return document.tables();
+        }
+        int seats = document.playerCounts().stream()
+                .mapToInt(Integer::intValue)
+                .max()
+                .orElse(0);
+        return document.policies().stream()
+                .map(policy -> {
+                    var assignments = IntStream.range(0, seats)
+                            .mapToObj(seat -> {
+                                var assignment = new LinkedHashMap<String, Object>();
+                                assignment.put("seatIndex", seat);
+                                assignment.put("policyId", policy.get("id"));
+                                assignment.put("policyVersion", policy.get("version"));
+                                return (Object) assignment;
+                            })
+                            .toList();
+                    var table = new LinkedHashMap<String, Object>();
+                    table.put("id", policy.get("id"));
+                    table.put("seats", assignments);
+                    return (Map<String, Object>) table;
+                })
+                .toList();
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -76,6 +118,7 @@ public final class StoredManifests {
             List<String> seeds,
             List<Integer> playerCounts,
             List<Map<String, Object>> policies,
+            List<Map<String, Object>> tables,
             List<List<Faction>> factionSets,
             List<Variant> variants) {}
 

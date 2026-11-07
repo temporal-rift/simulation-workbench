@@ -64,21 +64,25 @@ class ExperimentTemplatesTest {
     }
 
     @Test
-    void eachTemplatePlaysItsBaselinePoliciesOnEverySeat() {
+    void eachTemplatePlaysEachBaselinePolicyOnEverySeatOfATableNamedForIt() {
         var templates = ExperimentTemplates.builtIn(1, BOUNDS, BASELINES);
 
         assertThat(templates.getFirst().defaults().policies())
                 .containsExactly(
                         new ExperimentTemplate.Policy(
-                                "random", "1.0.0", BaselinePolicies.RANDOM_V1.artifactDigest(), List.of(0, 1, 2, 3, 4)),
-                        new ExperimentTemplate.Policy(
-                                "faction-greedy",
-                                "1.0.0",
-                                BaselinePolicies.FACTION_GREEDY_V1.artifactDigest(),
-                                List.of(0, 1, 2, 3, 4)));
-        assertThat(templates.getLast().defaults().policies())
-                .extracting(ExperimentTemplate.Policy::id)
+                                "faction-greedy", "1.0.0", BaselinePolicies.FACTION_GREEDY_V1.artifactDigest()),
+                        new ExperimentTemplate.Policy("random", "1.0.0", BaselinePolicies.RANDOM_V1.artifactDigest()));
+        assertThat(templates.getFirst().defaults().tables())
+                .extracting(ExperimentTemplate.Table::id)
+                .containsExactly("faction-greedy", "random");
+        assertThat(templates.getLast().defaults().tables())
+                .extracting(ExperimentTemplate.Table::id)
                 .containsExactly("random");
+        templates.forEach(template -> template.defaults()
+                .tables()
+                .forEach(table -> assertThat(table.seats())
+                        .hasSize(5)
+                        .allMatch(seat -> seat.id().equals(table.id()))));
     }
 
     @Test
@@ -129,12 +133,19 @@ class ExperimentTemplatesTest {
             node.put("version", policy.version());
             node.put("artifactDigest", policy.artifactDigest());
             node.putObject("parameters");
-            var seats = node.putArray("seatAssignment");
-            policy.seats()
-                    .forEach(seat -> seats.addObject()
-                            .put("seatIndex", seat)
-                            .put("policyId", policy.id())
-                            .put("policyVersion", policy.version()));
+        });
+        var tables = manifest.putArray("tables");
+        defaults.tables().forEach(table -> {
+            var node = tables.addObject();
+            node.put("id", table.id());
+            var seats = node.putArray("seats");
+            for (var index = 0; index < table.seats().size(); index++) {
+                var seat = table.seats().get(index);
+                seats.addObject()
+                        .put("seatIndex", index)
+                        .put("policyId", seat.id())
+                        .put("policyVersion", seat.version());
+            }
         });
         manifest.put("concurrency", defaults.concurrency());
         manifest.put("caseWallTimeoutSeconds", defaults.caseWallTimeoutSeconds());

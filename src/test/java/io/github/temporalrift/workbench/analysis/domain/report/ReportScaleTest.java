@@ -12,6 +12,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 import io.github.temporalrift.workbench.analysis.domain.AnalysisVersion;
+import io.github.temporalrift.workbench.analysis.domain.SeatPolicies;
 import io.github.temporalrift.workbench.analysis.domain.fact.CaseFacts;
 import io.github.temporalrift.workbench.analysis.domain.fact.FactExtractor;
 import io.github.temporalrift.workbench.analysis.domain.game.AnalyzedCase;
@@ -52,10 +53,10 @@ class ReportScaleTest {
                         var analyzed = new AnalyzedCase(
                                 new UUID(seed, cases.size()),
                                 "base",
+                                "random",
                                 String.valueOf(seed),
                                 size,
-                                "random",
-                                "1.0.0",
+                                SeatPolicies.uniform("random", "1.0.0", size),
                                 seats,
                                 CaseState.SUCCEEDED,
                                 outcome);

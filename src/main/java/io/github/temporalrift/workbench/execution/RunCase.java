@@ -13,6 +13,7 @@ import io.github.temporalrift.workbench.shared.game.Faction;
  * succeeded.
  *
  * @param caseKey the deterministic key of the case's coordinate in the frozen experiment
+ * @param tableId the seat table whose policies play the seats
  * @param result present only when the case succeeded
  * @param failureCode the code of the failed case's final failed attempt; null unless the case failed
  */
@@ -20,6 +21,7 @@ public record RunCase(
         UUID caseId,
         UUID caseKey,
         String variantLabel,
+        String tableId,
         String seed,
         int playerCount,
         List<Seat> seats,
@@ -35,12 +37,13 @@ public record RunCase(
             UUID caseId,
             UUID caseKey,
             String variantLabel,
+            String tableId,
             String seed,
             int playerCount,
             List<Seat> seats,
             CaseState state,
             Result result) {
-        this(caseId, caseKey, variantLabel, seed, playerCount, seats, state, result, null);
+        this(caseId, caseKey, variantLabel, tableId, seed, playerCount, seats, state, result, null);
     }
 
     /** A seat of the case: its faction and the policy that plays it. */

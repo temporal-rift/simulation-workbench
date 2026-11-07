@@ -45,7 +45,8 @@ public interface ExperimentSource {
     /** A rules variant, the bundle it names and the fit a lane needs to play it. */
     record Variant(String label, BundleDigests bundle, LaneFit fit) {}
 
-    record PlannedCase(UUID caseKey, String seed, String variantLabel, int playerCount, List<SeatPlan> seats) {
+    record PlannedCase(
+            UUID caseKey, String seed, String variantLabel, String tableId, int playerCount, List<SeatPlan> seats) {
         public PlannedCase {
             seats = List.copyOf(seats);
         }

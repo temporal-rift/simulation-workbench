@@ -70,8 +70,7 @@ class MatrixPreviewServiceTest {
                 .isEqualTo(view.policies().getFirst().id());
         assertThat(first.caseKey())
                 .isEqualTo(java.util.UUID.nameUUIDFromBytes((DIGEST + "|42|baseline|"
-                                + view.policies().getFirst().id() + "|"
-                                + view.policies().getFirst().version() + "|3|"
+                                + view.tables().getFirst().id() + "|3|"
                                 + String.join(",", first.factionSet()) + "|0")
                         .getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         assertThat(secondPolicy.variantLabel()).isEqualTo("baseline");
@@ -111,12 +110,13 @@ class MatrixPreviewServiceTest {
             var cases = MatrixPreviewService.preview(candidate, DIGEST);
 
             assertThat(size.total()).isEqualTo(cases.size());
-            var counted = new java.util.LinkedHashMap<String, java.util.TreeMap<Integer, Integer>>();
-            cases.forEach(c -> counted.computeIfAbsent(c.variantLabel(), v -> new java.util.TreeMap<>())
-                    .merge(c.playerCount(), 1, Integer::sum));
+            var counted = new java.util.LinkedHashMap<java.util.List<String>, java.util.TreeMap<Integer, Integer>>();
+            cases.forEach(
+                    c -> counted.computeIfAbsent(List.of(c.variantLabel(), c.tableId()), v -> new java.util.TreeMap<>())
+                            .merge(c.playerCount(), 1, Integer::sum));
             var expected = new java.util.ArrayList<MatrixPreviewService.Slice>();
-            counted.forEach((variant, byPlayers) -> byPlayers.forEach(
-                    (players, count) -> expected.add(new MatrixPreviewService.Slice(variant, players, count))));
+            counted.forEach((group, byPlayers) -> byPlayers.forEach((players, count) ->
+                    expected.add(new MatrixPreviewService.Slice(group.get(0), group.get(1), players, count))));
             assertThat(size.breakdown()).isEqualTo(expected);
         }
     }

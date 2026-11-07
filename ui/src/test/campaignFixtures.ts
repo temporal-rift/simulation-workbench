@@ -22,7 +22,6 @@ export function campaign(overrides: Partial<Campaign> = {}): Campaign {
         version: '1.0.0',
         artifactDigest: digest('c'),
         parameters: {},
-        seatAssignment: [{ seatIndex: 0, policyId: 'faction-greedy', policyVersion: '1.0.0' }],
       },
     ],
     playerCounts: [3],

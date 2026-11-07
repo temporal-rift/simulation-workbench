@@ -19,6 +19,7 @@ public record ExperimentTemplate(
             String seatRotationMode,
             String timingMode,
             List<Policy> policies,
+            List<Table> tables,
             int concurrency,
             int caseWallTimeoutSeconds,
             int maxRejectedCandidatesPerWindow) {
@@ -28,13 +29,17 @@ public record ExperimentTemplate(
             playerCounts = List.copyOf(playerCounts);
             factionSets = factionSets.stream().map(List::copyOf).toList();
             policies = List.copyOf(policies);
+            tables = List.copyOf(tables);
         }
     }
 
-    /** A catalog policy without parameters, playing the listed seats. */
-    public record Policy(String id, String version, String artifactDigest, List<Integer> seats) {
+    /** A catalog policy without parameters. */
+    public record Policy(String id, String version, String artifactDigest) {}
 
-        public Policy {
+    /** A named table: the policy that plays each seat index, in seat order. */
+    public record Table(String id, List<Policy> seats) {
+
+        public Table {
             seats = List.copyOf(seats);
         }
     }

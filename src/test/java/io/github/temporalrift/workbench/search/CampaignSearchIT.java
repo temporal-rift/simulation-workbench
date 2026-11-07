@@ -144,8 +144,18 @@ class CampaignSearchIT {
                 campaigns, experiments, runs, scriptedCriterion(), () -> true, new CampaignSettings(50_000), clock);
     }
 
+    /** One table on which the first catalogued policy plays every seat. */
+    private io.github.temporalrift.workbench.search.domain.campaign.SeatTable uniformTable() {
+        var policy = policies.list().getFirst();
+        var major = policy.version().substring(0, policy.version().indexOf('.'));
+        return new io.github.temporalrift.workbench.search.domain.campaign.SeatTable(
+                "it-table",
+                java.util.Collections.nCopies(
+                        5, new io.github.temporalrift.workbench.search.domain.campaign.PolicyRef(policy.id(), major)));
+    }
+
     /** Only the first candidate survives: the others fail the gate, so the short list is the same every round. */
-    private static CandidateEvaluation scriptedCriterion() {
+    private CandidateEvaluation scriptedCriterion() {
         return new CandidateEvaluation() {
             @Override
             public boolean servesCriterion(int criterionVersion) {
@@ -155,6 +165,12 @@ class CampaignSearchIT {
             @Override
             public int confirmationSeedCount(int criterionVersion) {
                 return 100;
+            }
+
+            @Override
+            public List<io.github.temporalrift.workbench.search.domain.campaign.SeatTable> screeningTables(
+                    int criterionVersion) {
+                return List.of(uniformTable());
             }
 
             @Override
@@ -198,13 +214,6 @@ class CampaignSearchIT {
                 .put("version", policy.version())
                 .put("artifactDigest", policy.artifactDigest());
         node.putObject("parameters");
-        var seats = node.putArray("seatAssignment");
-        for (var seat = 0; seat < 5; seat++) {
-            seats.addObject()
-                    .put("seatIndex", seat)
-                    .put("policyId", policy.id())
-                    .put("policyVersion", policy.version());
-        }
         var definition = new CampaignDefinition(
                 "it search",
                 baseline,

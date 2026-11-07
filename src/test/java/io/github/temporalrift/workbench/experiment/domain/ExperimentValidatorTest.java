@@ -79,12 +79,7 @@ class ExperimentValidatorTest {
         var duplicateSeed = (ObjectNode) ExperimentManifests.valid().deepCopy();
         duplicateSeed.withArray("seeds").add("42");
         var badSeat = (ObjectNode) ExperimentManifests.valid().deepCopy();
-        badSeat.withArray("policies")
-                .get(0)
-                .withArray("seatAssignment")
-                .get(0)
-                .asObject()
-                .put("seatIndex", -1);
+        badSeat.withArray("tables").get(0).withArray("seats").get(0).asObject().put("seatIndex", -1);
         var badDigest = (ObjectNode) ExperimentManifests.valid().deepCopy();
         badDigest.withArray("variants").get(1).asObject().put("effectiveContentDigest", "nope");
 
@@ -99,16 +94,16 @@ class ExperimentValidatorTest {
         assertThat(fieldOf(duplicateFaction)).isEqualTo("factionSets[" + expectedIndex + "]");
         var emptySeatVersion = (ObjectNode) ExperimentManifests.valid().deepCopy();
         emptySeatVersion
-                .withArray("policies")
+                .withArray("tables")
                 .get(0)
-                .withArray("seatAssignment")
+                .withArray("seats")
                 .get(0)
                 .asObject()
                 .put("policyVersion", "");
 
-        assertThat(fieldOf(emptySeatVersion)).isEqualTo("policies[0].seatAssignment[0].policyVersion");
+        assertThat(fieldOf(emptySeatVersion)).isEqualTo("tables[0].seats[0].policyId");
         assertThat(fieldOf(duplicateSeed)).isEqualTo("seeds[1]");
-        assertThat(fieldOf(badSeat)).isEqualTo("policies[0].seatAssignment[0].seatIndex");
+        assertThat(fieldOf(badSeat)).isEqualTo("tables[0].seats[0]");
         assertThat(fieldOf(badDigest)).isEqualTo("variants[1].effectiveContentDigest");
     }
 

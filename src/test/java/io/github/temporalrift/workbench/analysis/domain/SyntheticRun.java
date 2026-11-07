@@ -119,10 +119,10 @@ public final class SyntheticRun {
         return new AnalyzedCase(
                 new UUID(idSpace, cases.size()),
                 variant,
+                policyId(),
                 seed,
                 seats.size(),
-                policyId(),
-                "1.0.0",
+                SeatPolicies.uniform(policyId(), "1.0.0", seats.size()),
                 seats,
                 status,
                 outcome,

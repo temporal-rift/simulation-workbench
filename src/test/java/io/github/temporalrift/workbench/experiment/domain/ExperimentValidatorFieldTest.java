@@ -22,7 +22,7 @@ class ExperimentValidatorFieldTest {
 
     static Stream<Arguments> refusals() {
         return Stream.of(
-                refusal("schemaVersion", ExperimentErrorCode.INVALID_EXPERIMENT, m -> m.put("schemaVersion", 2)),
+                refusal("schemaVersion", ExperimentErrorCode.INVALID_EXPERIMENT, m -> m.put("schemaVersion", 1)),
                 refusal("schemaVersion", ExperimentErrorCode.INVALID_EXPERIMENT, m -> m.remove("schemaVersion")),
                 refusal("name", ExperimentErrorCode.INVALID_EXPERIMENT, m -> m.put("name", " ")),
                 refusal("variants", ExperimentErrorCode.INVALID_EXPERIMENT, m -> m.remove("variants")),
@@ -77,25 +77,40 @@ class ExperimentValidatorFieldTest {
                         "policies[0].parameters",
                         ExperimentErrorCode.INVALID_EXPERIMENT,
                         m -> m.withArray("policies").get(0).asObject().put("parameters", "none")),
+                refusal("tables", ExperimentErrorCode.INVALID_EXPERIMENT, m -> m.remove("tables")),
                 refusal(
-                        "policies[0].seatAssignment",
+                        "tables[0].id",
                         ExperimentErrorCode.INVALID_EXPERIMENT,
-                        m -> m.withArray("policies").get(0).asObject().remove("seatAssignment")),
+                        m -> m.withArray("tables").get(0).asObject().put("id", "Not Valid")),
                 refusal(
-                        "policies[0].seatAssignment[0].policyId",
+                        "tables[1].id",
                         ExperimentErrorCode.INVALID_EXPERIMENT,
-                        m -> seat(m).put("policyId", "")),
+                        m -> m.withArray("tables").get(1).asObject().put("id", "random")),
                 refusal(
-                        "policies[0].seatAssignment[0].seatIndex",
+                        "tables[0].seats",
+                        ExperimentErrorCode.INVALID_EXPERIMENT,
+                        m -> m.withArray("tables").get(0).withArray("seats").remove(2)),
+                refusal(
+                        "tables[0].seats[0].policyId",
+                        ExperimentErrorCode.INVALID_EXPERIMENT,
+                        m -> seat(m).put("policyId", "unknown")),
+                refusal(
+                        "tables[0].seats[0]",
                         ExperimentErrorCode.INVALID_EXPERIMENT,
                         m -> seat(m).put("seatIndex", -1)),
                 refusal(
-                        "policies[0].seatAssignment[1]",
+                        "tables[0].seats[5]",
+                        ExperimentErrorCode.INVALID_EXPERIMENT,
+                        m -> m.withArray("tables").get(0).withArray("seats").add(seat(m).deepCopy())),
+                refusal(
+                        "policies[2]",
                         ExperimentErrorCode.INVALID_EXPERIMENT,
                         m -> m.withArray("policies")
-                                .get(0)
-                                .withArray("seatAssignment")
-                                .add(seat(m).deepCopy())),
+                                .add(m.withArray("policies")
+                                        .get(0)
+                                        .deepCopy()
+                                        .asObject()
+                                        .put("version", "9.9.9"))),
                 refusal("seeds", ExperimentErrorCode.INVALID_EXPERIMENT, m -> m.remove("seeds")),
                 refusal(
                         "seeds[0]",
@@ -157,11 +172,7 @@ class ExperimentValidatorFieldTest {
     }
 
     private static ObjectNode seat(ObjectNode manifest) {
-        return manifest.withArray("policies")
-                .get(0)
-                .withArray("seatAssignment")
-                .get(0)
-                .asObject();
+        return manifest.withArray("tables").get(0).withArray("seats").get(0).asObject();
     }
 
     @ParameterizedTest(name = "{0} ({1})")

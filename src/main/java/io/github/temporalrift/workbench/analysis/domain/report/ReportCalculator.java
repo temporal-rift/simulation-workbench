@@ -15,6 +15,7 @@ import java.util.UUID;
 import io.github.temporalrift.workbench.analysis.domain.AnalysisVersion;
 import io.github.temporalrift.workbench.analysis.domain.fact.CaseFacts;
 import io.github.temporalrift.workbench.analysis.domain.game.AnalyzedCase;
+import io.github.temporalrift.workbench.analysis.domain.game.SeatPolicy;
 import io.github.temporalrift.workbench.analysis.domain.statistics.BlockBootstrap;
 import io.github.temporalrift.workbench.analysis.domain.statistics.BlockSeries;
 import io.github.temporalrift.workbench.shared.execution.FailureCode;
@@ -46,13 +47,7 @@ public final class ReportCalculator {
     private static Map<CohortKey, List<AnalyzedCase>> membersByCohort(List<AnalyzedCase> cases) {
         var members = new HashMap<CohortKey, List<AnalyzedCase>>();
         for (var analyzedCase : cases) {
-            var pooled = new CohortKey(
-                    analyzedCase.variantLabel(),
-                    analyzedCase.policyId(),
-                    analyzedCase.policyVersion(),
-                    analyzedCase.playerCount(),
-                    null,
-                    null);
+            var pooled = CohortKey.pooledOf(analyzedCase);
             members.computeIfAbsent(pooled, ignored -> new ArrayList<>()).add(analyzedCase);
             members.computeIfAbsent(
                             pooled.withFactionSet(CohortKey.factionSetOf(analyzedCase)), ignored -> new ArrayList<>())
@@ -69,35 +64,43 @@ public final class ReportCalculator {
     }
 
     /**
-     * For every variant and policy in matrix order and every player count ascending: the pooled cohort, one per
+     * For every variant and table in matrix order and every player count ascending: the pooled cohort, one per
      * seat, one per faction set in matrix order, and one per faction set and seat.
      */
     public static List<CohortKey> cohortKeys(List<AnalyzedCase> cases) {
-        var groups = new LinkedHashMap<List<String>, Map<Integer, LinkedHashSet<List<Faction>>>>();
+        var groups = new LinkedHashMap<List<String>, Map<Integer, Cell>>();
         for (var analyzedCase : cases) {
             groups.computeIfAbsent(
-                            List.of(analyzedCase.variantLabel(), analyzedCase.policyId(), analyzedCase.policyVersion()),
-                            ignored -> new TreeMap<>())
-                    .computeIfAbsent(analyzedCase.playerCount(), ignored -> new LinkedHashSet<>())
+                            List.of(analyzedCase.variantLabel(), analyzedCase.tableId()), ignored -> new TreeMap<>())
+                    .computeIfAbsent(analyzedCase.playerCount(), ignored -> new Cell(analyzedCase.seatPolicies()))
+                    .sets()
                     .add(CohortKey.factionSetOf(analyzedCase));
         }
         var keys = new ArrayList<CohortKey>();
-        groups.forEach((group, setsByCount) -> setsByCount.forEach((playerCount, sets) -> {
+        groups.forEach((group, cellsByCount) -> cellsByCount.forEach((playerCount, cell) -> {
             var variant = group.get(0);
-            var policyId = group.get(1);
-            var policyVersion = group.get(2);
-            keys.add(new CohortKey(variant, policyId, policyVersion, playerCount, null, null));
+            var table = group.get(1);
+            var policies = cell.seatPolicies();
+            keys.add(new CohortKey(variant, table, policies, playerCount, null, null));
             for (var seat = 0; seat < playerCount; seat++) {
-                keys.add(new CohortKey(variant, policyId, policyVersion, playerCount, null, seat));
+                keys.add(new CohortKey(variant, table, policies, playerCount, null, seat));
             }
-            sets.forEach(set -> keys.add(new CohortKey(variant, policyId, policyVersion, playerCount, set, null)));
-            sets.forEach(set -> {
+            cell.sets().forEach(set -> keys.add(new CohortKey(variant, table, policies, playerCount, set, null)));
+            cell.sets().forEach(set -> {
                 for (var seat = 0; seat < playerCount; seat++) {
-                    keys.add(new CohortKey(variant, policyId, policyVersion, playerCount, set, seat));
+                    keys.add(new CohortKey(variant, table, policies, playerCount, set, seat));
                 }
             });
         }));
         return keys;
+    }
+
+    /** The faction sets a table played at one player count, with the policy of each seat. */
+    private record Cell(List<SeatPolicy> seatPolicies, LinkedHashSet<List<Faction>> sets) {
+
+        Cell(List<SeatPolicy> seatPolicies) {
+            this(seatPolicies, new LinkedHashSet<>());
+        }
     }
 
     static Metric metric(MetricHeader definition, BlockSeries series, int blocks, BlockBootstrap bootstrap) {

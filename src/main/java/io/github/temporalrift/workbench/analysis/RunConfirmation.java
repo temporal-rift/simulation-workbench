@@ -21,6 +21,13 @@ public interface RunConfirmation {
     java.util.List<PolicyRef> policies(int criterionVersion);
 
     /**
+     * The tables the criterion's search plays: each seat of each names a policy as an id and a major version.
+     *
+     * @throws IllegalArgumentException when the criterion is unknown
+     */
+    java.util.List<Table> screeningTables(int criterionVersion);
+
+    /**
      * Evaluates the variant of the run in {@code CONFIRMATION} mode, exactly as {@code getRunEvaluation} does.
      *
      * @return {@code REJECTED}, {@code CONFIRMED}, {@code UNCONFIRMED} or {@code INVALID} with the score, which is
@@ -28,6 +35,11 @@ public interface RunConfirmation {
      * @throws IllegalArgumentException when the criterion, the run or the variant is unknown
      */
     Result confirm(int criterionVersion, UUID runId, String variantLabel);
+
+    /**
+     * @param seats the policy of each of the five seats, indexed by seat
+     */
+    record Table(String id, java.util.List<PolicyRef> seats) {}
 
     /**
      * @param majorVersion the major version of the policy, as in {@code 1} for {@code 1.2.0}

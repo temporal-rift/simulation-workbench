@@ -92,6 +92,7 @@ describe('a comparison', () => {
         excludedPairs: [
           {
             seed: '42',
+            tableId: 'random',
             playerCount: 3,
             policyId: 'random',
             policyVersion: 'v1',
@@ -104,6 +105,7 @@ describe('a comparison', () => {
           },
           {
             seed: '43',
+            tableId: 'random',
             playerCount: 3,
             policyId: 'random',
             policyVersion: 'v1',

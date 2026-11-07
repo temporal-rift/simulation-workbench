@@ -372,6 +372,7 @@ class RunBatchServiceTest {
                 new UUID(4, 4),
                 0,
                 "v",
+                "random",
                 BASELINE,
                 fit,
                 "42",

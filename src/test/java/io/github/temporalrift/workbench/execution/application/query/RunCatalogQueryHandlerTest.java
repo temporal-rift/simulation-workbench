@@ -51,6 +51,7 @@ class RunCatalogQueryHandlerTest {
                 UUID.randomUUID(),
                 0,
                 "base",
+                "random",
                 new BundleDigests(digest, digest),
                 new LaneFit("f".repeat(64)),
                 "1",

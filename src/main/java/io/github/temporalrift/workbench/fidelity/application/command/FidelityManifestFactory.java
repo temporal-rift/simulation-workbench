@@ -19,7 +19,7 @@ import io.github.temporalrift.workbench.shared.game.Faction;
  */
 public final class FidelityManifestFactory {
 
-    private static final int SCHEMA_VERSION = 1;
+    private static final int SCHEMA_VERSION = 2;
 
     private final ObjectMapper mapper;
     private final FidelitySettings settings;
@@ -50,6 +50,8 @@ public final class FidelityManifestFactory {
         environment.contracts().forEach(contracts::put);
         var policyNodes = manifest.putArray("policies");
         policies.forEach(policy -> policyNodes.add(policy(policy)));
+        var tableNodes = manifest.putArray("tables");
+        policies.forEach(policy -> tableNodes.add(table(policy)));
         manifest.putArray("seeds").add(seed);
         var counts = manifest.putArray("playerCounts");
         FidelityMatrix.PLAYER_COUNTS.forEach(counts::add);
@@ -103,12 +105,19 @@ public final class FidelityManifestFactory {
         node.put("version", policy.version());
         node.put("artifactDigest", policy.artifactDigest());
         node.putObject("parameters");
-        var seats = node.putArray("seatAssignment");
+        return node;
+    }
+
+    /** The table that has the policy play every seat, named for the policy. */
+    private ObjectNode table(FidelityExperiments.Policy policy) {
+        var node = mapper.createObjectNode();
+        node.put("id", policy.id());
+        var seats = node.putArray("seats");
         for (var seat = 0; seat < FidelityMatrix.MAX_SEATS; seat++) {
-            var assignment = seats.addObject();
-            assignment.put("seatIndex", seat);
-            assignment.put("policyId", policy.id());
-            assignment.put("policyVersion", policy.version());
+            seats.addObject()
+                    .put("seatIndex", seat)
+                    .put("policyId", policy.id())
+                    .put("policyVersion", policy.version());
         }
         return node;
     }

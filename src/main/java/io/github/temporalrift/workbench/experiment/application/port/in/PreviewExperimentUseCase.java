@@ -28,5 +28,5 @@ public interface PreviewExperimentUseCase {
         }
     }
 
-    record Breakdown(String variantLabel, int playerCount, int caseCount) {}
+    record Breakdown(String variantLabel, String tableId, int playerCount, int caseCount) {}
 }

@@ -24,6 +24,7 @@ import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignEx
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignReason;
 import io.github.temporalrift.workbench.search.domain.campaign.NoRealLaneException;
 import io.github.temporalrift.workbench.search.domain.campaign.PolicyRef;
+import io.github.temporalrift.workbench.search.domain.campaign.SeatTable;
 import io.github.temporalrift.workbench.search.domain.candidate.Candidate;
 import io.github.temporalrift.workbench.search.domain.candidate.ParameterGrid;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignExperiments;
@@ -34,14 +35,13 @@ import io.github.temporalrift.workbench.shared.game.FactionSets;
 /**
  * Prepares and freezes the experiments of a campaign through the experiment module. A wave is a frozen experiment
  * whose variants are candidates labelled by their ids, on the simulator and over the faction sets of every player
- * count of the campaign under cyclic seat rotation, so every candidate plays every seed over the full matrix.
+ * count of the campaign under cyclic seat rotation, so every candidate plays every seed over the full matrix of
+ * the criterion's screening tables.
  */
 public class CampaignExperimentsAdapter implements CampaignExperiments {
 
-    private static final int SCHEMA_VERSION = 1;
-
-    /** The seats of the largest case of the matrix. */
-    private static final int MAX_SEATS = 5;
+    private static final String VERSION_FIELD = "version";
+    private static final int SCHEMA_VERSION = 2;
 
     /** A wave plays one case at a time until the campaign allows more, so the frozen bounds never depend on it. */
     private static final int FROZEN_CONCURRENCY = 1;
@@ -122,7 +122,8 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
             CampaignDefinition definition,
             int waveIndex,
             List<Candidate> candidates,
-            List<String> seeds) {
+            List<String> seeds,
+            List<SeatTable> tables) {
         var simulator =
                 lanes.simulator().orElseThrow(() -> new CampaignPlayRefusedException("The simulator is not enabled"));
         var name = definition.name() + ", wave " + waveIndex;
@@ -131,9 +132,11 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
                         definition, candidate.id(), candidate.overrides(), candidate.effectiveRulesDigest(), simulator))
                 .toList();
         try {
+            var seatTables = tableNodes(definition, tables);
             return experiments.freeze(
                     idempotencyKey,
-                    manifest(definition, name, definitionPolicies(definition), variants, seeds, simulator));
+                    manifest(
+                            definition, name, usedBundles(definition, tables), seatTables, variants, seeds, simulator));
         } catch (ExperimentRefusedException e) {
             throw new CampaignPlayRefusedException(e.getMessage(), e);
         }
@@ -153,10 +156,12 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
         var lane = lanes.equivalentDeployedLane(seats)
                 .orElseThrow(() -> new NoRealLaneException(
                         "No deployed lane is build-equivalent to the simulator for " + seats + " seats"));
+        var bundles = bundles(required);
         var manifest = manifest(
                 definition,
                 definition.name() + ", confirmation of " + subject.label(),
-                policies(required),
+                bundles,
+                uniformTables(bundles, required, seats),
                 List.of(variant(
                         definition,
                         subject.label(),
@@ -181,8 +186,9 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
                 (idempotencyKey + ":" + builds).getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
 
-    /** The bundles of the policies the criterion names, every seat of the matrix playing the same one. */
-    private List<JsonNode> policies(List<PolicyRef> required) {
+    /** The newest bundle of each policy, as a manifest states a bundle. */
+    @Override
+    public List<JsonNode> bundles(List<PolicyRef> required) {
         var nodes = new java.util.ArrayList<JsonNode>();
         for (var wanted : required) {
             var bundle = catalog.list().stream()
@@ -193,33 +199,101 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
                             "No policy bundle serves " + wanted.id() + " version " + wanted.majorVersion()));
             var node = mapper.createObjectNode();
             node.put("id", bundle.id());
-            node.put("version", bundle.version());
+            node.put(VERSION_FIELD, bundle.version());
             node.put("artifactDigest", bundle.artifactDigest());
             node.putObject("parameters");
-            var seats = node.putArray("seatAssignment");
-            for (var seat = 0; seat < MAX_SEATS; seat++) {
-                seats.addObject()
-                        .put("seatIndex", seat)
-                        .put("policyId", bundle.id())
-                        .put("policyVersion", bundle.version());
-            }
             nodes.add(node);
         }
         return nodes;
     }
 
     @Override
-    public int casesPerGame(CampaignDefinition definition) {
+    public int casesPerGame(CampaignDefinition definition, List<SeatTable> tables) {
         var seats = FactionSets.of(definition.playerCounts()).stream()
                 .mapToInt(List::size)
                 .sum();
-        return Math.max(1, seats * definition.policies().size());
+        return Math.max(1, seats * tables.size());
+    }
+
+    /** The bundle of the definition that serves the policy: the newest one of its major version. */
+    private static JsonNode bundleOf(CampaignDefinition definition, PolicyRef policy) {
+        return definition
+                .policies()
+                .valueStream()
+                .filter(bundle -> policy.id().equals(bundle.path("id").asString())
+                        && bundle.path(VERSION_FIELD).asString().startsWith(policy.majorVersion() + "."))
+                .max(Comparator.comparing(
+                        (JsonNode bundle) -> bundle.path(VERSION_FIELD).asString(),
+                        CampaignExperimentsAdapter::compareVersions))
+                .orElseThrow(() -> new CampaignPlayRefusedException(
+                        "The campaign has no policy bundle for " + policy.id() + " version " + policy.majorVersion()));
+    }
+
+    /** The bundles the tables play, once each, as a manifest states a bundle. */
+    private static List<JsonNode> usedBundles(CampaignDefinition definition, List<SeatTable> tables) {
+        var used = new java.util.LinkedHashMap<String, JsonNode>();
+        for (var table : tables) {
+            for (var policy : table.seats()) {
+                var bundle = bundleOf(definition, policy);
+                var copy = bundle.deepCopy();
+                // A campaign stored before seat tables also carries a seat assignment, which was never played.
+                ((ObjectNode) copy).remove("seatAssignment");
+                used.putIfAbsent(
+                        copy.path("id").asString() + "@"
+                                + copy.path(VERSION_FIELD).asString(),
+                        copy);
+            }
+        }
+        return List.copyOf(used.values());
+    }
+
+    /** The tables as a manifest states them, each seat naming the bundle of the definition that serves its policy. */
+    private List<JsonNode> tableNodes(CampaignDefinition definition, List<SeatTable> tables) {
+        var seatCount = definition.playerCounts().stream()
+                .mapToInt(Integer::intValue)
+                .max()
+                .orElse(1);
+        var nodes = new java.util.ArrayList<JsonNode>();
+        for (var table : tables) {
+            var node = mapper.createObjectNode();
+            node.put("id", table.id());
+            var seats = node.putArray("seats");
+            for (var seat = 0; seat < seatCount; seat++) {
+                var bundle = bundleOf(definition, table.seats().get(seat));
+                seats.addObject()
+                        .put("seatIndex", seat)
+                        .put("policyId", bundle.path("id").asString())
+                        .put("policyVersion", bundle.path(VERSION_FIELD).asString());
+            }
+            nodes.add(node);
+        }
+        return nodes;
+    }
+
+    /** A uniform table of each bundle, named for its policy and major version. */
+    private List<JsonNode> uniformTables(List<JsonNode> bundles, List<PolicyRef> policies, int seatCount) {
+        var nodes = new java.util.ArrayList<JsonNode>();
+        for (var index = 0; index < bundles.size(); index++) {
+            var bundle = bundles.get(index);
+            var node = mapper.createObjectNode();
+            node.put("id", policies.get(index).id() + "-v" + policies.get(index).majorVersion());
+            var seats = node.putArray("seats");
+            for (var seat = 0; seat < seatCount; seat++) {
+                seats.addObject()
+                        .put("seatIndex", seat)
+                        .put("policyId", bundle.path("id").asString())
+                        .put("policyVersion", bundle.path(VERSION_FIELD).asString());
+            }
+            nodes.add(node);
+        }
+        return nodes;
     }
 
     private ObjectNode manifest(
             CampaignDefinition definition,
             String name,
             List<? extends JsonNode> policies,
+            List<? extends JsonNode> tables,
             List<ObjectNode> variants,
             List<String> seeds,
             LaneBundle simulator) {
@@ -234,6 +308,7 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
         var contracts = manifest.putObject("contracts");
         simulator.contracts().forEach(contracts::put);
         manifest.putArray("policies").addAll(policies);
+        manifest.putArray("tables").addAll(tables);
         var seedNodes = manifest.putArray("seeds");
         seeds.forEach(seedNodes::add);
         var counts = manifest.putArray("playerCounts");
@@ -262,12 +337,6 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
     /** The numbers of a dotted version, as in {@code [1, 10, 0]} for {@code 1.10.0}. */
     private static int[] numbers(String version) {
         return Arrays.stream(version.split("[.]")).mapToInt(Integer::parseInt).toArray();
-    }
-
-    private static List<JsonNode> definitionPolicies(CampaignDefinition definition) {
-        var nodes = new java.util.ArrayList<JsonNode>();
-        definition.policies().forEach(policy -> nodes.add(policy.deepCopy()));
-        return nodes;
     }
 
     private ObjectNode variant(

@@ -12,6 +12,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 import io.github.temporalrift.workbench.analysis.domain.AnalysisVersion;
+import io.github.temporalrift.workbench.analysis.domain.SeatPolicies;
 import io.github.temporalrift.workbench.analysis.domain.fact.CaseFacts;
 import io.github.temporalrift.workbench.analysis.domain.fact.FactExtractor;
 import io.github.temporalrift.workbench.analysis.domain.game.AnalyzedCase;
@@ -140,7 +141,8 @@ class ReportCalculatorTest {
         assertThat(keys.getFirst().factionSet()).isNull();
         assertThat(keys.subList(1, 4)).extracting(CohortKey::seatIndex).containsExactly(0, 1, 2);
         assertThat(keys.get(4).factionSet()).isEqualTo(EPW);
-        assertThat(keys.get(7)).isEqualTo(new CohortKey("base", "random", "1.0.0", 3, EPW, 0));
+        assertThat(keys.get(7))
+                .isEqualTo(new CohortKey("base", "random", SeatPolicies.uniform("random", "1.0.0", 3), 3, EPW, 0));
         assertThat(keys.get(8).seatIndex()).isEqualTo(1);
     }
 
@@ -177,7 +179,15 @@ class ReportCalculatorTest {
 
     private AnalyzedCase analyzed(String seed, List<Faction> seats, CaseState status, CaseOutcome outcome) {
         return new AnalyzedCase(
-                new UUID(1, cases.size()), "base", seed, seats.size(), "random", "1.0.0", seats, status, outcome);
+                new UUID(1, cases.size()),
+                "base",
+                "random",
+                seed,
+                seats.size(),
+                SeatPolicies.uniform("random", "1.0.0", seats.size()),
+                seats,
+                status,
+                outcome);
     }
 
     private static Metric metric(Cohort cohort, String name, Faction faction) {

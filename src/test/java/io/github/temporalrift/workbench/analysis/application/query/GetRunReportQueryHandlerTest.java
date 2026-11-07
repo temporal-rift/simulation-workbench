@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
 
+import io.github.temporalrift.workbench.analysis.domain.SeatPolicies;
 import io.github.temporalrift.workbench.analysis.domain.comparison.ExperimentDefinition;
 import io.github.temporalrift.workbench.analysis.domain.fact.CaseFacts;
 import io.github.temporalrift.workbench.analysis.domain.game.AnalyzedCase;
@@ -100,10 +101,10 @@ class GetRunReportQueryHandlerTest {
         return new AnalyzedCase(
                 new UUID(1, index),
                 "base",
+                "random",
                 String.valueOf(index),
                 3,
-                "random",
-                "1.0.0",
+                SeatPolicies.uniform("random", "1.0.0", 3),
                 SEATS,
                 CaseState.SUCCEEDED,
                 new CaseOutcome(EndReason.WIN_CONDITION_MET, Set.of(0), List.of(20, 15, 10), 3, 9, 30));
@@ -113,10 +114,10 @@ class GetRunReportQueryHandlerTest {
         return new AnalyzedCase(
                 new UUID(1, index),
                 "base",
+                "random",
                 String.valueOf(index),
                 3,
-                "random",
-                "1.0.0",
+                SeatPolicies.uniform("random", "1.0.0", 3),
                 SEATS,
                 CaseState.PENDING,
                 null);

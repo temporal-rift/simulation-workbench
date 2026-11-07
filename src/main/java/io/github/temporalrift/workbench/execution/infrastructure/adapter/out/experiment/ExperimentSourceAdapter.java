@@ -112,6 +112,7 @@ public class ExperimentSourceAdapter implements ExperimentSource {
                 experimentCase.caseKey(),
                 experimentCase.seed(),
                 experimentCase.variantLabel(),
+                experimentCase.tableId(),
                 experimentCase.playerCount(),
                 experimentCase.seats().stream()
                         .map(seat ->

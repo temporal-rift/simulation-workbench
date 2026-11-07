@@ -20,6 +20,7 @@ final class ExperimentPreviewMapper {
                 preview.breakdown().stream()
                         .map(row -> new PreviewBreakdown(
                                 row.variantLabel(),
+                                row.tableId(),
                                 PreviewBreakdown.PlayerCountEnum.fromValue(row.playerCount()),
                                 row.caseCount()))
                         .toList(),
@@ -32,6 +33,7 @@ final class ExperimentPreviewMapper {
         return new PreviewCase(
                 coordinate.caseKey(),
                 coordinate.variantLabel(),
+                coordinate.tableId(),
                 coordinate.seed(),
                 PreviewCase.PlayerCountEnum.fromValue(coordinate.playerCount()),
                 coordinate.seats().stream()
