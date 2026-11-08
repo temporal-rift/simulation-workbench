@@ -45,6 +45,17 @@ class ClopperPearsonTest {
     }
 
     @Test
+    void aBillionTrialsGiveOrderedBoundsAroundTheShare() {
+        // At this size the interval matches the normal approximation 0.5 ± 1.96 √(0.25 / 10⁹).
+        var halfWidth = 1.959964 * Math.sqrt(0.25 / 1e9);
+
+        var bounds = ClopperPearson.interval(500_000_000, 1_000_000_000, 0.95);
+
+        assertThat(bounds[0]).isCloseTo(0.5 - halfWidth, within(1e-7));
+        assertThat(bounds[1]).isCloseTo(0.5 + halfWidth, within(1e-7));
+    }
+
+    @Test
     void theIncompleteBetaIsTheBinomialTail() {
         // I_p(k, n - k + 1) = P(X >= k) for X ~ Binomial(n, p); here n = 5, k = 2, p = 0.3.
         var tail = 1 - Math.pow(0.7, 5) - 5 * 0.3 * Math.pow(0.7, 4);

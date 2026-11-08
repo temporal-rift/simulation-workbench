@@ -8,7 +8,8 @@ package io.github.temporalrift.workbench.analysis.domain.statistics;
 public final class ClopperPearson {
 
     private static final int BISECTION_STEPS = 100;
-    private static final int CONTINUED_FRACTION_TERMS = 300;
+    private static final int CONTINUED_FRACTION_BASE_TERMS = 64;
+    private static final int CONTINUED_FRACTION_TERMS_PER_ROOT = 4;
     private static final double EPSILON = 1e-15;
     private static final double TINY = 1e-300;
 
@@ -77,14 +78,21 @@ public final class ClopperPearson {
     /**
      * The continued fraction of the incomplete beta function I_t(p, q), by the modified Lentz method.
      *
+     * <p>Near the mean the number of terms it needs grows with the parameters (about 200 for 100,000 trials and 3,900
+     * for 10⁹), always below {@code 3 √max(p, q)}, so the limit scales with them. A fraction that still has not
+     * converged throws instead of returning a value that would send the bisection to the wrong side.
+     *
      * @param t the point, where the fraction converges quickly: {@code t < (p + 1) / (p + q + 2)}
+     * @throws ArithmeticException when the fraction does not converge within the limit
      */
     private static double continuedFraction(double t, double p, double q) {
+        var terms = CONTINUED_FRACTION_BASE_TERMS
+                + CONTINUED_FRACTION_TERMS_PER_ROOT * (long) Math.ceil(Math.sqrt(Math.max(p, q)));
         var c = 1.0;
         var d = nonZero(1 - (p + q) * t / (p + 1));
         d = 1 / d;
         var result = d;
-        for (var m = 1; m <= CONTINUED_FRACTION_TERMS; m++) {
+        for (long m = 1; m <= terms; m++) {
             var even = m * (q - m) * t / ((p + 2 * m - 1) * (p + 2 * m));
             d = 1 / nonZero(1 + even * d);
             c = nonZero(1 + even / c);
@@ -98,7 +106,7 @@ public final class ClopperPearson {
                 return result;
             }
         }
-        return result;
+        throw new ArithmeticException("The incomplete beta continued fraction did not converge in " + terms + " terms");
     }
 
     private static double nonZero(double value) {
