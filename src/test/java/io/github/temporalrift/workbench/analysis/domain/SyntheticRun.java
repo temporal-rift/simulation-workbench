@@ -115,6 +115,12 @@ public final class SyntheticRun {
         return policy.replaceFirst("-v1$", "");
     }
 
+    /** A criterion reference such as {@code random-v2} as the policy {@code random} at version {@code 2.0.0}. */
+    private static SeatPolicy seatPolicy(String reference) {
+        var split = reference.lastIndexOf("-v");
+        return new SeatPolicy(reference.substring(0, split), reference.substring(split + 2) + ".0.0");
+    }
+
     private static CaseFacts withParadoxes(CaseFacts extracted) {
         var game = extracted.game();
         return new CaseFacts(
@@ -137,7 +143,7 @@ public final class SyntheticRun {
         var seatPolicies = table == null
                 ? SeatPolicies.uniform(policyId(), "1.0.0", seats.size())
                 : tableSeats.subList(0, seats.size()).stream()
-                        .map(reference -> new SeatPolicy(reference.replaceFirst("-v1$", ""), "1.0.0"))
+                        .map(SyntheticRun::seatPolicy)
                         .toList();
         return new AnalyzedCase(
                 new UUID(idSpace, cases.size()),

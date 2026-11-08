@@ -2,7 +2,6 @@ package io.github.temporalrift.workbench.analysis.domain.evaluation;
 
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -31,7 +30,6 @@ import io.github.temporalrift.workbench.analysis.domain.report.CohortComputation
 import io.github.temporalrift.workbench.analysis.domain.report.CohortKey;
 import io.github.temporalrift.workbench.analysis.domain.report.Dimensions;
 import io.github.temporalrift.workbench.analysis.domain.report.Interval;
-import io.github.temporalrift.workbench.analysis.domain.report.MetricStatistic;
 import io.github.temporalrift.workbench.analysis.domain.report.MetricStatus;
 import io.github.temporalrift.workbench.analysis.domain.report.Precision;
 import io.github.temporalrift.workbench.analysis.domain.report.ReportCalculator;
@@ -82,7 +80,8 @@ final class LineExpansion {
                 if (placement.key() == null) {
                     if (line.pooling() == Pooling.POOLED
                             && plays(criterion, placement.population(), placement.playerCount())) {
-                        lines.addAll(noData(line, placement.population(), placement.playerCount()));
+                        lines.addAll(
+                                noData(line, placement.population(), placement.playerCount(), cohorts.vocabulary()));
                     }
                     continue;
                 }
@@ -243,13 +242,6 @@ final class LineExpansion {
         return switch (line.derivation()) {
             case DIRECT -> {
                 var dimensions = reportDimensions(dimension);
-                if (line.interval() == IntervalRule.BLOCK_BOOTSTRAP_UNION_CLOPPER_PEARSON
-                        && cohort.statistic(line.metric(), dimensions)
-                                .filter(MetricStatistic.RATE::equals)
-                                .isEmpty()) {
-                    throw new IllegalStateException(
-                            "Line " + line.id() + ": the Clopper-Pearson union needs a RATE metric");
-                }
                 var series = everySeat
                         ? cohort.series(line.metric(), dimensions)
                         : cohort.seatSeries(line.metric(), dimensions, seats);
@@ -408,12 +400,16 @@ final class LineExpansion {
                 .isPresent();
     }
 
-    /** One line per dimension value of a pooled line whose population has no cohort in the variant. */
-    private static List<EvaluatedLine> noData(CriterionLine line, CriterionPopulation population, int playerCount) {
+    /**
+     * One line per dimension value of a pooled line whose population has no cohort in the variant: per faction the
+     * variant played at the player count for a faction line, as a measured cohort would list them.
+     */
+    private static List<EvaluatedLine> noData(
+            CriterionLine line, CriterionPopulation population, int playerCount, Vocabulary vocabulary) {
         var dimension = line.dimension();
         var values = new ArrayList<LineDimensions>();
         if (line.derivation() == Derivation.RATIO_TO_WIN_REFERENCE) {
-            EnumSet.allOf(Faction.class).stream()
+            vocabulary.factions(playerCount).stream()
                     .sorted(Comparator.comparing(Faction::name))
                     .forEach(faction -> values.add(new LineDimensions(faction, null, null, null)));
         } else if (line.derivation() == Derivation.SUM_OF_FAILURE_CODES) {

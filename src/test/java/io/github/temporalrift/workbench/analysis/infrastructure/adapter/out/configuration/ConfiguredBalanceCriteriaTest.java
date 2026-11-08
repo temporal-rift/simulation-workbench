@@ -173,8 +173,8 @@ class ConfiguredBalanceCriteriaTest {
     }
 
     @Test
-    void theExactBoundIsRefusedOnARatioOrAQuantileLine() {
-        for (var id : List.of("G-05", "G-04")) {
+    void theExactBoundIsRefusedOnARatioAQuantileOrAMeanLine() {
+        for (var id : List.of("G-05", "G-04", "L-02", "L-06", "L-07")) {
             var document = versionTwo();
             lineNode(document, id).put("interval", "BLOCK_BOOTSTRAP_UNION_CLOPPER_PEARSON");
             var changed = MAPPER.writeValueAsString(document);

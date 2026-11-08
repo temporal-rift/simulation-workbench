@@ -13,16 +13,18 @@ class ClopperPearsonTest {
         var bounds = ClopperPearson.interval(0, 10, 0.95);
 
         assertThat(bounds[0]).isZero();
-        assertThat(bounds[1]).isCloseTo(1 - Math.pow(0.025, 1.0 / 10), within(1e-12));
-        assertThat(bounds[1]).isCloseTo(0.3085, within(5e-5));
+        assertThat(bounds[1])
+                .isCloseTo(1 - Math.pow(0.025, 1.0 / 10), within(1e-12))
+                .isCloseTo(0.3085, within(5e-5));
     }
 
     @Test
     void noEventInFiveHundredTwentyTrialsHasAnUpperBoundBelowOnePercent() {
         var bounds = ClopperPearson.interval(0, 520, 0.95);
 
-        assertThat(bounds[1]).isCloseTo(1 - Math.pow(0.025, 1.0 / 520), within(1e-12));
-        assertThat(bounds[1]).isCloseTo(0.0071, within(5e-5));
+        assertThat(bounds[1])
+                .isCloseTo(1 - Math.pow(0.025, 1.0 / 520), within(1e-12))
+                .isCloseTo(0.0071, within(5e-5));
     }
 
     @Test

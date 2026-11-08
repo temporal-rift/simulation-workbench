@@ -3,6 +3,7 @@ package io.github.temporalrift.workbench.analysis.domain.report;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.ToIntFunction;
@@ -27,8 +28,19 @@ public final class MetricCatalog {
     private static final String FINDINGS_PER_GAME = "findings per game";
     private static final String CARDS_PER_SEAT_GAME = "cards per seat-game";
     private static final String CARD_ROUNDS = "card-rounds";
+    private static final String ENDING_CAUSE_RATE = "ending_cause_rate";
+    private static final String NO_WINNER_RATE = "no_winner_rate";
+    private static final String SHARED_WIN_RATE = "shared_win_rate";
+
+    /** The metrics whose value is a share of games: each game counts once, as 0 or 1. */
+    private static final Set<String> GAME_SHARES = Set.of(ENDING_CAUSE_RATE, NO_WINNER_RATE, SHARED_WIN_RATE);
 
     private MetricCatalog() {}
+
+    /** Whether the metric's value is a share of games, so its count of events is binomial over the games. */
+    public static boolean isGameShare(String metric) {
+        return GAME_SHARES.contains(metric);
+    }
 
     public static List<MetricDefinition> definitions(CohortKey cohort, Vocabulary vocabulary) {
         var definitions = new ArrayList<MetricDefinition>();
@@ -44,10 +56,10 @@ public final class MetricCatalog {
     private static void gameMetrics(List<MetricDefinition> definitions, Vocabulary vocabulary) {
         for (var reason : EndReason.values()) {
             definitions.add(gameRate(
-                    "ending_cause_rate", Dimensions.of(reason), GAMES, game -> game.endReason() == reason ? 1 : 0));
+                    ENDING_CAUSE_RATE, Dimensions.of(reason), GAMES, game -> game.endReason() == reason ? 1 : 0));
         }
-        definitions.add(gameRate("no_winner_rate", Dimensions.NONE, GAMES, game -> game.winners() == 0 ? 1 : 0));
-        definitions.add(gameRate("shared_win_rate", Dimensions.NONE, GAMES, game -> game.winners() > 1 ? 1 : 0));
+        definitions.add(gameRate(NO_WINNER_RATE, Dimensions.NONE, GAMES, game -> game.winners() == 0 ? 1 : 0));
+        definitions.add(gameRate(SHARED_WIN_RATE, Dimensions.NONE, GAMES, game -> game.winners() > 1 ? 1 : 0));
         distribution(definitions, "eras", "eras", GameFacts::eras);
         distribution(definitions, "rounds", "rounds", GameFacts::rounds);
         distribution(definitions, "decisions", "decisions", GameFacts::decisions);

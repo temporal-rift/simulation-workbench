@@ -1041,7 +1041,7 @@ rule. A population is the seats of one table played by one policy. `GET /api/v1/
 reads one; its `digest` is the SHA-256 of its canonical serialisation (object keys sorted, no whitespace, numbers by value
 without trailing zeros), so any change of any value changes it. A version whose evidence rule the evaluator cannot apply
 (another confidence level, other invalidating causes, another aggregation), a population naming a policy no seat of
-its table plays, or the exact interval on a ratio or quantile line is refused at startup. A new version is added by
+its table plays, or the exact interval on a line that is not a share of games or cases is refused at startup. A new version is added by
 adding `balance-criteria/v<N>.json` to the application's configuration, never through the API; each version follows its
 decision record, `docs/balance-criteria/v<N>.md`. Version 1 has two uniform tables, `faction-greedy-v1` and `random-v1`,
 and declares neither tables nor interval rules in its file, which keeps its digest: it reads as one uniform table per

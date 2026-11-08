@@ -145,6 +145,21 @@ class CriterionVersionTwoTest {
     }
 
     @Test
+    void aMissingPopulationListsTheFactionsTheVariantPlayed() {
+        var run = new SyntheticRun("base", GREEDY);
+        for (var seed = 1; seed <= 3; seed++) {
+            run.win(String.valueOf(seed), SyntheticRun.EPW, 0);
+        }
+
+        var evaluation = evaluate(TestCriteria.v2(), run, EvaluationMode.SCREENING);
+
+        assertThat(evaluation.lines())
+                .filteredOn(line -> line.lineId().equals("G-07"))
+                .extracting(line -> line.dimensions().faction())
+                .containsExactly(Faction.ERASERS, Faction.PROPHETS, Faction.WEAVERS);
+    }
+
+    @Test
     void aGameMetricOnTheMixedTableCountsEveryGame() {
         var run = new SyntheticRun("base", GREEDY).table(MIXED, MIXED_SEATS);
         var first = true;

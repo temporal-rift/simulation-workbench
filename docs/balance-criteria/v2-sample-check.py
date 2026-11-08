@@ -1,11 +1,14 @@
 """Monte Carlo check of the confirmation rule of balance criterion version 2 (decision D-09 of v2.md).
 
-Faction lines of the faction-greedy-v1 table only (G-05 gates and L-01 scored lines), with the verdict logic of the
-criterion: a line MEETS when its 95% interval lies inside the band and FAILS when it lies wholly outside.
+Pooled faction lines of the faction-greedy-v1 table only (G-05 gates and L-01 scored lines), with the verdict logic of
+the criterion: a line MEETS when its 95% interval lies inside the band and FAILS when it lies wholly outside. The
+per-faction-set gate G-06 is not simulated: wins are pooled across faction sets, so a sample counted here can still be
+rejected by a G-06 matchup.
 
-Model: per seed and faction a latent log-strength shift u ~ N(0, tau^2), shared by all of that faction's games in the
-seed, gives the within-seed correlation of seat-games; tau is calibrated so that the correlation of one faction's five
-seat-games at five players equals rho. Each game's single winner is drawn by softmax over the seated factions'
+Model: per seed, player count and faction a latent log-strength shift u ~ N(0, tau^2), shared by all of that faction's
+games of the seed at that player count, gives the within-seed correlation of seat-games; tau is calibrated so that the
+correlation of one faction's five seat-games at five players equals rho. rho was measured within one player count, so
+the shifts of different player counts are drawn independently; any dependence across player counts is not modelled. Each game's single winner is drawn by softmax over the seated factions'
 strengths. The full matrix per seed is p=3: 10 sets x 3 rotations, p=4: 5 x 4, p=5: 1 x 5. The ratio of a faction is
 its win rate over R, winner seat-games over seat-games. The interval is the percentile block bootstrap over seeds with
 2,000 resamples, recomputing the ratio and R in each resample, as the workbench does.
@@ -145,7 +148,8 @@ def run(name, target, seeds, rho, reps, rng):
         confirmed += ok
         rejected += rej
     print(f"{name}: seeds={seeds} rho={rho} tau={tau:.3f} reps={reps}")
-    print(f"  P(all faction gates MEET and no faction line FAILS) = {confirmed / reps:.3f}; P(REJECTED) = {rejected / reps:.3f}")
+    print(f"  P(every G-05 line MEETS and no G-05 or L-01 line FAILS) = {confirmed / reps:.3f}; "
+          f"P(a G-05 line FAILS) = {rejected / reps:.3f}")
     for p in (3, 4, 5):
         print(f"  p={p}: P(G-05 MEETS) by faction {np.round(meet_by[p] / reps, 3)}; "
               f"coverage {np.round(cover[p] / reps, 3)}; mean half-width {np.mean(halfw[p]):.3f}")

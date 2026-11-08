@@ -3,6 +3,8 @@ package io.github.temporalrift.workbench.analysis.domain.criterion;
 import java.util.List;
 import java.util.Objects;
 
+import io.github.temporalrift.workbench.analysis.domain.report.MetricCatalog;
+
 /**
  * One metric with its dimension, the populations and player counts whose cohorts it covers, a band, the rule of its
  * interval and a role.
@@ -38,8 +40,7 @@ public record CriterionLine(
         if (populations.isEmpty() || playerCounts.isEmpty()) {
             throw new IllegalArgumentException("Line " + id + " needs a population and a player count");
         }
-        if (interval == IntervalRule.BLOCK_BOOTSTRAP_UNION_CLOPPER_PEARSON
-                && (derivation == Derivation.RATIO_TO_WIN_REFERENCE || dimension.quantile() != null)) {
+        if (interval == IntervalRule.BLOCK_BOOTSTRAP_UNION_CLOPPER_PEARSON && !share(metric, derivation, dimension)) {
             throw new IllegalArgumentException(
                     "Line " + id + ": the Clopper-Pearson union applies only to a share of games or cases");
         }
@@ -47,5 +48,13 @@ public record CriterionLine(
             throw new IllegalArgumentException(
                     "Line " + id + ": a scored line needs a positive weight and a gate needs none");
         }
+    }
+
+    /** Whether the line's value is a share of games or of cases: a failure-share sum, or a game share read directly. */
+    private static boolean share(String metric, Derivation derivation, CriterionDimension dimension) {
+        return derivation == Derivation.SUM_OF_FAILURE_CODES
+                || (derivation == Derivation.DIRECT
+                        && dimension.quantile() == null
+                        && MetricCatalog.isGameShare(metric));
     }
 }

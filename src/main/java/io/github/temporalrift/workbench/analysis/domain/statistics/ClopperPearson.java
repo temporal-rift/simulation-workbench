@@ -38,7 +38,7 @@ public final class ClopperPearson {
         }
         var tail = (1 - confidence) / 2;
         var lower = successes == 0 ? 0.0 : betaQuantile(tail, successes, trials - successes + 1.0);
-        var upper = successes == trials ? 1.0 : betaQuantile(1 - tail, successes + 1.0, (double) trials - successes);
+        var upper = successes == trials ? 1.0 : betaQuantile(1 - tail, successes + 1.0, (double) (trials - successes));
         return new double[] {lower, upper};
     }
 
@@ -69,21 +69,27 @@ public final class ClopperPearson {
         if (x < (a + 1) / (a + b + 2)) {
             return front * continuedFraction(x, a, b) / a;
         }
-        return 1 - front * continuedFraction(1 - x, b, a) / b;
+        // I_x(a, b) = 1 - I_{1-x}(b, a), where the continued fraction converges.
+        var mirrored = 1 - x;
+        return 1 - front * continuedFraction(mirrored, b, a) / b;
     }
 
-    /** The continued fraction of the incomplete beta function, by the modified Lentz method. */
-    private static double continuedFraction(double x, double a, double b) {
+    /**
+     * The continued fraction of the incomplete beta function I_t(p, q), by the modified Lentz method.
+     *
+     * @param t the point, where the fraction converges quickly: {@code t < (p + 1) / (p + q + 2)}
+     */
+    private static double continuedFraction(double t, double p, double q) {
         var c = 1.0;
-        var d = nonZero(1 - (a + b) * x / (a + 1));
+        var d = nonZero(1 - (p + q) * t / (p + 1));
         d = 1 / d;
         var result = d;
         for (var m = 1; m <= CONTINUED_FRACTION_TERMS; m++) {
-            var even = m * (b - m) * x / ((a + 2 * m - 1) * (a + 2 * m));
+            var even = m * (q - m) * t / ((p + 2 * m - 1) * (p + 2 * m));
             d = 1 / nonZero(1 + even * d);
             c = nonZero(1 + even / c);
             result *= d * c;
-            var odd = -(a + m) * (a + b + m) * x / ((a + 2 * m) * (a + 2 * m + 1));
+            var odd = -(p + m) * (p + q + m) * t / ((p + 2 * m) * (p + 2 * m + 1));
             d = 1 / nonZero(1 + odd * d);
             c = nonZero(1 + odd / c);
             var delta = d * c;

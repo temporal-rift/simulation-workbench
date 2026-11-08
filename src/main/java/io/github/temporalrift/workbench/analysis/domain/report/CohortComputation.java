@@ -75,7 +75,6 @@ public final class CohortComputation {
             CohortKey key,
             List<AnalyzedCase> members,
             Map<String, List<CaseFacts>> games,
-            int eligibleGames,
             List<MetricDefinition> definitions,
             BlockTallies tallies,
             BlockBootstrap bootstrap,
@@ -83,7 +82,7 @@ public final class CohortComputation {
         this.key = key;
         this.members = members;
         this.games = games;
-        this.eligibleGames = eligibleGames;
+        this.eligibleGames = games.values().stream().mapToInt(List::size).sum();
         this.definitions = definitions;
         this.tallies = tallies;
         this.bootstrap = bootstrap;
@@ -117,7 +116,6 @@ public final class CohortComputation {
                 .forEach(member -> Optional.ofNullable(facts.get(member.caseId()))
                         .ifPresent(caseFacts -> games.computeIfAbsent(member.seed(), seed -> new ArrayList<>())
                                 .add(caseFacts)));
-        var eligible = games.values().stream().mapToInt(List::size).sum();
         var definitions = MetricCatalog.definitions(key, vocabulary);
         var tallies = BlockTallies.collect(definitions, games, key.seatIndex());
         var stream = SplitMix64.seededBy("report", analysis.resamplingKey(), analysis.seedText(), key.text());
@@ -125,7 +123,7 @@ public final class CohortComputation {
         var failure = analysis.reportsFailureShare() && key.seatIndex() == null
                 ? failureBlocks(key, members, failureCodes, analysis)
                 : null;
-        return new CohortComputation(key, members, games, eligible, definitions, tallies, bootstrap, failure);
+        return new CohortComputation(key, members, games, definitions, tallies, bootstrap, failure);
     }
 
     private static FailureBlocks failureBlocks(
@@ -196,11 +194,6 @@ public final class CohortComputation {
         return definition(name, dimensions)
                 .map(definition -> BlockTallies.collectSeats(List.of(definition), games, seatIndices)
                         .series(0));
-    }
-
-    /** The statistic of a metric the cohort lists. */
-    public Optional<MetricStatistic> statistic(String name, Dimensions dimensions) {
-        return definition(name, dimensions).map(MetricDefinition::statistic);
     }
 
     private Optional<MetricDefinition> definition(String name, Dimensions dimensions) {
