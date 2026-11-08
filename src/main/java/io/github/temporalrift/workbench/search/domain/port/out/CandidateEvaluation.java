@@ -34,6 +34,14 @@ public interface CandidateEvaluation {
             int criterionVersion);
 
     /**
+     * The tables the criterion's confirmation plays, in criterion order.
+     *
+     * @throws IllegalArgumentException when the criterion is not served
+     */
+    java.util.List<io.github.temporalrift.workbench.search.domain.campaign.SeatTable> confirmationTables(
+            int criterionVersion);
+
+    /**
      * Evaluates a confirmation run's variant in {@code CONFIRMATION} mode.
      *
      * @throws IllegalArgumentException when the criterion, run or variant is unknown

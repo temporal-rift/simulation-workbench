@@ -148,7 +148,7 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
             CampaignDefinition definition,
             Subject subject,
             List<String> seeds,
-            List<PolicyRef> required) {
+            List<SeatTable> tables) {
         var seats = definition.playerCounts().stream()
                 .mapToInt(Integer::intValue)
                 .max()
@@ -156,12 +156,16 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
         var lane = lanes.equivalentDeployedLane(seats)
                 .orElseThrow(() -> new NoRealLaneException(
                         "No deployed lane is build-equivalent to the simulator for " + seats + " seats"));
+        var required = tables.stream()
+                .flatMap(table -> table.seats().subList(0, seats).stream())
+                .distinct()
+                .toList();
         var bundles = bundles(required);
         var manifest = manifest(
                 definition,
                 definition.name() + ", confirmation of " + subject.label(),
                 bundles,
-                uniformTables(bundles, required, seats),
+                confirmationTables(tables, required, bundles, seats),
                 List.of(variant(
                         definition,
                         subject.label(),
@@ -270,15 +274,16 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
         return nodes;
     }
 
-    /** A uniform table of each bundle, named for its policy and major version. */
-    private List<JsonNode> uniformTables(List<JsonNode> bundles, List<PolicyRef> policies, int seatCount) {
+    /** The criterion's confirmation tables as a manifest states them, each seat naming the bundle of its policy. */
+    private List<JsonNode> confirmationTables(
+            List<SeatTable> tables, List<PolicyRef> policies, List<JsonNode> bundles, int seatCount) {
         var nodes = new java.util.ArrayList<JsonNode>();
-        for (var index = 0; index < bundles.size(); index++) {
-            var bundle = bundles.get(index);
+        for (var table : tables) {
             var node = mapper.createObjectNode();
-            node.put("id", policies.get(index).id() + "-v" + policies.get(index).majorVersion());
+            node.put("id", table.id());
             var seats = node.putArray("seats");
             for (var seat = 0; seat < seatCount; seat++) {
+                var bundle = bundles.get(policies.indexOf(table.seats().get(seat)));
                 seats.addObject()
                         .put("seatIndex", seat)
                         .put("policyId", bundle.path("id").asString())

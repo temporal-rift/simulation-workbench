@@ -731,10 +731,10 @@ search seeds, so its score is optimistically biased. `startConfirmation` therefo
 real services. It derives the criterion's `confirmationMinimumSeeds` (100 for version 1, 104 for version 2) from `confirmationMasterSeed`
 alone, compares them with every seed in the campaign log and, on any overlap, answers `409 SEED_OVERLAP` having frozen
 nothing. Otherwise it freezes one experiment for the unmodified baseline and one for each short-listed candidate, each over
-those seeds, the full case matrix of the campaign's player counts and the policies the criterion names (the sample is
-only satisfied when each played it, whatever policies the search used), and starts one run per experiment. It plays
-uniform tables only, so under criterion version 2, whose sample also needs the mixed `CONFIRMATION` table, its runs end
-`UNCONFIRMED`. The experiments pin the builds of the deployed lane that is build-equivalent to the simulator (the lane the
+those seeds, the full case matrix of the campaign's player counts and the criterion's `CONFIRMATION` tables, each
+seat playing the newest bundle of its policy's major version (the sample is only satisfied when each table was played,
+whatever policies the search used), and starts one run per experiment. Under criterion version 2 that includes the
+mixed table `random-seat-vs-faction-greedy-v1`. The experiments pin the builds of the deployed lane that is build-equivalent to the simulator (the lane the
 fidelity record is made against); a container image never shares a digest with the simulator's embedded jars, so no case
 can be claimed by the simulator. The runs play one after another and each plays one case at a time, so a campaign never has
 more than one confirmation case executing, whatever its `parallelism`; the worker releases the next run when the one

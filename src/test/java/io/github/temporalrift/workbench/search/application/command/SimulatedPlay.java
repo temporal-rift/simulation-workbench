@@ -143,7 +143,7 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
             CampaignDefinition definition,
             Subject subject,
             List<String> seeds,
-            List<PolicyRef> policies) {
+            List<SeatTable> tables) {
         if (!realLane) {
             throw new NoRealLaneException("no deployed lane is build-equivalent to the simulator");
         }
@@ -323,6 +323,11 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
                 new SeatTable(
                         "faction-greedy-v1", java.util.Collections.nCopies(5, new PolicyRef("faction-greedy", "1"))),
                 new SeatTable("random-v1", java.util.Collections.nCopies(5, new PolicyRef("random", "1"))));
+    }
+
+    @Override
+    public List<SeatTable> confirmationTables(int criterionVersion) {
+        return screeningTables(criterionVersion);
     }
 
     @Override

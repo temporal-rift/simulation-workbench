@@ -28,6 +28,14 @@ public interface RunConfirmation {
     java.util.List<Table> screeningTables(int criterionVersion);
 
     /**
+     * The tables the criterion's confirmation plays, in criterion order: each seat of each names a policy as an id and
+     * a major version.
+     *
+     * @throws IllegalArgumentException when the criterion is unknown
+     */
+    java.util.List<Table> confirmationTables(int criterionVersion);
+
+    /**
      * Evaluates the variant of the run in {@code CONFIRMATION} mode, exactly as {@code getRunEvaluation} does.
      *
      * @return {@code REJECTED}, {@code CONFIRMED}, {@code UNCONFIRMED} or {@code INVALID} with the score, which is

@@ -277,6 +277,12 @@ class CampaignConfirmationIT {
         }
 
         @Override
+        public java.util.List<io.github.temporalrift.workbench.search.domain.campaign.SeatTable> confirmationTables(
+                int criterionVersion) {
+            return real.confirmationTables(criterionVersion);
+        }
+
+        @Override
         public Evaluation confirm(int criterionVersion, UUID runId, String variantLabel) {
             return real.confirm(criterionVersion, runId, variantLabel);
         }

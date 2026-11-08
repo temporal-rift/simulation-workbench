@@ -179,6 +179,12 @@ class CampaignSearchIT {
             }
 
             @Override
+            public List<io.github.temporalrift.workbench.search.domain.campaign.SeatTable> confirmationTables(
+                    int criterionVersion) {
+                return List.of();
+            }
+
+            @Override
             public Evaluation confirm(int criterionVersion, UUID runId, String variantLabel) {
                 throw new UnsupportedOperationException("this search is not confirmed");
             }
