@@ -227,7 +227,7 @@ class CampaignProgressTest {
         harness.progress.advance();
         harness.progress.advance();
         harness.progress.advance();
-        harness.play.beforeNextRaise(() -> harness.pause.handle(id, UUID.randomUUID()));
+        harness.campaigns.beforeLock(1, () -> harness.pause.handle(id, UUID.randomUUID()));
 
         harness.progress.advance();
 
@@ -245,7 +245,7 @@ class CampaignProgressTest {
         harness.progress.advance();
         harness.progress.advance();
         harness.progress.advance();
-        harness.play.beforeNextRaise(() -> harness.parallelism.handle(id, 2, UUID.randomUUID()));
+        harness.campaigns.beforeLock(1, () -> harness.parallelism.handle(id, 2, UUID.randomUUID()));
 
         harness.progress.advance();
 

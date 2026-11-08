@@ -30,6 +30,9 @@ final class InMemoryCampaigns implements CampaignRepository {
     private final Map<UUID, CampaignClaim> claims = new LinkedHashMap<>();
     private final Map<UUID, String> commands = new LinkedHashMap<>();
     private Runnable beforeApply;
+    private Runnable beforeFind;
+    private Runnable beforeLock;
+    private int locksUntilAction;
     private final Map<UUID, TreeMap<String, Candidate>> candidates = new LinkedHashMap<>();
     private final Map<UUID, TreeMap<Integer, Wave>> waves = new LinkedHashMap<>();
     private final Map<UUID, TreeMap<String, Game>> games = new LinkedHashMap<>();
@@ -61,6 +64,27 @@ final class InMemoryCampaigns implements CampaignRepository {
         return Optional.ofNullable(commands.get(idempotencyKey));
     }
 
+    /** Runs {@code action} once, just before the next campaign read: a racing request that commits right there. */
+    synchronized void beforeNextFind(Runnable action) {
+        this.beforeFind = action;
+    }
+
+    /** Runs {@code action} once, just before the given lock from now, counting from 1: a write that got in first. */
+    synchronized void beforeLock(int number, Runnable action) {
+        this.locksUntilAction = number;
+        this.beforeLock = action;
+    }
+
+    @Override
+    public synchronized void whileLocked(UUID campaignId, java.util.function.Consumer<Campaign> action) {
+        if (beforeLock != null && --locksUntilAction == 0) {
+            var racing = beforeLock;
+            beforeLock = null;
+            racing.run();
+        }
+        find(campaignId).map(StoredCampaign::campaign).ifPresent(action);
+    }
+
     /** Runs {@code action} once, just before the next change is applied: a racing request landing mid-command. */
     synchronized void beforeNextApply(Runnable action) {
         this.beforeApply = action;
@@ -68,6 +92,11 @@ final class InMemoryCampaigns implements CampaignRepository {
 
     @Override
     public synchronized Optional<StoredCampaign> find(UUID campaignId) {
+        if (beforeFind != null) {
+            var action = beforeFind;
+            beforeFind = null;
+            action.run();
+        }
         return Optional.ofNullable(campaigns.get(campaignId));
     }
 

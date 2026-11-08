@@ -12,6 +12,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 import org.jooq.Condition;
 import org.jooq.DSLContext;
@@ -273,6 +274,17 @@ class CampaignRepositoryAdapter implements CampaignRepository {
             insertRound(campaignId, change.round());
         }
         return true;
+    }
+
+    @Override
+    @Transactional
+    public void whileLocked(UUID campaignId, Consumer<Campaign> action) {
+        dsl.selectFrom(CAMPAIGN)
+                .where(CAMPAIGN_ID.eq(campaignId))
+                .forNoKeyUpdate()
+                .fetchOptional(this::stored)
+                .map(StoredCampaign::campaign)
+                .ifPresent(action);
     }
 
     private void insertRound(UUID campaignId, RoundResult result) {

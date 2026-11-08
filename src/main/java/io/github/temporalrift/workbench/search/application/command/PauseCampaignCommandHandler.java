@@ -6,7 +6,6 @@ import java.util.UUID;
 import io.github.temporalrift.workbench.search.application.port.in.PauseCampaignUseCase;
 import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignCommandKey;
-import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRepository;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRuns;
 
@@ -26,10 +25,7 @@ public class PauseCampaignCommandHandler implements PauseCampaignUseCase {
         var command = CampaignCommandKey.of(idempotencyKey, "pauseCampaign", campaignId, "");
         var campaign =
                 updates.update(campaignId, command, (settled, now) -> new CampaignUpdates.Next(settled.pause(), false));
-        // A repeated request answers for a campaign that may have been resumed since, which must keep playing.
-        if (campaign.state() == CampaignState.PAUSED) {
-            waveRuns.hold(campaignId);
-        }
+        waveRuns.reconcile(campaignId);
         return campaign;
     }
 }

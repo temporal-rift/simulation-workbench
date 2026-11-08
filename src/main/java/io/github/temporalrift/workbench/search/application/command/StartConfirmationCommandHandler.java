@@ -74,7 +74,9 @@ public class StartConfirmationCommandHandler implements StartConfirmationUseCase
             return replayed.get();
         }
         var stored = campaigns.find(campaignId).orElseThrow(() -> new CampaignNotFoundException(campaignId));
-        requireSearchCompleted(stored.campaign());
+        if (stored.campaign().state() != CampaignState.SEARCH_COMPLETED) {
+            return replayedOrRefused(campaignId, command, stored.campaign().state());
+        }
         var definition = stored.campaign().definition();
         var seedCount = evaluation.confirmationSeedCount(definition.criterionVersion());
         var seeds = new ConfirmationSeeds(definition.confirmationMasterSeed()).seeds(seedCount);
@@ -95,13 +97,12 @@ public class StartConfirmationCommandHandler implements StartConfirmationUseCase
                 if (current.campaign().state() != CampaignState.CONFIRMING) {
                     cancel(confirmation);
                 }
-                throw new InvalidCampaignStateException(
-                        "startConfirmation", current.campaign().state());
+                return replayedOrRefused(campaignId, command, current.campaign().state());
             }
             var next = current.campaign().startConfirmation(confirmation);
             if (campaigns.apply(
                     CampaignChange.of(current, next, current.accruedAt()).claiming(command))) {
-                waveRuns.allowConfirmation(next);
+                waveRuns.reconcile(campaignId);
                 return next;
             }
         }
@@ -119,10 +120,10 @@ public class StartConfirmationCommandHandler implements StartConfirmationUseCase
         });
     }
 
-    private static void requireSearchCompleted(Campaign campaign) {
-        if (campaign.state() != CampaignState.SEARCH_COMPLETED) {
-            throw new InvalidCampaignStateException("startConfirmation", campaign.state());
-        }
+    /** A request with this same key may have brought about the state since the key was last read. */
+    private Campaign replayedOrRefused(UUID campaignId, CampaignCommandKey command, CampaignState state) {
+        return updates.replayed(campaignId, command)
+                .orElseThrow(() -> new InvalidCampaignStateException("startConfirmation", state));
     }
 
     private void rejectOverlap(UUID campaignId, List<String> seeds) {

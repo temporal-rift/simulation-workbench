@@ -696,7 +696,7 @@ same definition always gives the same log.
 | `GET /api/v1/campaigns`, `.../{id}`, `.../{id}/log` | The campaigns newest first, one campaign with the active time it has spent so far, and its decision log in sequence order |
 | `POST .../{id}/pause`, `.../resume`, `.../cancel` | Pause a queued or running campaign, resume a paused one, cancel one that is not over; repeating the one that already holds changes nothing, any other state answers `409 INVALID_CAMPAIGN_STATE` |
 | `PUT .../{id}/parallelism` | Changes the games played at once; the next game claimed obeys it and games in flight finish. Pause, resume, cancel, this and confirmation all take an `Idempotency-Key`: an accepted command repeated with its key returns the campaign and applies nothing, the key on any other request is `409 IDEMPOTENCY_CONFLICT`, and a refused command claims nothing. The key is claimed in the write that applies the command, so the two exist together or not at all |
-| `POST .../{id}/confirmation` | From `SEARCH_COMPLETED` only (`simulation:write`, `Idempotency-Key`): freezes and starts the confirmation of the short list on fresh seeds (see "Confirming the short list") and answers `202` with the campaign now `CONFIRMING`; `409 INVALID_CAMPAIGN_STATE` from any other state; `409 SEED_OVERLAP`, `SIMULATOR_NOT_AVAILABLE`, `FIDELITY_NOT_ESTABLISHED` or `POLICY_NOT_AVAILABLE` when it cannot be played, having frozen nothing |
+| `POST .../{id}/confirmation` | From `SEARCH_COMPLETED` only (`simulation:write`, `Idempotency-Key`): freezes and starts the confirmation of the short list on fresh seeds (see "Confirming the short list") and answers `202` with the campaign now `CONFIRMING`; `409 INVALID_CAMPAIGN_STATE` from any other state; `409 SEED_OVERLAP`, `SIMULATOR_NOT_AVAILABLE`, `FIDELITY_NOT_ESTABLISHED` or `POLICY_NOT_AVAILABLE` when it cannot be played, and nothing plays |
 
 **The search.** Round 0 generates `initialCandidates`: the baseline, its one-step perturbations in key order, then a Latin
 hypercube sample of the parameter space. Every candidate plays the same seeds, which derive from `searchMasterSeed` and
@@ -731,8 +731,11 @@ search seeds, so its score is optimistically biased. `startConfirmation` therefo
 that bias on any lane; whether the simulator plays the real game is what its fidelity check establishes. It derives the
 criterion's `confirmationMinimumSeeds` (100 for version 1, 104 for version 2) from `confirmationMasterSeed` alone and
 refuses with `409`, having frozen nothing, in this order: `SEED_OVERLAP` when one of them is already in the campaign log,
-`SIMULATOR_NOT_AVAILABLE` when the simulator is not enabled or refuses what the confirmation needs (for instance after a rebuild on other baseline rules, with the reason in the detail), `FIDELITY_NOT_ESTABLISHED` when it has no passing fidelity
-record for the source revisions it embeds, and `POLICY_NOT_AVAILABLE` when no bundle serves a policy the criterion names.
+`SIMULATOR_NOT_AVAILABLE` when the simulator is not enabled, `FIDELITY_NOT_ESTABLISHED` when it has no passing fidelity
+record for the source revisions it embeds, and `POLICY_NOT_AVAILABLE` when no bundle serves a policy the criterion names. Should the simulator still refuse an
+experiment or a run after those checks, for instance after a rebuild on other baseline rules, the answer is
+`409 SIMULATOR_NOT_AVAILABLE` with the reason in the detail: the experiments and held runs of earlier candidates then
+exist, play nothing, and are reused by a retry.
 Otherwise it freezes one experiment for each short-listed candidate, in short-list order, each on the simulator over
 those seeds, the full case matrix of the campaign's player counts and the criterion's `CONFIRMATION` tables, each
 seat playing the newest bundle of its policy's major version (the sample is only satisfied when each table was played,

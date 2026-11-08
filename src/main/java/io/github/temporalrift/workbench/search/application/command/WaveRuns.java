@@ -1,21 +1,14 @@
 package io.github.temporalrift.workbench.search.application.command;
 
-import java.util.List;
 import java.util.UUID;
 
-import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
-import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
 import io.github.temporalrift.workbench.search.domain.campaign.Confirmation;
-import io.github.temporalrift.workbench.search.domain.campaign.StoredCampaign;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRepository;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRuns;
-import io.github.temporalrift.workbench.search.domain.wave.Wave;
 import io.github.temporalrift.workbench.shared.execution.RunPhase;
 
 /**
- * Applies what a campaign says to the runs that play its waves and its confirmation. Pausing holds back every case
- * that has not started, and cases already executing finish; resuming and a change of parallelism allow that many cases
- * at once; stopping cancels the runs, the confirmation runs of a campaign included. Every call is safe to repeat and
+ * Makes the runs of a campaign's waves and confirmation do what the campaign says now. Every call is safe to repeat and
  * ignores a run that is over.
  */
 class WaveRuns {
@@ -30,16 +23,33 @@ class WaveRuns {
         this.runs = runs;
     }
 
-    void hold(UUID campaignId) {
+    /**
+     * Brings the runs in line with the campaign as stored, holding its row meanwhile. A paused campaign holds back
+     * every case that has not started, and cases already executing finish; a running one allows its parallelism; a
+     * confirming one lets its current run play at its parallelism. Everyone who changes a campaign reconciles
+     * afterwards and no write of the campaign can pass the lock, so the last reconciliation always read the newest
+     * campaign: a step or a request that read an older one cannot leave its value on the runs.
+     */
+    void reconcile(UUID campaignId) {
+        campaigns.whileLocked(campaignId, campaign -> {
+            switch (campaign.state()) {
+                case RUNNING -> allow(campaignId, campaign.parallelism());
+                case PAUSED -> hold(campaignId);
+                case CONFIRMING -> allowCurrentRun(campaign.confirmation(), campaign.parallelism());
+                case CANCELLED -> stop(campaignId);
+                default -> {
+                    // nothing plays in any other state
+                }
+            }
+        });
+    }
+
+    private void hold(UUID campaignId) {
         campaigns.waves(campaignId).forEach(wave -> runs.setConcurrency(wave.runId(), HELD));
     }
 
-    void allow(UUID campaignId, int parallelism) {
-        allow(campaigns.waves(campaignId), parallelism);
-    }
-
-    void allow(List<Wave> waves, int parallelism) {
-        for (var wave : waves) {
+    private void allow(UUID campaignId, int parallelism) {
+        for (var wave : campaigns.waves(campaignId)) {
             var progress = runs.progress(wave.runId());
             if (progress.isEmpty() || progress.get().phase().isFinal()) {
                 continue;
@@ -49,21 +59,6 @@ class WaveRuns {
             }
             runs.setConcurrency(wave.runId(), parallelism);
         }
-    }
-
-    /**
-     * Lets the confirmation's current run play at the campaign's parallelism, then reads the campaign again: a change
-     * of parallelism that landed after this campaign was read may just have been overwritten, and no later step would
-     * correct it before more cases are claimed.
-     */
-    void allowConfirmation(Campaign campaign) {
-        allowCurrentRun(campaign.confirmation(), campaign.parallelism());
-        campaigns
-                .find(campaign.campaignId())
-                .map(StoredCampaign::campaign)
-                .filter(now -> now.state() == CampaignState.CONFIRMING)
-                .filter(now -> now.parallelism() != campaign.parallelism())
-                .ifPresent(now -> allowCurrentRun(now.confirmation(), now.parallelism()));
     }
 
     /**
@@ -91,6 +86,7 @@ class WaveRuns {
         }
     }
 
+    /** Cancels the runs, the confirmation runs of the campaign included. */
     void stop(UUID campaignId) {
         campaigns.waves(campaignId).forEach(wave -> runs.cancel(wave.runId()));
         campaigns

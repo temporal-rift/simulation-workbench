@@ -136,6 +136,38 @@ class CampaignCommandKeyTest {
     }
 
     @Test
+    void aConfirmationWhoseKeyIsClaimedBetweenTheKeyCheckAndTheStateCheckAnswersWithTheCampaign() {
+        var id = searched();
+        campaigns.beforeNextFind(() -> confirm.handle(id, KEY));
+
+        var duplicate = confirm.handle(id, KEY);
+
+        assertThat(duplicate.state()).isEqualTo(CampaignState.CONFIRMING);
+    }
+
+    @Test
+    void aCommandWhoseKeyIsClaimedBetweenTheKeyCheckAndTheStateCheckAnswersWithTheCampaign() {
+        var id = running();
+        campaigns.beforeNextFind(() -> {
+            pause.handle(id, KEY);
+            cancel.handle(id, UUID.randomUUID());
+        });
+
+        var duplicate = pause.handle(id, KEY);
+
+        assertThat(duplicate.state()).isEqualTo(CampaignState.CANCELLED);
+    }
+
+    @Test
+    void aRepeatedConfirmationAnswersWithTheCampaignAsItStandsAfterItWasCancelled() {
+        var id = searched();
+        confirm.handle(id, KEY);
+        cancel.handle(id, UUID.randomUUID());
+
+        assertThat(confirm.handle(id, KEY).state()).isEqualTo(CampaignState.CANCELLED);
+    }
+
+    @Test
     void aKeyReusedWithAnotherValueConflictsAndChangesNothing() {
         var id = running();
         parallelism.handle(id, 8, KEY);

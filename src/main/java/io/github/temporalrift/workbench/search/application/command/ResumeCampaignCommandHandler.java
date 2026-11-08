@@ -28,10 +28,7 @@ public class ResumeCampaignCommandHandler implements ResumeCampaignUseCase {
             var next = settled.resume();
             return new CampaignUpdates.Next(next, settled.state() != CampaignState.RUNNING);
         });
-        // A repeated request answers for a campaign that may have been paused since, which must stay held.
-        if (campaign.state() == CampaignState.RUNNING) {
-            waveRuns.allow(campaignId, campaign.parallelism());
-        }
+        waveRuns.reconcile(campaignId);
         return campaign;
     }
 }

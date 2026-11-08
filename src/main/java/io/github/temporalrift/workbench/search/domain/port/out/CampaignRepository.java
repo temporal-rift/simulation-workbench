@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignChange;
@@ -52,6 +53,12 @@ public interface CampaignRepository {
      * the key is already claimed. Records the campaign already has are kept as they are.
      */
     boolean apply(CampaignChange change);
+
+    /**
+     * Runs the action on the campaign as stored, and no write of the campaign can happen until it returns. An unknown
+     * campaign runs nothing.
+     */
+    void whileLocked(UUID campaignId, Consumer<Campaign> action);
 
     /** What each decided round left standing, in round order. */
     List<RoundResult> rounds(UUID campaignId);

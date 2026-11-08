@@ -66,12 +66,12 @@ public class CreateCampaignCommandHandler implements CreateCampaignUseCase {
         var parallelism =
                 command.parallelism() == null ? CampaignDefinition.DEFAULT_PARALLELISM : command.parallelism();
         var hash = requestHash(command, budgetSeconds, parallelism);
-        var claimed = campaigns.findClaim(command.idempotencyKey());
-        if (claimed.isPresent()) {
-            return replay(claimed.get(), hash, command.idempotencyKey());
-        }
         if (campaigns.claimedRequestHash(command.idempotencyKey()).isPresent()) {
-            throw new CampaignIdempotencyConflictException(command.idempotencyKey());
+            // A campaign and its claim are stored together, so a claimed key with no campaign belongs to a command.
+            return campaigns
+                    .findClaim(command.idempotencyKey())
+                    .map(claim -> replay(claim, hash, command.idempotencyKey()))
+                    .orElseThrow(() -> new CampaignIdempotencyConflictException(command.idempotencyKey()));
         }
         var definition = definitionOf(command, budgetSeconds);
         experiments.check(definition);

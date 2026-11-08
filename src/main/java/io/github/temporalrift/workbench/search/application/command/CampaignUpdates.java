@@ -10,6 +10,7 @@ import io.github.temporalrift.workbench.search.domain.campaign.CampaignChange;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignCommandKey;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignIdempotencyConflictException;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignNotFoundException;
+import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignStateException;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRepository;
 
 /**
@@ -52,14 +53,33 @@ class CampaignUpdates {
             var stored = campaigns.find(campaignId).orElseThrow(() -> new CampaignNotFoundException(campaignId));
             var now = clock.instant();
             var settled = stored.settledAt(now);
-            var next = change.apply(settled.campaign(), now);
-            var accruedAt = next.startsCounting() ? now : settled.accruedAt();
+            var next = next(campaignId, command, change, settled.campaign(), now);
+            if (next.isEmpty()) {
+                return replayed(campaignId, command).orElseThrow();
+            }
+            var accruedAt = next.get().startsCounting() ? now : settled.accruedAt();
             if (campaigns.apply(
-                    CampaignChange.of(stored, next.campaign(), accruedAt).claiming(command))) {
-                return next.campaign();
+                    CampaignChange.of(stored, next.get().campaign(), accruedAt).claiming(command))) {
+                return next.get().campaign();
             }
         }
         throw new IllegalStateException("Campaign " + campaignId + " keeps changing under the request");
+    }
+
+    /**
+     * What the change makes of the campaign, or empty when it refuses a state that a request with this same key brought
+     * about since the key was last read, which answers for this one.
+     */
+    private Optional<Next> next(
+            UUID campaignId, CampaignCommandKey command, Change change, Campaign settled, Instant now) {
+        try {
+            return Optional.of(change.apply(settled, now));
+        } catch (InvalidCampaignStateException e) {
+            if (replayed(campaignId, command).isPresent()) {
+                return Optional.empty();
+            }
+            throw e;
+        }
     }
 
     /**

@@ -1,6 +1,7 @@
 package io.github.temporalrift.workbench.search.infrastructure.adapter.out.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -94,6 +95,28 @@ class CampaignRepositoryIT {
                 .as("the write rolled back with the lost claim")
                 .isEqualTo(8);
         assertThat(after.version()).isEqualTo(stored.version());
+    }
+
+    @Test
+    void aWriteOfACampaignWaitsUntilItsLockIsReleasedAndAnUnknownCampaignRunsNothing() throws Exception {
+        var queued = queued("locked", NOW);
+        store(queued, NOW);
+        var write = new java.util.concurrent.atomic.AtomicReference<java.util.concurrent.CompletableFuture<Boolean>>();
+
+        repository.whileLocked(queued.campaignId(), campaign -> {
+            var writing = java.util.concurrent.CompletableFuture.supplyAsync(
+                    () -> repository.save(campaign.withParallelism(8), NOW, 0));
+            write.set(writing);
+            assertThatThrownBy(() -> writing.get(500, java.util.concurrent.TimeUnit.MILLISECONDS))
+                    .isInstanceOf(java.util.concurrent.TimeoutException.class);
+        });
+
+        assertThat(write.get().get(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+        assertThat(repository.find(queued.campaignId()).orElseThrow().campaign().parallelism())
+                .isEqualTo(8);
+        repository.whileLocked(UUID.randomUUID(), campaign -> {
+            throw new AssertionError("an unknown campaign has nothing to run on");
+        });
     }
 
     @Test

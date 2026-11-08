@@ -193,7 +193,7 @@ class ConfirmationTest {
     void aParallelismChangeLandingDuringAStepIsNotOverwrittenByTheParallelismTheStepRead() {
         var id = searched("c-0000");
         var runs = start.handle(id, UUID.randomUUID()).confirmation().runs();
-        play.beforeNextRaise(() -> parallelism.handle(id, 2, UUID.randomUUID()));
+        campaigns.beforeLock(1, () -> parallelism.handle(id, 2, UUID.randomUUID()));
 
         progress.advance();
 

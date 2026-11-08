@@ -165,7 +165,7 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
         }
         var step = new Step(stored, now);
         var campaignId = step.campaign.campaignId();
-        allowThenVerify(step.campaign, () -> waveRuns.allow(campaignId, step.campaign.parallelism()));
+        waveRuns.reconcile(campaignId);
         try {
             return advanceRound(step);
         } catch (CampaignPlayRefusedException | IllegalArgumentException e) {
@@ -175,26 +175,6 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
         } catch (CandidateGenerationExhaustedException e) {
             return fail(step, CampaignFailure.CANDIDATE_GENERATION_EXHAUSTED, e.getMessage());
         }
-    }
-
-    /**
-     * Lets runs play and then checks that the campaign still wants them to. A pause or a cancel commits its state
-     * before it holds or cancels the runs, so a step that read the campaign earlier can raise the concurrency after
-     * that hold; reading the state again afterwards puts the hold back, and no later step would otherwise correct it.
-     * A change of parallelism that landed after the campaign was read is put back the same way.
-     */
-    private void allowThenVerify(Campaign read, Runnable allow) {
-        allow.run();
-        var campaignId = read.campaignId();
-        campaigns.find(campaignId).map(StoredCampaign::campaign).ifPresent(now -> {
-            if (now.state() == CampaignState.PAUSED) {
-                waveRuns.hold(campaignId);
-            } else if (now.state() == CampaignState.CANCELLED) {
-                waveRuns.stop(campaignId);
-            } else if (now.state() == CampaignState.RUNNING && now.parallelism() != read.parallelism()) {
-                waveRuns.allow(campaignId, now.parallelism());
-            }
-        });
     }
 
     /** A campaign resumed before it ever started starts now, or waits for the fidelity gate like a queued one. */
@@ -333,7 +313,7 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
         var applied =
                 campaigns.apply(step.change().playing(new Wave(index, campaign.round(), experimentId, runId), games));
         if (applied) {
-            allowThenVerify(campaign, () -> runs.setConcurrency(runId, campaign.parallelism()));
+            waveRuns.reconcile(campaign.campaignId());
         }
         return applied;
     }

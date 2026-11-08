@@ -35,13 +35,6 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
 
     static final String POISONED = "poisoned";
 
-    private Runnable beforeRaise;
-
-    /** Runs {@code action} once, just before the next time a run is allowed to play: a command landing mid-step. */
-    synchronized void beforeNextRaise(Runnable action) {
-        this.beforeRaise = action;
-    }
-
     synchronized List<Experiment> frozen() {
         return List.copyOf(experiments.values());
     }
@@ -216,11 +209,6 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
 
     @Override
     public synchronized void setConcurrency(UUID runId, int concurrency) {
-        if (concurrency > 0 && beforeRaise != null) {
-            var action = beforeRaise;
-            beforeRaise = null;
-            action.run();
-        }
         var run = runs.get(runId);
         if (run != null && !run.phase.isFinal()) {
             run.concurrency = concurrency;
