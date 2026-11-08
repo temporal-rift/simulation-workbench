@@ -70,6 +70,9 @@ public class CreateCampaignCommandHandler implements CreateCampaignUseCase {
         if (claimed.isPresent()) {
             return replay(claimed.get(), hash, command.idempotencyKey());
         }
+        if (campaigns.findCommand(command.idempotencyKey()).isPresent()) {
+            throw new CampaignIdempotencyConflictException(command.idempotencyKey());
+        }
         var definition = definitionOf(command, budgetSeconds);
         experiments.check(definition);
         if (!evaluation.servesCriterion(definition.criterionVersion())) {

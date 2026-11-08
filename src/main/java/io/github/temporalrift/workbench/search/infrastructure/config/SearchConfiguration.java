@@ -16,6 +16,7 @@ import io.github.temporalrift.workbench.execution.RunStarter;
 import io.github.temporalrift.workbench.experiment.ExperimentFactory;
 import io.github.temporalrift.workbench.fidelity.SimulatorFidelityGate;
 import io.github.temporalrift.workbench.policy.PolicyCatalog;
+import io.github.temporalrift.workbench.search.application.command.CampaignCommandOnceHandler;
 import io.github.temporalrift.workbench.search.application.command.CampaignProgress;
 import io.github.temporalrift.workbench.search.application.command.CancelCampaignCommandHandler;
 import io.github.temporalrift.workbench.search.application.command.CreateCampaignCommandHandler;
@@ -24,6 +25,7 @@ import io.github.temporalrift.workbench.search.application.command.ResumeCampaig
 import io.github.temporalrift.workbench.search.application.command.SetCampaignParallelismCommandHandler;
 import io.github.temporalrift.workbench.search.application.command.StartConfirmationCommandHandler;
 import io.github.temporalrift.workbench.search.application.port.in.AdvanceCampaignsUseCase;
+import io.github.temporalrift.workbench.search.application.port.in.CampaignCommandOnceUseCase;
 import io.github.temporalrift.workbench.search.application.port.in.CancelCampaignUseCase;
 import io.github.temporalrift.workbench.search.application.port.in.CreateCampaignUseCase;
 import io.github.temporalrift.workbench.search.application.port.in.GetCampaignLogUseCase;
@@ -122,6 +124,11 @@ public class SearchConfiguration {
             CandidateEvaluation evaluation,
             FidelityGate gate) {
         return new StartConfirmationCommandHandler(campaigns, experiments, runs, evaluation, gate);
+    }
+
+    @Bean
+    CampaignCommandOnceUseCase campaignCommandOnceUseCase(CampaignRepository campaigns, Clock clock) {
+        return new CampaignCommandOnceHandler(campaigns, clock);
     }
 
     @Bean

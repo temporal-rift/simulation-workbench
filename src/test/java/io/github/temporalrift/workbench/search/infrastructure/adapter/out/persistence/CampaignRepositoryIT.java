@@ -23,6 +23,7 @@ import io.github.temporalrift.workbench.WorkbenchIntegrationTest;
 import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignChange;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignClaim;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignCommandClaim;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignCreation;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignFailure;
@@ -69,6 +70,22 @@ class CampaignRepositoryIT {
         assertThat(stored.version()).isZero();
         assertThat(stored.accruedAt()).isEqualTo(NOW);
         assertThat(repository.find(UUID.randomUUID())).isEmpty();
+    }
+
+    @Test
+    void aCommandKeyIsClaimedOnceAndGoesWithItsCampaign() {
+        var queued = queued("commands", NOW);
+        store(queued, NOW);
+        var key = UUID.randomUUID();
+        assertThat(repository.findCommand(key)).isEmpty();
+
+        repository.claimCommand(key, queued.campaignId(), "a".repeat(64), NOW);
+        repository.claimCommand(key, queued.campaignId(), "b".repeat(64), NOW.plusSeconds(1));
+
+        assertThat(repository.findCommand(key)).contains(new CampaignCommandClaim(queued.campaignId(), "a".repeat(64)));
+
+        jdbc.update("DELETE FROM campaign WHERE campaign_id = ?", queued.campaignId());
+        assertThat(repository.findCommand(key)).isEmpty();
     }
 
     @Test

@@ -28,6 +28,7 @@ import tools.jackson.databind.JsonNode;
 import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignChange;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignClaim;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignCommandClaim;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignCreation;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignFailure;
@@ -87,6 +88,8 @@ class CampaignRepositoryAdapter implements CampaignRepository {
     private static final Field<OffsetDateTime> FINISHED =
             DSL.field(DSL.name("finished_at"), SQLDataType.TIMESTAMPWITHTIMEZONE);
 
+    private static final Table<Record> COMMAND = DSL.table(DSL.name("campaign_command"));
+
     private static final Table<Record> CANDIDATE = DSL.table(DSL.name("campaign_candidate"));
     private static final Field<String> CANDIDATE_ID = DSL.field(DSL.name("candidate_id"), SQLDataType.VARCHAR);
     private static final Field<String> POINT = DSL.field(DSL.name("point_json"), SQLDataType.CLOB);
@@ -138,6 +141,26 @@ class CampaignRepositoryAdapter implements CampaignRepository {
                 .where(KEY.eq(idempotencyKey))
                 .fetchOptional()
                 .map(row -> new CampaignClaim(stored(row).campaign(), row.get(REQUEST_HASH)));
+    }
+
+    @Override
+    public Optional<CampaignCommandClaim> findCommand(UUID idempotencyKey) {
+        return dsl.select(CAMPAIGN_ID, REQUEST_HASH)
+                .from(COMMAND)
+                .where(KEY.eq(idempotencyKey))
+                .fetchOptional()
+                .map(row -> new CampaignCommandClaim(row.get(CAMPAIGN_ID), row.get(REQUEST_HASH)));
+    }
+
+    @Override
+    public void claimCommand(UUID idempotencyKey, UUID campaignId, String requestHash, Instant claimedAt) {
+        dsl.insertInto(COMMAND)
+                .set(KEY, idempotencyKey)
+                .set(CAMPAIGN_ID, campaignId)
+                .set(REQUEST_HASH, requestHash)
+                .set(CREATED, utc(claimedAt))
+                .onConflictDoNothing()
+                .execute();
     }
 
     private void insert(UUID idempotencyKey, String requestHash, Campaign queued, Instant accruedAt) {

@@ -8,6 +8,7 @@ import java.util.UUID;
 import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignChange;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignClaim;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignCommandClaim;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignCreation;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
 import io.github.temporalrift.workbench.search.domain.campaign.StoredCampaign;
@@ -28,6 +29,12 @@ public interface CampaignRepository {
     CampaignCreation create(UUID idempotencyKey, String requestHash, Campaign queued, Instant accruedAt);
 
     Optional<CampaignClaim> findClaim(UUID idempotencyKey);
+
+    /** What an accepted command on a campaign claimed the key for, if one did. */
+    Optional<CampaignCommandClaim> findCommand(UUID idempotencyKey);
+
+    /** Claims the key for an accepted command on the campaign; a key already claimed stays as it is. */
+    void claimCommand(UUID idempotencyKey, UUID campaignId, String requestHash, Instant claimedAt);
 
     Optional<StoredCampaign> find(UUID campaignId);
 

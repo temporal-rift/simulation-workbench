@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.TreeMap;
 import java.util.UUID;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -29,6 +30,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import tools.jackson.databind.json.JsonMapper;
 
 import io.github.temporalrift.workbench.TestSecurityConfig;
+import io.github.temporalrift.workbench.search.application.port.in.CampaignCommandOnceUseCase;
 import io.github.temporalrift.workbench.search.application.port.in.CancelCampaignUseCase;
 import io.github.temporalrift.workbench.search.application.port.in.CreateCampaignUseCase;
 import io.github.temporalrift.workbench.search.application.port.in.GetCampaignLogUseCase;
@@ -146,6 +148,46 @@ class CampaignControllerIT {
 
     @MockitoBean
     private StartConfirmationUseCase startConfirmation;
+
+    @MockitoBean
+    private CampaignCommandOnceUseCase once;
+
+    @BeforeEach
+    void everyKeyIsNewUnlessATestSaysOtherwise() {
+        when(once.handle(any(), any()))
+                .thenAnswer(call -> call.<java.util.function.Supplier<Campaign>>getArgument(1)
+                        .get());
+    }
+
+    @Test
+    void aCommandIsHeldToItsKeyWithItsOperationCampaignAndBody() throws Exception {
+        when(parallelism.handle(CAMPAIGN, 8)).thenReturn(campaign());
+        var key = UUID.randomUUID();
+
+        mockMvc.perform(put("/api/v1/campaigns/" + CAMPAIGN + "/parallelism")
+                        .with(jwt().authorities(authorities(WRITE)))
+                        .header("Idempotency-Key", key.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"parallelism\":8}"))
+                .andExpect(status().isOk());
+
+        verify(once)
+                .handle(
+                        org.mockito.ArgumentMatchers.eq(
+                                new CampaignCommandOnceUseCase.Command(key, "setCampaignParallelism", CAMPAIGN, "8")),
+                        any());
+    }
+
+    @Test
+    void aKeyAnotherRequestUsedAnswers409() throws Exception {
+        org.mockito.Mockito.doThrow(new CampaignIdempotencyConflictException(UUID.randomUUID()))
+                .when(once)
+                .handle(any(), any());
+
+        send("/api/v1/campaigns/" + CAMPAIGN + "/confirmation", "", WRITE)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_CONFLICT"));
+    }
 
     private static Campaign campaign() {
         var mapper = JsonMapper.builder().build();

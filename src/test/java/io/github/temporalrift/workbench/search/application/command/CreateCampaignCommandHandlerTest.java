@@ -85,6 +85,17 @@ class CreateCampaignCommandHandlerTest {
     }
 
     @Test
+    void aKeyACommandOnACampaignClaimedIsAConflictAndCreatesNothing() {
+        var key = UUID.randomUUID();
+        campaigns.claimCommand(key, UUID.randomUUID(), "h".repeat(64), NOW);
+
+        var request = command(key, "7", "9");
+
+        assertThatThrownBy(() -> create.handle(request)).isInstanceOf(CampaignIdempotencyConflictException.class);
+        assertThat(campaigns.list(null, 10, 0).total()).isZero();
+    }
+
+    @Test
     void aMinimalDefinitionIsCompletedWithTheRecordsAndTwoDrawnSeeds() {
         drawn.addAll(List.of("11", "22"));
 
