@@ -56,6 +56,30 @@ class ClopperPearsonTest {
     }
 
     @Test
+    void oneEventAtEitherEndOfABillionTrialsHasItsClosedFormBound() {
+        // With one success, the lower bound is the 0.025 quantile of Beta(1, n), 1 - 0.975^(1/n); with one failure,
+        // the upper bound is the 0.975 quantile of Beta(n, 1), 0.975^(1/n).
+        var trials = 1_000_000_000L;
+
+        var oneSuccess = ClopperPearson.interval(1, trials, 0.95);
+        var oneFailure = ClopperPearson.interval(trials - 1, trials, 0.95);
+
+        assertThat(oneSuccess[0]).isCloseTo(-Math.expm1(Math.log(0.975) / trials), within(1e-15));
+        assertThat(oneFailure[1]).isCloseTo(Math.exp(Math.log(0.975) / trials), within(1e-15));
+    }
+
+    @Test
+    void aOnePercentShareOfABillionTrialsMatchesTheNormalApproximation() {
+        // At 10⁷ successes the skew and continuity corrections are below 1e-9.
+        var halfWidth = 1.959964 * Math.sqrt(0.01 * 0.99 / 1e9);
+
+        var bounds = ClopperPearson.interval(10_000_000, 1_000_000_000, 0.95);
+
+        assertThat(bounds[0]).isCloseTo(0.01 - halfWidth, within(1e-8));
+        assertThat(bounds[1]).isCloseTo(0.01 + halfWidth, within(1e-8));
+    }
+
+    @Test
     void theIncompleteBetaIsTheBinomialTail() {
         // I_p(k, n - k + 1) = P(X >= k) for X ~ Binomial(n, p); here n = 5, k = 2, p = 0.3.
         var tail = 1 - Math.pow(0.7, 5) - 5 * 0.3 * Math.pow(0.7, 4);
