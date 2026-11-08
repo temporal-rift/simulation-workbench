@@ -6,7 +6,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.ObjectMapper;
 
-import io.github.temporalrift.workbench.search.application.port.in.CampaignCommandOnceUseCase;
 import io.github.temporalrift.workbench.search.application.port.in.CreateCampaignUseCase;
 import io.github.temporalrift.workbench.search.application.port.in.GetCampaignLogUseCase;
 import io.github.temporalrift.workbench.search.application.port.in.GetCampaignUseCase;
@@ -71,64 +70,28 @@ class CampaignController implements CampaignsApi {
 
     @Override
     public ResponseEntity<Campaign> pauseCampaign(UUID campaignId, UUID idempotencyKey) {
-        return ResponseEntity.ok(once(
-                idempotencyKey,
-                "pauseCampaign",
-                campaignId,
-                "",
-                () -> controls.pause().handle(campaignId)));
+        return ResponseEntity.ok(mapper.toApi(controls.pause().handle(campaignId, idempotencyKey)));
     }
 
     @Override
     public ResponseEntity<Campaign> resumeCampaign(UUID campaignId, UUID idempotencyKey) {
-        return ResponseEntity.ok(once(
-                idempotencyKey,
-                "resumeCampaign",
-                campaignId,
-                "",
-                () -> controls.resume().handle(campaignId)));
+        return ResponseEntity.ok(mapper.toApi(controls.resume().handle(campaignId, idempotencyKey)));
     }
 
     @Override
     public ResponseEntity<Campaign> cancelCampaign(UUID campaignId, UUID idempotencyKey) {
-        return ResponseEntity.ok(once(
-                idempotencyKey,
-                "cancelCampaign",
-                campaignId,
-                "",
-                () -> controls.cancel().handle(campaignId)));
+        return ResponseEntity.ok(mapper.toApi(controls.cancel().handle(campaignId, idempotencyKey)));
     }
 
     @Override
     public ResponseEntity<Campaign> setCampaignParallelism(
             UUID campaignId, UUID idempotencyKey, CampaignParallelismUpdate update) {
-        var parallelism = update.getParallelism();
-        return ResponseEntity.ok(once(
-                idempotencyKey,
-                "setCampaignParallelism",
-                campaignId,
-                String.valueOf(parallelism),
-                () -> controls.parallelism().handle(campaignId, parallelism)));
+        return ResponseEntity.ok(
+                mapper.toApi(controls.parallelism().handle(campaignId, update.getParallelism(), idempotencyKey)));
     }
 
     @Override
     public ResponseEntity<Campaign> startConfirmation(UUID campaignId, UUID idempotencyKey) {
-        return ResponseEntity.accepted()
-                .body(once(
-                        idempotencyKey,
-                        "startConfirmation",
-                        campaignId,
-                        "",
-                        () -> startConfirmation.handle(campaignId)));
-    }
-
-    private Campaign once(
-            UUID idempotencyKey,
-            String operation,
-            UUID campaignId,
-            String body,
-            java.util.function.Supplier<io.github.temporalrift.workbench.search.domain.campaign.Campaign> command) {
-        return mapper.toApi(controls.once()
-                .handle(new CampaignCommandOnceUseCase.Command(idempotencyKey, operation, campaignId, body), command));
+        return ResponseEntity.accepted().body(mapper.toApi(startConfirmation.handle(campaignId, idempotencyKey)));
     }
 }

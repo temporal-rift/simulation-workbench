@@ -6,7 +6,7 @@
             https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
 
   <changeSet id="008-create-campaign-command" author="simulation-workbench">
-    <!-- The idempotency keys of accepted commands on existing campaigns, so a repeat does not apply them again. -->
+    <!-- Every idempotency key a campaign request claimed, creating a campaign or commanding one, so a key has one owner. -->
     <createTable tableName="campaign_command">
       <column name="idempotency_key" type="UUID">
         <constraints primaryKey="true" nullable="false"/>
@@ -18,9 +18,10 @@
       <column name="request_hash" type="VARCHAR(64)">
         <constraints nullable="false"/>
       </column>
-      <column name="created_at" type="TIMESTAMP WITH TIME ZONE">
-        <constraints nullable="false"/>
-      </column>
     </createTable>
+    <sql>
+      INSERT INTO campaign_command (idempotency_key, campaign_id, request_hash)
+      SELECT idempotency_key, campaign_id, request_hash FROM campaign
+    </sql>
   </changeSet>
 </databaseChangeLog>

@@ -114,14 +114,14 @@ class CampaignSearchIT {
         var firstProcess = progress();
         drive(firstProcess, () -> roundOnePlanned(interrupted));
         assertThat(roundOnePlanned(interrupted)).isTrue();
-        pause.handle(interrupted);
+        pause.handle(interrupted, UUID.randomUUID());
         var playedWhilePaused = batch.runNextCase(WORKER);
         assertThat(playedWhilePaused).as("a paused campaign starts no game").isFalse();
 
         var secondProcess = progress();
         secondProcess.recover();
-        resume.handle(interrupted);
-        parallelism.handle(interrupted, 4);
+        resume.handle(interrupted, UUID.randomUUID());
+        parallelism.handle(interrupted, 4, UUID.randomUUID());
         drive(secondProcess, () -> over(interrupted));
 
         var finished = campaigns.find(interrupted).orElseThrow().campaign();

@@ -18,7 +18,6 @@ import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignChange;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignFailure;
-import io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
 import io.github.temporalrift.workbench.search.domain.campaign.Confirmation;
 import io.github.temporalrift.workbench.search.domain.campaign.FidelityNotEstablishedException;
@@ -41,7 +40,7 @@ class ConfirmationTest {
     private final InMemoryCampaigns campaigns = new InMemoryCampaigns();
     private final SimulatedPlay play = new SimulatedPlay();
     private final StartConfirmationCommandHandler start =
-            new StartConfirmationCommandHandler(campaigns, play, play, play, play);
+            new StartConfirmationCommandHandler(campaigns, play, play, play, play, CLOCK);
     private final CampaignProgress progress =
             new CampaignProgress(campaigns, play, play, play, play, new CampaignSettings(1_000), CLOCK);
     private final CancelCampaignCommandHandler cancel = new CancelCampaignCommandHandler(campaigns, play, CLOCK);
@@ -52,7 +51,7 @@ class ConfirmationTest {
     void aShortListOfTwoFreezesOneExperimentPerCandidateAndNoneForTheBaseline() {
         var id = searched("c-0000", "c-0001");
 
-        var confirming = start.handle(id);
+        var confirming = start.handle(id, UUID.randomUUID());
 
         assertThat(confirming.state()).isEqualTo(CampaignState.CONFIRMING);
         var confirmation = confirming.confirmation();
@@ -73,7 +72,7 @@ class ConfirmationTest {
         campaigns.appendLog(id, List.of(logged(1, List.of("1", shared))));
         play.simulator(false);
 
-        assertThatThrownBy(() -> start.handle(id))
+        assertThatThrownBy(() -> start.handle(id, UUID.randomUUID()))
                 .isInstanceOfSatisfying(
                         SeedOverlapException.class, e -> assertThat(e.seeds()).containsExactly(shared));
 
@@ -86,7 +85,8 @@ class ConfirmationTest {
         play.simulator(false);
         play.fidelity(false);
 
-        assertThatThrownBy(() -> start.handle(id)).isInstanceOf(SimulatorNotAvailableException.class);
+        assertThatThrownBy(() -> start.handle(id, UUID.randomUUID()))
+                .isInstanceOf(SimulatorNotAvailableException.class);
 
         assertNothingStarted(id);
     }
@@ -97,7 +97,8 @@ class ConfirmationTest {
         play.fidelity(false);
         play.policiesServed(false);
 
-        assertThatThrownBy(() -> start.handle(id)).isInstanceOf(FidelityNotEstablishedException.class);
+        assertThatThrownBy(() -> start.handle(id, UUID.randomUUID()))
+                .isInstanceOf(FidelityNotEstablishedException.class);
 
         assertNothingStarted(id);
     }
@@ -107,7 +108,7 @@ class ConfirmationTest {
         var id = searched("c-0000");
         play.policiesServed(false);
 
-        assertThatThrownBy(() -> start.handle(id)).isInstanceOf(PolicyNotAvailableException.class);
+        assertThatThrownBy(() -> start.handle(id, UUID.randomUUID())).isInstanceOf(PolicyNotAvailableException.class);
 
         assertNothingStarted(id);
     }
@@ -116,10 +117,11 @@ class ConfirmationTest {
     void aConfirmationRefusedForWantOfFidelityCanBeStartedOnceItIsEstablished() {
         var id = searched("c-0000");
         play.fidelity(false);
-        assertThatThrownBy(() -> start.handle(id)).isInstanceOf(FidelityNotEstablishedException.class);
+        assertThatThrownBy(() -> start.handle(id, UUID.randomUUID()))
+                .isInstanceOf(FidelityNotEstablishedException.class);
         play.fidelity(true);
 
-        var confirming = start.handle(id);
+        var confirming = start.handle(id, UUID.randomUUID());
 
         assertThat(confirming.state()).isEqualTo(CampaignState.CONFIRMING);
         assertThat(concurrencies(confirming.confirmation().runs())).containsExactly(PARALLELISM);
@@ -128,9 +130,9 @@ class ConfirmationTest {
     @Test
     void confirmationIsRefusedFromAnyStateButSearchCompleted() {
         var id = searched("c-0000");
-        start.handle(id);
+        start.handle(id, UUID.randomUUID());
 
-        assertThatThrownBy(() -> start.handle(id)).isInstanceOf(InvalidCampaignStateException.class);
+        assertThatThrownBy(() -> start.handle(id, UUID.randomUUID())).isInstanceOf(InvalidCampaignStateException.class);
     }
 
     @Test
@@ -138,7 +140,9 @@ class ConfirmationTest {
         var id = searched("c-0000", "c-0001");
         play.refuseConfirmationFreezeNumber(2);
 
-        assertThatThrownBy(() -> start.handle(id)).isInstanceOf(CampaignPlayRefusedException.class);
+        assertThatThrownBy(() -> start.handle(id, UUID.randomUUID()))
+                .isInstanceOf(SimulatorNotAvailableException.class)
+                .hasMessageContaining("the experiment is refused");
 
         assertThat(state(id)).isEqualTo(CampaignState.SEARCH_COMPLETED);
         var orphan = play.runIds().getFirst();
@@ -147,7 +151,7 @@ class ConfirmationTest {
                 .isZero();
         assertThat(play.playAllowed()).isFalse();
 
-        var confirming = start.handle(id);
+        var confirming = start.handle(id, UUID.randomUUID());
 
         assertThat(confirming.confirmation().runs().getFirst().runId()).isEqualTo(orphan);
         assertThat(play.runIds()).hasSize(2);
@@ -157,7 +161,7 @@ class ConfirmationTest {
     @Test
     void onlyTheFirstRunMayPlayAndEachNextOneIsReleasedWhenTheOneBeforeIsDone() {
         var id = searched("c-0000", "c-0001", "c-0002");
-        var runs = start.handle(id).confirmation().runs();
+        var runs = start.handle(id, UUID.randomUUID()).confirmation().runs();
 
         assertThat(concurrencies(runs)).containsExactly(PARALLELISM, 0, 0);
 
@@ -176,9 +180,9 @@ class ConfirmationTest {
     @Test
     void aParallelismChangeAppliesToTheRunThatIsPlayingAndReleasesNoOther() {
         var id = searched("c-0000", "c-0001");
-        var runs = start.handle(id).confirmation().runs();
+        var runs = start.handle(id, UUID.randomUUID()).confirmation().runs();
 
-        parallelism.handle(id, 8);
+        parallelism.handle(id, 8, UUID.randomUUID());
 
         assertThat(concurrencies(runs)).containsExactly(8, 0);
 
@@ -188,12 +192,23 @@ class ConfirmationTest {
     }
 
     @Test
+    void aParallelismChangeLandingDuringAStepIsNotOverwrittenByTheParallelismTheStepRead() {
+        var id = searched("c-0000");
+        var runs = start.handle(id, UUID.randomUUID()).confirmation().runs();
+        play.beforeNextRaise(() -> parallelism.handle(id, 2, UUID.randomUUID()));
+
+        progress.advance();
+
+        assertThat(concurrencies(runs)).containsExactly(2);
+    }
+
+    @Test
     void aParallelismChangeAfterARunFailedReleasesNothing() {
         var id = searched("c-0000", "c-0001");
-        var runs = start.handle(id).confirmation().runs();
+        var runs = start.handle(id, UUID.randomUUID()).confirmation().runs();
         play.fail(runs.get(0).runId(), "broken");
 
-        parallelism.handle(id, 8);
+        parallelism.handle(id, 8, UUID.randomUUID());
 
         assertThat(play.concurrencyOf(runs.get(1).runId())).isZero();
     }
@@ -202,7 +217,7 @@ class ConfirmationTest {
     void whenEveryRunIsCompleteTheEvaluationsAreRecordedAndTheCampaignIsCompleted() {
         var id = searched("c-0000", "c-0001");
         play.confirmationOf("c-0001", "REJECTED", 7.0);
-        var runs = start.handle(id).confirmation().runs();
+        var runs = start.handle(id, UUID.randomUUID()).confirmation().runs();
         runs.forEach(this::complete);
 
         assertThat(progress.advance()).isTrue();
@@ -220,7 +235,7 @@ class ConfirmationTest {
     void anEmptyShortListStartsNoRunAndCompletesWithNothingConfirmed() {
         var id = searched();
 
-        var confirming = start.handle(id);
+        var confirming = start.handle(id, UUID.randomUUID());
 
         assertThat(confirming.state()).isEqualTo(CampaignState.CONFIRMING);
         assertThat(confirming.confirmation().runs()).isEmpty();
@@ -261,7 +276,7 @@ class ConfirmationTest {
     @Test
     void aFailedConfirmationRunFailsTheCampaignAndStopsTheOthers() {
         var id = searched("c-0000", "c-0001");
-        var runs = start.handle(id).confirmation().runs();
+        var runs = start.handle(id, UUID.randomUUID()).confirmation().runs();
         play.fail(runs.get(0).runId(), "lane lost");
 
         progress.advance();
@@ -276,7 +291,7 @@ class ConfirmationTest {
     @Test
     void anInterruptedRunIsResumedAfterARestartAtTheCampaignsParallelism() {
         var id = searched("c-0000");
-        var runs = start.handle(id).confirmation().runs();
+        var runs = start.handle(id, UUID.randomUUID()).confirmation().runs();
         play.restart();
 
         progress.advance();
@@ -288,9 +303,9 @@ class ConfirmationTest {
     @Test
     void cancellingAConfirmingCampaignCancelsItsConfirmationRuns() {
         var id = searched("c-0000");
-        var runs = start.handle(id).confirmation().runs();
+        var runs = start.handle(id, UUID.randomUUID()).confirmation().runs();
 
-        var cancelled = cancel.handle(id);
+        var cancelled = cancel.handle(id, UUID.randomUUID());
 
         assertThat(cancelled.state()).isEqualTo(CampaignState.CANCELLED);
         runs.forEach(run -> assertThat(play.phaseOf(run.runId())).isEqualTo(RunPhase.CANCELLED));
@@ -299,7 +314,7 @@ class ConfirmationTest {
     @Test
     void askingAgainAfterTheRunsWereStartedConvergesOnTheSameExperimentsAndRuns() {
         var id = searched("c-0000");
-        var first = start.handle(id).confirmation();
+        var first = start.handle(id, UUID.randomUUID()).confirmation();
         // a request that crashed after freezing: the campaign is still searched, the experiments and runs exist
         var stored = campaigns.find(id).orElseThrow();
         var reverted = new Campaign(
@@ -317,7 +332,7 @@ class ConfirmationTest {
                 null);
         campaigns.save(reverted, NOW, stored.version());
 
-        var second = start.handle(id).confirmation();
+        var second = start.handle(id, UUID.randomUUID()).confirmation();
 
         assertThat(second.runs()).isEqualTo(first.runs());
         assertThat(play.frozen()).hasSize(1);

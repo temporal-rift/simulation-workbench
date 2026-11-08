@@ -165,7 +165,7 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
         }
         var step = new Step(stored, now);
         var campaignId = step.campaign.campaignId();
-        allowThenVerify(campaignId, () -> waveRuns.allow(campaignId, step.campaign.parallelism()));
+        allowThenVerify(step.campaign, () -> waveRuns.allow(campaignId, step.campaign.parallelism()));
         try {
             return advanceRound(step);
         } catch (CampaignPlayRefusedException | IllegalArgumentException e) {
@@ -181,14 +181,18 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
      * Lets runs play and then checks that the campaign still wants them to. A pause or a cancel commits its state
      * before it holds or cancels the runs, so a step that read the campaign earlier can raise the concurrency after
      * that hold; reading the state again afterwards puts the hold back, and no later step would otherwise correct it.
+     * A change of parallelism that landed after the campaign was read is put back the same way.
      */
-    private void allowThenVerify(UUID campaignId, Runnable allow) {
+    private void allowThenVerify(Campaign read, Runnable allow) {
         allow.run();
-        campaigns.find(campaignId).map(found -> found.campaign().state()).ifPresent(state -> {
-            if (state == CampaignState.PAUSED) {
+        var campaignId = read.campaignId();
+        campaigns.find(campaignId).map(StoredCampaign::campaign).ifPresent(now -> {
+            if (now.state() == CampaignState.PAUSED) {
                 waveRuns.hold(campaignId);
-            } else if (state == CampaignState.CANCELLED) {
+            } else if (now.state() == CampaignState.CANCELLED) {
                 waveRuns.stop(campaignId);
+            } else if (now.state() == CampaignState.RUNNING && now.parallelism() != read.parallelism()) {
+                waveRuns.allow(campaignId, now.parallelism());
             }
         });
     }
@@ -329,7 +333,7 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
         var applied =
                 campaigns.apply(step.change().playing(new Wave(index, campaign.round(), experimentId, runId), games));
         if (applied) {
-            allowThenVerify(campaign.campaignId(), () -> runs.setConcurrency(runId, campaign.parallelism()));
+            allowThenVerify(campaign, () -> runs.setConcurrency(runId, campaign.parallelism()));
         }
         return applied;
     }

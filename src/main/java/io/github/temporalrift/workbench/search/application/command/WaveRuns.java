@@ -3,7 +3,10 @@ package io.github.temporalrift.workbench.search.application.command;
 import java.util.List;
 import java.util.UUID;
 
+import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
 import io.github.temporalrift.workbench.search.domain.campaign.Confirmation;
+import io.github.temporalrift.workbench.search.domain.campaign.StoredCampaign;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRepository;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRuns;
 import io.github.temporalrift.workbench.search.domain.wave.Wave;
@@ -49,10 +52,25 @@ class WaveRuns {
     }
 
     /**
-     * Lets the confirmation's current run play: the first that has not completed. The runs behind it stay held, and a
-     * run that is gone or ended without completing releases nothing, because the campaign is about to fail over it.
+     * Lets the confirmation's current run play at the campaign's parallelism, then reads the campaign again: a change
+     * of parallelism that landed after this campaign was read may just have been overwritten, and no later step would
+     * correct it before more cases are claimed.
      */
-    void allowConfirmation(Confirmation confirmation, int parallelism) {
+    void allowConfirmation(Campaign campaign) {
+        allowCurrentRun(campaign.confirmation(), campaign.parallelism());
+        campaigns
+                .find(campaign.campaignId())
+                .map(StoredCampaign::campaign)
+                .filter(now -> now.state() == CampaignState.CONFIRMING)
+                .filter(now -> now.parallelism() != campaign.parallelism())
+                .ifPresent(now -> allowCurrentRun(now.confirmation(), now.parallelism()));
+    }
+
+    /**
+     * The first run that has not completed may play. The runs behind it stay held, and a run that is gone or ended
+     * without completing releases nothing, because the campaign is about to fail over it.
+     */
+    private void allowCurrentRun(Confirmation confirmation, int parallelism) {
         for (var run : confirmation.runs()) {
             var progress = runs.progress(run.runId());
             if (progress.isEmpty()) {

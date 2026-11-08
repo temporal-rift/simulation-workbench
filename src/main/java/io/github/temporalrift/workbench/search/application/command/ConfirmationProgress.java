@@ -65,7 +65,7 @@ class ConfirmationProgress {
             }
         }
         if (unfinished) {
-            waveRuns.allowConfirmation(confirmation, campaign.parallelism());
+            waveRuns.allowConfirmation(campaign);
             return false;
         }
         return complete(stored);

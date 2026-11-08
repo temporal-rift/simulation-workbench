@@ -8,4 +8,7 @@ public sealed interface CampaignCreation {
 
     /** The idempotency key already belonged to an earlier request. */
     record Existing(CampaignClaim claim) implements CampaignCreation {}
+
+    /** The idempotency key already belonged to a command on a campaign, so nothing was stored. */
+    record KeyTaken() implements CampaignCreation {}
 }

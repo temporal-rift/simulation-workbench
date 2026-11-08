@@ -12,7 +12,6 @@ import java.util.UUID;
 import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignChange;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignClaim;
-import io.github.temporalrift.workbench.search.domain.campaign.CampaignCommandClaim;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignCreation;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
 import io.github.temporalrift.workbench.search.domain.campaign.StoredCampaign;
@@ -29,7 +28,8 @@ final class InMemoryCampaigns implements CampaignRepository {
 
     private final Map<UUID, StoredCampaign> campaigns = new LinkedHashMap<>();
     private final Map<UUID, CampaignClaim> claims = new LinkedHashMap<>();
-    private final Map<UUID, CampaignCommandClaim> commands = new LinkedHashMap<>();
+    private final Map<UUID, String> commands = new LinkedHashMap<>();
+    private Runnable beforeApply;
     private final Map<UUID, TreeMap<String, Candidate>> candidates = new LinkedHashMap<>();
     private final Map<UUID, TreeMap<Integer, Wave>> waves = new LinkedHashMap<>();
     private final Map<UUID, TreeMap<String, Game>> games = new LinkedHashMap<>();
@@ -42,6 +42,10 @@ final class InMemoryCampaigns implements CampaignRepository {
         if (claims.containsKey(idempotencyKey)) {
             return new CampaignCreation.Existing(claims.get(idempotencyKey));
         }
+        if (commands.containsKey(idempotencyKey)) {
+            return new CampaignCreation.KeyTaken();
+        }
+        commands.put(idempotencyKey, requestHash);
         claims.put(idempotencyKey, new CampaignClaim(queued, requestHash));
         campaigns.put(queued.campaignId(), new StoredCampaign(queued, 0, accruedAt));
         return new CampaignCreation.Created();
@@ -53,13 +57,13 @@ final class InMemoryCampaigns implements CampaignRepository {
     }
 
     @Override
-    public synchronized Optional<CampaignCommandClaim> findCommand(UUID idempotencyKey) {
+    public synchronized Optional<String> claimedRequestHash(UUID idempotencyKey) {
         return Optional.ofNullable(commands.get(idempotencyKey));
     }
 
-    @Override
-    public synchronized void claimCommand(UUID idempotencyKey, UUID campaignId, String requestHash, Instant claimedAt) {
-        commands.putIfAbsent(idempotencyKey, new CampaignCommandClaim(campaignId, requestHash));
+    /** Runs {@code action} once, just before the next change is applied: a racing request landing mid-command. */
+    synchronized void beforeNextApply(Runnable action) {
+        this.beforeApply = action;
     }
 
     @Override
@@ -94,8 +98,20 @@ final class InMemoryCampaigns implements CampaignRepository {
 
     @Override
     public synchronized boolean apply(CampaignChange change) {
+        if (beforeApply != null) {
+            var action = beforeApply;
+            beforeApply = null;
+            action.run();
+        }
+        var command = change.command();
+        if (command != null && commands.containsKey(command.idempotencyKey())) {
+            return false;
+        }
         if (!save(change.next(), change.accruedAt(), change.expectedVersion())) {
             return false;
+        }
+        if (command != null) {
+            commands.put(command.idempotencyKey(), command.requestHash());
         }
         var id = change.next().campaignId();
         insertCandidates(id, change.candidates());

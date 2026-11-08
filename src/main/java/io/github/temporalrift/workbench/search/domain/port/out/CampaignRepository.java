@@ -8,7 +8,6 @@ import java.util.UUID;
 import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignChange;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignClaim;
-import io.github.temporalrift.workbench.search.domain.campaign.CampaignCommandClaim;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignCreation;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
 import io.github.temporalrift.workbench.search.domain.campaign.StoredCampaign;
@@ -24,17 +23,14 @@ public interface CampaignRepository {
 
     /**
      * Stores a new campaign at version 0 and claims the idempotency key in one step. When the key is already
-     * claimed, even by a request racing this one, nothing is stored.
+     * claimed, even by a request racing this one, whether to create a campaign or to command one, nothing is stored.
      */
     CampaignCreation create(UUID idempotencyKey, String requestHash, Campaign queued, Instant accruedAt);
 
     Optional<CampaignClaim> findClaim(UUID idempotencyKey);
 
-    /** What an accepted command on a campaign claimed the key for, if one did. */
-    Optional<CampaignCommandClaim> findCommand(UUID idempotencyKey);
-
-    /** Claims the key for an accepted command on the campaign; a key already claimed stays as it is. */
-    void claimCommand(UUID idempotencyKey, UUID campaignId, String requestHash, Instant claimedAt);
+    /** The identity of the request that claimed the key, whether it created a campaign or commanded one. */
+    Optional<String> claimedRequestHash(UUID idempotencyKey);
 
     Optional<StoredCampaign> find(UUID campaignId);
 
@@ -51,9 +47,9 @@ public interface CampaignRepository {
     boolean save(Campaign next, Instant accruedAt, long expectedVersion);
 
     /**
-     * Applies a step: the campaign's next value and everything the step records, all or nothing. False, with nothing
-     * stored, when the campaign is no longer at the version the step started from. Records the campaign already has
-     * are kept as they are.
+     * Applies a step: the campaign's next value, everything the step records and the claim of its command's key, all
+     * or nothing. False, with nothing stored, when the campaign is no longer at the version the step started from or
+     * the key is already claimed. Records the campaign already has are kept as they are.
      */
     boolean apply(CampaignChange change);
 

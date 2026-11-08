@@ -23,7 +23,7 @@ import io.github.temporalrift.workbench.WorkbenchIntegrationTest;
 import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignChange;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignClaim;
-import io.github.temporalrift.workbench.search.domain.campaign.CampaignCommandClaim;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignCommandKey;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignCreation;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignFailure;
@@ -73,19 +73,67 @@ class CampaignRepositoryIT {
     }
 
     @Test
-    void aCommandKeyIsClaimedOnceAndGoesWithItsCampaign() {
+    void aChangeClaimsItsKeyWithItsWriteAndALostClaimStoresNothing() {
         var queued = queued("commands", NOW);
         store(queued, NOW);
-        var key = UUID.randomUUID();
-        assertThat(repository.findCommand(key)).isEmpty();
+        var id = queued.campaignId();
+        var key = CampaignCommandKey.of(UUID.randomUUID(), "setCampaignParallelism", id, "8");
+        assertThat(repository.claimedRequestHash(key.idempotencyKey())).isEmpty();
 
-        repository.claimCommand(key, queued.campaignId(), "a".repeat(64), NOW);
-        repository.claimCommand(key, queued.campaignId(), "b".repeat(64), NOW.plusSeconds(1));
+        var first = CampaignChange.of(repository.find(id).orElseThrow(), queued.withParallelism(8), NOW);
+        assertThat(repository.apply(first.claiming(key))).isTrue();
 
-        assertThat(repository.findCommand(key)).contains(new CampaignCommandClaim(queued.campaignId(), "a".repeat(64)));
+        assertThat(repository.claimedRequestHash(key.idempotencyKey())).contains(key.requestHash());
 
-        jdbc.update("DELETE FROM campaign WHERE campaign_id = ?", queued.campaignId());
-        assertThat(repository.findCommand(key)).isEmpty();
+        var stored = repository.find(id).orElseThrow();
+        var lost = CampaignChange.of(stored, stored.campaign().withParallelism(2), NOW);
+        assertThat(repository.apply(lost.claiming(key))).isFalse();
+
+        var after = repository.find(id).orElseThrow();
+        assertThat(after.campaign().parallelism())
+                .as("the write rolled back with the lost claim")
+                .isEqualTo(8);
+        assertThat(after.version()).isEqualTo(stored.version());
+    }
+
+    @Test
+    void aChangeThatLosesTheVersionClaimsNothing() {
+        var queued = queued("stale", NOW);
+        store(queued, NOW);
+        var id = queued.campaignId();
+        var stale = repository.find(id).orElseThrow();
+        assertThat(repository.save(queued.withParallelism(8), NOW, 0)).isTrue();
+        var key = CampaignCommandKey.of(UUID.randomUUID(), "pauseCampaign", id, "");
+
+        assertThat(repository.apply(
+                        CampaignChange.of(stale, queued.pause(), NOW).claiming(key)))
+                .isFalse();
+
+        assertThat(repository.claimedRequestHash(key.idempotencyKey())).isEmpty();
+    }
+
+    @Test
+    void creatingClaimsTheKeySoACommandCannotTakeItAndCreatingWithACommandsKeyStoresNothing() {
+        var queued = queued("created", NOW);
+        var created = UUID.randomUUID();
+        assertThat(repository.create(created, "c".repeat(64), queued, NOW))
+                .isInstanceOf(CampaignCreation.Created.class);
+        assertThat(repository.claimedRequestHash(created)).contains("c".repeat(64));
+        var id = queued.campaignId();
+
+        var taken = new CampaignCommandKey(created, "p".repeat(64));
+        assertThat(repository.apply(CampaignChange.of(repository.find(id).orElseThrow(), queued.pause(), NOW)
+                        .claiming(taken)))
+                .isFalse();
+
+        var commanded = CampaignCommandKey.of(UUID.randomUUID(), "pauseCampaign", id, "");
+        assertThat(repository.apply(CampaignChange.of(repository.find(id).orElseThrow(), queued.pause(), NOW)
+                        .claiming(commanded)))
+                .isTrue();
+        var other = queued("other", NOW);
+        assertThat(repository.create(commanded.idempotencyKey(), "c".repeat(64), other, NOW))
+                .isInstanceOf(CampaignCreation.KeyTaken.class);
+        assertThat(repository.find(other.campaignId())).isEmpty();
     }
 
     @Test

@@ -2,16 +2,22 @@ package io.github.temporalrift.workbench.search.application.command;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignChange;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignCommandKey;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignIdempotencyConflictException;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignNotFoundException;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRepository;
 
 /**
- * Changes a campaign on a designer request. The active time since the campaign last step is counted first, so a
- * pause or a cancel stops the budget exactly there, and the write is repeated from a fresh read when the worker wrote
- * first.
+ * Changes a campaign on a designer request, once per idempotency key. The key is claimed in the write that applies the
+ * change, so a request refused or lost before that write claims nothing, and one whose write was stored is answered
+ * with the campaign when it is repeated. The active time since the campaign last step is counted first, so a pause or
+ * a cancel stops the budget exactly there, and the write is repeated from a fresh read when the worker or a request
+ * with the same key wrote first.
  */
 class CampaignUpdates {
 
@@ -37,20 +43,43 @@ class CampaignUpdates {
      */
     record Next(Campaign campaign, boolean startsCounting) {}
 
-    Campaign update(UUID campaignId, Change change) {
+    Campaign update(UUID campaignId, CampaignCommandKey command, Change change) {
         for (var attempt = 0; attempt < ATTEMPTS; attempt++) {
+            var replayed = replayed(campaignId, command);
+            if (replayed.isPresent()) {
+                return replayed.get();
+            }
             var stored = campaigns.find(campaignId).orElseThrow(() -> new CampaignNotFoundException(campaignId));
             var now = clock.instant();
             var settled = stored.settledAt(now);
             var next = change.apply(settled.campaign(), now);
             var accruedAt = next.startsCounting() ? now : settled.accruedAt();
-            if (next.campaign().equals(stored.campaign()) && accruedAt.equals(stored.accruedAt())) {
-                return stored.campaign();
-            }
-            if (campaigns.save(next.campaign(), accruedAt, stored.version())) {
+            if (campaigns.apply(
+                    CampaignChange.of(stored, next.campaign(), accruedAt).claiming(command))) {
                 return next.campaign();
             }
         }
         throw new IllegalStateException("Campaign " + campaignId + " keeps changing under the request");
+    }
+
+    /**
+     * The campaign as it stands when an earlier request claimed the key with this very request, or empty when the key
+     * is free.
+     *
+     * @throws CampaignIdempotencyConflictException when another request claimed it
+     */
+    Optional<Campaign> replayed(UUID campaignId, CampaignCommandKey command) {
+        var claimed = campaigns.claimedRequestHash(command.idempotencyKey());
+        if (claimed.isEmpty()) {
+            return Optional.empty();
+        }
+        if (!claimed.get().equals(command.requestHash())) {
+            throw new CampaignIdempotencyConflictException(command.idempotencyKey());
+        }
+        return Optional.of(campaigns
+                .find(campaignId)
+                .orElseThrow(() -> new CampaignNotFoundException(campaignId))
+                .settledAt(clock.instant())
+                .campaign());
     }
 }

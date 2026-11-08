@@ -1,6 +1,7 @@
 package io.github.temporalrift.workbench.search.infrastructure.adapter.in.rest;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -17,7 +18,6 @@ import java.util.List;
 import java.util.TreeMap;
 import java.util.UUID;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -30,7 +30,6 @@ import org.springframework.test.web.servlet.ResultActions;
 import tools.jackson.databind.json.JsonMapper;
 
 import io.github.temporalrift.workbench.TestSecurityConfig;
-import io.github.temporalrift.workbench.search.application.port.in.CampaignCommandOnceUseCase;
 import io.github.temporalrift.workbench.search.application.port.in.CancelCampaignUseCase;
 import io.github.temporalrift.workbench.search.application.port.in.CreateCampaignUseCase;
 import io.github.temporalrift.workbench.search.application.port.in.GetCampaignLogUseCase;
@@ -149,20 +148,10 @@ class CampaignControllerIT {
     @MockitoBean
     private StartConfirmationUseCase startConfirmation;
 
-    @MockitoBean
-    private CampaignCommandOnceUseCase once;
-
-    @BeforeEach
-    void everyKeyIsNewUnlessATestSaysOtherwise() {
-        when(once.handle(any(), any()))
-                .thenAnswer(call -> call.<java.util.function.Supplier<Campaign>>getArgument(1)
-                        .get());
-    }
-
     @Test
-    void aCommandIsHeldToItsKeyWithItsOperationCampaignAndBody() throws Exception {
-        when(parallelism.handle(CAMPAIGN, 8)).thenReturn(campaign());
+    void aCommandCarriesItsKey() throws Exception {
         var key = UUID.randomUUID();
+        when(parallelism.handle(CAMPAIGN, 8, key)).thenReturn(campaign());
 
         mockMvc.perform(put("/api/v1/campaigns/" + CAMPAIGN + "/parallelism")
                         .with(jwt().authorities(authorities(WRITE)))
@@ -170,19 +159,12 @@ class CampaignControllerIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"parallelism\":8}"))
                 .andExpect(status().isOk());
-
-        verify(once)
-                .handle(
-                        org.mockito.ArgumentMatchers.eq(
-                                new CampaignCommandOnceUseCase.Command(key, "setCampaignParallelism", CAMPAIGN, "8")),
-                        any());
     }
 
     @Test
     void aKeyAnotherRequestUsedAnswers409() throws Exception {
-        org.mockito.Mockito.doThrow(new CampaignIdempotencyConflictException(UUID.randomUUID()))
-                .when(once)
-                .handle(any(), any());
+        when(startConfirmation.handle(eq(CAMPAIGN), any()))
+                .thenThrow(new CampaignIdempotencyConflictException(UUID.randomUUID()));
 
         send("/api/v1/campaigns/" + CAMPAIGN + "/confirmation", "", WRITE)
                 .andExpect(status().isConflict())
@@ -428,13 +410,13 @@ class CampaignControllerIT {
 
     @Test
     void pausingAnswers200AndAStateThatDoesNotAllowItAnswers409() throws Exception {
-        when(pause.handle(CAMPAIGN)).thenReturn(campaign().pause());
+        when(pause.handle(eq(CAMPAIGN), any())).thenReturn(campaign().pause());
 
         send("/api/v1/campaigns/" + CAMPAIGN + "/pause", "", WRITE)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.state").value("PAUSED"));
 
-        when(resume.handle(CAMPAIGN))
+        when(resume.handle(eq(CAMPAIGN), any()))
                 .thenThrow(
                         new InvalidCampaignStateException("resume", campaign().state()));
         send("/api/v1/campaigns/" + CAMPAIGN + "/resume", "", WRITE)
@@ -444,7 +426,7 @@ class CampaignControllerIT {
 
     @Test
     void cancellingAnswers200() throws Exception {
-        when(cancel.handle(CAMPAIGN)).thenReturn(campaign().cancel(NOW));
+        when(cancel.handle(eq(CAMPAIGN), any())).thenReturn(campaign().cancel(NOW));
 
         send("/api/v1/campaigns/" + CAMPAIGN + "/cancel", "", WRITE)
                 .andExpect(status().isOk())
@@ -454,7 +436,8 @@ class CampaignControllerIT {
 
     @Test
     void parallelismIsChangedWithAPutAndRefusedBelowOne() throws Exception {
-        when(parallelism.handle(CAMPAIGN, 2)).thenReturn(campaign().withParallelism(2));
+        when(parallelism.handle(eq(CAMPAIGN), eq(2), any()))
+                .thenReturn(campaign().withParallelism(2));
 
         mockMvc.perform(put("/api/v1/campaigns/" + CAMPAIGN + "/parallelism")
                         .with(jwt().authorities(authorities(WRITE)))
@@ -483,7 +466,7 @@ class CampaignControllerIT {
                 .start(NOW)
                 .completeSearch(List.of("c-0000"))
                 .startConfirmation(new Confirmation(100, List.of(baseline, run)));
-        when(startConfirmation.handle(CAMPAIGN)).thenReturn(confirming);
+        when(startConfirmation.handle(eq(CAMPAIGN), any())).thenReturn(confirming);
 
         send("/api/v1/campaigns/" + CAMPAIGN + "/confirmation", "", WRITE)
                 .andExpect(status().isAccepted())
@@ -500,7 +483,7 @@ class CampaignControllerIT {
 
     @Test
     void confirmingFromAnotherStateAnswers409() throws Exception {
-        when(startConfirmation.handle(CAMPAIGN))
+        when(startConfirmation.handle(eq(CAMPAIGN), any()))
                 .thenThrow(new InvalidCampaignStateException("startConfirmation", CampaignState.RUNNING));
 
         send("/api/v1/campaigns/" + CAMPAIGN + "/confirmation", "", WRITE)
@@ -510,7 +493,7 @@ class CampaignControllerIT {
 
     @Test
     void confirmingOnSeedsTheSearchPlayedAnswers409SeedOverlap() throws Exception {
-        when(startConfirmation.handle(CAMPAIGN)).thenThrow(new SeedOverlapException(List.of("42")));
+        when(startConfirmation.handle(eq(CAMPAIGN), any())).thenThrow(new SeedOverlapException(List.of("42")));
 
         send("/api/v1/campaigns/" + CAMPAIGN + "/confirmation", "", WRITE)
                 .andExpect(status().isConflict())
@@ -519,7 +502,8 @@ class CampaignControllerIT {
 
     @Test
     void confirmingWithTheSimulatorDisabledAnswers409() throws Exception {
-        when(startConfirmation.handle(CAMPAIGN)).thenThrow(new SimulatorNotAvailableException("not enabled"));
+        when(startConfirmation.handle(eq(CAMPAIGN), any()))
+                .thenThrow(new SimulatorNotAvailableException("not enabled"));
 
         send("/api/v1/campaigns/" + CAMPAIGN + "/confirmation", "", WRITE)
                 .andExpect(status().isConflict())
@@ -528,7 +512,7 @@ class CampaignControllerIT {
 
     @Test
     void confirmingWithoutEstablishedFidelityAnswers409() throws Exception {
-        when(startConfirmation.handle(CAMPAIGN)).thenThrow(new FidelityNotEstablishedException());
+        when(startConfirmation.handle(eq(CAMPAIGN), any())).thenThrow(new FidelityNotEstablishedException());
 
         send("/api/v1/campaigns/" + CAMPAIGN + "/confirmation", "", WRITE)
                 .andExpect(status().isConflict())
@@ -537,7 +521,7 @@ class CampaignControllerIT {
 
     @Test
     void confirmingWithAPolicyNoBundleServesAnswers409() throws Exception {
-        when(startConfirmation.handle(CAMPAIGN)).thenThrow(new PolicyNotAvailableException("no bundle"));
+        when(startConfirmation.handle(eq(CAMPAIGN), any())).thenThrow(new PolicyNotAvailableException("no bundle"));
 
         send("/api/v1/campaigns/" + CAMPAIGN + "/confirmation", "", WRITE)
                 .andExpect(status().isConflict())
@@ -546,7 +530,7 @@ class CampaignControllerIT {
 
     @Test
     void confirmingAnUnknownCampaignAnswers404() throws Exception {
-        when(startConfirmation.handle(CAMPAIGN)).thenThrow(new CampaignNotFoundException(CAMPAIGN));
+        when(startConfirmation.handle(eq(CAMPAIGN), any())).thenThrow(new CampaignNotFoundException(CAMPAIGN));
 
         send("/api/v1/campaigns/" + CAMPAIGN + "/confirmation", "", WRITE).andExpect(status().isNotFound());
     }

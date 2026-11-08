@@ -11,5 +11,5 @@ public interface PauseCampaignUseCase {
      * @throws io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignStateException when the campaign
      *     is in a state that does not allow it
      */
-    Campaign handle(UUID campaignId);
+    Campaign handle(UUID campaignId, UUID idempotencyKey);
 }

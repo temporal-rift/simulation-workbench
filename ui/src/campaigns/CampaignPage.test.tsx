@@ -253,11 +253,29 @@ describe('confirming the short list', () => {
     await renderApp(PATH, service)
 
     const report = await screen.findByRole('region', { name: 'Confirmation' })
-    expect(
-      await within(report).findByText(/104 fresh seeds, 17,160 games, over the tables faction-greedy-v1, random-v1, random-seat-vs-faction-greedy-v1, on the simulator/),
-    ).toBeInTheDocument()
+    expect(within(report).getByText(/104 fresh seeds on the simulator/)).toBeInTheDocument()
+    expect(await within(report).findByText(/17,160 games per run, over the tables faction-greedy-v1, random-v1, random-seat-vs-faction-greedy-v1/)).toBeInTheDocument()
     expect(within(report).queryByText(/real services/)).not.toBeInTheDocument()
     expect(within(report).queryByRole('region', { name: 'Baseline' })).not.toBeInTheDocument()
+  })
+
+  it('says it could not load what the confirmation plays and offers a retry', async () => {
+    serveCampaigns(service, { campaigns: [{ ...searched(), state: 'CONFIRMING', confirmation: confirmation(false) }] })
+    service.runs.set(CONFIRMATION_RUNS.candidate.run, run({ runId: CONFIRMATION_RUNS.candidate.run }))
+    service.experiments.delete(CONFIRMATION_RUNS.candidate.experiment)
+    await renderApp(PATH, service)
+
+    const report = await screen.findByRole('region', { name: 'Confirmation' })
+    expect(await within(report).findByText(/Could not load the tables the confirmation plays/)).toBeInTheDocument()
+    expect(within(report).getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+  })
+
+  it('lets the designer change the games at once while confirming', async () => {
+    serveCampaigns(service, { campaigns: [{ ...searched(), state: 'CONFIRMING', confirmation: confirmation(false) }] })
+    service.runs.set(CONFIRMATION_RUNS.candidate.run, run({ runId: CONFIRMATION_RUNS.candidate.run }))
+    await renderApp(PATH, service)
+
+    expect(await screen.findByRole('button', { name: 'Set games at once' })).toBeInTheDocument()
   })
 
   it('says there is nothing to confirm when the search short-listed nobody', async () => {

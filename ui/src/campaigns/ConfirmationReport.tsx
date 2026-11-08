@@ -48,14 +48,24 @@ function WhatIsPlayed({
   const client = useApiClient()
   const played = useQuery(runQuery(client, run.runId))
   const frozen = useQuery(experimentQuery(client, run.experimentId))
-  const games = played.data ? `, ${played.data.counts.requested.toLocaleString('en-US')} games` : ''
-  const tables = frozen.data ? `, over the tables ${tablesOf(frozen.data.manifest).map((table) => table.id).join(', ')}` : ''
   const where = recordedEarlier ? 'on the real services, baseline included: this confirmation was recorded before it moved to the simulator' : 'on the simulator'
   return (
-    <p>
-      Each run plays {seedCount} fresh seeds{games}
-      {tables}, {where}. The seeds derive from the confirmation master seed and are checked against every seed the search played.
-    </p>
+    <>
+      <p>
+        Each run plays {seedCount} fresh seeds {where}. The seeds derive from the confirmation master seed and are checked against every seed the search played.
+      </p>
+      <QueryView query={played} failure={{ action: 'load the games the confirmation plays' }}>
+        {({ counts }) => (
+          <QueryView query={frozen} failure={{ action: 'load the tables the confirmation plays' }}>
+            {({ manifest }) => (
+              <p>
+                That is {counts.requested.toLocaleString('en-US')} games per run, over the tables {tablesOf(manifest).map((table) => table.id).join(', ')}.
+              </p>
+            )}
+          </QueryView>
+        )}
+      </QueryView>
+    </>
   )
 }
 

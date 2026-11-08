@@ -1,5 +1,6 @@
 package io.github.temporalrift.workbench.search.application.command;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -8,12 +9,15 @@ import java.util.stream.Collectors;
 import io.github.temporalrift.workbench.search.application.port.in.StartConfirmationUseCase;
 import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignChange;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignCommandKey;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignNotFoundException;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
 import io.github.temporalrift.workbench.search.domain.campaign.Confirmation;
 import io.github.temporalrift.workbench.search.domain.campaign.FidelityNotEstablishedException;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignStateException;
+import io.github.temporalrift.workbench.search.domain.campaign.PolicyNotAvailableException;
 import io.github.temporalrift.workbench.search.domain.campaign.SeatTable;
 import io.github.temporalrift.workbench.search.domain.campaign.SeedOverlapException;
 import io.github.temporalrift.workbench.search.domain.campaign.SimulatorNotAvailableException;
@@ -44,23 +48,31 @@ public class StartConfirmationCommandHandler implements StartConfirmationUseCase
     private final CandidateEvaluation evaluation;
     private final FidelityGate gate;
     private final WaveRuns waveRuns;
+    private final CampaignUpdates updates;
 
     public StartConfirmationCommandHandler(
             CampaignRepository campaigns,
             CampaignExperiments experiments,
             CampaignRuns runs,
             CandidateEvaluation evaluation,
-            FidelityGate gate) {
+            FidelityGate gate,
+            Clock clock) {
         this.campaigns = campaigns;
         this.experiments = experiments;
         this.runs = runs;
         this.evaluation = evaluation;
         this.gate = gate;
         this.waveRuns = new WaveRuns(campaigns, runs);
+        this.updates = new CampaignUpdates(campaigns, clock);
     }
 
     @Override
-    public Campaign handle(UUID campaignId) {
+    public Campaign handle(UUID campaignId, UUID idempotencyKey) {
+        var command = CampaignCommandKey.of(idempotencyKey, "startConfirmation", campaignId, "");
+        var replayed = updates.replayed(campaignId, command);
+        if (replayed.isPresent()) {
+            return replayed.get();
+        }
         var stored = campaigns.find(campaignId).orElseThrow(() -> new CampaignNotFoundException(campaignId));
         requireSearchCompleted(stored.campaign());
         var definition = stored.campaign().definition();
@@ -71,6 +83,11 @@ public class StartConfirmationCommandHandler implements StartConfirmationUseCase
         var tables = evaluation.confirmationTables(definition.criterionVersion());
         var confirmation = freezeAndStart(stored.campaign(), seedCount, seeds, tables);
         for (var attempt = 0; attempt < ATTEMPTS; attempt++) {
+            // A request with the same key that won the race answers for this one too.
+            var won = updates.replayed(campaignId, command);
+            if (won.isPresent()) {
+                return won.get();
+            }
             var current = campaigns.find(campaignId).orElseThrow(() -> new CampaignNotFoundException(campaignId));
             if (current.campaign().state() != CampaignState.SEARCH_COMPLETED) {
                 // A confirming campaign owns these runs through another request; a campaign that ended while they
@@ -82,8 +99,9 @@ public class StartConfirmationCommandHandler implements StartConfirmationUseCase
                         "startConfirmation", current.campaign().state());
             }
             var next = current.campaign().startConfirmation(confirmation);
-            if (campaigns.apply(CampaignChange.of(current, next, current.accruedAt()))) {
-                waveRuns.allowConfirmation(confirmation, next.parallelism());
+            if (campaigns.apply(
+                    CampaignChange.of(current, next, current.accruedAt()).claiming(command))) {
+                waveRuns.allowConfirmation(next);
                 return next;
             }
         }
@@ -125,8 +143,23 @@ public class StartConfirmationCommandHandler implements StartConfirmationUseCase
         experiments.bundles(evaluation.confirmationPolicies(definition.criterionVersion()));
     }
 
-    /** One experiment and one held run per short-listed candidate, in short-list order. */
+    /**
+     * One experiment and one held run per short-listed candidate, in short-list order. With the checks passed, a
+     * refusal means the simulator cannot play this campaign, for instance one rebuilt on other baseline rules.
+     */
     private Confirmation freezeAndStart(Campaign campaign, int seedCount, List<String> seeds, List<SeatTable> tables) {
+        try {
+            return freezeAndStartRuns(campaign, seedCount, seeds, tables);
+        } catch (PolicyNotAvailableException e) {
+            throw e;
+        } catch (CampaignPlayRefusedException e) {
+            throw new SimulatorNotAvailableException(
+                    "The simulator cannot play this confirmation: " + e.getMessage(), e);
+        }
+    }
+
+    private Confirmation freezeAndStartRuns(
+            Campaign campaign, int seedCount, List<String> seeds, List<SeatTable> tables) {
         var byId = campaigns.candidates(campaign.campaignId()).stream()
                 .collect(Collectors.toMap(Candidate::id, candidate -> candidate));
         var started = new ArrayList<Confirmation.Run>();

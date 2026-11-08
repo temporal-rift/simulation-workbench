@@ -22,13 +22,14 @@ import org.jooq.impl.DSL;
 import org.jooq.impl.SQLDataType;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.JsonNode;
 
 import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignChange;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignClaim;
-import io.github.temporalrift.workbench.search.domain.campaign.CampaignCommandClaim;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignCommandKey;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignCreation;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignFailure;
@@ -128,11 +129,20 @@ class CampaignRepositoryAdapter implements CampaignRepository {
         if (claimed.isPresent()) {
             return new CampaignCreation.Existing(claimed.get());
         }
-        var stored = insertOnce.insert(() -> insert(idempotencyKey, requestHash, queued, accruedAt));
+        var stored = insertOnce.insert(() -> {
+            insert(idempotencyKey, requestHash, queued, accruedAt);
+            dsl.insertInto(COMMAND)
+                    .set(KEY, idempotencyKey)
+                    .set(CAMPAIGN_ID, queued.campaignId())
+                    .set(REQUEST_HASH, requestHash)
+                    .execute();
+        });
         if (stored) {
             return new CampaignCreation.Created();
         }
-        return new CampaignCreation.Existing(findClaim(idempotencyKey).orElseThrow());
+        return findClaim(idempotencyKey)
+                .<CampaignCreation>map(CampaignCreation.Existing::new)
+                .orElseGet(CampaignCreation.KeyTaken::new);
     }
 
     @Override
@@ -144,23 +154,22 @@ class CampaignRepositoryAdapter implements CampaignRepository {
     }
 
     @Override
-    public Optional<CampaignCommandClaim> findCommand(UUID idempotencyKey) {
-        return dsl.select(CAMPAIGN_ID, REQUEST_HASH)
+    public Optional<String> claimedRequestHash(UUID idempotencyKey) {
+        return dsl.select(REQUEST_HASH)
                 .from(COMMAND)
                 .where(KEY.eq(idempotencyKey))
-                .fetchOptional()
-                .map(row -> new CampaignCommandClaim(row.get(CAMPAIGN_ID), row.get(REQUEST_HASH)));
+                .fetchOptional(REQUEST_HASH);
     }
 
-    @Override
-    public void claimCommand(UUID idempotencyKey, UUID campaignId, String requestHash, Instant claimedAt) {
-        dsl.insertInto(COMMAND)
-                .set(KEY, idempotencyKey)
-                .set(CAMPAIGN_ID, campaignId)
-                .set(REQUEST_HASH, requestHash)
-                .set(CREATED, utc(claimedAt))
-                .onConflictDoNothing()
-                .execute();
+    /** Whether this request took the key: a request holding it uncommitted makes this one wait for its outcome. */
+    private boolean claim(CampaignCommandKey command, UUID campaignId) {
+        return dsl.insertInto(COMMAND)
+                        .set(KEY, command.idempotencyKey())
+                        .set(CAMPAIGN_ID, campaignId)
+                        .set(REQUEST_HASH, command.requestHash())
+                        .onConflictDoNothing()
+                        .execute()
+                == 1;
     }
 
     private void insert(UUID idempotencyKey, String requestHash, Campaign queued, Instant accruedAt) {
@@ -252,6 +261,10 @@ class CampaignRepositoryAdapter implements CampaignRepository {
             return false;
         }
         var campaignId = change.next().campaignId();
+        if (change.command() != null && !claim(change.command(), campaignId)) {
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+            return false;
+        }
         writeCandidates(campaignId, change.candidates());
         change.waves().forEach(wave -> writeWave(campaignId, wave));
         writeGames(campaignId, change.games());

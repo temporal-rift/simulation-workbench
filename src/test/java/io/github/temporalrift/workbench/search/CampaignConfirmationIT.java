@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 import io.github.temporalrift.workbench.WorkbenchIntegrationTest;
 import io.github.temporalrift.workbench.analysis.RunConfirmation;
@@ -24,6 +25,7 @@ import io.github.temporalrift.workbench.execution.LaneEnvironments;
 import io.github.temporalrift.workbench.execution.application.port.in.RunBatchUseCase;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
 import io.github.temporalrift.workbench.execution.support.ScriptedLanes;
+import io.github.temporalrift.workbench.experiment.ExperimentFactory;
 import io.github.temporalrift.workbench.experiment.VariantRulesFixtures;
 import io.github.temporalrift.workbench.policy.PolicyCatalog;
 import io.github.temporalrift.workbench.search.application.command.CampaignProgress;
@@ -64,6 +66,9 @@ class CampaignConfirmationIT {
 
     @Autowired
     private CampaignExperiments experiments;
+
+    @Autowired
+    private ExperimentFactory factory;
 
     @Autowired
     private CampaignRuns runs;
@@ -118,7 +123,7 @@ class CampaignConfirmationIT {
         var searched = campaigns.find(id).orElseThrow().campaign();
         assertThat(searched.shortList()).isNotEmpty();
 
-        var started = handler(evaluation).handle(id);
+        var started = handler(evaluation).handle(id, UUID.randomUUID());
 
         assertThat(started.state()).isEqualTo(CampaignState.CONFIRMING);
         var subjects = started.confirmation().runs();
@@ -150,7 +155,7 @@ class CampaignConfirmationIT {
     void aCriterionVersionTwoConfirmationOfOneCandidateIs104SeedsAnd17160CasesOverThreeTables() {
         var id = searchedCampaign(2, List.of(3, 4, 5), "c-0000");
 
-        var started = handler(realEvaluation).handle(id);
+        var started = handler(realEvaluation).handle(id, UUID.randomUUID());
 
         assertThat(started.confirmation().seedCount()).isEqualTo(104);
         assertThat(started.confirmation().runs()).singleElement().satisfies(run -> {
@@ -166,7 +171,7 @@ class CampaignConfirmationIT {
     void aCriterionVersionOneConfirmationIs100SeedsOverItsTwoTables() {
         var id = searchedCampaign(1, List.of(3, 4, 5), "c-0000");
 
-        var started = handler(realEvaluation).handle(id);
+        var started = handler(realEvaluation).handle(id, UUID.randomUUID());
 
         assertThat(started.confirmation().seedCount()).isEqualTo(100);
         var run = started.confirmation().runs().getFirst();
@@ -180,13 +185,15 @@ class CampaignConfirmationIT {
         var evaluation = new ScriptedSearch(realEvaluation, uniformTable());
         var progress = progress(evaluation);
         var id = searchedCampaign(1, List.of(3), "c-0000", "c-0001");
-        var started = handler(evaluation).handle(id).confirmation().runs();
+        var started =
+                handler(evaluation).handle(id, UUID.randomUUID()).confirmation().runs();
         var first = started.get(0).runId();
         var second = started.get(1).runId();
 
         drive(progress, () -> state(id) == CampaignState.COMPLETED, () -> {
             if (unfinishedCases(first) > 0) {
                 assertThat(attemptsOf(second)).isZero();
+                assertThat(concurrencyOf(second)).as("the second run is held").isZero();
             }
         });
 
@@ -198,8 +205,12 @@ class CampaignConfirmationIT {
         var evaluation = new ScriptedSearch(realEvaluation, uniformTable());
         var progress = progress(evaluation);
         var id = searchedCampaign(1, List.of(3), "c-0000");
-        var runId =
-                handler(evaluation).handle(id).confirmation().runs().getFirst().runId();
+        var runId = handler(evaluation)
+                .handle(id, UUID.randomUUID())
+                .confirmation()
+                .runs()
+                .getFirst()
+                .runId();
         batch.maintain();
         for (var done = 0; done < 10; done++) {
             assertThat(batch.runNextCase(WORKER)).isTrue();
@@ -222,6 +233,7 @@ class CampaignConfirmationIT {
         var seeds = new ConfirmationSeeds("9").seeds(CONFIRMATION_SEEDS);
         var tables = realEvaluation.confirmationTables(1);
         var recorded = new ArrayList<Confirmation.Run>();
+        var onTheDeployedLane = true;
         for (var subject : List.of("baseline", "c-0000")) {
             var experiment = experiments.freezeConfirmation(
                     UUID.randomUUID(),
@@ -229,8 +241,10 @@ class CampaignConfirmationIT {
                     candidate(stored.campaign().definition(), subject, 0),
                     seeds,
                     tables);
-            recorded.add(
-                    new Confirmation.Run(subject, experiment, runs.startHeld(experiment, UUID.randomUUID()), null));
+            // A run recorded back then pins the builds of the deployed lane, not those of the simulator.
+            var played = onTheDeployedLane ? pinnedToTheDeployedLane(experiment) : experiment;
+            onTheDeployedLane = false;
+            recorded.add(new Confirmation.Run(subject, played, runs.startHeld(played, UUID.randomUUID()), null));
         }
         var confirming = stored.campaign().startConfirmation(new Confirmation(CONFIRMATION_SEEDS, recorded));
         assertThat(campaigns.apply(CampaignChange.of(stored, confirming, clock.instant())))
@@ -242,6 +256,8 @@ class CampaignConfirmationIT {
         var completed = campaigns.find(id).orElseThrow().campaign().confirmation();
         assertThat(completed.runs()).extracting(Confirmation.Run::subject).containsExactly("baseline", "c-0000");
         var baseline = completed.runs().getFirst();
+        assertThat(lanesOf(baseline.runId())).containsExactly("lane-1");
+        assertThat(lanesOf(completed.runs().getLast().runId())).containsExactly("lane-0");
         assertThat(baseline.evaluation().verdict())
                 .isEqualTo(confirmation.confirm(1, baseline.runId(), "baseline").verdict());
     }
@@ -264,13 +280,37 @@ class CampaignConfirmationIT {
         assertThat(runs.startHeld(experiment, runKey)).isEqualTo(run);
     }
 
+    /** The experiment frozen again with the builds of the deployed lane that is build-equivalent to the simulator. */
+    private UUID pinnedToTheDeployedLane(UUID experimentId) {
+        var lane = environments.equivalentDeployedLane(3).orElseThrow().bundle();
+        var mapper = JsonMapper.builder().build();
+        var manifest = (ObjectNode) mapper.readTree(jdbc.queryForObject(
+                "SELECT manifest_json FROM experiment WHERE experiment_id = ?", String.class, experimentId));
+        var services = manifest.putObject("services");
+        Map.of(
+                        "gameService",
+                        lane.gameService(),
+                        "timelineService",
+                        lane.timelineService(),
+                        "readService",
+                        lane.readService())
+                .forEach((name, build) -> services.putObject(name)
+                        .put("imageDigest", build.imageDigest())
+                        .put("sourceRevision", build.sourceRevision()));
+        return factory.freeze(UUID.randomUUID(), manifest);
+    }
+
     private CampaignProgress progress(CandidateEvaluation evaluation) {
         return new CampaignProgress(
                 campaigns, experiments, runs, evaluation, () -> true, new CampaignSettings(50_000), clock);
     }
 
     private StartConfirmationCommandHandler handler(CandidateEvaluation evaluation) {
-        return new StartConfirmationCommandHandler(campaigns, experiments, runs, evaluation, () -> true);
+        return new StartConfirmationCommandHandler(campaigns, experiments, runs, evaluation, () -> true, clock);
+    }
+
+    private int concurrencyOf(UUID runId) {
+        return jdbc.queryForObject("SELECT concurrency FROM run WHERE run_id = ?", Integer.class, runId);
     }
 
     private int casesOf(UUID runId) {

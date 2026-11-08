@@ -14,5 +14,5 @@ public interface SetCampaignParallelismUseCase {
      * @throws io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignStateException when the campaign
      *     is over
      */
-    Campaign handle(UUID campaignId, int parallelism);
+    Campaign handle(UUID campaignId, int parallelism, UUID idempotencyKey);
 }
