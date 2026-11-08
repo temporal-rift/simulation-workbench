@@ -37,7 +37,7 @@ describe('the simulator gate', () => {
     service.override('GET', /^\/api\/v1\/simulator\/fidelity$/, () => problem(409, 'SIMULATOR_NOT_AVAILABLE', 'The simulator is not enabled'))
     await renderApp('/fidelity', service)
 
-    expect(await screen.findByText(/the simulator is not enabled or no real lane matches its builds/)).toBeInTheDocument()
+    expect(await screen.findByText(/the simulator is not available\. The simulator is not enabled/)).toBeInTheDocument()
   })
 })
 
