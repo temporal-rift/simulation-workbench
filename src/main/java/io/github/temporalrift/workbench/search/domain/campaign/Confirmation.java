@@ -4,17 +4,14 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * The confirmation of a campaign's short list on fresh seeds: one run for the baseline and one per short-listed
- * candidate, each over the same number of seeds. Confirmation is only ever accepted free of seed overlap, so overlap is
- * not recorded.
+ * The confirmation of a campaign's short list on fresh seeds: one run per short-listed candidate, each over the same
+ * number of seeds. Confirmation is only ever accepted free of seed overlap, so overlap is not recorded.
  *
  * @param seedCount the seeds every run plays: the criterion's minimum for a confirmation sample
- * @param runs the baseline first, then the short-listed candidates in short-list order
+ * @param runs the short-listed candidates in short-list order, after a run of the baseline on a confirmation recorded
+ *     when confirmation still played one
  */
 public record Confirmation(int seedCount, List<Run> runs) {
-
-    /** The subject that names the baseline run. */
-    public static final String BASELINE = "baseline";
 
     public Confirmation {
         runs = List.copyOf(runs);
@@ -52,7 +49,7 @@ public record Confirmation(int seedCount, List<Run> runs) {
     }
 
     /**
-     * @param subject {@link #BASELINE} or a candidate id
+     * @param subject a candidate id, or {@code baseline} on a confirmation recorded when it still played the baseline
      * @param evaluation null until the run has been evaluated
      */
     public record Run(String subject, java.util.UUID experimentId, java.util.UUID runId, Evaluation evaluation) {

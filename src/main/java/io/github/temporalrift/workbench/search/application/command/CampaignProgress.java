@@ -165,7 +165,7 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
         }
         var step = new Step(stored, now);
         var campaignId = step.campaign.campaignId();
-        allowThenVerify(campaignId, () -> waveRuns.allow(campaignId, step.campaign.parallelism()));
+        waveRuns.reconcile(campaignId);
         try {
             return advanceRound(step);
         } catch (CampaignPlayRefusedException | IllegalArgumentException e) {
@@ -175,22 +175,6 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
         } catch (CandidateGenerationExhaustedException e) {
             return fail(step, CampaignFailure.CANDIDATE_GENERATION_EXHAUSTED, e.getMessage());
         }
-    }
-
-    /**
-     * Lets runs play and then checks that the campaign still wants them to. A pause or a cancel commits its state
-     * before it holds or cancels the runs, so a step that read the campaign earlier can raise the concurrency after
-     * that hold; reading the state again afterwards puts the hold back, and no later step would otherwise correct it.
-     */
-    private void allowThenVerify(UUID campaignId, Runnable allow) {
-        allow.run();
-        campaigns.find(campaignId).map(found -> found.campaign().state()).ifPresent(state -> {
-            if (state == CampaignState.PAUSED) {
-                waveRuns.hold(campaignId);
-            } else if (state == CampaignState.CANCELLED) {
-                waveRuns.stop(campaignId);
-            }
-        });
     }
 
     /** A campaign resumed before it ever started starts now, or waits for the fidelity gate like a queued one. */
@@ -329,7 +313,7 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
         var applied =
                 campaigns.apply(step.change().playing(new Wave(index, campaign.round(), experimentId, runId), games));
         if (applied) {
-            allowThenVerify(campaign.campaignId(), () -> runs.setConcurrency(runId, campaign.parallelism()));
+            waveRuns.reconcile(campaign.campaignId());
         }
         return applied;
     }

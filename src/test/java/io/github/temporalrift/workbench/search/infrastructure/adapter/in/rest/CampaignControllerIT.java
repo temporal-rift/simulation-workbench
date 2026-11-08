@@ -1,6 +1,7 @@
 package io.github.temporalrift.workbench.search.infrastructure.adapter.in.rest;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -43,15 +44,16 @@ import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinitio
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignFailure;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignIdempotencyConflictException;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignNotFoundException;
-import io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
 import io.github.temporalrift.workbench.search.domain.campaign.Confirmation;
+import io.github.temporalrift.workbench.search.domain.campaign.FidelityNotEstablishedException;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignException;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignReason;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignStateException;
-import io.github.temporalrift.workbench.search.domain.campaign.NoRealLaneException;
+import io.github.temporalrift.workbench.search.domain.campaign.PolicyNotAvailableException;
 import io.github.temporalrift.workbench.search.domain.campaign.SearchAlgorithm;
 import io.github.temporalrift.workbench.search.domain.campaign.SeedOverlapException;
+import io.github.temporalrift.workbench.search.domain.campaign.SimulatorNotAvailableException;
 import io.github.temporalrift.workbench.search.domain.log.LogEntry;
 import io.github.temporalrift.workbench.search.infrastructure.config.SearchApiJsonConfiguration;
 import io.github.temporalrift.workbench.shared.Page;
@@ -145,6 +147,29 @@ class CampaignControllerIT {
 
     @MockitoBean
     private StartConfirmationUseCase startConfirmation;
+
+    @Test
+    void aCommandCarriesItsKey() throws Exception {
+        var key = UUID.randomUUID();
+        when(parallelism.handle(CAMPAIGN, 8, key)).thenReturn(campaign());
+
+        mockMvc.perform(put("/api/v1/campaigns/" + CAMPAIGN + "/parallelism")
+                        .with(jwt().authorities(authorities(WRITE)))
+                        .header("Idempotency-Key", key.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"parallelism\":8}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void aKeyAnotherRequestUsedAnswers409() throws Exception {
+        when(startConfirmation.handle(eq(CAMPAIGN), any()))
+                .thenThrow(new CampaignIdempotencyConflictException(UUID.randomUUID()));
+
+        send("/api/v1/campaigns/" + CAMPAIGN + "/confirmation", "", WRITE)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_CONFLICT"));
+    }
 
     private static Campaign campaign() {
         var mapper = JsonMapper.builder().build();
@@ -385,13 +410,13 @@ class CampaignControllerIT {
 
     @Test
     void pausingAnswers200AndAStateThatDoesNotAllowItAnswers409() throws Exception {
-        when(pause.handle(CAMPAIGN)).thenReturn(campaign().pause());
+        when(pause.handle(eq(CAMPAIGN), any())).thenReturn(campaign().pause());
 
         send("/api/v1/campaigns/" + CAMPAIGN + "/pause", "", WRITE)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.state").value("PAUSED"));
 
-        when(resume.handle(CAMPAIGN))
+        when(resume.handle(eq(CAMPAIGN), any()))
                 .thenThrow(
                         new InvalidCampaignStateException("resume", campaign().state()));
         send("/api/v1/campaigns/" + CAMPAIGN + "/resume", "", WRITE)
@@ -401,7 +426,7 @@ class CampaignControllerIT {
 
     @Test
     void cancellingAnswers200() throws Exception {
-        when(cancel.handle(CAMPAIGN)).thenReturn(campaign().cancel(NOW));
+        when(cancel.handle(eq(CAMPAIGN), any())).thenReturn(campaign().cancel(NOW));
 
         send("/api/v1/campaigns/" + CAMPAIGN + "/cancel", "", WRITE)
                 .andExpect(status().isOk())
@@ -411,7 +436,8 @@ class CampaignControllerIT {
 
     @Test
     void parallelismIsChangedWithAPutAndRefusedBelowOne() throws Exception {
-        when(parallelism.handle(CAMPAIGN, 2)).thenReturn(campaign().withParallelism(2));
+        when(parallelism.handle(eq(CAMPAIGN), eq(2), any()))
+                .thenReturn(campaign().withParallelism(2));
 
         mockMvc.perform(put("/api/v1/campaigns/" + CAMPAIGN + "/parallelism")
                         .with(jwt().authorities(authorities(WRITE)))
@@ -435,12 +461,12 @@ class CampaignControllerIT {
     void confirmingAnswers202WithTheConfirmationAndNoSeedOverlap() throws Exception {
         var run = new Confirmation.Run("c-0000", new UUID(2, 2), new UUID(3, 3), null);
         var baseline = new Confirmation.Run(
-                Confirmation.BASELINE, new UUID(2, 1), new UUID(3, 1), new Confirmation.Evaluation("CONFIRMED", 2.5));
+                "baseline", new UUID(2, 1), new UUID(3, 1), new Confirmation.Evaluation("CONFIRMED", 2.5));
         var confirming = campaign()
                 .start(NOW)
                 .completeSearch(List.of("c-0000"))
                 .startConfirmation(new Confirmation(100, List.of(baseline, run)));
-        when(startConfirmation.handle(CAMPAIGN)).thenReturn(confirming);
+        when(startConfirmation.handle(eq(CAMPAIGN), any())).thenReturn(confirming);
 
         send("/api/v1/campaigns/" + CAMPAIGN + "/confirmation", "", WRITE)
                 .andExpect(status().isAccepted())
@@ -457,7 +483,7 @@ class CampaignControllerIT {
 
     @Test
     void confirmingFromAnotherStateAnswers409() throws Exception {
-        when(startConfirmation.handle(CAMPAIGN))
+        when(startConfirmation.handle(eq(CAMPAIGN), any()))
                 .thenThrow(new InvalidCampaignStateException("startConfirmation", CampaignState.RUNNING));
 
         send("/api/v1/campaigns/" + CAMPAIGN + "/confirmation", "", WRITE)
@@ -467,7 +493,7 @@ class CampaignControllerIT {
 
     @Test
     void confirmingOnSeedsTheSearchPlayedAnswers409SeedOverlap() throws Exception {
-        when(startConfirmation.handle(CAMPAIGN)).thenThrow(new SeedOverlapException(List.of("42")));
+        when(startConfirmation.handle(eq(CAMPAIGN), any())).thenThrow(new SeedOverlapException(List.of("42")));
 
         send("/api/v1/campaigns/" + CAMPAIGN + "/confirmation", "", WRITE)
                 .andExpect(status().isConflict())
@@ -475,26 +501,36 @@ class CampaignControllerIT {
     }
 
     @Test
-    void confirmingWithoutARealLaneAnswers503() throws Exception {
-        when(startConfirmation.handle(CAMPAIGN)).thenThrow(new NoRealLaneException("no lane"));
+    void confirmingWithTheSimulatorDisabledAnswers409() throws Exception {
+        when(startConfirmation.handle(eq(CAMPAIGN), any()))
+                .thenThrow(new SimulatorNotAvailableException("not enabled"));
 
         send("/api/v1/campaigns/" + CAMPAIGN + "/confirmation", "", WRITE)
-                .andExpect(status().isServiceUnavailable())
-                .andExpect(jsonPath("$.code").value("NO_REAL_LANE"));
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("SIMULATOR_NOT_AVAILABLE"));
     }
 
     @Test
-    void confirmingWithAnExperimentTheServiceRefusesAnswers422() throws Exception {
-        when(startConfirmation.handle(CAMPAIGN)).thenThrow(new CampaignPlayRefusedException("baseline unknown"));
+    void confirmingWithoutEstablishedFidelityAnswers409() throws Exception {
+        when(startConfirmation.handle(eq(CAMPAIGN), any())).thenThrow(new FidelityNotEstablishedException());
 
         send("/api/v1/campaigns/" + CAMPAIGN + "/confirmation", "", WRITE)
-                .andExpect(status().isUnprocessableContent())
-                .andExpect(jsonPath("$.code").value("CAMPAIGN_PLAY_REFUSED"));
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("FIDELITY_NOT_ESTABLISHED"));
+    }
+
+    @Test
+    void confirmingWithAPolicyNoBundleServesAnswers409() throws Exception {
+        when(startConfirmation.handle(eq(CAMPAIGN), any())).thenThrow(new PolicyNotAvailableException("no bundle"));
+
+        send("/api/v1/campaigns/" + CAMPAIGN + "/confirmation", "", WRITE)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("POLICY_NOT_AVAILABLE"));
     }
 
     @Test
     void confirmingAnUnknownCampaignAnswers404() throws Exception {
-        when(startConfirmation.handle(CAMPAIGN)).thenThrow(new CampaignNotFoundException(CAMPAIGN));
+        when(startConfirmation.handle(eq(CAMPAIGN), any())).thenThrow(new CampaignNotFoundException(CAMPAIGN));
 
         send("/api/v1/campaigns/" + CAMPAIGN + "/confirmation", "", WRITE).andExpect(status().isNotFound());
     }

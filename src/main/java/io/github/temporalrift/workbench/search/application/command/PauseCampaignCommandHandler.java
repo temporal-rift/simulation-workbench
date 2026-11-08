@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import io.github.temporalrift.workbench.search.application.port.in.PauseCampaignUseCase;
 import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignCommandKey;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRepository;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRuns;
 
@@ -20,9 +21,11 @@ public class PauseCampaignCommandHandler implements PauseCampaignUseCase {
     }
 
     @Override
-    public Campaign handle(UUID campaignId) {
-        var paused = updates.update(campaignId, (settled, now) -> new CampaignUpdates.Next(settled.pause(), false));
-        waveRuns.hold(campaignId);
-        return paused;
+    public Campaign handle(UUID campaignId, UUID idempotencyKey) {
+        var command = CampaignCommandKey.of(idempotencyKey, "pauseCampaign", campaignId, "");
+        var campaign =
+                updates.update(campaignId, command, (settled, now) -> new CampaignUpdates.Next(settled.pause(), false));
+        waveRuns.reconcile(campaignId);
+        return campaign;
     }
 }

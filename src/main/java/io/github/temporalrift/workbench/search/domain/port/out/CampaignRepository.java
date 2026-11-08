@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignChange;
@@ -23,11 +24,14 @@ public interface CampaignRepository {
 
     /**
      * Stores a new campaign at version 0 and claims the idempotency key in one step. When the key is already
-     * claimed, even by a request racing this one, nothing is stored.
+     * claimed, even by a request racing this one, whether to create a campaign or to command one, nothing is stored.
      */
     CampaignCreation create(UUID idempotencyKey, String requestHash, Campaign queued, Instant accruedAt);
 
     Optional<CampaignClaim> findClaim(UUID idempotencyKey);
+
+    /** The identity of the request that claimed the key, whether it created a campaign or commanded one. */
+    Optional<String> claimedRequestHash(UUID idempotencyKey);
 
     Optional<StoredCampaign> find(UUID campaignId);
 
@@ -44,11 +48,17 @@ public interface CampaignRepository {
     boolean save(Campaign next, Instant accruedAt, long expectedVersion);
 
     /**
-     * Applies a step: the campaign's next value and everything the step records, all or nothing. False, with nothing
-     * stored, when the campaign is no longer at the version the step started from. Records the campaign already has
-     * are kept as they are.
+     * Applies a step: the campaign's next value, everything the step records and the claim of its command's key, all
+     * or nothing. False, with nothing stored, when the campaign is no longer at the version the step started from or
+     * the key is already claimed. Records the campaign already has are kept as they are.
      */
     boolean apply(CampaignChange change);
+
+    /**
+     * Runs the action on the campaign as stored, and no write of the campaign can happen until it returns. An unknown
+     * campaign runs nothing.
+     */
+    void whileLocked(UUID campaignId, Consumer<Campaign> action);
 
     /** What each decided round left standing, in round order. */
     List<RoundResult> rounds(UUID campaignId);

@@ -86,7 +86,7 @@ class CampaignProgressTest {
         interrupted.driveUntil(() -> interrupted.campaign(interruptedId).round() == 1
                 && !interrupted.campaigns.waves(interruptedId).isEmpty()
                 && interrupted.campaigns.waves(interruptedId).stream().anyMatch(wave -> wave.round() == 1));
-        interrupted.pause.handle(interruptedId);
+        interrupted.pause.handle(interruptedId, UUID.randomUUID());
         var inPlay = interrupted.campaigns.waves(interruptedId).stream()
                 .filter(wave -> interrupted.play.phaseOf(wave.runId()) == RunPhase.ACTIVE)
                 .toList();
@@ -94,8 +94,8 @@ class CampaignProgressTest {
         inPlay.forEach(
                 wave -> assertThat(interrupted.play.concurrencyOf(wave.runId())).isZero());
         interrupted.clock.advance(Duration.ofMinutes(30));
-        interrupted.resume.handle(interruptedId);
-        interrupted.parallelism.handle(interruptedId, 2);
+        interrupted.resume.handle(interruptedId, UUID.randomUUID());
+        interrupted.parallelism.handle(interruptedId, 2, UUID.randomUUID());
         interrupted.drive(interruptedId);
 
         assertThat(interrupted.campaign(interruptedId).state()).isEqualTo(CampaignState.SEARCH_COMPLETED);
@@ -136,11 +136,11 @@ class CampaignProgressTest {
 
         harness.clock.advance(Duration.ofSeconds(100));
         harness.progress.advance();
-        harness.pause.handle(id);
+        harness.pause.handle(id, UUID.randomUUID());
         harness.clock.advance(Duration.ofSeconds(1000));
-        harness.resume.handle(id);
+        harness.resume.handle(id, UUID.randomUUID());
         harness.clock.advance(Duration.ofSeconds(50));
-        harness.pause.handle(id);
+        harness.pause.handle(id, UUID.randomUUID());
 
         assertThat(harness.campaign(id).spentSeconds()).isEqualTo(150);
     }
@@ -211,7 +211,7 @@ class CampaignProgressTest {
         harness.progress.advance();
         harness.progress.advance();
 
-        harness.cancel.handle(id);
+        harness.cancel.handle(id, UUID.randomUUID());
 
         assertThat(harness.campaign(id).state()).isEqualTo(CampaignState.CANCELLED);
         harness.campaigns
@@ -227,7 +227,7 @@ class CampaignProgressTest {
         harness.progress.advance();
         harness.progress.advance();
         harness.progress.advance();
-        harness.play.beforeNextRaise(() -> harness.pause.handle(id));
+        harness.campaigns.beforeLock(1, () -> harness.pause.handle(id, UUID.randomUUID()));
 
         harness.progress.advance();
 
@@ -236,6 +236,23 @@ class CampaignProgressTest {
         assertThat(waves).isNotEmpty();
         waves.forEach(
                 wave -> assertThat(harness.play.concurrencyOf(wave.runId())).isZero());
+    }
+
+    @Test
+    void aParallelismChangeLandingBetweenReadingTheCampaignAndRaisingTheRunsIsNotOverwritten() {
+        var harness = new Harness(3600);
+        var id = harness.create(4);
+        harness.progress.advance();
+        harness.progress.advance();
+        harness.progress.advance();
+        harness.campaigns.beforeLock(1, () -> harness.parallelism.handle(id, 2, UUID.randomUUID()));
+
+        harness.progress.advance();
+
+        var waves = harness.campaigns.waves(id);
+        assertThat(waves).isNotEmpty();
+        waves.forEach(
+                wave -> assertThat(harness.play.concurrencyOf(wave.runId())).isEqualTo(2));
     }
 
     @Test

@@ -17,6 +17,7 @@ import io.github.temporalrift.workbench.search.domain.wave.Wave;
  * @param games the games those waves play
  * @param log the decisions the step takes
  * @param round the round the step decides, or null
+ * @param command the key of the command that asks for the change, claimed with it; null for a step of the worker
  */
 public record CampaignChange(
         Campaign next,
@@ -26,7 +27,8 @@ public record CampaignChange(
         List<Wave> waves,
         List<Game> games,
         List<LogEntry> log,
-        RoundResult round) {
+        RoundResult round,
+        CampaignCommandKey command) {
 
     public CampaignChange {
         candidates = List.copyOf(candidates);
@@ -37,18 +39,25 @@ public record CampaignChange(
 
     /** A step that only changes the campaign. */
     public static CampaignChange of(StoredCampaign from, Campaign next, Instant accruedAt) {
-        return new CampaignChange(next, accruedAt, from.version(), List.of(), List.of(), List.of(), List.of(), null);
+        return new CampaignChange(
+                next, accruedAt, from.version(), List.of(), List.of(), List.of(), List.of(), null, null);
     }
 
     public CampaignChange recording(List<Candidate> generated, List<LogEntry> entries) {
-        return new CampaignChange(next, accruedAt, expectedVersion, generated, waves, games, entries, round);
+        return new CampaignChange(next, accruedAt, expectedVersion, generated, waves, games, entries, round, command);
     }
 
     public CampaignChange playing(Wave wave, List<Game> played) {
-        return new CampaignChange(next, accruedAt, expectedVersion, candidates, List.of(wave), played, log, round);
+        return new CampaignChange(
+                next, accruedAt, expectedVersion, candidates, List.of(wave), played, log, round, command);
     }
 
     public CampaignChange deciding(RoundResult decided, List<LogEntry> entries) {
-        return new CampaignChange(next, accruedAt, expectedVersion, candidates, waves, games, entries, decided);
+        return new CampaignChange(
+                next, accruedAt, expectedVersion, candidates, waves, games, entries, decided, command);
+    }
+
+    public CampaignChange claiming(CampaignCommandKey key) {
+        return new CampaignChange(next, accruedAt, expectedVersion, candidates, waves, games, log, round, key);
     }
 }

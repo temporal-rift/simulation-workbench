@@ -28,14 +28,14 @@ import io.github.temporalrift.workbench.experiment.LaneBundle;
 import io.github.temporalrift.workbench.policy.PolicyCatalog;
 import io.github.temporalrift.workbench.policy.PolicyDescriptor;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
-import io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException;
-import io.github.temporalrift.workbench.search.domain.campaign.NoRealLaneException;
+import io.github.temporalrift.workbench.search.domain.campaign.PolicyNotAvailableException;
 import io.github.temporalrift.workbench.search.domain.campaign.PolicyRef;
 import io.github.temporalrift.workbench.search.domain.campaign.SearchAlgorithm;
 import io.github.temporalrift.workbench.search.domain.campaign.SeatTable;
-import io.github.temporalrift.workbench.search.domain.port.out.CampaignExperiments;
+import io.github.temporalrift.workbench.search.domain.campaign.SimulatorNotAvailableException;
+import io.github.temporalrift.workbench.search.domain.candidate.Candidate;
 
-/** The experiment a confirmation freezes: one subject, the seeds given, and the builds of the real lane only. */
+/** The experiment a confirmation freezes: one candidate, the seeds given, and the builds of the simulator. */
 class ConfirmationFreezeTest {
 
     private static final JsonMapper MAPPER = JsonMapper.builder().build();
@@ -54,55 +54,34 @@ class ConfirmationFreezeTest {
             new SeatTable("random-seat-vs-faction-greedy-v1", List.of(RANDOM, GREEDY, GREEDY, GREEDY, GREEDY)));
 
     @BeforeEach
-    void theCatalogServesTheCriterionPolicies() {
+    void theCatalogServesTheCriterionPoliciesAndTheSimulatorIsEnabled() {
         when(catalog.list())
                 .thenReturn(List.of(
                         new PolicyDescriptor("faction-greedy", "1.0.0", "a".repeat(64), "greedy"),
                         new PolicyDescriptor("random", "1.10.0", "e".repeat(64), "latest"),
                         new PolicyDescriptor("random", "1.2.0", "b".repeat(64), "random"),
                         new PolicyDescriptor("random", "2.0.0", "c".repeat(64), "newer")));
+        when(lanes.simulator()).thenReturn(Optional.of(bundle("simulator")));
+        when(experiments.freeze(any(), any())).thenReturn(UUID.randomUUID());
     }
 
     @Test
     void theManifestPlaysEveryPolicyTheCriterionNamesWhateverThePoliciesOfTheCampaign() {
-        when(lanes.equivalentDeployedLane(5))
-                .thenReturn(Optional.of(new LaneEnvironments.DeployedLane("lane-1", bundle("deployed"))));
-        when(experiments.freeze(any(), any())).thenReturn(UUID.randomUUID());
+        var node = frozen(candidate("c-0000", new TreeMap<>()));
 
-        adapter.freezeConfirmation(
-                KEY,
-                definition(),
-                new CampaignExperiments.Subject("baseline", new TreeMap<>(), "d".repeat(64)),
-                List.of("11"),
-                CRITERION_TABLES);
-
-        var manifest = ArgumentCaptor.forClass(JsonNode.class);
-        verify(experiments).freeze(any(), manifest.capture());
-        var policies = manifest.getValue().path("policies");
+        var policies = node.path("policies");
         assertThat(policies).hasSize(2);
         assertThat(policies.get(0).path("id").asString()).isEqualTo("faction-greedy");
         assertThat(policies.get(1).path("version").asString()).isEqualTo("1.10.0");
-        var tables = manifest.getValue().path("tables");
+        var tables = node.path("tables");
         assertThat(tables).hasSize(3);
         assertThat(tables.get(1).path("seats")).hasSize(5);
     }
 
     @Test
     void theManifestPlaysTheCriterionsConfirmationTablesSeatBySeat() {
-        when(lanes.equivalentDeployedLane(5))
-                .thenReturn(Optional.of(new LaneEnvironments.DeployedLane("lane-1", bundle("deployed"))));
-        when(experiments.freeze(any(), any())).thenReturn(UUID.randomUUID());
+        var tables = frozen(candidate("c-0000", new TreeMap<>())).path("tables");
 
-        adapter.freezeConfirmation(
-                KEY,
-                definition(),
-                new CampaignExperiments.Subject("baseline", new TreeMap<>(), "d".repeat(64)),
-                List.of("11"),
-                CRITERION_TABLES);
-
-        var manifest = ArgumentCaptor.forClass(JsonNode.class);
-        verify(experiments).freeze(any(), manifest.capture());
-        var tables = manifest.getValue().path("tables");
         assertThat(tables.valueStream()
                         .map(table -> table.path("id").asString())
                         .toList())
@@ -117,15 +96,11 @@ class ConfirmationFreezeTest {
     }
 
     @Test
-    void aRedeployedLaneGetsAnExperimentKeyOfItsOwn() {
-        when(experiments.freeze(any(), any())).thenReturn(UUID.randomUUID());
-        var subject = new CampaignExperiments.Subject("baseline", new TreeMap<>(), "d".repeat(64));
-        when(lanes.equivalentDeployedLane(5))
-                .thenReturn(Optional.of(new LaneEnvironments.DeployedLane("lane-1", bundle("deployed"))));
-        adapter.freezeConfirmation(KEY, definition(), subject, List.of("11"), CRITERION_TABLES);
-        when(lanes.equivalentDeployedLane(5))
-                .thenReturn(Optional.of(new LaneEnvironments.DeployedLane("lane-1", bundle("redeployed"))));
-        adapter.freezeConfirmation(KEY, definition(), subject, List.of("11"), CRITERION_TABLES);
+    void aRebuiltSimulatorGetsAnExperimentKeyOfItsOwn() {
+        var candidate = candidate("c-0000", new TreeMap<>());
+        adapter.freezeConfirmation(KEY, definition(), candidate, List.of("11"), CRITERION_TABLES);
+        when(lanes.simulator()).thenReturn(Optional.of(bundle("rebuilt")));
+        adapter.freezeConfirmation(KEY, definition(), candidate, List.of("11"), CRITERION_TABLES);
 
         var keys = ArgumentCaptor.forClass(UUID.class);
         verify(experiments, times(2)).freeze(keys.capture(), any());
@@ -133,47 +108,40 @@ class ConfirmationFreezeTest {
     }
 
     @Test
-    void aCriterionPolicyNoBundleServesIsRefusedBeforeAnythingIsFrozen() {
-        when(lanes.equivalentDeployedLane(5))
-                .thenReturn(Optional.of(new LaneEnvironments.DeployedLane("lane-1", bundle("deployed"))));
+    void theSameBuildsKeepTheSameExperimentKey() {
+        var candidate = candidate("c-0000", new TreeMap<>());
+        adapter.freezeConfirmation(KEY, definition(), candidate, List.of("11"), CRITERION_TABLES);
+        adapter.freezeConfirmation(KEY, definition(), candidate, List.of("11"), CRITERION_TABLES);
 
+        var keys = ArgumentCaptor.forClass(UUID.class);
+        verify(experiments, times(2)).freeze(keys.capture(), any());
+        assertThat(keys.getAllValues().get(0)).isEqualTo(keys.getAllValues().get(1));
+    }
+
+    @Test
+    void aCriterionPolicyNoBundleServesIsRefusedBeforeAnythingIsFrozen() {
         var definition = definition();
-        var subject = new CampaignExperiments.Subject("baseline", new TreeMap<>(), "d".repeat(64));
+        var candidate = candidate("c-0000", new TreeMap<>());
         var missing = List.of(new SeatTable("missing-v1", Collections.nCopies(5, new PolicyRef("missing", "1"))));
         var seeds = List.of("11");
-        assertThatThrownBy(() -> adapter.freezeConfirmation(KEY, definition, subject, seeds, missing))
-                .isInstanceOf(CampaignPlayRefusedException.class);
+        assertThatThrownBy(() -> adapter.freezeConfirmation(KEY, definition, candidate, seeds, missing))
+                .isInstanceOf(PolicyNotAvailableException.class);
 
         verifyNoInteractions(experiments);
     }
 
     @Test
-    void theManifestNamesTheBuildsOfTheRealLaneAndNeverTheSimulators() {
-        var simulator = bundle("simulator");
-        var deployed = bundle("deployed");
-        when(lanes.simulator()).thenReturn(Optional.of(simulator));
-        when(lanes.equivalentDeployedLane(5))
-                .thenReturn(Optional.of(new LaneEnvironments.DeployedLane("lane-1", deployed)));
-        when(experiments.freeze(any(), any())).thenReturn(UUID.randomUUID());
+    void theManifestNamesTheBuildsOfTheSimulatorAndTheCandidatesOverrides() {
         var overrides = new TreeMap<String, BigDecimal>();
         overrides.put("game.rules.a", BigDecimal.TEN);
 
-        adapter.freezeConfirmation(
-                KEY,
-                definition(),
-                new CampaignExperiments.Subject("c-0001", overrides, "e".repeat(64)),
-                List.of("11", "12", "13"),
-                CRITERION_TABLES);
+        var node = frozen(candidate("c-0001", overrides));
 
-        var manifest = ArgumentCaptor.forClass(JsonNode.class);
-        verify(experiments).freeze(any(), manifest.capture());
-        var node = manifest.getValue();
         assertThat(node.path("services")
                         .path("gameService")
                         .path("sourceRevision")
                         .asString())
-                .isEqualTo("game-deployed");
-        assertThat(node.toString()).doesNotContain("simulator");
+                .isEqualTo("game-simulator");
         assertThat(node.path("variants")).hasSize(1);
         assertThat(node.path("variants").get(0).path("label").asString()).isEqualTo("c-0001");
         assertThat(node.path("variants")
@@ -184,40 +152,23 @@ class ConfirmationFreezeTest {
                 .isEqualByComparingTo(BigDecimal.TEN);
         assertThat(node.path("seeds").valueStream().map(JsonNode::asString).toList())
                 .containsExactly("11", "12", "13");
-        assertThat(node.path("concurrency").asInt()).isEqualTo(1);
         assertThat(node.path("playerCounts").valueStream().map(JsonNode::asInt).toList())
                 .containsExactly(3, 4, 5);
+        assertThat(node.path("seatRotationMode").asString()).isEqualTo("CYCLIC");
     }
 
     @Test
-    void theBaselineSubjectCarriesNoOverrides() {
-        when(lanes.equivalentDeployedLane(5))
-                .thenReturn(Optional.of(new LaneEnvironments.DeployedLane("lane-1", bundle("deployed"))));
-        when(experiments.freeze(any(), any())).thenReturn(UUID.randomUUID());
-
-        adapter.freezeConfirmation(
-                KEY,
-                definition(),
-                new CampaignExperiments.Subject("baseline", new TreeMap<>(), "d".repeat(64)),
-                List.of("11"),
-                CRITERION_TABLES);
-
-        var manifest = ArgumentCaptor.forClass(JsonNode.class);
-        verify(experiments).freeze(any(), manifest.capture());
-        assertThat(manifest.getValue().path("variants").get(0).has("overrides")).isFalse();
-    }
-
-    @Test
-    void withoutAnEquivalentDeployedLaneNothingIsFrozen() {
-        when(lanes.equivalentDeployedLane(5)).thenReturn(Optional.empty());
+    void aDisabledSimulatorFreezesNothing() {
+        when(lanes.simulator()).thenReturn(Optional.empty());
 
         var definition = definition();
-        var subject = new CampaignExperiments.Subject("baseline", new TreeMap<>(), "d".repeat(64));
+        var candidate = candidate("c-0000", new TreeMap<>());
         var seeds = List.of("11");
-        assertThatThrownBy(() -> adapter.freezeConfirmation(KEY, definition, subject, seeds, CRITERION_TABLES))
-                .isInstanceOf(NoRealLaneException.class);
+        assertThatThrownBy(() -> adapter.freezeConfirmation(KEY, definition, candidate, seeds, CRITERION_TABLES))
+                .isInstanceOf(SimulatorNotAvailableException.class);
 
         verifyNoInteractions(experiments);
+        assertThat(adapter.simulatorEnabled()).isFalse();
     }
 
     @Test
@@ -228,6 +179,17 @@ class ConfirmationFreezeTest {
                 .isNegative();
         assertThat(CampaignExperimentsAdapter.compareVersions("1.0", "1.0.0")).isZero();
         assertThat(CampaignExperimentsAdapter.compareVersions("1.0.1", "1.0")).isPositive();
+    }
+
+    private JsonNode frozen(Candidate candidate) {
+        adapter.freezeConfirmation(KEY, definition(), candidate, List.of("11", "12", "13"), CRITERION_TABLES);
+        var manifest = ArgumentCaptor.forClass(JsonNode.class);
+        verify(experiments).freeze(any(), manifest.capture());
+        return manifest.getValue();
+    }
+
+    private static Candidate candidate(String id, TreeMap<String, BigDecimal> overrides) {
+        return new Candidate(id, 0, List.of(0), overrides, "e".repeat(64), 0);
     }
 
     private static CampaignDefinition definition() {

@@ -28,6 +28,11 @@ final class InMemoryCampaigns implements CampaignRepository {
 
     private final Map<UUID, StoredCampaign> campaigns = new LinkedHashMap<>();
     private final Map<UUID, CampaignClaim> claims = new LinkedHashMap<>();
+    private final Map<UUID, String> commands = new LinkedHashMap<>();
+    private Runnable beforeApply;
+    private Runnable beforeFind;
+    private Runnable beforeLock;
+    private int locksUntilAction;
     private final Map<UUID, TreeMap<String, Candidate>> candidates = new LinkedHashMap<>();
     private final Map<UUID, TreeMap<Integer, Wave>> waves = new LinkedHashMap<>();
     private final Map<UUID, TreeMap<String, Game>> games = new LinkedHashMap<>();
@@ -40,6 +45,10 @@ final class InMemoryCampaigns implements CampaignRepository {
         if (claims.containsKey(idempotencyKey)) {
             return new CampaignCreation.Existing(claims.get(idempotencyKey));
         }
+        if (commands.containsKey(idempotencyKey)) {
+            return new CampaignCreation.KeyTaken();
+        }
+        commands.put(idempotencyKey, requestHash);
         claims.put(idempotencyKey, new CampaignClaim(queued, requestHash));
         campaigns.put(queued.campaignId(), new StoredCampaign(queued, 0, accruedAt));
         return new CampaignCreation.Created();
@@ -51,7 +60,43 @@ final class InMemoryCampaigns implements CampaignRepository {
     }
 
     @Override
+    public synchronized Optional<String> claimedRequestHash(UUID idempotencyKey) {
+        return Optional.ofNullable(commands.get(idempotencyKey));
+    }
+
+    /** Runs {@code action} once, just before the next campaign read: a racing request that commits right there. */
+    synchronized void beforeNextFind(Runnable action) {
+        this.beforeFind = action;
+    }
+
+    /** Runs {@code action} once, just before the given lock from now, counting from 1: a write that got in first. */
+    synchronized void beforeLock(int number, Runnable action) {
+        this.locksUntilAction = number;
+        this.beforeLock = action;
+    }
+
+    @Override
+    public synchronized void whileLocked(UUID campaignId, java.util.function.Consumer<Campaign> action) {
+        if (beforeLock != null && --locksUntilAction == 0) {
+            var racing = beforeLock;
+            beforeLock = null;
+            racing.run();
+        }
+        find(campaignId).map(StoredCampaign::campaign).ifPresent(action);
+    }
+
+    /** Runs {@code action} once, just before the next change is applied: a racing request landing mid-command. */
+    synchronized void beforeNextApply(Runnable action) {
+        this.beforeApply = action;
+    }
+
+    @Override
     public synchronized Optional<StoredCampaign> find(UUID campaignId) {
+        if (beforeFind != null) {
+            var action = beforeFind;
+            beforeFind = null;
+            action.run();
+        }
         return Optional.ofNullable(campaigns.get(campaignId));
     }
 
@@ -82,8 +127,20 @@ final class InMemoryCampaigns implements CampaignRepository {
 
     @Override
     public synchronized boolean apply(CampaignChange change) {
+        if (beforeApply != null) {
+            var action = beforeApply;
+            beforeApply = null;
+            action.run();
+        }
+        var command = change.command();
+        if (command != null && commands.containsKey(command.idempotencyKey())) {
+            return false;
+        }
         if (!save(change.next(), change.accruedAt(), change.expectedVersion())) {
             return false;
+        }
+        if (command != null) {
+            commands.put(command.idempotencyKey(), command.requestHash());
         }
         var id = change.next().campaignId();
         insertCandidates(id, change.candidates());

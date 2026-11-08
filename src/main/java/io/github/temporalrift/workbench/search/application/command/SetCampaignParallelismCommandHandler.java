@@ -5,7 +5,7 @@ import java.util.UUID;
 
 import io.github.temporalrift.workbench.search.application.port.in.SetCampaignParallelismUseCase;
 import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
-import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignCommandKey;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRepository;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRuns;
 
@@ -21,12 +21,14 @@ public class SetCampaignParallelismCommandHandler implements SetCampaignParallel
     }
 
     @Override
-    public Campaign handle(UUID campaignId, int parallelism) {
+    public Campaign handle(UUID campaignId, int parallelism, UUID idempotencyKey) {
+        var command = CampaignCommandKey.of(
+                idempotencyKey, "setCampaignParallelism", campaignId, String.valueOf(parallelism));
         var changed = updates.update(
-                campaignId, (settled, now) -> new CampaignUpdates.Next(settled.withParallelism(parallelism), false));
-        if (changed.state() == CampaignState.RUNNING) {
-            waveRuns.allow(campaignId, parallelism);
-        }
+                campaignId,
+                command,
+                (settled, now) -> new CampaignUpdates.Next(settled.withParallelism(parallelism), false));
+        waveRuns.reconcile(campaignId);
         return changed;
     }
 }

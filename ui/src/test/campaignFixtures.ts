@@ -1,6 +1,7 @@
 import type { Campaign, CampaignConfirmation, CampaignLogEntry } from '../api/generated'
 import { json } from './fakeService'
 import type { FakeService } from './fakeService'
+import { experiment, manifest } from './fixtures'
 
 export const CAMPAIGN_IDS = {
   campaign: 'a1b2c3d4-5e6f-4a71-8b92-a3b4c5d6e7f8',
@@ -61,23 +62,20 @@ export function logEntry(overrides: Partial<CampaignLogEntry> = {}): CampaignLog
   }
 }
 
+/** The tables criterion version 2 confirms on, by id: what their seats play does not matter to these tests. */
+const CONFIRMATION_TABLES = ['faction-greedy-v1', 'random-v1', 'random-seat-vs-faction-greedy-v1'].map((id) => ({ id, seats: manifest().tables[0]!.seats }))
+
 export const CONFIRMATION_RUNS = {
   baseline: { experiment: 'e0000000-0000-4000-8000-000000000001', run: 'f0000000-0000-4000-8000-000000000001' },
   candidate: { experiment: 'e0000000-0000-4000-8000-000000000002', run: 'f0000000-0000-4000-8000-000000000002' },
 } as const
 
-/** The confirmation of a short list of one candidate: the baseline and the candidate, evaluated or still playing. */
+/** The confirmation of a short list of one candidate, evaluated or still playing. */
 export function confirmation(evaluated: boolean): CampaignConfirmation {
   return {
     seedCount: 100,
     seedOverlap: false,
     runs: [
-      {
-        candidateId: 'baseline',
-        experimentId: CONFIRMATION_RUNS.baseline.experiment,
-        runId: CONFIRMATION_RUNS.baseline.run,
-        evaluation: evaluated ? { verdict: 'UNCONFIRMED', score: 0.4 } : null,
-      },
       {
         candidateId: 'c-0001',
         experimentId: CONFIRMATION_RUNS.candidate.experiment,
@@ -88,9 +86,30 @@ export function confirmation(evaluated: boolean): CampaignConfirmation {
   }
 }
 
+/** A confirmation recorded when it still played a baseline run before the candidate's. */
+export function recordedConfirmation(evaluated: boolean): CampaignConfirmation {
+  const { seedCount, seedOverlap, runs } = confirmation(evaluated)
+  return {
+    seedCount,
+    seedOverlap,
+    runs: [
+      {
+        candidateId: 'baseline',
+        experimentId: CONFIRMATION_RUNS.baseline.experiment,
+        runId: CONFIRMATION_RUNS.baseline.run,
+        evaluation: evaluated ? { verdict: 'UNCONFIRMED', score: 0.4 } : null,
+      },
+      ...runs,
+    ],
+  }
+}
+
 /** Answers the campaign operations of a test from the given records and lets commands change the first campaign. */
 export function serveCampaigns(service: FakeService, state: { campaigns?: Campaign[]; log?: CampaignLogEntry[] } = {}): { current: Campaign[] } {
   const held = { current: state.campaigns ?? [campaign()] }
+  for (const { experiment: experimentId } of Object.values(CONFIRMATION_RUNS)) {
+    service.experiments.set(experimentId, experiment({ experimentId, manifest: manifest({ tables: CONFIRMATION_TABLES }) }))
+  }
   const log = state.log ?? [logEntry()]
   service.override('GET', /^\/api\/v1\/campaigns$/, () => json({ items: held.current, total: held.current.length }))
   service.override('GET', /^\/api\/v1\/campaigns\/([^/]+)$/, (_request, match) => {

@@ -12,6 +12,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 import org.jooq.Condition;
 import org.jooq.DSLContext;
@@ -22,12 +23,14 @@ import org.jooq.impl.DSL;
 import org.jooq.impl.SQLDataType;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.JsonNode;
 
 import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignChange;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignClaim;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignCommandKey;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignCreation;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignFailure;
@@ -87,6 +90,8 @@ class CampaignRepositoryAdapter implements CampaignRepository {
     private static final Field<OffsetDateTime> FINISHED =
             DSL.field(DSL.name("finished_at"), SQLDataType.TIMESTAMPWITHTIMEZONE);
 
+    private static final Table<Record> COMMAND = DSL.table(DSL.name("campaign_command"));
+
     private static final Table<Record> CANDIDATE = DSL.table(DSL.name("campaign_candidate"));
     private static final Field<String> CANDIDATE_ID = DSL.field(DSL.name("candidate_id"), SQLDataType.VARCHAR);
     private static final Field<String> POINT = DSL.field(DSL.name("point_json"), SQLDataType.CLOB);
@@ -125,11 +130,20 @@ class CampaignRepositoryAdapter implements CampaignRepository {
         if (claimed.isPresent()) {
             return new CampaignCreation.Existing(claimed.get());
         }
-        var stored = insertOnce.insert(() -> insert(idempotencyKey, requestHash, queued, accruedAt));
+        var stored = insertOnce.insert(() -> {
+            insert(idempotencyKey, requestHash, queued, accruedAt);
+            dsl.insertInto(COMMAND)
+                    .set(KEY, idempotencyKey)
+                    .set(CAMPAIGN_ID, queued.campaignId())
+                    .set(REQUEST_HASH, requestHash)
+                    .execute();
+        });
         if (stored) {
             return new CampaignCreation.Created();
         }
-        return new CampaignCreation.Existing(findClaim(idempotencyKey).orElseThrow());
+        return findClaim(idempotencyKey)
+                .<CampaignCreation>map(CampaignCreation.Existing::new)
+                .orElseGet(CampaignCreation.KeyTaken::new);
     }
 
     @Override
@@ -138,6 +152,25 @@ class CampaignRepositoryAdapter implements CampaignRepository {
                 .where(KEY.eq(idempotencyKey))
                 .fetchOptional()
                 .map(row -> new CampaignClaim(stored(row).campaign(), row.get(REQUEST_HASH)));
+    }
+
+    @Override
+    public Optional<String> claimedRequestHash(UUID idempotencyKey) {
+        return dsl.select(REQUEST_HASH)
+                .from(COMMAND)
+                .where(KEY.eq(idempotencyKey))
+                .fetchOptional(REQUEST_HASH);
+    }
+
+    /** Whether this request took the key: a request holding it uncommitted makes this one wait for its outcome. */
+    private boolean claim(CampaignCommandKey command, UUID campaignId) {
+        return dsl.insertInto(COMMAND)
+                        .set(KEY, command.idempotencyKey())
+                        .set(CAMPAIGN_ID, campaignId)
+                        .set(REQUEST_HASH, command.requestHash())
+                        .onConflictDoNothing()
+                        .execute()
+                == 1;
     }
 
     private void insert(UUID idempotencyKey, String requestHash, Campaign queued, Instant accruedAt) {
@@ -229,6 +262,10 @@ class CampaignRepositoryAdapter implements CampaignRepository {
             return false;
         }
         var campaignId = change.next().campaignId();
+        if (change.command() != null && !claim(change.command(), campaignId)) {
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+            return false;
+        }
         writeCandidates(campaignId, change.candidates());
         change.waves().forEach(wave -> writeWave(campaignId, wave));
         writeGames(campaignId, change.games());
@@ -237,6 +274,17 @@ class CampaignRepositoryAdapter implements CampaignRepository {
             insertRound(campaignId, change.round());
         }
         return true;
+    }
+
+    @Override
+    @Transactional
+    public void whileLocked(UUID campaignId, Consumer<Campaign> action) {
+        dsl.selectFrom(CAMPAIGN)
+                .where(CAMPAIGN_ID.eq(campaignId))
+                .forNoKeyUpdate()
+                .fetchOptional(this::stored)
+                .map(StoredCampaign::campaign)
+                .ifPresent(action);
     }
 
     private void insertRound(UUID campaignId, RoundResult result) {

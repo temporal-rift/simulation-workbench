@@ -20,6 +20,8 @@ import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;
 
 import io.github.temporalrift.workbench.search.application.port.in.CreateCampaignUseCase;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignChange;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignCommandKey;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignIdempotencyConflictException;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
@@ -82,6 +84,20 @@ class CreateCampaignCommandHandlerTest {
         var another = command(key, "7", "10");
 
         assertThatThrownBy(() -> create.handle(another)).isInstanceOf(CampaignIdempotencyConflictException.class);
+    }
+
+    @Test
+    void aKeyACommandOnACampaignClaimedIsAConflictAndCreatesNothing() {
+        var key = UUID.randomUUID();
+        var other = create.handle(command(UUID.randomUUID(), "7", "9"));
+        var stored = campaigns.find(other.campaignId()).orElseThrow();
+        campaigns.apply(CampaignChange.of(stored, other.pause(), NOW)
+                .claiming(CampaignCommandKey.of(key, "pauseCampaign", other.campaignId(), "")));
+
+        var request = command(key, "7", "9");
+
+        assertThatThrownBy(() -> create.handle(request)).isInstanceOf(CampaignIdempotencyConflictException.class);
+        assertThat(campaigns.list(null, 10, 0).total()).isOne();
     }
 
     @Test

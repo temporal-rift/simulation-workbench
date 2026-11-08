@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { READ_SCOPE } from '../auth/scopes'
-import { CAMPAIGN_IDS, CONFIRMATION_RUNS, campaign, confirmation, logEntry, serveCampaigns } from '../test/campaignFixtures'
+import { CAMPAIGN_IDS, CONFIRMATION_RUNS, campaign, confirmation, logEntry, recordedConfirmation, serveCampaigns } from '../test/campaignFixtures'
 import { FakeService, problem } from '../test/fakeService'
 import { evaluation, run } from '../test/fixtures'
 import { renderApp } from '../test/renderApp'
@@ -229,7 +229,6 @@ describe('confirming the short list', () => {
 
   it('starts the confirmation and shows its runs while they play', async () => {
     serveCampaigns(service, { campaigns: [searched()] })
-    service.runs.set(CONFIRMATION_RUNS.baseline.run, run({ runId: CONFIRMATION_RUNS.baseline.run }))
     service.runs.set(CONFIRMATION_RUNS.candidate.run, run({ runId: CONFIRMATION_RUNS.candidate.run, state: 'QUEUED' }))
     await renderApp(PATH, service)
     const user = userEvent.setup()
@@ -239,14 +238,56 @@ describe('confirming the short list', () => {
     expect(await screen.findByText('State: Confirming')).toBeInTheDocument()
     const report = await screen.findByRole('region', { name: 'Confirmation' })
     expect(within(report).getByText(/100 fresh seeds/)).toBeInTheDocument()
-    expect(within(report).getByRole('region', { name: 'Baseline' })).toBeInTheDocument()
+    expect(within(report).queryByRole('region', { name: 'Baseline' })).not.toBeInTheDocument()
     expect(within(report).getByRole('region', { name: 'Candidate c-0001' })).toBeInTheDocument()
     expect(await within(report).findByText(/Waiting for its turn/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Confirm short list' })).not.toBeInTheDocument()
   })
 
-  it('says what each run is doing, including one that was cancelled or is done and waiting', async () => {
+  it('states the seeds, the games and the tables played, on the simulator', async () => {
+    serveCampaigns(service, { campaigns: [{ ...searched(), state: 'CONFIRMING', confirmation: { ...confirmation(false), seedCount: 104 } }] })
+    service.runs.set(
+      CONFIRMATION_RUNS.candidate.run,
+      run({ runId: CONFIRMATION_RUNS.candidate.run, counts: { requested: 17160, pending: 17160, running: 0, succeeded: 0, failed: 0, cancelled: 0 } }),
+    )
+    await renderApp(PATH, service)
+
+    const report = await screen.findByRole('region', { name: 'Confirmation' })
+    expect(within(report).getByText(/104 fresh seeds on the simulator/)).toBeInTheDocument()
+    expect(await within(report).findByText(/17,160 games per run, over the tables faction-greedy-v1, random-v1, random-seat-vs-faction-greedy-v1/)).toBeInTheDocument()
+    expect(within(report).queryByText(/real services/)).not.toBeInTheDocument()
+    expect(within(report).queryByRole('region', { name: 'Baseline' })).not.toBeInTheDocument()
+  })
+
+  it('says it could not load what the confirmation plays and offers a retry', async () => {
     serveCampaigns(service, { campaigns: [{ ...searched(), state: 'CONFIRMING', confirmation: confirmation(false) }] })
+    service.runs.set(CONFIRMATION_RUNS.candidate.run, run({ runId: CONFIRMATION_RUNS.candidate.run }))
+    service.experiments.delete(CONFIRMATION_RUNS.candidate.experiment)
+    await renderApp(PATH, service)
+
+    const report = await screen.findByRole('region', { name: 'Confirmation' })
+    expect(await within(report).findByText(/Could not load the tables the confirmation plays/)).toBeInTheDocument()
+    expect(within(report).getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+  })
+
+  it('lets the designer change the games at once while confirming', async () => {
+    serveCampaigns(service, { campaigns: [{ ...searched(), state: 'CONFIRMING', confirmation: confirmation(false) }] })
+    service.runs.set(CONFIRMATION_RUNS.candidate.run, run({ runId: CONFIRMATION_RUNS.candidate.run }))
+    await renderApp(PATH, service)
+
+    expect(await screen.findByRole('button', { name: 'Set games at once' })).toBeInTheDocument()
+  })
+
+  it('says there is nothing to confirm when the search short-listed nobody', async () => {
+    serveCampaigns(service, { campaigns: [{ ...searched(), state: 'COMPLETED', shortList: [], confirmation: { ...confirmation(true), runs: [] } }] })
+    await renderApp(PATH, service)
+
+    const report = await screen.findByRole('region', { name: 'Confirmation' })
+    expect(within(report).getByText(/short-listed no candidate/)).toBeInTheDocument()
+  })
+
+  it('says what each run is doing, including one that was cancelled or is done and waiting', async () => {
+    serveCampaigns(service, { campaigns: [{ ...searched(), state: 'CONFIRMING', confirmation: recordedConfirmation(false) }] })
     service.runs.set(CONFIRMATION_RUNS.baseline.run, run({ runId: CONFIRMATION_RUNS.baseline.run, state: 'COMPLETED' }))
     service.runs.set(
       CONFIRMATION_RUNS.candidate.run,
@@ -264,7 +305,6 @@ describe('confirming the short list', () => {
     serveCampaigns(service, {
       campaigns: [{ ...searched(), state: 'COMPLETED', confirmation: confirmation(true), finishedAt: '2026-01-01T05:00:00Z' }],
     })
-    service.runs.set(CONFIRMATION_RUNS.baseline.run, run({ runId: CONFIRMATION_RUNS.baseline.run, state: 'COMPLETED' }))
     service.runs.set(CONFIRMATION_RUNS.candidate.run, run({ runId: CONFIRMATION_RUNS.candidate.run, state: 'COMPLETED' }))
     service.evaluationFor = (variantLabel, criterionVersion, mode) =>
       evaluation({
@@ -283,7 +323,23 @@ describe('confirming the short list', () => {
     expect(within(candidate).getByText('Recorded verdict: Confirmed')).toBeInTheDocument()
     expect(within(candidate).getByText(/100 of 100 seeds, full case matrix: satisfied/)).toBeInTheDocument()
     expect(within(candidate).getByRole('table', { name: 'Evaluated lines' })).toBeInTheDocument()
+    expect(within(report).queryByRole('region', { name: 'Baseline' })).not.toBeInTheDocument()
+  })
+
+  it('shows the baseline of a confirmation recorded when it still played one, and where it played', async () => {
+    serveCampaigns(service, {
+      campaigns: [{ ...searched(), state: 'COMPLETED', confirmation: recordedConfirmation(true), finishedAt: '2026-01-01T05:00:00Z' }],
+    })
+    service.runs.set(CONFIRMATION_RUNS.baseline.run, run({ runId: CONFIRMATION_RUNS.baseline.run, state: 'COMPLETED' }))
+    service.runs.set(CONFIRMATION_RUNS.candidate.run, run({ runId: CONFIRMATION_RUNS.candidate.run, state: 'COMPLETED' }))
+    service.evaluationFor = (variantLabel, criterionVersion, mode) =>
+      evaluation({ variantLabel, criterionVersion, mode, verdict: variantLabel === 'c-0001' ? 'CONFIRMED' : 'UNCONFIRMED' })
+    await renderApp(PATH, service)
+
+    const report = await screen.findByRole('region', { name: 'Confirmation' })
+    expect(within(report).getByText(/on the real services, baseline included/)).toBeInTheDocument()
     const baseline = within(report).getByRole('region', { name: 'Baseline' })
     expect(await within(baseline).findByText(/Verdict: Unconfirmed/)).toBeInTheDocument()
+    expect(within(report).getByRole('region', { name: 'Candidate c-0001' })).toBeInTheDocument()
   })
 })

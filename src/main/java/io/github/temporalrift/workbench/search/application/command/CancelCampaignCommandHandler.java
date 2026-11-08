@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import io.github.temporalrift.workbench.search.application.port.in.CancelCampaignUseCase;
 import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignCommandKey;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRepository;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRuns;
 
@@ -20,9 +21,10 @@ public class CancelCampaignCommandHandler implements CancelCampaignUseCase {
     }
 
     @Override
-    public Campaign handle(UUID campaignId) {
-        var cancelled =
-                updates.update(campaignId, (settled, now) -> new CampaignUpdates.Next(settled.cancel(now), false));
+    public Campaign handle(UUID campaignId, UUID idempotencyKey) {
+        var command = CampaignCommandKey.of(idempotencyKey, "cancelCampaign", campaignId, "");
+        var cancelled = updates.update(
+                campaignId, command, (settled, now) -> new CampaignUpdates.Next(settled.cancel(now), false));
         waveRuns.stop(campaignId);
         return cancelled;
     }

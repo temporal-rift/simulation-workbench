@@ -70,27 +70,28 @@ class CampaignController implements CampaignsApi {
 
     @Override
     public ResponseEntity<Campaign> pauseCampaign(UUID campaignId, UUID idempotencyKey) {
-        return ResponseEntity.ok(mapper.toApi(controls.pause().handle(campaignId)));
+        return ResponseEntity.ok(mapper.toApi(controls.pause().handle(campaignId, idempotencyKey)));
     }
 
     @Override
     public ResponseEntity<Campaign> resumeCampaign(UUID campaignId, UUID idempotencyKey) {
-        return ResponseEntity.ok(mapper.toApi(controls.resume().handle(campaignId)));
+        return ResponseEntity.ok(mapper.toApi(controls.resume().handle(campaignId, idempotencyKey)));
     }
 
     @Override
     public ResponseEntity<Campaign> cancelCampaign(UUID campaignId, UUID idempotencyKey) {
-        return ResponseEntity.ok(mapper.toApi(controls.cancel().handle(campaignId)));
+        return ResponseEntity.ok(mapper.toApi(controls.cancel().handle(campaignId, idempotencyKey)));
     }
 
     @Override
     public ResponseEntity<Campaign> setCampaignParallelism(
             UUID campaignId, UUID idempotencyKey, CampaignParallelismUpdate update) {
-        return ResponseEntity.ok(mapper.toApi(controls.parallelism().handle(campaignId, update.getParallelism())));
+        return ResponseEntity.ok(
+                mapper.toApi(controls.parallelism().handle(campaignId, update.getParallelism(), idempotencyKey)));
     }
 
     @Override
     public ResponseEntity<Campaign> startConfirmation(UUID campaignId, UUID idempotencyKey) {
-        return ResponseEntity.accepted().body(mapper.toApi(startConfirmation.handle(campaignId)));
+        return ResponseEntity.accepted().body(mapper.toApi(startConfirmation.handle(campaignId, idempotencyKey)));
     }
 }

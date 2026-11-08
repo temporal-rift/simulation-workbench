@@ -22,9 +22,10 @@ import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinitio
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignException;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignReason;
-import io.github.temporalrift.workbench.search.domain.campaign.NoRealLaneException;
+import io.github.temporalrift.workbench.search.domain.campaign.PolicyNotAvailableException;
 import io.github.temporalrift.workbench.search.domain.campaign.PolicyRef;
 import io.github.temporalrift.workbench.search.domain.campaign.SeatTable;
+import io.github.temporalrift.workbench.search.domain.campaign.SimulatorNotAvailableException;
 import io.github.temporalrift.workbench.search.domain.candidate.Candidate;
 import io.github.temporalrift.workbench.search.domain.candidate.ParameterGrid;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignExperiments;
@@ -146,16 +147,15 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
     public UUID freezeConfirmation(
             UUID idempotencyKey,
             CampaignDefinition definition,
-            Subject subject,
+            Candidate candidate,
             List<String> seeds,
             List<SeatTable> tables) {
+        var simulator =
+                lanes.simulator().orElseThrow(() -> new SimulatorNotAvailableException("The simulator is not enabled"));
         var seats = definition.playerCounts().stream()
                 .mapToInt(Integer::intValue)
                 .max()
                 .orElse(1);
-        var lane = lanes.equivalentDeployedLane(seats)
-                .orElseThrow(() -> new NoRealLaneException(
-                        "No deployed lane is build-equivalent to the simulator for " + seats + " seats"));
         var required = tables.stream()
                 .flatMap(table -> table.seats().subList(0, seats).stream())
                 .distinct()
@@ -163,25 +163,30 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
         var bundles = bundles(required);
         var manifest = manifest(
                 definition,
-                definition.name() + ", confirmation of " + subject.label(),
+                definition.name() + ", confirmation of " + candidate.id(),
                 bundles,
                 confirmationTables(tables, required, bundles, seats),
                 List.of(variant(
                         definition,
-                        subject.label(),
-                        subject.overrides(),
-                        subject.effectiveRulesDigest(),
-                        lane.bundle())),
+                        candidate.id(),
+                        candidate.overrides(),
+                        candidate.effectiveRulesDigest(),
+                        simulator)),
                 seeds,
-                lane.bundle());
+                simulator);
         try {
-            return experiments.freeze(builtOn(idempotencyKey, lane.bundle()), manifest);
+            return experiments.freeze(builtOn(idempotencyKey, simulator), manifest);
         } catch (ExperimentRefusedException e) {
             throw new CampaignPlayRefusedException(e.getMessage(), e);
         }
     }
 
-    /** The key of the experiment on these builds: a lane redeployed since an earlier attempt starts a new one. */
+    @Override
+    public boolean simulatorEnabled() {
+        return lanes.simulator().isPresent();
+    }
+
+    /** The key of the experiment on these builds: a simulator rebuilt since an earlier attempt starts a new one. */
     private static UUID builtOn(UUID idempotencyKey, LaneBundle bundle) {
         var builds = bundle.gameService().imageDigest()
                 + bundle.timelineService().imageDigest()
@@ -199,7 +204,7 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
                     .filter(candidate -> candidate.id().equals(wanted.id())
                             && candidate.version().startsWith(wanted.majorVersion() + "."))
                     .max(Comparator.comparing(PolicyDescriptor::version, CampaignExperimentsAdapter::compareVersions))
-                    .orElseThrow(() -> new CampaignPlayRefusedException(
+                    .orElseThrow(() -> new PolicyNotAvailableException(
                             "No policy bundle serves " + wanted.id() + " version " + wanted.majorVersion()));
             var node = mapper.createObjectNode();
             node.put("id", bundle.id());

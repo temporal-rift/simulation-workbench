@@ -1,6 +1,7 @@
 package io.github.temporalrift.workbench.search.infrastructure.adapter.out.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -23,6 +24,7 @@ import io.github.temporalrift.workbench.WorkbenchIntegrationTest;
 import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignChange;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignClaim;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignCommandKey;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignCreation;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignFailure;
@@ -69,6 +71,92 @@ class CampaignRepositoryIT {
         assertThat(stored.version()).isZero();
         assertThat(stored.accruedAt()).isEqualTo(NOW);
         assertThat(repository.find(UUID.randomUUID())).isEmpty();
+    }
+
+    @Test
+    void aChangeClaimsItsKeyWithItsWriteAndALostClaimStoresNothing() {
+        var queued = queued("commands", NOW);
+        store(queued, NOW);
+        var id = queued.campaignId();
+        var key = CampaignCommandKey.of(UUID.randomUUID(), "setCampaignParallelism", id, "8");
+        assertThat(repository.claimedRequestHash(key.idempotencyKey())).isEmpty();
+
+        var first = CampaignChange.of(repository.find(id).orElseThrow(), queued.withParallelism(8), NOW);
+        assertThat(repository.apply(first.claiming(key))).isTrue();
+
+        assertThat(repository.claimedRequestHash(key.idempotencyKey())).contains(key.requestHash());
+
+        var stored = repository.find(id).orElseThrow();
+        var lost = CampaignChange.of(stored, stored.campaign().withParallelism(2), NOW);
+        assertThat(repository.apply(lost.claiming(key))).isFalse();
+
+        var after = repository.find(id).orElseThrow();
+        assertThat(after.campaign().parallelism())
+                .as("the write rolled back with the lost claim")
+                .isEqualTo(8);
+        assertThat(after.version()).isEqualTo(stored.version());
+    }
+
+    @Test
+    void aWriteOfACampaignWaitsUntilItsLockIsReleasedAndAnUnknownCampaignRunsNothing() throws Exception {
+        var queued = queued("locked", NOW);
+        store(queued, NOW);
+        var write = new java.util.concurrent.atomic.AtomicReference<java.util.concurrent.CompletableFuture<Boolean>>();
+
+        repository.whileLocked(queued.campaignId(), campaign -> {
+            var writing = java.util.concurrent.CompletableFuture.supplyAsync(
+                    () -> repository.save(campaign.withParallelism(8), NOW, 0));
+            write.set(writing);
+            assertThatThrownBy(() -> writing.get(500, java.util.concurrent.TimeUnit.MILLISECONDS))
+                    .isInstanceOf(java.util.concurrent.TimeoutException.class);
+        });
+
+        assertThat(write.get().get(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+        assertThat(repository.find(queued.campaignId()).orElseThrow().campaign().parallelism())
+                .isEqualTo(8);
+        repository.whileLocked(UUID.randomUUID(), campaign -> {
+            throw new AssertionError("an unknown campaign has nothing to run on");
+        });
+    }
+
+    @Test
+    void aChangeThatLosesTheVersionClaimsNothing() {
+        var queued = queued("stale", NOW);
+        store(queued, NOW);
+        var id = queued.campaignId();
+        var stale = repository.find(id).orElseThrow();
+        assertThat(repository.save(queued.withParallelism(8), NOW, 0)).isTrue();
+        var key = CampaignCommandKey.of(UUID.randomUUID(), "pauseCampaign", id, "");
+
+        assertThat(repository.apply(
+                        CampaignChange.of(stale, queued.pause(), NOW).claiming(key)))
+                .isFalse();
+
+        assertThat(repository.claimedRequestHash(key.idempotencyKey())).isEmpty();
+    }
+
+    @Test
+    void creatingClaimsTheKeySoACommandCannotTakeItAndCreatingWithACommandsKeyStoresNothing() {
+        var queued = queued("created", NOW);
+        var created = UUID.randomUUID();
+        assertThat(repository.create(created, "c".repeat(64), queued, NOW))
+                .isInstanceOf(CampaignCreation.Created.class);
+        assertThat(repository.claimedRequestHash(created)).contains("c".repeat(64));
+        var id = queued.campaignId();
+
+        var taken = new CampaignCommandKey(created, "p".repeat(64));
+        assertThat(repository.apply(CampaignChange.of(repository.find(id).orElseThrow(), queued.pause(), NOW)
+                        .claiming(taken)))
+                .isFalse();
+
+        var commanded = CampaignCommandKey.of(UUID.randomUUID(), "pauseCampaign", id, "");
+        assertThat(repository.apply(CampaignChange.of(repository.find(id).orElseThrow(), queued.pause(), NOW)
+                        .claiming(commanded)))
+                .isTrue();
+        var other = queued("other", NOW);
+        assertThat(repository.create(commanded.idempotencyKey(), "c".repeat(64), other, NOW))
+                .isInstanceOf(CampaignCreation.KeyTaken.class);
+        assertThat(repository.find(other.campaignId())).isEmpty();
     }
 
     @Test
@@ -312,7 +400,7 @@ class CampaignRepositoryIT {
         var id = campaign.campaignId();
         var searched = campaign.start(NOW).completeSearch(List.of("c-0000"));
         assertThat(repository.save(searched, NOW, 0)).isTrue();
-        var run = new Confirmation.Run(Confirmation.BASELINE, UUID.randomUUID(), UUID.randomUUID(), null);
+        var run = new Confirmation.Run("baseline", UUID.randomUUID(), UUID.randomUUID(), null);
         var other = new Confirmation.Run("c-0000", UUID.randomUUID(), UUID.randomUUID(), null);
         var confirming = searched.startConfirmation(new Confirmation(100, List.of(run, other)));
         assertThat(repository.apply(CampaignChange.of(repository.find(id).orElseThrow(), confirming, NOW)))
@@ -324,7 +412,7 @@ class CampaignRepositoryIT {
                 confirming
                         .confirmation()
                         .evaluatedAs(java.util.Map.of(
-                                Confirmation.BASELINE,
+                                "baseline",
                                 new Confirmation.Evaluation("UNCONFIRMED", 3.0),
                                 "c-0000",
                                 new Confirmation.Evaluation("INVALID", null))),
