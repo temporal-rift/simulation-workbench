@@ -312,7 +312,7 @@ class CampaignRepositoryIT {
         var id = campaign.campaignId();
         var searched = campaign.start(NOW).completeSearch(List.of("c-0000"));
         assertThat(repository.save(searched, NOW, 0)).isTrue();
-        var run = new Confirmation.Run(Confirmation.BASELINE, UUID.randomUUID(), UUID.randomUUID(), null);
+        var run = new Confirmation.Run("baseline", UUID.randomUUID(), UUID.randomUUID(), null);
         var other = new Confirmation.Run("c-0000", UUID.randomUUID(), UUID.randomUUID(), null);
         var confirming = searched.startConfirmation(new Confirmation(100, List.of(run, other)));
         assertThat(repository.apply(CampaignChange.of(repository.find(id).orElseThrow(), confirming, NOW)))
@@ -324,7 +324,7 @@ class CampaignRepositoryIT {
                 confirming
                         .confirmation()
                         .evaluatedAs(java.util.Map.of(
-                                Confirmation.BASELINE,
+                                "baseline",
                                 new Confirmation.Evaluation("UNCONFIRMED", 3.0),
                                 "c-0000",
                                 new Confirmation.Evaluation("INVALID", null))),

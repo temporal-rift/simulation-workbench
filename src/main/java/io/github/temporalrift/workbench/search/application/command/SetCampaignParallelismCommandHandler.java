@@ -26,6 +26,8 @@ public class SetCampaignParallelismCommandHandler implements SetCampaignParallel
                 campaignId, (settled, now) -> new CampaignUpdates.Next(settled.withParallelism(parallelism), false));
         if (changed.state() == CampaignState.RUNNING) {
             waveRuns.allow(campaignId, parallelism);
+        } else if (changed.state() == CampaignState.CONFIRMING) {
+            waveRuns.allowConfirmation(changed.confirmation(), parallelism);
         }
         return changed;
     }

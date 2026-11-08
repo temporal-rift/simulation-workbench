@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException;
-import io.github.temporalrift.workbench.search.domain.campaign.NoRealLaneException;
+import io.github.temporalrift.workbench.search.domain.campaign.PolicyNotAvailableException;
 import io.github.temporalrift.workbench.search.domain.campaign.PolicyRef;
 import io.github.temporalrift.workbench.search.domain.campaign.SeatTable;
 import io.github.temporalrift.workbench.search.domain.candidate.Candidate;
@@ -116,9 +116,31 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
         return 10;
     }
 
+    private boolean policiesServed = true;
+
+    /** Whether the catalog has a bundle for the policies asked for. */
+    synchronized void policiesServed(boolean served) {
+        this.policiesServed = served;
+    }
+
     @Override
-    public List<tools.jackson.databind.JsonNode> bundles(List<PolicyRef> policies) {
+    public synchronized List<tools.jackson.databind.JsonNode> bundles(List<PolicyRef> policies) {
+        if (!policiesServed) {
+            throw new PolicyNotAvailableException("no bundle serves the policies");
+        }
         return List.of();
+    }
+
+    private boolean simulatorEnabled = true;
+
+    /** Whether the simulator is enabled. */
+    synchronized void simulator(boolean enabled) {
+        this.simulatorEnabled = enabled;
+    }
+
+    @Override
+    public synchronized boolean simulatorEnabled() {
+        return simulatorEnabled;
     }
 
     private int refuseFreezeAt = -1;
@@ -130,27 +152,17 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
         this.refuseFreezeAt = number;
     }
 
-    private boolean realLane = true;
-
-    /** Whether a deployed lane that is build-equivalent to the simulator exists to confirm on. */
-    synchronized void realLane(boolean available) {
-        this.realLane = available;
-    }
-
     @Override
     public synchronized UUID freezeConfirmation(
             UUID idempotencyKey,
             CampaignDefinition definition,
-            Subject subject,
+            Candidate candidate,
             List<String> seeds,
             List<SeatTable> tables) {
-        if (!realLane) {
-            throw new NoRealLaneException("no deployed lane is build-equivalent to the simulator");
-        }
         if (++freezes == refuseFreezeAt) {
             throw new CampaignPlayRefusedException("the experiment is refused");
         }
-        experiments.putIfAbsent(idempotencyKey, new Experiment(-1, List.of(subject.label()), seeds, tables));
+        experiments.putIfAbsent(idempotencyKey, new Experiment(-1, List.of(candidate.id()), seeds, tables));
         return idempotencyKey;
     }
 

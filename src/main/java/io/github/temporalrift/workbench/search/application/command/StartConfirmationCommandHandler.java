@@ -1,38 +1,38 @@
 package io.github.temporalrift.workbench.search.application.command;
 
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 import io.github.temporalrift.workbench.search.application.port.in.StartConfirmationUseCase;
 import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignChange;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignNotFoundException;
-import io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
 import io.github.temporalrift.workbench.search.domain.campaign.Confirmation;
+import io.github.temporalrift.workbench.search.domain.campaign.FidelityNotEstablishedException;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignStateException;
-import io.github.temporalrift.workbench.search.domain.campaign.NoRealLaneException;
 import io.github.temporalrift.workbench.search.domain.campaign.SeatTable;
 import io.github.temporalrift.workbench.search.domain.campaign.SeedOverlapException;
+import io.github.temporalrift.workbench.search.domain.campaign.SimulatorNotAvailableException;
 import io.github.temporalrift.workbench.search.domain.candidate.Candidate;
 import io.github.temporalrift.workbench.search.domain.candidate.ConfirmationSeeds;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignExperiments;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRepository;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRuns;
 import io.github.temporalrift.workbench.search.domain.port.out.CandidateEvaluation;
+import io.github.temporalrift.workbench.search.domain.port.out.FidelityGate;
 
 /**
- * Confirms a finished search's short list. The seeds derive from the confirmation master seed only and are checked
- * against every seed the campaign's log records before anything is frozen. One experiment per subject, the baseline
- * and each short-listed candidate, is frozen on the real lane and one run per experiment is started held: the
- * campaign write releases the first, and the worker releases each next one when the one before it is complete, so only
- * one confirmation case executes at a time and nothing plays before the campaign records the confirmation.
- * Experiments and runs are requested with keys derived from the campaign and the subject, so a request that crashed
- * or lost its write is repeated into the same ones.
+ * Confirms a finished search's short list on the simulator. The seeds derive from the confirmation master seed only.
+ * Nothing is frozen unless they overlap no seed the campaign's log records, the simulator is enabled and its fidelity
+ * established, and every policy the criterion names has a bundle. One experiment per short-listed candidate is then
+ * frozen and one run per experiment is started held: the campaign write releases the first, and the worker releases
+ * each next one when the one before it is complete, so the runs play one after another and nothing plays before the
+ * campaign records the confirmation. Experiments and runs are requested with keys derived from the campaign and the
+ * candidate, so a request that crashed or lost its write is repeated into the same ones.
  */
 public class StartConfirmationCommandHandler implements StartConfirmationUseCase {
 
@@ -42,16 +42,21 @@ public class StartConfirmationCommandHandler implements StartConfirmationUseCase
     private final CampaignExperiments experiments;
     private final CampaignRuns runs;
     private final CandidateEvaluation evaluation;
+    private final FidelityGate gate;
+    private final WaveRuns waveRuns;
 
     public StartConfirmationCommandHandler(
             CampaignRepository campaigns,
             CampaignExperiments experiments,
             CampaignRuns runs,
-            CandidateEvaluation evaluation) {
+            CandidateEvaluation evaluation,
+            FidelityGate gate) {
         this.campaigns = campaigns;
         this.experiments = experiments;
         this.runs = runs;
         this.evaluation = evaluation;
+        this.gate = gate;
+        this.waveRuns = new WaveRuns(campaigns, runs);
     }
 
     @Override
@@ -62,6 +67,7 @@ public class StartConfirmationCommandHandler implements StartConfirmationUseCase
         var seedCount = evaluation.confirmationSeedCount(definition.criterionVersion());
         var seeds = new ConfirmationSeeds(definition.confirmationMasterSeed()).seeds(seedCount);
         rejectOverlap(campaignId, seeds);
+        requirePlayable(definition);
         var tables = evaluation.confirmationTables(definition.criterionVersion());
         var confirmation = freezeAndStart(stored.campaign(), seedCount, seeds, tables);
         for (var attempt = 0; attempt < ATTEMPTS; attempt++) {
@@ -77,7 +83,7 @@ public class StartConfirmationCommandHandler implements StartConfirmationUseCase
             }
             var next = current.campaign().startConfirmation(confirmation);
             if (campaigns.apply(CampaignChange.of(current, next, current.accruedAt()))) {
-                runs.setConcurrency(confirmation.runs().getFirst().runId(), 1);
+                waveRuns.allowConfirmation(confirmation, next.parallelism());
                 return next;
             }
         }
@@ -108,47 +114,32 @@ public class StartConfirmationCommandHandler implements StartConfirmationUseCase
         }
     }
 
+    /** Whether the simulator can play the confirmation. The fidelity gate is also shut for a disabled simulator. */
+    private void requirePlayable(CampaignDefinition definition) {
+        if (!experiments.simulatorEnabled()) {
+            throw new SimulatorNotAvailableException("The simulator is not enabled");
+        }
+        if (!gate.established()) {
+            throw new FidelityNotEstablishedException();
+        }
+        experiments.bundles(evaluation.confirmationPolicies(definition.criterionVersion()));
+    }
+
+    /** One experiment and one held run per short-listed candidate, in short-list order. */
     private Confirmation freezeAndStart(Campaign campaign, int seedCount, List<String> seeds, List<SeatTable> tables) {
-        var definition = campaign.definition();
-        var subjects = subjects(campaign);
-        var started = new ArrayList<Confirmation.Run>();
-        for (var subject : subjects) {
-            var experimentId = experiments.freezeConfirmation(
-                    ConfirmationKeys.experiment(campaign.campaignId(), subject.label()),
-                    definition,
-                    subject,
-                    seeds,
-                    tables);
-            var runKey = ConfirmationKeys.run(campaign.campaignId(), subject.label(), experimentId);
-            started.add(new Confirmation.Run(subject.label(), experimentId, startRun(experimentId, runKey), null));
-        }
-        return new Confirmation(seedCount, started);
-    }
-
-    /** A run no lane fits is a confirmation no real lane can play. */
-    private UUID startRun(UUID experimentId, UUID key) {
-        try {
-            return runs.startHeld(experimentId, key);
-        } catch (CampaignPlayRefusedException e) {
-            throw new NoRealLaneException(e.getMessage(), e);
-        }
-    }
-
-    /** The baseline first, then the short-listed candidates in short-list order. */
-    private List<CampaignExperiments.Subject> subjects(Campaign campaign) {
-        var baseline = experiments
-                .validation(campaign.definition())
-                .validate(Map.<String, BigDecimal>of())
-                .orElseThrow(() -> new CampaignPlayRefusedException("The baseline rules cannot be materialised"));
         var byId = campaigns.candidates(campaign.campaignId()).stream()
                 .collect(Collectors.toMap(Candidate::id, candidate -> candidate));
-        var subjects = new ArrayList<CampaignExperiments.Subject>();
-        subjects.add(new CampaignExperiments.Subject(
-                Confirmation.BASELINE, baseline.overrides(), baseline.effectiveRulesDigest()));
+        var started = new ArrayList<Confirmation.Run>();
         for (var id : campaign.shortList()) {
-            var candidate = byId.get(id);
-            subjects.add(new CampaignExperiments.Subject(id, candidate.overrides(), candidate.effectiveRulesDigest()));
+            var experimentId = experiments.freezeConfirmation(
+                    ConfirmationKeys.experiment(campaign.campaignId(), id),
+                    campaign.definition(),
+                    byId.get(id),
+                    seeds,
+                    tables);
+            var runId = runs.startHeld(experimentId, ConfirmationKeys.run(campaign.campaignId(), id, experimentId));
+            started.add(new Confirmation.Run(id, experimentId, runId, null));
         }
-        return subjects;
+        return new Confirmation(seedCount, started);
     }
 }

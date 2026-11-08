@@ -10,12 +10,13 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignIdempotencyConflictException;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignNotFoundException;
-import io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException;
+import io.github.temporalrift.workbench.search.domain.campaign.FidelityNotEstablishedException;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignException;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignReason;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignStateException;
-import io.github.temporalrift.workbench.search.domain.campaign.NoRealLaneException;
+import io.github.temporalrift.workbench.search.domain.campaign.PolicyNotAvailableException;
 import io.github.temporalrift.workbench.search.domain.campaign.SeedOverlapException;
+import io.github.temporalrift.workbench.search.domain.campaign.SimulatorNotAvailableException;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.ProblemDetails;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.RestAdviceOrder;
 
@@ -66,14 +67,19 @@ class CampaignExceptionHandler {
         return ProblemDetails.of(HttpStatus.CONFLICT, ex.getMessage(), "SEED_OVERLAP");
     }
 
-    @ExceptionHandler(CampaignPlayRefusedException.class)
-    ProblemDetail handlePlayRefused(CampaignPlayRefusedException ex) {
-        return ProblemDetails.of(HttpStatus.UNPROCESSABLE_CONTENT, ex.getMessage(), "CAMPAIGN_PLAY_REFUSED");
+    @ExceptionHandler(SimulatorNotAvailableException.class)
+    ProblemDetail handleSimulatorNotAvailable(SimulatorNotAvailableException ex) {
+        return ProblemDetails.of(HttpStatus.CONFLICT, ex.getMessage(), "SIMULATOR_NOT_AVAILABLE");
     }
 
-    @ExceptionHandler(NoRealLaneException.class)
-    ProblemDetail handleNoRealLane(NoRealLaneException ex) {
-        return ProblemDetails.of(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage(), "NO_REAL_LANE");
+    @ExceptionHandler(FidelityNotEstablishedException.class)
+    ProblemDetail handleFidelityNotEstablished(FidelityNotEstablishedException ex) {
+        return ProblemDetails.of(HttpStatus.CONFLICT, ex.getMessage(), "FIDELITY_NOT_ESTABLISHED");
+    }
+
+    @ExceptionHandler(PolicyNotAvailableException.class)
+    ProblemDetail handlePolicyNotAvailable(PolicyNotAvailableException ex) {
+        return ProblemDetails.of(HttpStatus.CONFLICT, ex.getMessage(), "POLICY_NOT_AVAILABLE");
     }
 
     private static ProblemDetail invalid(String detail, String field, InvalidCampaignReason reason) {

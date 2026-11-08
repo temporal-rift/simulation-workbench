@@ -119,8 +119,9 @@ public class SearchConfiguration {
             CampaignRepository campaigns,
             CampaignExperiments experiments,
             CampaignRuns runs,
-            CandidateEvaluation evaluation) {
-        return new StartConfirmationCommandHandler(campaigns, experiments, runs, evaluation);
+            CandidateEvaluation evaluation,
+            FidelityGate gate) {
+        return new StartConfirmationCommandHandler(campaigns, experiments, runs, evaluation, gate);
     }
 
     @Bean

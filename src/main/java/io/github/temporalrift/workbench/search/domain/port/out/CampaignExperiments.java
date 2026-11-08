@@ -1,8 +1,6 @@
 package io.github.temporalrift.workbench.search.domain.port.out;
 
-import java.math.BigDecimal;
 import java.util.List;
-import java.util.SortedMap;
 import java.util.UUID;
 
 import tools.jackson.databind.JsonNode;
@@ -35,7 +33,7 @@ public interface CampaignExperiments {
     /**
      * The policy bundles that serve the policies, each the newest bundle of its major version.
      *
-     * @throws io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException when a policy has no
+     * @throws io.github.temporalrift.workbench.search.domain.campaign.PolicyNotAvailableException when a policy has no
      *     bundle
      */
     List<JsonNode> bundles(List<io.github.temporalrift.workbench.search.domain.campaign.PolicyRef> policies);
@@ -56,30 +54,27 @@ public interface CampaignExperiments {
             List<io.github.temporalrift.workbench.search.domain.campaign.SeatTable> tables);
 
     /**
-     * Freezes the experiment that confirms one subject on the deployed lane that is build-equivalent to the
-     * simulator, once per idempotency key: a single variant labelled by the subject, playing every seed over the
-     * full matrix of the given tables and the definition's player counts, one case at a time. Each seat plays the
-     * newest bundle of its policy's major version. The key is combined
-     * with the builds of the lane, so a lane redeployed since an earlier attempt gets an experiment of its own.
+     * Freezes the experiment that confirms one candidate on the simulator, once per idempotency key: a single variant
+     * labelled by the candidate's id, playing every seed over the full matrix of the given tables and the definition's
+     * player counts. Each seat plays the newest bundle of its policy's major version. The key is combined with the
+     * builds of the simulator, so a simulator rebuilt since an earlier attempt gets an experiment of its own.
      *
-     * @throws io.github.temporalrift.workbench.search.domain.campaign.NoRealLaneException when no such lane exists
+     * @throws io.github.temporalrift.workbench.search.domain.campaign.SimulatorNotAvailableException when the simulator
+     *     is not enabled
+     * @throws io.github.temporalrift.workbench.search.domain.campaign.PolicyNotAvailableException when a policy has no
+     *     bundle
      * @throws io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException when the
      *     experiment is refused
      */
     UUID freezeConfirmation(
             UUID idempotencyKey,
             CampaignDefinition definition,
-            Subject subject,
+            Candidate candidate,
             List<String> seeds,
             List<io.github.temporalrift.workbench.search.domain.campaign.SeatTable> tables);
 
-    /**
-     * What a confirmation experiment plays.
-     *
-     * @param label the baseline label or a candidate id
-     * @param overrides what differs from the baseline; empty for the baseline itself
-     */
-    record Subject(String label, SortedMap<String, BigDecimal> overrides, String effectiveRulesDigest) {}
+    /** Whether the simulator that plays a campaign is enabled. */
+    boolean simulatorEnabled();
 
     /** How many cases a candidate playing one seed over the tables has, which sizes a wave. */
     int casesPerGame(

@@ -3,16 +3,17 @@ package io.github.temporalrift.workbench.search.application.command;
 import java.util.List;
 import java.util.UUID;
 
+import io.github.temporalrift.workbench.search.domain.campaign.Confirmation;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRepository;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRuns;
 import io.github.temporalrift.workbench.search.domain.wave.Wave;
 import io.github.temporalrift.workbench.shared.execution.RunPhase;
 
 /**
- * Applies what a campaign says to the runs that play its waves. Pausing holds back every case that has not started,
- * and cases already executing finish; resuming and a change of parallelism allow that many cases at once; stopping
- * cancels the runs, the confirmation runs of a campaign included. Every call is safe to repeat and ignores a run
- * that is over.
+ * Applies what a campaign says to the runs that play its waves and its confirmation. Pausing holds back every case
+ * that has not started, and cases already executing finish; resuming and a change of parallelism allow that many cases
+ * at once; stopping cancels the runs, the confirmation runs of a campaign included. Every call is safe to repeat and
+ * ignores a run that is over.
  */
 class WaveRuns {
 
@@ -44,6 +45,31 @@ class WaveRuns {
                 runs.resume(wave.runId());
             }
             runs.setConcurrency(wave.runId(), parallelism);
+        }
+    }
+
+    /**
+     * Lets the confirmation's current run play: the first that has not completed. The runs behind it stay held, and a
+     * run that is gone or ended without completing releases nothing, because the campaign is about to fail over it.
+     */
+    void allowConfirmation(Confirmation confirmation, int parallelism) {
+        for (var run : confirmation.runs()) {
+            var progress = runs.progress(run.runId());
+            if (progress.isEmpty()) {
+                return;
+            }
+            var phase = progress.get().phase();
+            if (phase == RunPhase.COMPLETED) {
+                continue;
+            }
+            if (phase.isFinal()) {
+                return;
+            }
+            if (phase == RunPhase.INTERRUPTED) {
+                runs.resume(run.runId());
+            }
+            runs.setConcurrency(run.runId(), parallelism);
+            return;
         }
     }
 

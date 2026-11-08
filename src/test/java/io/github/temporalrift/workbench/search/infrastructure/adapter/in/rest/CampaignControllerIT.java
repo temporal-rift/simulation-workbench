@@ -43,15 +43,16 @@ import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinitio
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignFailure;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignIdempotencyConflictException;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignNotFoundException;
-import io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
 import io.github.temporalrift.workbench.search.domain.campaign.Confirmation;
+import io.github.temporalrift.workbench.search.domain.campaign.FidelityNotEstablishedException;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignException;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignReason;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignStateException;
-import io.github.temporalrift.workbench.search.domain.campaign.NoRealLaneException;
+import io.github.temporalrift.workbench.search.domain.campaign.PolicyNotAvailableException;
 import io.github.temporalrift.workbench.search.domain.campaign.SearchAlgorithm;
 import io.github.temporalrift.workbench.search.domain.campaign.SeedOverlapException;
+import io.github.temporalrift.workbench.search.domain.campaign.SimulatorNotAvailableException;
 import io.github.temporalrift.workbench.search.domain.log.LogEntry;
 import io.github.temporalrift.workbench.search.infrastructure.config.SearchApiJsonConfiguration;
 import io.github.temporalrift.workbench.shared.Page;
@@ -435,7 +436,7 @@ class CampaignControllerIT {
     void confirmingAnswers202WithTheConfirmationAndNoSeedOverlap() throws Exception {
         var run = new Confirmation.Run("c-0000", new UUID(2, 2), new UUID(3, 3), null);
         var baseline = new Confirmation.Run(
-                Confirmation.BASELINE, new UUID(2, 1), new UUID(3, 1), new Confirmation.Evaluation("CONFIRMED", 2.5));
+                "baseline", new UUID(2, 1), new UUID(3, 1), new Confirmation.Evaluation("CONFIRMED", 2.5));
         var confirming = campaign()
                 .start(NOW)
                 .completeSearch(List.of("c-0000"))
@@ -475,21 +476,30 @@ class CampaignControllerIT {
     }
 
     @Test
-    void confirmingWithoutARealLaneAnswers503() throws Exception {
-        when(startConfirmation.handle(CAMPAIGN)).thenThrow(new NoRealLaneException("no lane"));
+    void confirmingWithTheSimulatorDisabledAnswers409() throws Exception {
+        when(startConfirmation.handle(CAMPAIGN)).thenThrow(new SimulatorNotAvailableException("not enabled"));
 
         send("/api/v1/campaigns/" + CAMPAIGN + "/confirmation", "", WRITE)
-                .andExpect(status().isServiceUnavailable())
-                .andExpect(jsonPath("$.code").value("NO_REAL_LANE"));
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("SIMULATOR_NOT_AVAILABLE"));
     }
 
     @Test
-    void confirmingWithAnExperimentTheServiceRefusesAnswers422() throws Exception {
-        when(startConfirmation.handle(CAMPAIGN)).thenThrow(new CampaignPlayRefusedException("baseline unknown"));
+    void confirmingWithoutEstablishedFidelityAnswers409() throws Exception {
+        when(startConfirmation.handle(CAMPAIGN)).thenThrow(new FidelityNotEstablishedException());
 
         send("/api/v1/campaigns/" + CAMPAIGN + "/confirmation", "", WRITE)
-                .andExpect(status().isUnprocessableContent())
-                .andExpect(jsonPath("$.code").value("CAMPAIGN_PLAY_REFUSED"));
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("FIDELITY_NOT_ESTABLISHED"));
+    }
+
+    @Test
+    void confirmingWithAPolicyNoBundleServesAnswers409() throws Exception {
+        when(startConfirmation.handle(CAMPAIGN)).thenThrow(new PolicyNotAvailableException("no bundle"));
+
+        send("/api/v1/campaigns/" + CAMPAIGN + "/confirmation", "", WRITE)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("POLICY_NOT_AVAILABLE"));
     }
 
     @Test

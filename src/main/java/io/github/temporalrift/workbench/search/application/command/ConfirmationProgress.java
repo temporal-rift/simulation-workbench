@@ -1,35 +1,32 @@
 package io.github.temporalrift.workbench.search.application.command;
 
 import java.time.Clock;
-import java.util.ArrayList;
 import java.util.HashMap;
 
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignChange;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignFailure;
 import io.github.temporalrift.workbench.search.domain.campaign.Confirmation;
 import io.github.temporalrift.workbench.search.domain.campaign.StoredCampaign;
+import io.github.temporalrift.workbench.search.domain.port.out.CampaignRepository;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRuns;
 import io.github.temporalrift.workbench.search.domain.port.out.CandidateEvaluation;
-import io.github.temporalrift.workbench.shared.execution.RunPhase;
 
 /**
- * One step of a confirming campaign. The confirmation runs play one after another, so only one confirmation case
- * executes at a time: the first run that is not complete may play and the rest wait. A failed or cancelled run fails
- * the campaign. When every run is complete, each is evaluated in confirmation mode and the campaign completes with
- * all the evaluations in one write.
+ * One step of a confirming campaign. The confirmation runs play one after another, each at the campaign's parallelism:
+ * the first run that is not complete may play and the rest wait. A failed or cancelled run fails the campaign. When
+ * every run is complete, each is evaluated in confirmation mode and the campaign completes with all the evaluations
+ * in one write.
  */
 class ConfirmationProgress {
-
-    static final int ONE_CASE_AT_A_TIME = 1;
 
     private final CampaignRuns runs;
     private final CandidateEvaluation evaluation;
     private final WaveRuns waveRuns;
-    private final io.github.temporalrift.workbench.search.domain.port.out.CampaignRepository campaigns;
+    private final CampaignRepository campaigns;
     private final Clock clock;
 
     ConfirmationProgress(
-            io.github.temporalrift.workbench.search.domain.port.out.CampaignRepository campaigns,
+            CampaignRepository campaigns,
             CampaignRuns runs,
             CandidateEvaluation evaluation,
             WaveRuns waveRuns,
@@ -45,7 +42,7 @@ class ConfirmationProgress {
     boolean step(StoredCampaign stored) {
         var campaign = stored.campaign();
         var confirmation = campaign.confirmation();
-        var unfinished = new ArrayList<Unfinished>();
+        var unfinished = false;
         for (var run : confirmation.runs()) {
             var progress = runs.progress(run.runId());
             if (progress.isEmpty()) {
@@ -64,23 +61,15 @@ class ConfirmationProgress {
                 case COMPLETED -> {
                     // played to the end
                 }
-                case ACTIVE, INTERRUPTED ->
-                    unfinished.add(new Unfinished(run, progress.get().phase()));
+                case ACTIVE, INTERRUPTED -> unfinished = true;
             }
         }
-        if (!unfinished.isEmpty()) {
-            var current = unfinished.getFirst();
-            if (current.phase() == RunPhase.INTERRUPTED) {
-                runs.resume(current.run().runId());
-            }
-            runs.setConcurrency(current.run().runId(), ONE_CASE_AT_A_TIME);
+        if (unfinished) {
+            waveRuns.allowConfirmation(confirmation, campaign.parallelism());
             return false;
         }
         return complete(stored);
     }
-
-    /** A run that has not finished, and the phase it is in. */
-    private record Unfinished(Confirmation.Run run, RunPhase phase) {}
 
     private boolean complete(StoredCampaign stored) {
         var campaign = stored.campaign();

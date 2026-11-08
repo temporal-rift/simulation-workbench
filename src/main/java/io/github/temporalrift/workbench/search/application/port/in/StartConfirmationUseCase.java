@@ -14,8 +14,12 @@ public interface StartConfirmationUseCase {
      *     is not complete
      * @throws io.github.temporalrift.workbench.search.domain.campaign.SeedOverlapException when a confirmation seed
      *     was played by the search; nothing is frozen
-     * @throws io.github.temporalrift.workbench.search.domain.campaign.NoRealLaneException when no deployed lane can
-     *     play the confirmation; nothing stays started
+     * @throws io.github.temporalrift.workbench.search.domain.campaign.SimulatorNotAvailableException when the
+     *     simulator is not enabled; nothing is frozen
+     * @throws io.github.temporalrift.workbench.search.domain.campaign.FidelityNotEstablishedException when the
+     *     simulator has no passing fidelity record for its source revisions; nothing is frozen
+     * @throws io.github.temporalrift.workbench.search.domain.campaign.PolicyNotAvailableException when no bundle
+     *     serves a policy the criterion names; nothing is frozen
      */
     Campaign handle(UUID campaignId);
 }
