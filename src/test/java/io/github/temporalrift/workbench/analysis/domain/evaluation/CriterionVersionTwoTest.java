@@ -18,6 +18,7 @@ import io.github.temporalrift.workbench.analysis.domain.TestCriteria;
 import io.github.temporalrift.workbench.analysis.domain.criterion.BalanceCriterion;
 import io.github.temporalrift.workbench.analysis.domain.report.Interval;
 import io.github.temporalrift.workbench.analysis.domain.report.MetricStatus;
+import io.github.temporalrift.workbench.analysis.domain.statistics.ClopperPearson;
 import io.github.temporalrift.workbench.shared.execution.FailureCode;
 import io.github.temporalrift.workbench.shared.game.EndReason;
 import io.github.temporalrift.workbench.shared.game.Faction;
@@ -81,6 +82,26 @@ class CriterionVersionTwoTest {
 
         assertThat(g01.interval().upper()).isCloseTo(0.0071, within(5e-5));
         assertThat(g01.verdict()).isEqualTo(LineVerdict.MEETS);
+    }
+
+    @Test
+    void failuresClusteredBySeedKeepTheWiderBootstrapBounds() {
+        // 10 failures in 100 cases, all on 2 of 20 seeds. The exact interval treats them as independent, about
+        // [0.049, 0.176]; resampling seeds gives [0, 0.25], and the union keeps the wider ends.
+        var run = greedyGames(18, 5);
+        for (var seed : List.of("19", "20")) {
+            for (var shift = 0; shift < 5; shift++) {
+                run.failed(seed, rotation(ALL, shift), FailureCode.RUNNER_TIMEOUT);
+            }
+        }
+        var exact = ClopperPearson.interval(10, 100, 0.95);
+
+        var g01 = only(evaluate(TestCriteria.v2(), run, EvaluationMode.SCREENING), "G-01", null, 5);
+
+        assertThat(g01.value()).isCloseTo(0.1, within(1e-4));
+        assertThat(exact[0]).isGreaterThan(0.04);
+        assertThat(g01.interval().lower()).isZero();
+        assertThat(g01.interval().upper()).isGreaterThanOrEqualTo(0.2).isGreaterThan(exact[1] + 0.02);
     }
 
     @Test

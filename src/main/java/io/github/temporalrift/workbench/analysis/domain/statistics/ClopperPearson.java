@@ -38,8 +38,10 @@ public final class ClopperPearson {
                     "A Clopper-Pearson interval needs 0 <= successes <= trials and trials > 0");
         }
         var tail = (1 - confidence) / 2;
-        var lower = successes == 0 ? 0.0 : betaQuantile(tail, successes, trials - successes + 1.0);
-        var upper = successes == trials ? 1.0 : betaQuantile(1 - tail, successes + 1.0, (double) (trials - successes));
+        var k = (double) successes;
+        var n = (double) trials;
+        var lower = successes == 0 ? 0.0 : betaQuantile(tail, k, n - k + 1);
+        var upper = successes == trials ? 1.0 : betaQuantile(1 - tail, k + 1, n - k);
         return new double[] {lower, upper};
     }
 

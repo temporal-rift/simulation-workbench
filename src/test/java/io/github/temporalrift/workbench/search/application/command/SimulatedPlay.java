@@ -62,7 +62,7 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
 
     // --- experiments ---
 
-    record Experiment(int waveIndex, List<String> candidates, List<String> seeds) {}
+    record Experiment(int waveIndex, List<String> candidates, List<String> seeds, List<SeatTable> tables) {}
 
     @Override
     public ParameterGrid grid(CampaignDefinition definition) {
@@ -107,7 +107,7 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
             List<SeatTable> tables) {
         experiments.putIfAbsent(
                 idempotencyKey,
-                new Experiment(waveIndex, candidates.stream().map(Candidate::id).toList(), seeds));
+                new Experiment(waveIndex, candidates.stream().map(Candidate::id).toList(), seeds, tables));
         return idempotencyKey;
     }
 
@@ -150,7 +150,7 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
         if (++freezes == refuseFreezeAt) {
             throw new CampaignPlayRefusedException("the experiment is refused");
         }
-        experiments.putIfAbsent(idempotencyKey, new Experiment(-1, List.of(subject.label()), seeds));
+        experiments.putIfAbsent(idempotencyKey, new Experiment(-1, List.of(subject.label()), seeds, tables));
         return idempotencyKey;
     }
 
@@ -327,8 +327,21 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
 
     @Override
     public List<SeatTable> confirmationTables(int criterionVersion) {
-        return screeningTables(criterionVersion);
+        return CONFIRMATION_TABLES;
     }
+
+    /** The screening tables plus a mixed table that only confirmation plays. */
+    static final List<SeatTable> CONFIRMATION_TABLES = List.of(
+            new SeatTable("faction-greedy-v1", java.util.Collections.nCopies(5, new PolicyRef("faction-greedy", "1"))),
+            new SeatTable("random-v1", java.util.Collections.nCopies(5, new PolicyRef("random", "1"))),
+            new SeatTable(
+                    "random-seat-vs-faction-greedy-v1",
+                    List.of(
+                            new PolicyRef("random", "1"),
+                            new PolicyRef("faction-greedy", "1"),
+                            new PolicyRef("faction-greedy", "1"),
+                            new PolicyRef("faction-greedy", "1"),
+                            new PolicyRef("faction-greedy", "1"))));
 
     @Override
     public synchronized int confirmationSeedCount(int criterionVersion) {

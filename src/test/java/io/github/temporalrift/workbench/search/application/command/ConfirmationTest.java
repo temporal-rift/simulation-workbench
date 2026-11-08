@@ -56,9 +56,10 @@ class ConfirmationTest {
                 .extracting(Confirmation.Run::subject)
                 .containsExactly("baseline", "c-0000", "c-0001");
         var expected = new ConfirmationSeeds("9").seeds(100);
-        assertThat(play.frozen())
-                .hasSize(3)
-                .allSatisfy(experiment -> assertThat(experiment.seeds()).isEqualTo(expected));
+        assertThat(play.frozen()).hasSize(3).allSatisfy(experiment -> {
+            assertThat(experiment.seeds()).isEqualTo(expected);
+            assertThat(experiment.tables()).isEqualTo(SimulatedPlay.CONFIRMATION_TABLES);
+        });
         assertThat(campaigns.find(id).orElseThrow().campaign().confirmation()).isEqualTo(confirmation);
     }
 
