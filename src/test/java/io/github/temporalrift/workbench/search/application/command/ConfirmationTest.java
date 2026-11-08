@@ -46,6 +46,7 @@ class ConfirmationTest {
     private final CancelCampaignCommandHandler cancel = new CancelCampaignCommandHandler(campaigns, play, CLOCK);
     private final SetCampaignParallelismCommandHandler parallelism =
             new SetCampaignParallelismCommandHandler(campaigns, play, CLOCK);
+    private final UUID refusedKey = UUID.randomUUID();
 
     @Test
     void aShortListOfTwoFreezesOneExperimentPerCandidateAndNoneForTheBaseline() {
@@ -72,7 +73,7 @@ class ConfirmationTest {
         campaigns.appendLog(id, List.of(logged(1, List.of("1", shared))));
         play.simulator(false);
 
-        assertThatThrownBy(() -> start.handle(id, UUID.randomUUID()))
+        assertThatThrownBy(() -> start.handle(id, refusedKey))
                 .isInstanceOfSatisfying(
                         SeedOverlapException.class, e -> assertThat(e.seeds()).containsExactly(shared));
 
@@ -85,8 +86,7 @@ class ConfirmationTest {
         play.simulator(false);
         play.fidelity(false);
 
-        assertThatThrownBy(() -> start.handle(id, UUID.randomUUID()))
-                .isInstanceOf(SimulatorNotAvailableException.class);
+        assertThatThrownBy(() -> start.handle(id, refusedKey)).isInstanceOf(SimulatorNotAvailableException.class);
 
         assertNothingStarted(id);
     }
@@ -97,8 +97,7 @@ class ConfirmationTest {
         play.fidelity(false);
         play.policiesServed(false);
 
-        assertThatThrownBy(() -> start.handle(id, UUID.randomUUID()))
-                .isInstanceOf(FidelityNotEstablishedException.class);
+        assertThatThrownBy(() -> start.handle(id, refusedKey)).isInstanceOf(FidelityNotEstablishedException.class);
 
         assertNothingStarted(id);
     }
@@ -108,7 +107,7 @@ class ConfirmationTest {
         var id = searched("c-0000");
         play.policiesServed(false);
 
-        assertThatThrownBy(() -> start.handle(id, UUID.randomUUID())).isInstanceOf(PolicyNotAvailableException.class);
+        assertThatThrownBy(() -> start.handle(id, refusedKey)).isInstanceOf(PolicyNotAvailableException.class);
 
         assertNothingStarted(id);
     }
@@ -117,8 +116,7 @@ class ConfirmationTest {
     void aConfirmationRefusedForWantOfFidelityCanBeStartedOnceItIsEstablished() {
         var id = searched("c-0000");
         play.fidelity(false);
-        assertThatThrownBy(() -> start.handle(id, UUID.randomUUID()))
-                .isInstanceOf(FidelityNotEstablishedException.class);
+        assertThatThrownBy(() -> start.handle(id, refusedKey)).isInstanceOf(FidelityNotEstablishedException.class);
         play.fidelity(true);
 
         var confirming = start.handle(id, UUID.randomUUID());
@@ -132,7 +130,7 @@ class ConfirmationTest {
         var id = searched("c-0000");
         start.handle(id, UUID.randomUUID());
 
-        assertThatThrownBy(() -> start.handle(id, UUID.randomUUID())).isInstanceOf(InvalidCampaignStateException.class);
+        assertThatThrownBy(() -> start.handle(id, refusedKey)).isInstanceOf(InvalidCampaignStateException.class);
     }
 
     @Test
@@ -140,7 +138,7 @@ class ConfirmationTest {
         var id = searched("c-0000", "c-0001");
         play.refuseConfirmationFreezeNumber(2);
 
-        assertThatThrownBy(() -> start.handle(id, UUID.randomUUID()))
+        assertThatThrownBy(() -> start.handle(id, refusedKey))
                 .isInstanceOf(SimulatorNotAvailableException.class)
                 .hasMessageContaining("the experiment is refused");
 
