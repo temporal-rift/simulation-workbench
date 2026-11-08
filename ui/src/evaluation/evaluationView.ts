@@ -45,7 +45,10 @@ export function describeBand(band: Band): string {
   return band.scale === null ? limit : `${limit} (scale ${formatValue(band.scale)})`
 }
 
-/** Where a line was measured: the policy, the table size, the faction set and what the metric is split by. */
+/**
+ * Where a line was measured: the policy (with its table when the table is named otherwise, as a table that mixes
+ * policies is), the table size, the faction set and what the metric is split by.
+ */
 export function describeCohort(line: EvaluatedLine): string {
   const { dimensions } = line
   const split = [
@@ -54,6 +57,7 @@ export function describeCohort(line: EvaluatedLine): string {
     dimensions.quantile !== undefined && dimensions.quantile !== null ? `quantile ${dimensions.quantile}` : null,
     dimensions.failureCodes ? `codes ${dimensions.failureCodes.join(' + ')}` : null,
   ].filter(Boolean)
-  const where = `${line.policyId} · ${line.playerCount} players · ${describeFactionSet(line.factionSet)}`
+  const population = line.tableId === line.policyId ? line.policyId : `${line.tableId} (${line.policyId} seats)`
+  const where = `${population} · ${line.playerCount} players · ${describeFactionSet(line.factionSet)}`
   return split.length > 0 ? `${where} · ${split.join(', ')}` : where
 }

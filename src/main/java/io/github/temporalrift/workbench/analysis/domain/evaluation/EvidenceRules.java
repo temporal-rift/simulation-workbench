@@ -107,16 +107,19 @@ final class EvidenceRules {
 
     /**
      * Every table the criterion's confirmation plays has, for every player count and every seed, every faction set of
-     * that size with exactly one seat ordering per cyclic rotation.
+     * that size with exactly one seat ordering per cyclic rotation. A case counts for a table only when its seats play
+     * what the table names.
      */
     private static boolean fullMatrix(BalanceCriterion criterion, Set<String> seeds, List<AnalyzedCase> cases) {
         var byCell = new HashMap<List<Object>, Map<List<Faction>, Set<List<Faction>>>>();
         for (var analyzedCase : cases) {
-            var table = criterion
-                    .tableOf(analyzedCase.tableId(), pooledReference(analyzedCase))
-                    .orElse(analyzedCase.tableId());
+            var table = criterion.tableOfSeats(analyzedCase.tableId(), seatReferences(analyzedCase));
+            if (table.isEmpty()) {
+                continue;
+            }
             byCell.computeIfAbsent(
-                            List.of(table, analyzedCase.playerCount(), analyzedCase.seed()), ignored -> new HashMap<>())
+                            List.of(table.get().id(), analyzedCase.playerCount(), analyzedCase.seed()),
+                            ignored -> new HashMap<>())
                     .computeIfAbsent(CohortKey.factionSetOf(analyzedCase), ignored -> new HashSet<>())
                     .add(analyzedCase.seatFactions());
         }
@@ -133,12 +136,11 @@ final class EvidenceRules {
         return !seeds.isEmpty();
     }
 
-    /** The criterion reference of the policy on every seat of the case; null when its seats play more than one. */
-    private static String pooledReference(AnalyzedCase analyzedCase) {
-        var first = analyzedCase.seatPolicies().getFirst();
-        return analyzedCase.seatPolicies().stream().allMatch(first::equals)
-                ? PolicyReference.of(first.id(), first.version())
-                : null;
+    /** The criterion reference of the policy on each seat of the case, by seat index. */
+    private static List<String> seatReferences(AnalyzedCase analyzedCase) {
+        return analyzedCase.seatPolicies().stream()
+                .map(policy -> PolicyReference.of(policy.id(), policy.version()))
+                .toList();
     }
 
     private static boolean complete(Map<List<Faction>, Set<List<Faction>>> sets, int playerCount) {

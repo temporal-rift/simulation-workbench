@@ -31,6 +31,7 @@ import io.github.temporalrift.workbench.analysis.domain.criterion.CriterionPopul
 import io.github.temporalrift.workbench.analysis.domain.criterion.CriterionRole;
 import io.github.temporalrift.workbench.analysis.domain.criterion.CriterionTable;
 import io.github.temporalrift.workbench.analysis.domain.criterion.Derivation;
+import io.github.temporalrift.workbench.analysis.domain.criterion.IntervalRule;
 import io.github.temporalrift.workbench.analysis.domain.criterion.Pooling;
 import io.github.temporalrift.workbench.analysis.domain.port.out.BalanceCriteria;
 import io.github.temporalrift.workbench.shared.execution.FailureCode;
@@ -165,9 +166,15 @@ public class ConfiguredBalanceCriteria implements BalanceCriteria {
                         .toList(),
                 Pooling.valueOf(node.get("pooling").asString()),
                 new Band(number(band.get("lower")), number(band.get("upper")), number(band.get("scale"))),
+                interval(node.get("interval")),
                 CriterionRole.valueOf(node.get("role").asString()),
                 number(weight),
                 node.get("rationale").asString());
+    }
+
+    /** The interval rule a line names; a line of a document that predates the rule, as in version 1, bootstraps. */
+    private static IntervalRule interval(JsonNode node) {
+        return node == null || node.isNull() ? IntervalRule.BLOCK_BOOTSTRAP : IntervalRule.valueOf(node.asString());
     }
 
     private static CriterionDimension dimension(JsonNode node) {

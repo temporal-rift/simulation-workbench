@@ -728,11 +728,13 @@ its experiments.
 
 **Confirming the short list.** Each short-listed candidate is the best of many noisy candidates measured on the same
 search seeds, so its score is optimistically biased. `startConfirmation` therefore confirms on fresh seeds through the
-real services. It derives the criterion's `confirmationMinimumSeeds` (100 for version 1) from `confirmationMasterSeed`
+real services. It derives the criterion's `confirmationMinimumSeeds` (100 for version 1, 104 for version 2) from `confirmationMasterSeed`
 alone, compares them with every seed in the campaign log and, on any overlap, answers `409 SEED_OVERLAP` having frozen
 nothing. Otherwise it freezes one experiment for the unmodified baseline and one for each short-listed candidate, each over
-those seeds, the full case matrix of the campaign's player counts and the policies the criterion names (the sample is
-only satisfied when each played it, whatever policies the search used), and starts one run per experiment. The experiments pin the builds of the deployed lane that is build-equivalent to the simulator (the lane the
+those seeds, the full case matrix of the campaign's player counts and the criterion's `CONFIRMATION` tables, each
+seat playing the newest bundle of its policy's major version (the sample is only satisfied when each table was played,
+whatever policies the search used), and starts one run per experiment. Under criterion version 2 that includes the
+mixed table `random-seat-vs-faction-greedy-v1`. The experiments pin the builds of the deployed lane that is build-equivalent to the simulator (the lane the
 fidelity record is made against); a container image never shares a digest with the simulator's embedded jars, so no case
 can be claimed by the simulator. The runs play one after another and each plays one case at a time, so a campaign never has
 more than one confirmation case executing, whatever its `parallelism`; the worker releases the next run when the one
@@ -1032,37 +1034,52 @@ from current results on every read.
 
 ### Balance criterion and run evaluation
 
-A balance criterion version is a read-only document served from configuration: its lines (a metric, a dimension, the
-bot policies and player counts it covers, a band, a role as `GATE` or `SCORED`, a weight), its aggregation, and its
-evidence rule. `GET /api/v1/balance-criteria` lists the served versions and `GET /api/v1/balance-criteria/{version}`
+A balance criterion version is a read-only document served from configuration: its tables (a policy for each seat, and
+the phases, `SCREENING` or `CONFIRMATION`, that play it), its lines (a metric, a dimension, the populations and player
+counts it covers, a band, an interval rule, a role as `GATE` or `SCORED`, a weight), its aggregation, and its evidence
+rule. A population is the seats of one table played by one policy. `GET /api/v1/balance-criteria` lists the served versions and `GET /api/v1/balance-criteria/{version}`
 reads one; its `digest` is the SHA-256 of its canonical serialisation (object keys sorted, no whitespace, numbers by value
 without trailing zeros), so any change of any value changes it. A version whose evidence rule the evaluator cannot apply
-(another confidence level, other invalidating causes, another aggregation) is refused at startup. A new version is added by adding `balance-criteria/v<N>.json` to the application's
-configuration, never through the API; version 1 equals `docs/balance-criteria/v1.md` line by line, which a test checks.
+(another confidence level, other invalidating causes, another aggregation), a population naming a policy no seat of
+its table plays, or the exact interval on a line that is not a share of games or cases is refused at startup. A new version is added by
+adding `balance-criteria/v<N>.json` to the application's configuration, never through the API; each version follows its
+decision record, `docs/balance-criteria/v<N>.md`. Version 1 has two uniform tables, `faction-greedy-v1` and `random-v1`,
+and declares neither tables nor interval rules in its file, which keeps its digest: it reads as one uniform table per
+policy and the bootstrap interval on every line. Version 2 adds the confirmation-only table
+`random-seat-vs-faction-greedy-v1` (seat 0 `random-v1`, the other seats `faction-greedy-v1`), measures G-07 on its
+random seat, widens the interval of its share lines with a non-zero limit, and needs 104 confirmation seeds.
 A criterion names a policy as its id with the major version (`faction-greedy-v1` is policy `faction-greedy` at
 `1.0.0`).
 
 `GET /api/v1/runs/{runId}/evaluation?variantLabel=&criterionVersion=&mode=` (`simulation:read`) evaluates one variant of
 a run against one criterion version. Nothing is stored: it is derived from the run's current cases on every read, with
 the analysis seed, and the same run, variant, version, and mode always return byte-identical JSON. Lines are ordered by
-line id, policy, player count, faction set, and faction.
+line id, table, policy, player count, faction set, and faction.
 
-- Each criterion line expands into one evaluated line per cohort and dimension value it covers. A faction ratio is the
-  faction's win rate over `R`, the winner seat-games over the seat-games of the same cohort; the sum of failure codes is
-  the sum of those `failure_share` codes. Both are recomputed in every resample of their cohort, so a line's interval
-  is the interval of the derived value and never a combination of separate intervals. A cohort without a winner has no
-  `R`, and its ratio lines are `NO_DATA`.
+- Each criterion line expands into one evaluated line per population, cohort and dimension value it covers. A cohort
+  belongs to a criterion table when its table maps to it and each seat plays the policy the table names for that seat.
+  A seat metric counts only the population's seats; a game metric and `failure_share` count every game or case. A
+  faction ratio is the faction's win rate on the population's seats over `R`, the winner seat-games over the
+  seat-games of every seat of the same cohort; the sum of failure codes is the sum of those `failure_share` codes. Both
+  are recomputed in every resample of their cohort, so a line's interval is the interval of the derived value and
+  never a combination of separate intervals. A cohort without a winner has no `R`, and its ratio lines are `NO_DATA`.
+- A line whose interval rule is `BLOCK_BOOTSTRAP_UNION_CLOPPER_PEARSON` widens its bootstrap interval to the union with
+  the 95% two-sided Clopper–Pearson interval on the cohort's pooled numerator and denominator, so a share without
+  events is not shown to be below a limit on a few games.
+- A pooled line whose population has no cohort at a player count the variant played is listed as `NO_DATA`, one line
+  per dimension value. A screening evaluation under version 2 therefore lists G-07 without data; it never rejects.
 - Deviation is 0 inside the band and otherwise the distance to the nearer bound over the band width (or, for a
   one-sided limit, over its scale). A line is `MEETS` when its whole interval lies inside the band, `FAILS` when it lies
   wholly outside, and `INCONCLUSIVE` otherwise, and always `INCONCLUSIVE` without an interval. The score is the sum of
   `weight × deviation²` over the scored lines, from point values; it ranks candidates and never rejects or confirms.
 - Validity comes first. The evaluation is `INVALID`, with every applicable reason and no score, when a case of the
   variant did not finish (`UNFINISHED_CASES`), any case failed with `CONTRACT_MISMATCH` or `CONFIGURATION_DRIFT`, the
-  `EXECUTION_FAILED` share of a policy and player count is above the criterion's limit (`EXECUTION_FAILED_SHARE`), or
+  `EXECUTION_FAILED` share of a table and player count is above the criterion's limit (`EXECUTION_FAILED_SHARE`), or
   a game ended with every player abandoned (`ALL_PLAYERS_ABANDONED`).
 - A valid evaluation is `REJECTED` when a gate fails. Only in `CONFIRMATION` mode is it `CONFIRMED`, and only with a
   satisfied confirmation sample (at least the criterion's minimum seeds, and every faction set at 3, 4, and 5 players
-  under every cyclic rotation for every policy the criterion names), every pooled gate meeting its band, and no scored
+  under every cyclic rotation on every table of the criterion's `CONFIRMATION` phase, counting only cases whose seats
+  play what the table names), every pooled gate meeting its band, and no scored
   line failing. Otherwise it is `UNCONFIRMED`; `SCREENING` mode never confirms.
 
 Bot results say nothing about balance among human players, and an evaluation must not be presented as if they did.

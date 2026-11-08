@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.TreeMap;
@@ -31,6 +32,7 @@ import io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefus
 import io.github.temporalrift.workbench.search.domain.campaign.NoRealLaneException;
 import io.github.temporalrift.workbench.search.domain.campaign.PolicyRef;
 import io.github.temporalrift.workbench.search.domain.campaign.SearchAlgorithm;
+import io.github.temporalrift.workbench.search.domain.campaign.SeatTable;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignExperiments;
 
 /** The experiment a confirmation freezes: one subject, the seeds given, and the builds of the real lane only. */
@@ -44,8 +46,12 @@ class ConfirmationFreezeTest {
     private final PolicyCatalog catalog = mock(PolicyCatalog.class);
     private final CampaignExperimentsAdapter adapter = new CampaignExperimentsAdapter(
             experiments, catalog, lanes, MAPPER, new CampaignExperimentsAdapter.Bounds(3600, 10));
-    private static final List<PolicyRef> CRITERION_POLICIES =
-            List.of(new PolicyRef("faction-greedy", "1"), new PolicyRef("random", "1"));
+    private static final PolicyRef GREEDY = new PolicyRef("faction-greedy", "1");
+    private static final PolicyRef RANDOM = new PolicyRef("random", "1");
+    private static final List<SeatTable> CRITERION_TABLES = List.of(
+            new SeatTable("faction-greedy-v1", Collections.nCopies(5, GREEDY)),
+            new SeatTable("random-v1", Collections.nCopies(5, RANDOM)),
+            new SeatTable("random-seat-vs-faction-greedy-v1", List.of(RANDOM, GREEDY, GREEDY, GREEDY, GREEDY)));
 
     @BeforeEach
     void theCatalogServesTheCriterionPolicies() {
@@ -68,7 +74,7 @@ class ConfirmationFreezeTest {
                 definition(),
                 new CampaignExperiments.Subject("baseline", new TreeMap<>(), "d".repeat(64)),
                 List.of("11"),
-                CRITERION_POLICIES);
+                CRITERION_TABLES);
 
         var manifest = ArgumentCaptor.forClass(JsonNode.class);
         verify(experiments).freeze(any(), manifest.capture());
@@ -77,8 +83,37 @@ class ConfirmationFreezeTest {
         assertThat(policies.get(0).path("id").asString()).isEqualTo("faction-greedy");
         assertThat(policies.get(1).path("version").asString()).isEqualTo("1.10.0");
         var tables = manifest.getValue().path("tables");
-        assertThat(tables).hasSize(2);
+        assertThat(tables).hasSize(3);
         assertThat(tables.get(1).path("seats")).hasSize(5);
+    }
+
+    @Test
+    void theManifestPlaysTheCriterionsConfirmationTablesSeatBySeat() {
+        when(lanes.equivalentDeployedLane(5))
+                .thenReturn(Optional.of(new LaneEnvironments.DeployedLane("lane-1", bundle("deployed"))));
+        when(experiments.freeze(any(), any())).thenReturn(UUID.randomUUID());
+
+        adapter.freezeConfirmation(
+                KEY,
+                definition(),
+                new CampaignExperiments.Subject("baseline", new TreeMap<>(), "d".repeat(64)),
+                List.of("11"),
+                CRITERION_TABLES);
+
+        var manifest = ArgumentCaptor.forClass(JsonNode.class);
+        verify(experiments).freeze(any(), manifest.capture());
+        var tables = manifest.getValue().path("tables");
+        assertThat(tables.valueStream()
+                        .map(table -> table.path("id").asString())
+                        .toList())
+                .containsExactly("faction-greedy-v1", "random-v1", "random-seat-vs-faction-greedy-v1");
+        var mixed = tables.get(2).path("seats");
+        assertThat(mixed.get(0).path("policyId").asString()).isEqualTo("random");
+        assertThat(mixed.get(0).path("policyVersion").asString()).isEqualTo("1.10.0");
+        for (var seat = 1; seat < 5; seat++) {
+            assertThat(mixed.get(seat).path("seatIndex").asInt()).isEqualTo(seat);
+            assertThat(mixed.get(seat).path("policyId").asString()).isEqualTo("faction-greedy");
+        }
     }
 
     @Test
@@ -87,10 +122,10 @@ class ConfirmationFreezeTest {
         var subject = new CampaignExperiments.Subject("baseline", new TreeMap<>(), "d".repeat(64));
         when(lanes.equivalentDeployedLane(5))
                 .thenReturn(Optional.of(new LaneEnvironments.DeployedLane("lane-1", bundle("deployed"))));
-        adapter.freezeConfirmation(KEY, definition(), subject, List.of("11"), CRITERION_POLICIES);
+        adapter.freezeConfirmation(KEY, definition(), subject, List.of("11"), CRITERION_TABLES);
         when(lanes.equivalentDeployedLane(5))
                 .thenReturn(Optional.of(new LaneEnvironments.DeployedLane("lane-1", bundle("redeployed"))));
-        adapter.freezeConfirmation(KEY, definition(), subject, List.of("11"), CRITERION_POLICIES);
+        adapter.freezeConfirmation(KEY, definition(), subject, List.of("11"), CRITERION_TABLES);
 
         var keys = ArgumentCaptor.forClass(UUID.class);
         verify(experiments, times(2)).freeze(keys.capture(), any());
@@ -104,7 +139,7 @@ class ConfirmationFreezeTest {
 
         var definition = definition();
         var subject = new CampaignExperiments.Subject("baseline", new TreeMap<>(), "d".repeat(64));
-        var missing = List.of(new PolicyRef("missing", "1"));
+        var missing = List.of(new SeatTable("missing-v1", Collections.nCopies(5, new PolicyRef("missing", "1"))));
         var seeds = List.of("11");
         assertThatThrownBy(() -> adapter.freezeConfirmation(KEY, definition, subject, seeds, missing))
                 .isInstanceOf(CampaignPlayRefusedException.class);
@@ -128,7 +163,7 @@ class ConfirmationFreezeTest {
                 definition(),
                 new CampaignExperiments.Subject("c-0001", overrides, "e".repeat(64)),
                 List.of("11", "12", "13"),
-                CRITERION_POLICIES);
+                CRITERION_TABLES);
 
         var manifest = ArgumentCaptor.forClass(JsonNode.class);
         verify(experiments).freeze(any(), manifest.capture());
@@ -165,7 +200,7 @@ class ConfirmationFreezeTest {
                 definition(),
                 new CampaignExperiments.Subject("baseline", new TreeMap<>(), "d".repeat(64)),
                 List.of("11"),
-                CRITERION_POLICIES);
+                CRITERION_TABLES);
 
         var manifest = ArgumentCaptor.forClass(JsonNode.class);
         verify(experiments).freeze(any(), manifest.capture());
@@ -179,7 +214,7 @@ class ConfirmationFreezeTest {
         var definition = definition();
         var subject = new CampaignExperiments.Subject("baseline", new TreeMap<>(), "d".repeat(64));
         var seeds = List.of("11");
-        assertThatThrownBy(() -> adapter.freezeConfirmation(KEY, definition, subject, seeds, CRITERION_POLICIES))
+        assertThatThrownBy(() -> adapter.freezeConfirmation(KEY, definition, subject, seeds, CRITERION_TABLES))
                 .isInstanceOf(NoRealLaneException.class);
 
         verifyNoInteractions(experiments);

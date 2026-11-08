@@ -35,7 +35,16 @@ public class RunConfirmationService implements RunConfirmation {
 
     @Override
     public List<Table> screeningTables(int criterionVersion) {
-        return criterion(criterionVersion).tables(CriterionPhase.SCREENING).stream()
+        return tables(criterionVersion, CriterionPhase.SCREENING);
+    }
+
+    @Override
+    public List<Table> confirmationTables(int criterionVersion) {
+        return tables(criterionVersion, CriterionPhase.CONFIRMATION);
+    }
+
+    private List<Table> tables(int criterionVersion, CriterionPhase phase) {
+        return criterion(criterionVersion).tables(phase).stream()
                 .map(table -> new Table(
                         table.id(),
                         table.seats().stream()

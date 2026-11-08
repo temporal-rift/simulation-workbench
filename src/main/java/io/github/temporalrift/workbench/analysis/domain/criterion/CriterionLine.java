@@ -3,8 +3,11 @@ package io.github.temporalrift.workbench.analysis.domain.criterion;
 import java.util.List;
 import java.util.Objects;
 
+import io.github.temporalrift.workbench.analysis.domain.report.MetricCatalog;
+
 /**
- * One metric with its dimension, the populations and player counts whose cohorts it covers, a band and a role.
+ * One metric with its dimension, the populations and player counts whose cohorts it covers, a band, the rule of its
+ * interval and a role.
  *
  * @param weight greater than 0 for a scored line; null for a gate
  */
@@ -17,6 +20,7 @@ public record CriterionLine(
         List<Integer> playerCounts,
         Pooling pooling,
         Band band,
+        IntervalRule interval,
         CriterionRole role,
         Double weight,
         String rationale) {
@@ -28,6 +32,7 @@ public record CriterionLine(
         Objects.requireNonNull(dimension, "dimension");
         Objects.requireNonNull(pooling, "pooling");
         Objects.requireNonNull(band, "band");
+        Objects.requireNonNull(interval, "interval");
         Objects.requireNonNull(role, "role");
         Objects.requireNonNull(rationale, "rationale");
         populations = List.copyOf(populations);
@@ -35,9 +40,21 @@ public record CriterionLine(
         if (populations.isEmpty() || playerCounts.isEmpty()) {
             throw new IllegalArgumentException("Line " + id + " needs a population and a player count");
         }
+        if (interval == IntervalRule.BLOCK_BOOTSTRAP_UNION_CLOPPER_PEARSON && !share(metric, derivation, dimension)) {
+            throw new IllegalArgumentException(
+                    "Line " + id + ": the Clopper-Pearson union applies only to a share of games or cases");
+        }
         if ((role == CriterionRole.SCORED) != (weight != null && weight > 0)) {
             throw new IllegalArgumentException(
                     "Line " + id + ": a scored line needs a positive weight and a gate needs none");
         }
+    }
+
+    /** Whether the line's value is a share of games or of cases: a failure-share sum, or a game share read directly. */
+    private static boolean share(String metric, Derivation derivation, CriterionDimension dimension) {
+        return derivation == Derivation.SUM_OF_FAILURE_CODES
+                || (derivation == Derivation.DIRECT
+                        && dimension.quantile() == null
+                        && MetricCatalog.isGameShare(metric));
     }
 }

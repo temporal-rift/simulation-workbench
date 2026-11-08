@@ -35,7 +35,16 @@ public class CandidateEvaluationAdapter implements CandidateEvaluation {
 
     @Override
     public List<SeatTable> screeningTables(int criterionVersion) {
-        return confirmation.screeningTables(criterionVersion).stream()
+        return seatTables(confirmation.screeningTables(criterionVersion));
+    }
+
+    @Override
+    public List<SeatTable> confirmationTables(int criterionVersion) {
+        return seatTables(confirmation.confirmationTables(criterionVersion));
+    }
+
+    private static List<SeatTable> seatTables(List<RunConfirmation.Table> tables) {
+        return tables.stream()
                 .map(table -> new SeatTable(
                         table.id(),
                         table.seats().stream()

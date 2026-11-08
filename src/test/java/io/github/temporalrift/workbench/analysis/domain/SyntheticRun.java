@@ -14,18 +14,24 @@ import io.github.temporalrift.workbench.analysis.domain.game.AnalyzedCase;
 import io.github.temporalrift.workbench.analysis.domain.game.CaseOutcome;
 import io.github.temporalrift.workbench.analysis.domain.game.GameRecord;
 import io.github.temporalrift.workbench.analysis.domain.game.ParadoxType;
+import io.github.temporalrift.workbench.analysis.domain.game.SeatPolicy;
 import io.github.temporalrift.workbench.shared.execution.CaseState;
 import io.github.temporalrift.workbench.shared.execution.FailureCode;
 import io.github.temporalrift.workbench.shared.game.EndReason;
 import io.github.temporalrift.workbench.shared.game.Faction;
 
-/** Synthetic cases of one variant and one policy, with the facts of the succeeded ones. */
+/**
+ * Synthetic cases of one variant, played by one policy on every seat or on a named table, with the facts of the
+ * succeeded ones.
+ */
 public final class SyntheticRun {
 
     public static final List<Faction> EPW = List.of(Faction.ERASERS, Faction.PROPHETS, Faction.WEAVERS);
 
     private final String variant;
     private String policy;
+    private String table;
+    private List<String> tableSeats;
     private boolean paradoxes;
     private final List<AnalyzedCase> cases = new ArrayList<>();
     private final Map<UUID, CaseFacts> facts = new HashMap<>();
@@ -46,6 +52,18 @@ public final class SyntheticRun {
     /** The policy of the cases added from now on. */
     public SyntheticRun policy(String policyId) {
         this.policy = policyId;
+        this.table = null;
+        this.tableSeats = null;
+        return this;
+    }
+
+    /**
+     * The table of the cases added from now on: its id, and the criterion reference of the policy each seat plays,
+     * such as {@code random-v1}.
+     */
+    public SyntheticRun table(String tableId, List<String> seatPolicies) {
+        this.table = tableId;
+        this.tableSeats = List.copyOf(seatPolicies);
         return this;
     }
 
@@ -97,6 +115,12 @@ public final class SyntheticRun {
         return policy.replaceFirst("-v1$", "");
     }
 
+    /** A criterion reference such as {@code random-v2} as the policy {@code random} at version {@code 2.0.0}. */
+    private static SeatPolicy seatPolicy(String reference) {
+        var split = reference.lastIndexOf("-v");
+        return new SeatPolicy(reference.substring(0, split), reference.substring(split + 2) + ".0.0");
+    }
+
     private static CaseFacts withParadoxes(CaseFacts extracted) {
         var game = extracted.game();
         return new CaseFacts(
@@ -116,13 +140,18 @@ public final class SyntheticRun {
 
     private AnalyzedCase analyzed(
             String seed, List<Faction> seats, CaseState status, CaseOutcome outcome, FailureCode code) {
+        var seatPolicies = table == null
+                ? SeatPolicies.uniform(policyId(), "1.0.0", seats.size())
+                : tableSeats.subList(0, seats.size()).stream()
+                        .map(SyntheticRun::seatPolicy)
+                        .toList();
         return new AnalyzedCase(
                 new UUID(idSpace, cases.size()),
                 variant,
-                policyId(),
+                table == null ? policyId() : table,
                 seed,
                 seats.size(),
-                SeatPolicies.uniform(policyId(), "1.0.0", seats.size()),
+                seatPolicies,
                 seats,
                 status,
                 outcome,

@@ -16,7 +16,7 @@ import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
 import io.github.temporalrift.workbench.search.domain.campaign.Confirmation;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignStateException;
 import io.github.temporalrift.workbench.search.domain.campaign.NoRealLaneException;
-import io.github.temporalrift.workbench.search.domain.campaign.PolicyRef;
+import io.github.temporalrift.workbench.search.domain.campaign.SeatTable;
 import io.github.temporalrift.workbench.search.domain.campaign.SeedOverlapException;
 import io.github.temporalrift.workbench.search.domain.candidate.Candidate;
 import io.github.temporalrift.workbench.search.domain.candidate.ConfirmationSeeds;
@@ -62,8 +62,8 @@ public class StartConfirmationCommandHandler implements StartConfirmationUseCase
         var seedCount = evaluation.confirmationSeedCount(definition.criterionVersion());
         var seeds = new ConfirmationSeeds(definition.confirmationMasterSeed()).seeds(seedCount);
         rejectOverlap(campaignId, seeds);
-        var policies = evaluation.confirmationPolicies(definition.criterionVersion());
-        var confirmation = freezeAndStart(stored.campaign(), seedCount, seeds, policies);
+        var tables = evaluation.confirmationTables(definition.criterionVersion());
+        var confirmation = freezeAndStart(stored.campaign(), seedCount, seeds, tables);
         for (var attempt = 0; attempt < ATTEMPTS; attempt++) {
             var current = campaigns.find(campaignId).orElseThrow(() -> new CampaignNotFoundException(campaignId));
             if (current.campaign().state() != CampaignState.SEARCH_COMPLETED) {
@@ -108,8 +108,7 @@ public class StartConfirmationCommandHandler implements StartConfirmationUseCase
         }
     }
 
-    private Confirmation freezeAndStart(
-            Campaign campaign, int seedCount, List<String> seeds, List<PolicyRef> policies) {
+    private Confirmation freezeAndStart(Campaign campaign, int seedCount, List<String> seeds, List<SeatTable> tables) {
         var definition = campaign.definition();
         var subjects = subjects(campaign);
         var started = new ArrayList<Confirmation.Run>();
@@ -119,7 +118,7 @@ public class StartConfirmationCommandHandler implements StartConfirmationUseCase
                     definition,
                     subject,
                     seeds,
-                    policies);
+                    tables);
             var runKey = ConfirmationKeys.run(campaign.campaignId(), subject.label(), experimentId);
             started.add(new Confirmation.Run(subject.label(), experimentId, startRun(experimentId, runKey), null));
         }
