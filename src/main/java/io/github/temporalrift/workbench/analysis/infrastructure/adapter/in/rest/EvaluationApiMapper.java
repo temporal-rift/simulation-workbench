@@ -14,6 +14,7 @@ import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CriterionDerivation;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CriterionDimension;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CriterionEvidence;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CriterionInterval;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CriterionLine;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CriterionPooling;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CriterionPopulation;
@@ -118,6 +119,7 @@ final class EvaluationApiMapper {
                         .toList())
                 .pooling(CriterionPooling.fromValue(line.pooling().name()))
                 .band(band(line.band()))
+                .interval(CriterionInterval.fromValue(line.interval().name()))
                 .role(CriterionRole.fromValue(line.role().name()))
                 .weight(AnalysisApiMapper.decimal(line.weight()))
                 .rationale(line.rationale());

@@ -9,10 +9,11 @@ import tools.jackson.databind.json.JsonMapper;
 import io.github.temporalrift.workbench.analysis.domain.criterion.BalanceCriterion;
 import io.github.temporalrift.workbench.analysis.infrastructure.adapter.out.configuration.ConfiguredBalanceCriteria;
 
-/** The configured criterion version 1, as served, and variants of it for tests that need another sample size. */
+/** The configured criterion versions, as served, and variants of them for tests that need another sample size. */
 public final class TestCriteria {
 
     private static final String RESOURCE = "balance-criteria/v1.json";
+    private static final String VERSION_2 = "balance-criteria/v2.json";
     private static final JsonMapper MAPPER = JsonMapper.builder().build();
 
     private TestCriteria() {}
@@ -28,9 +29,29 @@ public final class TestCriteria {
                 source().replace("\"confirmationMinimumSeeds\": 100", "\"confirmationMinimumSeeds\": " + seeds));
     }
 
+    public static BalanceCriterion v2() {
+        return ConfiguredBalanceCriteria.parse(MAPPER, sourceOf(VERSION_2));
+    }
+
+    /** Version 2 with a smaller confirmation sample, so a full matrix stays small. */
+    public static BalanceCriterion v2WithMinimumSeeds(int seeds) {
+        return ConfiguredBalanceCriteria.parse(
+                MAPPER,
+                sourceOf(VERSION_2)
+                        .replace("\"confirmationMinimumSeeds\": 104", "\"confirmationMinimumSeeds\": " + seeds));
+    }
+
     public static String source() {
+        return sourceOf(RESOURCE);
+    }
+
+    public static String v2Source() {
+        return sourceOf(VERSION_2);
+    }
+
+    private static String sourceOf(String resource) {
         try {
-            return new ClassPathResource(RESOURCE).getContentAsString(StandardCharsets.UTF_8);
+            return new ClassPathResource(resource).getContentAsString(StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }

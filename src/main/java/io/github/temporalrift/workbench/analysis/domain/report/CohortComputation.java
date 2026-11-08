@@ -64,6 +64,7 @@ public final class CohortComputation {
 
     private final CohortKey key;
     private final List<AnalyzedCase> members;
+    private final Map<String, List<CaseFacts>> games;
     private final int eligibleGames;
     private final List<MetricDefinition> definitions;
     private final BlockTallies tallies;
@@ -73,6 +74,7 @@ public final class CohortComputation {
     private CohortComputation(
             CohortKey key,
             List<AnalyzedCase> members,
+            Map<String, List<CaseFacts>> games,
             int eligibleGames,
             List<MetricDefinition> definitions,
             BlockTallies tallies,
@@ -80,6 +82,7 @@ public final class CohortComputation {
             FailureBlocks failure) {
         this.key = key;
         this.members = members;
+        this.games = games;
         this.eligibleGames = eligibleGames;
         this.definitions = definitions;
         this.tallies = tallies;
@@ -122,7 +125,7 @@ public final class CohortComputation {
         var failure = analysis.reportsFailureShare() && key.seatIndex() == null
                 ? failureBlocks(key, members, failureCodes, analysis)
                 : null;
-        return new CohortComputation(key, members, eligible, definitions, tallies, bootstrap, failure);
+        return new CohortComputation(key, members, games, eligible, definitions, tallies, bootstrap, failure);
     }
 
     private static FailureBlocks failureBlocks(
@@ -180,6 +183,31 @@ public final class CohortComputation {
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * The series of a game or seat metric of the catalog counted over some seats of the cohort's games only. It has
+     * the blocks of the cohort's other series, so the cohort's plans resample it together with them; a game metric
+     * ignores the seats. Absent when the cohort does not list the metric.
+     *
+     * @param seatIndices the seats to count
+     */
+    public Optional<BlockSeries> seatSeries(String name, Dimensions dimensions, Set<Integer> seatIndices) {
+        return definition(name, dimensions)
+                .map(definition -> BlockTallies.collectSeats(List.of(definition), games, seatIndices)
+                        .series(0));
+    }
+
+    /** The statistic of a metric the cohort lists. */
+    public Optional<MetricStatistic> statistic(String name, Dimensions dimensions) {
+        return definition(name, dimensions).map(MetricDefinition::statistic);
+    }
+
+    private Optional<MetricDefinition> definition(String name, Dimensions dimensions) {
+        return definitions.stream()
+                .filter(definition -> definition.name().equals(name)
+                        && definition.dimensions().equals(dimensions))
+                .findFirst();
     }
 
     /**

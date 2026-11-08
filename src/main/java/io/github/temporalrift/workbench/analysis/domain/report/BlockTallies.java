@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 import io.github.temporalrift.workbench.analysis.domain.fact.CaseFacts;
@@ -34,6 +35,17 @@ public final class BlockTallies {
      */
     public static BlockTallies collect(
             List<MetricDefinition> definitions, Map<String, List<CaseFacts>> games, Integer seatIndex) {
+        return collectSeats(definitions, games, seatIndex == null ? null : Set.of(seatIndex));
+    }
+
+    /**
+     * The same over a set of seats. The blocks are the seeds of the games whatever the seats, so tallies of the same
+     * games over different seats share their blocks.
+     *
+     * @param seatIndices the seats to count, or null to count every seat
+     */
+    public static BlockTallies collectSeats(
+            List<MetricDefinition> definitions, Map<String, List<CaseFacts>> games, Set<Integer> seatIndices) {
         var bySeed = new TreeMap<String, List<CaseFacts>>(SEED_ORDER);
         bySeed.putAll(games);
         var seeds = List.copyOf(bySeed.keySet());
@@ -42,7 +54,7 @@ public final class BlockTallies {
         var block = 0;
         for (var blockGames : bySeed.values()) {
             for (var facts : blockGames) {
-                var seats = scope(facts, seatIndex);
+                var seats = scope(facts, seatIndices);
                 for (var metric = 0; metric < definitions.size(); metric++) {
                     add(series.get(metric), block, definitions.get(metric).measure(), facts, seats);
                 }
@@ -60,8 +72,17 @@ public final class BlockTallies {
         return series.get(metric);
     }
 
-    private static List<SeatFacts> scope(CaseFacts facts, Integer seatIndex) {
-        return seatIndex == null ? facts.seats() : List.of(facts.seats().get(seatIndex));
+    private static List<SeatFacts> scope(CaseFacts facts, Set<Integer> seatIndices) {
+        if (seatIndices == null) {
+            return facts.seats();
+        }
+        var seats = new ArrayList<SeatFacts>();
+        for (var index = 0; index < facts.seats().size(); index++) {
+            if (seatIndices.contains(index)) {
+                seats.add(facts.seats().get(index));
+            }
+        }
+        return seats;
     }
 
     private static void add(

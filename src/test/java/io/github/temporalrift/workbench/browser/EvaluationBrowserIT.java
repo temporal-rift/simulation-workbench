@@ -44,6 +44,8 @@ class EvaluationBrowserIT extends DesignerBrowserTest {
 
         var panel = page.getByRole(AriaRole.HEADING, new Page.GetByRoleOptions().setName("Evaluation"))
                 .locator("xpath=ancestor::section[1]");
+        // The run plays only the random-v1 table: version 1 measures its G-07 there, version 2 on a mixed table.
+        panel.getByLabel("Criterion version").selectOption("1");
         assertThat(panel.getByText(Pattern.compile("Verdict: Rejected"))).isVisible();
         assertThat(panel.getByText(HUMAN_BALANCE)).isVisible();
         var lines = panel.getByRole(AriaRole.TABLE, new Locator.GetByRoleOptions().setName("Evaluated lines"));

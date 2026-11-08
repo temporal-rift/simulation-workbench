@@ -32,11 +32,16 @@ public record BalanceCriterion(
         if (tables.stream().map(CriterionTable::id).distinct().count() != tables.size()) {
             throw new IllegalArgumentException("Criterion table ids must be unique");
         }
-        var known = tables.stream().map(CriterionTable::id).collect(java.util.stream.Collectors.toSet());
+        var known = tables.stream().collect(java.util.stream.Collectors.toMap(CriterionTable::id, table -> table));
         lines.forEach(line -> line.populations().forEach(population -> {
-            if (!known.contains(population.table())) {
+            var table = known.get(population.table());
+            if (table == null) {
                 throw new IllegalArgumentException(
                         "Line " + line.id() + " names the unknown table " + population.table());
+            }
+            if (!table.seats().contains(population.policy())) {
+                throw new IllegalArgumentException("Line " + line.id() + " names the policy " + population.policy()
+                        + ", which no seat of table " + table.id() + " plays");
             }
         }));
         if (lines.stream().map(CriterionLine::id).distinct().count() != lines.size()) {
@@ -75,18 +80,20 @@ public record BalanceCriterion(
                 .findFirst();
     }
 
+    /** The table of an id the criterion names. */
+    public Optional<CriterionTable> table(String id) {
+        return tables.stream().filter(table -> table.id().equals(id)).findFirst();
+    }
+
     /**
-     * Whether a cohort belongs to a population: it was played on the population's table and by the population's
-     * policy on every seat.
+     * The criterion table that cases played on a run's table belong to: the table {@link #tableOf} maps it to, when
+     * each seat of the cases plays the policy that criterion table names for that seat.
      *
-     * @param cohortPolicy the criterion reference of the policy on every seat of the cohort; null when its seats play
-     *     more than one
+     * @param seatPolicies the criterion reference of the policy on each seat of the cases, by seat index
      */
-    public boolean covers(CriterionPopulation population, String cohortTable, String cohortPolicy) {
-        return cohortPolicy != null
-                && population.policy().equals(cohortPolicy)
-                && tableOf(cohortTable, cohortPolicy)
-                        .filter(population.table()::equals)
-                        .isPresent();
+    public Optional<CriterionTable> tableOfSeats(String tableId, List<String> seatPolicies) {
+        var first = seatPolicies.getFirst();
+        var uniform = seatPolicies.stream().allMatch(first::equals) ? first : null;
+        return tableOf(tableId, uniform).flatMap(this::table).filter(table -> table.seatsPlay(seatPolicies));
     }
 }

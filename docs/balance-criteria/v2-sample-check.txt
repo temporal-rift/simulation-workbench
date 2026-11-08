@@ -1,0 +1,41 @@
+check ICC at calibrated tau for 0.079: 0.0787
+on target (0.8..1.2): seeds=104 rho=0.079 tau=0.651 reps=400
+  P(all faction gates MEET and no faction line FAILS) = 0.880; P(REJECTED) = 0.000
+  p=3: P(G-05 MEETS) by faction [1. 1. 1. 1. 1.]; coverage [0.93  0.94  0.932 0.938 0.95 ]; mean half-width 0.101
+  p=4: P(G-05 MEETS) by faction [1. 1. 1. 1. 1.]; coverage [0.945 0.928 0.932 0.938 0.948]; mean half-width 0.124
+  p=5: P(G-05 MEETS) by faction [0.958 0.998 0.998 1.    1.   ]; coverage [0.928 0.935 0.938 0.958 0.95 ]; mean half-width 0.195
+on target (0.8..1.2): seeds=77 rho=0.079 tau=0.650 reps=400
+  P(all faction gates MEET and no faction line FAILS) = 0.755; P(REJECTED) = 0.000
+  p=3: P(G-05 MEETS) by faction [1. 1. 1. 1. 1.]; coverage [0.968 0.958 0.95  0.955 0.945]; mean half-width 0.117
+  p=4: P(G-05 MEETS) by faction [0.992 1.    1.    1.    1.   ]; coverage [0.912 0.96  0.955 0.958 0.95 ]; mean half-width 0.144
+  p=5: P(G-05 MEETS) by faction [0.87  0.975 0.998 1.    1.   ]; coverage [0.938 0.93  0.948 0.938 0.95 ]; mean half-width 0.226
+on target (0.8..1.2): seeds=50 rho=0.079 tau=0.649 reps=400
+  P(all faction gates MEET and no faction line FAILS) = 0.625; P(REJECTED) = 0.000
+  p=3: P(G-05 MEETS) by faction [0.998 1.    1.    1.    1.   ]; coverage [0.942 0.948 0.948 0.955 0.93 ]; mean half-width 0.145
+  p=4: P(G-05 MEETS) by faction [0.985 0.998 1.    1.    1.   ]; coverage [0.965 0.94  0.948 0.94  0.95 ]; mean half-width 0.178
+  p=5: P(G-05 MEETS) by faction [0.752 0.918 0.982 0.992 1.   ]; coverage [0.93  0.945 0.945 0.932 0.958]; mean half-width 0.278
+on target, rho at its upper bound: seeds=104 rho=0.175 tau=1.031 reps=400
+  P(all faction gates MEET and no faction line FAILS) = 0.853; P(REJECTED) = 0.000
+  p=3: P(G-05 MEETS) by faction [1. 1. 1. 1. 1.]; coverage [0.962 0.932 0.932 0.922 0.928]; mean half-width 0.127
+  p=4: P(G-05 MEETS) by faction [1. 1. 1. 1. 1.]; coverage [0.95  0.932 0.94  0.94  0.968]; mean half-width 0.157
+  p=5: P(G-05 MEETS) by faction [0.918 0.988 1.    1.    0.998]; coverage [0.932 0.958 0.95  0.938 0.972]; mean half-width 0.221
+parity: seeds=104 rho=0.079 tau=0.648 reps=400
+  P(all faction gates MEET and no faction line FAILS) = 1.000; P(REJECTED) = 0.000
+  p=3: P(G-05 MEETS) by faction [1. 1. 1. 1. 1.]; coverage [0.935 0.93  0.948 0.96  0.942]; mean half-width 0.102
+  p=4: P(G-05 MEETS) by faction [1. 1. 1. 1. 1.]; coverage [0.942 0.96  0.952 0.958 0.922]; mean half-width 0.125
+  p=5: P(G-05 MEETS) by faction [1. 1. 1. 1. 1.]; coverage [0.958 0.915 0.96  0.958 0.952]; mean half-width 0.195
+edge: one faction at 0.5 at p=5 only: seeds=104 rho=0.079 tau=0.650 reps=400
+  P(all faction gates MEET and no faction line FAILS) = 0.015; P(REJECTED) = 0.045
+  p=3: P(G-05 MEETS) by faction [1. 1. 1. 1. 1.]; coverage [0.928 0.915 0.958 0.95  0.918]; mean half-width 0.101
+  p=4: P(G-05 MEETS) by faction [1. 1. 1. 1. 1.]; coverage [0.942 0.925 0.968 0.958 0.948]; mean half-width 0.124
+  p=5: P(G-05 MEETS) by faction [0.018 1.    1.    1.    1.   ]; coverage [0.942 0.965 0.955 0.945 0.928]; mean half-width 0.192
+defective: one faction at 0.4 at p=5 only: seeds=104 rho=0.079 tau=0.649 reps=400
+  P(all faction gates MEET and no faction line FAILS) = 0.000; P(REJECTED) = 0.388
+  p=3: P(G-05 MEETS) by faction [1. 1. 1. 1. 1.]; coverage [0.955 0.945 0.95  0.935 0.965]; mean half-width 0.101
+  p=4: P(G-05 MEETS) by faction [1. 1. 1. 1. 1.]; coverage [0.968 0.928 0.948 0.952 0.932]; mean half-width 0.125
+  p=5: P(G-05 MEETS) by faction [0. 1. 1. 1. 1.]; coverage [0.93  0.95  0.948 0.92  0.942]; mean half-width 0.191
+G-07 at five players, 104 seeds, R = 0.2: P(MEETS) by random-seat ratio
+  ratio 0.25: 1.00
+  ratio 0.5: 0.92
+  ratio 0.6: 0.71
+  ratio 0.7: 0.42

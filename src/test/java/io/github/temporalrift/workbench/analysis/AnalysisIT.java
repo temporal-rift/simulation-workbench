@@ -383,7 +383,14 @@ class AnalysisIT {
                         .path("code")
                         .asString())
                 .isEqualTo("CONFIGURATION_DRIFT");
-        var line = evaluation.path("lines").get(0);
+        // The run plays only the random-v1 table, so the faction-greedy-v1 population of G-01 comes first, without
+        // data.
+        var noData = evaluation.path("lines").get(0);
+        assertThat(noData.path("lineId").asString()).isEqualTo("G-01");
+        assertThat(noData.path("policyId").asString()).isEqualTo("faction-greedy-v1");
+        assertThat(noData.path("status").asString()).isEqualTo("NO_DATA");
+        assertThat(noData.path("verdict").asString()).isEqualTo("INCONCLUSIVE");
+        var line = evaluation.path("lines").get(1);
         assertThat(line.path("lineId").asString()).isEqualTo("G-01");
         assertThat(line.path("policyId").asString()).isEqualTo("random-v1");
         assertThat(line.has("interval")).isTrue();
@@ -447,14 +454,18 @@ class AnalysisIT {
     }
 
     @Test
-    void theCriterionCatalogServesVersionOneReadOnly() throws Exception {
+    void theCriterionCatalogServesVersionsOneAndTwoReadOnly() throws Exception {
         var catalog = objectMapper.readTree(read(
                 mockMvc.perform(get("/api/v1/balance-criteria").with(read())).andExpect(status().isOk())));
         var one = objectMapper.readTree(read(
                 mockMvc.perform(get("/api/v1/balance-criteria/1").with(read())).andExpect(status().isOk())));
 
-        assertThat(catalog.path("criteria")).hasSize(1);
+        var two = objectMapper.readTree(read(
+                mockMvc.perform(get("/api/v1/balance-criteria/2").with(read())).andExpect(status().isOk())));
+
+        assertThat(catalog.path("criteria")).hasSize(2);
         assertThat(catalog.path("criteria").get(0)).isEqualTo(one);
+        assertThat(catalog.path("criteria").get(1)).isEqualTo(two);
         assertThat(one.path("version").asInt()).isEqualTo(1);
         assertThat(one.path("aggregation").asString()).isEqualTo("WEIGHTED_SUM_OF_SQUARED_DEVIATIONS");
         assertThat(one.path("lines")).hasSize(15);
@@ -462,7 +473,23 @@ class AnalysisIT {
         assertThat(one.path("lines").get(0).path("weight").isNull()).isTrue();
         assertThat(one.path("evidence").path("confirmationMinimumSeeds").asInt())
                 .isEqualTo(100);
-        mockMvc.perform(get("/api/v1/balance-criteria/2").with(read()))
+        assertThat(one.path("lines").get(0).path("interval").asString()).isEqualTo("BLOCK_BOOTSTRAP");
+        assertThat(two.path("version").asInt()).isEqualTo(2);
+        assertThat(two.path("tables")).hasSize(3);
+        assertThat(two.path("tables").get(2).path("id").asString()).isEqualTo("random-seat-vs-faction-greedy-v1");
+        assertThat(two.path("tables").get(2).path("seats").get(0).path("policy").asString())
+                .isEqualTo("random-v1");
+        assertThat(two.path("lines").get(0).path("interval").asString())
+                .isEqualTo("BLOCK_BOOTSTRAP_UNION_CLOPPER_PEARSON");
+        var g07 = two.path("lines").get(6);
+        assertThat(g07.path("id").asString()).isEqualTo("G-07");
+        assertThat(g07.path("populations").get(0).path("table").asString())
+                .isEqualTo("random-seat-vs-faction-greedy-v1");
+        assertThat(g07.path("populations").get(0).path("policy").asString()).isEqualTo("random-v1");
+        assertThat(g07.path("band").path("upper").asDouble()).isEqualTo(1.0);
+        assertThat(two.path("evidence").path("confirmationMinimumSeeds").asInt())
+                .isEqualTo(104);
+        mockMvc.perform(get("/api/v1/balance-criteria/3").with(read()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
         mockMvc.perform(post("/api/v1/balance-criteria").with(read()).contentType(MediaType.APPLICATION_JSON))

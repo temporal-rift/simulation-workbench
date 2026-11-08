@@ -42,6 +42,16 @@ public final class BlockSeries {
         return weighted(denominator, plan);
     }
 
+    /** The numerator summed over every block once. */
+    public long totalNumerator() {
+        return java.util.Arrays.stream(numerator).sum();
+    }
+
+    /** The denominator summed over every block once. */
+    public long totalDenominator() {
+        return java.util.Arrays.stream(denominator).sum();
+    }
+
     /** Numerator over denominator under the plan, or NaN when the denominator is 0. */
     public double ratio(int[] plan) {
         var den = denominator(plan);

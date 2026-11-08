@@ -64,10 +64,13 @@ class RunEvaluatorTest {
         var lines = evaluation.lines().stream()
                 .filter(line -> line.lineId().equals("G-02"))
                 .toList();
-        assertThat(lines).hasSize(1);
+        // The run played only the faction-greedy table, so the random-v1 population has no data at its player count.
+        assertThat(lines).extracting(EvaluatedLine::policyId).containsExactly(GREEDY, RANDOM);
         assertThat(lines.getFirst().value()).isZero();
         assertThat(lines.getFirst().deviation()).isZero();
         assertThat(lines.getFirst().verdict()).isEqualTo(LineVerdict.MEETS);
+        assertThat(lines.getLast().status()).isEqualTo(MetricStatus.NO_DATA);
+        assertThat(lines.getLast().verdict()).isEqualTo(LineVerdict.INCONCLUSIVE);
     }
 
     @Test
@@ -105,7 +108,8 @@ class RunEvaluatorTest {
 
         // L-07 has no findings to divide by, which is no data rather than a thin sample.
         assertThat(evaluation.lines())
-                .filteredOn(line -> !line.lineId().equals("L-07"))
+                .filteredOn(
+                        line -> !line.lineId().equals("L-07") && line.policyId().equals(GREEDY))
                 .isNotEmpty()
                 .allSatisfy(line -> {
                     assertThat(line.status()).isEqualTo(MetricStatus.INSUFFICIENT_SAMPLE);
