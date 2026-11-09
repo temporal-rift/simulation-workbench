@@ -14,7 +14,9 @@ import io.github.temporalrift.workbench.shared.window.WindowKind;
 
 interface EvidenceStepJpaRepository extends JpaRepository<EvidenceStepJpaEntity, EvidenceStepJpaEntity.Key> {
 
-    Optional<EvidenceStepJpaEntity> findFirstByScopeIdAndGameIdOrderByStepDesc(UUID scopeId, UUID gameId);
+    /** The last recorded step number, read without loading the row and its observation text. */
+    @Query("select max(s.step) from EvidenceStepJpaEntity s where s.scopeId = :scopeId and s.gameId = :gameId")
+    Optional<Integer> lastStep(@Param("scopeId") UUID scopeId, @Param("gameId") UUID gameId);
 
     List<EvidenceStepJpaEntity> findAllByScopeIdAndGameIdOrderByStep(UUID scopeId, UUID gameId);
 
