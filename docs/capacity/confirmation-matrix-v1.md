@@ -4,7 +4,10 @@ The criterion version 2 confirmation matrix played on the baseline rules on the 
 17,160 games, 104 seeds. It measures the confirmation's duration, the within-seed correlation that sizes its sample, the
 baseline's faction ratios on the two lines that depend on the new table, and the baseline's verdict. It is the
 measurement behind [budget record version 3](../budget/v3.md). The analysis is
-[confirmation-matrix-v1.py](confirmation-matrix-v1.py).
+[confirmation-matrix-v1.py](confirmation-matrix-v1.py), run as
+`python -I confirmation-matrix-v1.py <run.json> <replay-run.json>...` on the case records of the run and of the runs that
+replayed its failed cases (see "Failed cases and interruptions"). It merges them by game and stops, reporting nothing,
+unless all 17,160 games then have a result.
 
 ## Method
 
@@ -154,6 +157,87 @@ at every count, PROPHETS at 3 and 4 and ACTIVISTS at 4. The G-01 line at five pl
 below. A verdict on the replayed cases is not available from the endpoint; the table above is computed from the merged
 cases and agrees with the endpoint's G-05 and G-07 values to the third decimal, except G-07 at five players (by at most 0.003),
 where the endpoint's run lacks the replayed mixed cases.
+
+**Origin of the figures.** The verdicts and line values of this section, G-06 and L-01 below included, are the
+endpoint's evaluation of the original run, which lacks the 10 replayed cases. The correlation, the re-sizing and the
+G-05 and G-07 tables are computed from the original run merged with the replays.
+
+G-06 (a faction's win rate over `R` within one faction set, limit `[0.5, 2.0]`; players, set, faction, value, 95% interval,
+verdict; a set is written with the first three letters of its factions). The 3 `INCONCLUSIVE` lines are PROPHETS in the
+three-player sets ACT+PRO+REV, ACT+PRO+WEA and PRO+REV+WEA.
+
+| Players | Faction set | Faction | Value | Interval | Verdict |
+|---:|---|---|---:|---|---|
+| 3 | ACT+ERA+PRO | ACTIVISTS | 0.000 | [0.000, 0.000] | FAILS |
+| 3 | ACT+ERA+PRO | ERASERS | 3.000 | [3.000, 3.000] | FAILS |
+| 3 | ACT+ERA+PRO | PROPHETS | 0.000 | [0.000, 0.000] | FAILS |
+| 3 | ACT+ERA+REV | ACTIVISTS | 0.000 | [0.000, 0.000] | FAILS |
+| 3 | ACT+ERA+REV | ERASERS | 2.981 | [2.952, 3.000] | FAILS |
+| 3 | ACT+ERA+REV | REVISIONISTS | 0.019 | [0.000, 0.048] | FAILS |
+| 3 | ACT+ERA+WEA | ACTIVISTS | 0.009 | [0.000, 0.028] | FAILS |
+| 3 | ACT+ERA+WEA | ERASERS | 2.934 | [2.879, 2.981] | FAILS |
+| 3 | ACT+ERA+WEA | WEAVERS | 0.057 | [0.010, 0.112] | FAILS |
+| 3 | ACT+PRO+REV | ACTIVISTS | 0.921 | [0.830, 1.008] | MEETS |
+| 3 | ACT+PRO+REV | PROPHETS | 0.526 | [0.422, 0.627] | INCONCLUSIVE |
+| 3 | ACT+PRO+REV | REVISIONISTS | 1.553 | [1.465, 1.643] | MEETS |
+| 3 | ACT+PRO+WEA | ACTIVISTS | 0.996 | [0.921, 1.069] | MEETS |
+| 3 | ACT+PRO+WEA | PROPHETS | 0.421 | [0.329, 0.515] | INCONCLUSIVE |
+| 3 | ACT+PRO+WEA | WEAVERS | 1.583 | [1.497, 1.669] | MEETS |
+| 3 | ACT+REV+WEA | ACTIVISTS | 0.810 | [0.754, 0.863] | MEETS |
+| 3 | ACT+REV+WEA | REVISIONISTS | 1.027 | [0.978, 1.076] | MEETS |
+| 3 | ACT+REV+WEA | WEAVERS | 1.163 | [1.123, 1.203] | MEETS |
+| 3 | ERA+PRO+REV | ERASERS | 2.981 | [2.943, 3.000] | FAILS |
+| 3 | ERA+PRO+REV | PROPHETS | 0.000 | [0.000, 0.000] | FAILS |
+| 3 | ERA+PRO+REV | REVISIONISTS | 0.019 | [0.000, 0.057] | FAILS |
+| 3 | ERA+PRO+WEA | ERASERS | 2.962 | [2.916, 3.000] | FAILS |
+| 3 | ERA+PRO+WEA | PROPHETS | 0.000 | [0.000, 0.000] | FAILS |
+| 3 | ERA+PRO+WEA | WEAVERS | 0.038 | [0.000, 0.084] | FAILS |
+| 3 | ERA+REV+WEA | ERASERS | 2.962 | [2.907, 3.000] | FAILS |
+| 3 | ERA+REV+WEA | REVISIONISTS | 0.009 | [0.000, 0.028] | FAILS |
+| 3 | ERA+REV+WEA | WEAVERS | 0.028 | [0.000, 0.083] | FAILS |
+| 3 | PRO+REV+WEA | PROPHETS | 0.412 | [0.315, 0.510] | INCONCLUSIVE |
+| 3 | PRO+REV+WEA | REVISIONISTS | 1.197 | [1.128, 1.265] | MEETS |
+| 3 | PRO+REV+WEA | WEAVERS | 1.392 | [1.312, 1.473] | MEETS |
+| 4 | ACT+ERA+PRO+REV | ACTIVISTS | 0.000 | [0.000, 0.000] | FAILS |
+| 4 | ACT+ERA+PRO+REV | ERASERS | 3.952 | [3.904, 3.990] | FAILS |
+| 4 | ACT+ERA+PRO+REV | PROPHETS | 0.010 | [0.000, 0.029] | FAILS |
+| 4 | ACT+ERA+PRO+REV | REVISIONISTS | 0.038 | [0.010, 0.077] | FAILS |
+| 4 | ACT+ERA+PRO+WEA | ACTIVISTS | 0.000 | [0.000, 0.000] | FAILS |
+| 4 | ACT+ERA+PRO+WEA | ERASERS | 3.943 | [3.878, 3.990] | FAILS |
+| 4 | ACT+ERA+PRO+WEA | PROPHETS | 0.000 | [0.000, 0.000] | FAILS |
+| 4 | ACT+ERA+PRO+WEA | WEAVERS | 0.057 | [0.010, 0.122] | FAILS |
+| 4 | ACT+ERA+REV+WEA | ACTIVISTS | 0.000 | [0.000, 0.000] | FAILS |
+| 4 | ACT+ERA+REV+WEA | ERASERS | 3.849 | [3.747, 3.933] | FAILS |
+| 4 | ACT+ERA+REV+WEA | REVISIONISTS | 0.066 | [0.019, 0.125] | FAILS |
+| 4 | ACT+ERA+REV+WEA | WEAVERS | 0.085 | [0.019, 0.167] | FAILS |
+| 4 | ACT+PRO+REV+WEA | ACTIVISTS | 0.946 | [0.884, 1.002] | MEETS |
+| 4 | ACT+PRO+REV+WEA | PROPHETS | 0.366 | [0.290, 0.441] | FAILS |
+| 4 | ACT+PRO+REV+WEA | REVISIONISTS | 1.296 | [1.245, 1.346] | MEETS |
+| 4 | ACT+PRO+REV+WEA | WEAVERS | 1.393 | [1.348, 1.441] | MEETS |
+| 4 | ERA+PRO+REV+WEA | ERASERS | 3.962 | [3.888, 4.000] | FAILS |
+| 4 | ERA+PRO+REV+WEA | PROPHETS | 0.010 | [0.000, 0.028] | FAILS |
+| 4 | ERA+PRO+REV+WEA | REVISIONISTS | 0.000 | [0.000, 0.000] | FAILS |
+| 4 | ERA+PRO+REV+WEA | WEAVERS | 0.029 | [0.000, 0.075] | FAILS |
+
+L-01 (a faction's win rate over `R` across all sets, band `[0.8, 1.25]`; players, faction, value, 95% interval, verdict).
+
+| Players | Faction | Value | Interval | Verdict |
+|---:|---|---:|---|---|
+| 3 | ACTIVISTS | 0.629 | [0.593, 0.662] | FAILS |
+| 3 | ERASERS | 2.225 | [2.196, 2.254] | FAILS |
+| 3 | PROPHETS | 0.287 | [0.234, 0.346] | FAILS |
+| 3 | REVISIONISTS | 0.871 | [0.837, 0.904] | MEETS |
+| 3 | WEAVERS | 0.988 | [0.960, 1.015] | MEETS |
+| 4 | ACTIVISTS | 0.449 | [0.416, 0.481] | FAILS |
+| 4 | ERASERS | 3.044 | [2.995, 3.095] | FAILS |
+| 4 | PROPHETS | 0.177 | [0.143, 0.213] | FAILS |
+| 4 | REVISIONISTS | 0.635 | [0.601, 0.665] | FAILS |
+| 4 | WEAVERS | 0.694 | [0.665, 0.725] | FAILS |
+| 5 | ACTIVISTS | 0.000 | [0.000, 0.000] | FAILS |
+| 5 | ERASERS | 4.885 | [4.802, 4.952] | FAILS |
+| 5 | PROPHETS | 0.010 | [0.000, 0.029] | FAILS |
+| 5 | REVISIONISTS | 0.038 | [0.010, 0.076] | FAILS |
+| 5 | WEAVERS | 0.067 | [0.019, 0.124] | FAILS |
 
 ## Failed cases and interruptions
 

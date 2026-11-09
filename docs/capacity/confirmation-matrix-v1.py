@@ -1,9 +1,12 @@
 """Confirmation-matrix analysis: within-seed correlation and the G-05 and G-07 ratios, per player count.
 
-Usage: python -I confirmation-matrix-v1.py <cases.json> [bootstrap-count]
+Usage: python -I confirmation-matrix-v1.py <cases.json> [<replay-cases.json> ...] [--bootstrap N]
 
-The input is the list of case records (``GET /runs/{runId}/cases/{caseId}``) of one run of the criterion version 2
-confirmation matrix. A seat-game is one faction's seat in one game.
+Each input is a list of case records (``GET /runs/{runId}/cases/{caseId}``). The first is the run of the criterion
+version 2 confirmation matrix; the others are runs that replayed its failed cases. The inputs are merged by game (seed, player count and seats): a
+``SUCCEEDED`` record replaces a record that did not succeed. The merged matrix must be complete, 17,160 cases that all
+succeeded with every seed playing its full 165 games, or the script stops without reporting anything. The report is
+written next to the first input. A seat-game is one faction's seat in one game.
 
 * ``rho``: the one-way random-effects intraclass correlation of one faction's seat-games, clustered by seed, as
   ``docs/capacity/five-player-analysis-v2.md`` estimates it, averaged over the factions whose win indicator varies.
@@ -28,6 +31,7 @@ TABLES = {"faction-greedy": "faction-greedy-v1", "random": "random-v1", "mixed":
 SEAT_GAMES_PER_SEED = {3: 18, 4: 16, 5: 5}  # one faction, one table: seat-games per seed
 Z_ALPHA, Z_BETA = 1.96, 1.28  # 95% confidence, 90% power
 SEED = 1
+GAMES_PER_SEED = 165  # 3 CONFIRMATION tables x 55 games
 
 
 def table_of(case):
@@ -37,6 +41,32 @@ def table_of(case):
     if policies[0] == "random" and set(policies[1:]) == {"faction-greedy"}:
         return TABLES["mixed"]
     raise ValueError(f"unexpected seating {policies}")
+
+
+def identity(case):
+    """The game a case plays: a replay run gives the same game other case and case-key identifiers."""
+    seats = tuple((a["seatIndex"], a["faction"], a["policyId"]) for a in case["assignments"])
+    return case["seed"], case["playerCount"], seats
+
+
+def merge(runs):
+    """One record per game, preferring a succeeded record; stops unless the matrix is then complete."""
+    merged = {}
+    for cases in runs:
+        for case in cases:
+            held = merged.get(identity(case))
+            if held is None or (held["state"] != "SUCCEEDED" and case["state"] == "SUCCEEDED"):
+                merged[identity(case)] = case
+    cases = list(merged.values())
+    failed = [c["caseId"] for c in cases if c["state"] != "SUCCEEDED"]
+    per_seed = defaultdict(int)
+    for case in cases:
+        per_seed[int(case["seed"])] += 1
+    short = sorted(seed for seed, n in per_seed.items() if n != GAMES_PER_SEED)
+    if failed or short:
+        sys.exit(f"incomplete matrix: {len(failed)} cases did not succeed ({failed[:5]}), "
+                 f"{len(short)} seeds without {GAMES_PER_SEED} cases ({short[:5]}); add the replay runs")
+    return cases
 
 
 def aggregate(cases):
@@ -104,9 +134,10 @@ def design_seeds(p, rho_p):
     return independent, math.ceil(independent * (1 + (m - 1) * rho_p))
 
 
-def main(path, resamples):
-    cases = json.load(open(path, encoding="utf-8"))
-    failed = [c for c in cases if c["state"] != "SUCCEEDED"]
+def main(paths, resamples):
+    path = paths[0]
+    cases = merge([json.load(open(p, encoding="utf-8")) for p in paths])
+    failed = []
     seeds, cells = aggregate(cases)
     rng = np.random.default_rng(SEED)
     boot = [rng.integers(0, len(seeds), len(seeds)) for _ in range(resamples)]
@@ -147,4 +178,10 @@ def main(path, resamples):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], int(sys.argv[2]) if len(sys.argv) > 2 else 2000)
+    args = sys.argv[1:]
+    count = 2000
+    if "--bootstrap" in args:
+        at = args.index("--bootstrap")
+        count = int(args[at + 1])
+        del args[at : at + 2]
+    main(args, count)
