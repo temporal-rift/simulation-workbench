@@ -107,20 +107,19 @@ class CaseCommandJpaEntity extends AssignedIdJpaEntity<CaseCommandJpaEntity.Key>
         this.updatedAt = now;
     }
 
-    void resolve(SlotResolution resolution, Instant now) {
-        this.status = resolution.status().name();
-        switch (resolution) {
-            case SlotResolution.Accepted _ -> setResolution(ACCEPTED, null);
-            case SlotResolution.Recovered _ -> setResolution(RECOVERED, null);
-            case SlotResolution.AbsentFromAcceptedState _ -> setResolution(ABSENT_FROM_ACCEPTED_STATE, null);
-            case SlotResolution.Rejected(var code) -> setResolution(REJECTED, code);
-        }
-        this.updatedAt = now;
+    /** The stored kind of a resolution. */
+    static String kindOf(SlotResolution resolution) {
+        return switch (resolution) {
+            case SlotResolution.Accepted _ -> ACCEPTED;
+            case SlotResolution.Recovered _ -> RECOVERED;
+            case SlotResolution.AbsentFromAcceptedState _ -> ABSENT_FROM_ACCEPTED_STATE;
+            case SlotResolution.Rejected _ -> REJECTED;
+        };
     }
 
-    private void setResolution(String kind, String code) {
-        this.resolutionKind = kind;
-        this.resolutionCode = code;
+    /** The stored rejection code of a resolution, null for one that carries none. */
+    static String codeOf(SlotResolution resolution) {
+        return resolution instanceof SlotResolution.Rejected(var code) ? code : null;
     }
 
     /** How the slot was settled, or null while it is in doubt. */

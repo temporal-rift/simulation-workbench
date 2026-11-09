@@ -100,11 +100,6 @@ class EvidenceStepJpaEntity extends AssignedIdJpaEntity<EvidenceStepJpaEntity.Ke
         return new Key(scopeId, gameId, step);
     }
 
-    void resolve(String outcome, String outcomeCode) {
-        this.outcome = outcome;
-        this.outcomeCode = outcomeCode;
-    }
-
     int step() {
         return step;
     }

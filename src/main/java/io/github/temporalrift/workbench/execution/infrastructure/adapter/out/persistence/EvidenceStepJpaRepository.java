@@ -4,10 +4,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -26,9 +24,40 @@ interface EvidenceStepJpaRepository extends JpaRepository<EvidenceStepJpaEntity,
     List<EvidenceStepJpaEntity> findByScopeIdAndGameIdAndSeatIndexAndStepGreaterThanOrderByStep(
             UUID scopeId, UUID gameId, int seatIndex, int afterStep, Limit limit);
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    List<EvidenceStepJpaEntity> findAllWithLockByScopeIdAndGameIdAndSeatIndexAndWindowKindAndEraAndRoundAndOutcome(
-            UUID scopeId, UUID gameId, int seatIndex, WindowKind windowKind, int era, Integer round, String outcome);
+    /** Settles the unacknowledged steps of a seat's window with a round in one statement, without reading them. */
+    @Modifying
+    @Query("""
+            update EvidenceStepJpaEntity s set s.outcome = :outcome, s.outcomeCode = :code
+            where s.scopeId = :scopeId and s.gameId = :gameId and s.seatIndex = :seatIndex
+              and s.windowKind = :windowKind and s.era = :era and s.round = :round and s.outcome = :unacknowledged
+            """)
+    int resolveInRound(
+            @Param("scopeId") UUID scopeId,
+            @Param("gameId") UUID gameId,
+            @Param("seatIndex") int seatIndex,
+            @Param("windowKind") WindowKind windowKind,
+            @Param("era") int era,
+            @Param("round") int round,
+            @Param("unacknowledged") String unacknowledged,
+            @Param("outcome") String outcome,
+            @Param("code") String code);
+
+    /** The same for a window that has no round. */
+    @Modifying
+    @Query("""
+            update EvidenceStepJpaEntity s set s.outcome = :outcome, s.outcomeCode = :code
+            where s.scopeId = :scopeId and s.gameId = :gameId and s.seatIndex = :seatIndex
+              and s.windowKind = :windowKind and s.era = :era and s.round is null and s.outcome = :unacknowledged
+            """)
+    int resolveWithoutRound(
+            @Param("scopeId") UUID scopeId,
+            @Param("gameId") UUID gameId,
+            @Param("seatIndex") int seatIndex,
+            @Param("windowKind") WindowKind windowKind,
+            @Param("era") int era,
+            @Param("unacknowledged") String unacknowledged,
+            @Param("outcome") String outcome,
+            @Param("code") String code);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from EvidenceStepJpaEntity s where s.scopeId = :scopeId")

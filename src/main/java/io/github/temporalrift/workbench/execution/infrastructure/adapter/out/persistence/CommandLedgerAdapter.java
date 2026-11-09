@@ -38,9 +38,8 @@ public class CommandLedgerAdapter implements CommandLedger {
 
     @Override
     public CommandIntent begin(SlotId slot, UUID attemptId, String request, Instant now) {
-        if (!commands.existsById(CaseCommandJpaEntity.Key.of(slot))
-                && insertOnce.insert(() -> commands.saveAndFlush(
-                        new CaseCommandJpaEntity(slot, attemptId, request, SlotStatus.SENT, now)))) {
+        if (insertOnce.insert(() ->
+                commands.saveAndFlush(new CaseCommandJpaEntity(slot, attemptId, request, SlotStatus.SENT, now)))) {
             return new CommandIntent.Send();
         }
         return slots.decide(slot, attemptId, request, now);
@@ -49,7 +48,17 @@ public class CommandLedgerAdapter implements CommandLedger {
     @Override
     @Transactional
     public void resolve(SlotId slot, SlotResolution resolution, Instant now) {
-        commands.findById(CaseCommandJpaEntity.Key.of(slot)).ifPresent(command -> command.resolve(resolution, now));
+        var window = slot.window();
+        commands.resolve(
+                slot.caseId(),
+                slot.seatIndex(),
+                window.kind(),
+                window.era(),
+                CaseCommandJpaEntity.roundColumn(window),
+                resolution.status().name(),
+                CaseCommandJpaEntity.kindOf(resolution),
+                CaseCommandJpaEntity.codeOf(resolution),
+                now);
     }
 
     @Override

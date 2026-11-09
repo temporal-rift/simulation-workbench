@@ -121,9 +121,21 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
     @Override
     @Transactional
     public void resolve(UUID scopeId, UUID gameId, int seatIndex, WindowRef window, StepOutcome outcome, String code) {
-        steps.findAllWithLockByScopeIdAndGameIdAndSeatIndexAndWindowKindAndEraAndRoundAndOutcome(
-                        scopeId, gameId, seatIndex, window.kind(), window.era(), window.round(), UNACKNOWLEDGED)
-                .forEach(step -> step.resolve(outcome.name(), code));
+        if (window.round() == null) {
+            steps.resolveWithoutRound(
+                    scopeId, gameId, seatIndex, window.kind(), window.era(), UNACKNOWLEDGED, outcome.name(), code);
+        } else {
+            steps.resolveInRound(
+                    scopeId,
+                    gameId,
+                    seatIndex,
+                    window.kind(),
+                    window.era(),
+                    window.round(),
+                    UNACKNOWLEDGED,
+                    outcome.name(),
+                    code);
+        }
     }
 
     @Override
