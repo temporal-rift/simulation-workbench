@@ -73,8 +73,11 @@ mvn -o -Dskip.installnodenpm -Dskip.npm test -Dtest=ReportCalculatorTest
 mvn -o -Dskip.installnodenpm -Dskip.npm verify -Dit.test=AnalysisIT
 ```
 
-Integration tests run in one fork by default; `-Dfailsafe.forkCount=2` runs two forks, each with its own
-Testcontainers and database, which shortens the suite on machines with spare cores.
+Integration tests run in two parallel forks by default, each with its own Testcontainers and database. Docker must
+be running and should have at least 4 CPUs and 8 GB of memory; a full `mvn verify` is expected to take about 10
+minutes on a 20-thread laptop and about 7 minutes in CI. `-Dfailsafe.forkCount=1` runs one fork on machines with
+fewer cores. A test method that makes no progress for ten minutes fails and names its class, so a hung run ends
+instead of running for hours.
 
 ## Dependencies
 

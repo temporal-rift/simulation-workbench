@@ -79,8 +79,8 @@
         <node.version>v22.23.3</node.version>
         <!-- Declared so the UI checks follow -DskipTests like the Java tests do. -->
         <skipTests>false</skipTests>
-        <!-- Overridable per environment: CI runs integration tests in two parallel forks. -->
-        <failsafe.forkCount>1</failsafe.forkCount>
+        <!-- Two parallel integration test forks, each with its own Testcontainers and database; override per environment. -->
+        <failsafe.forkCount>2</failsafe.forkCount>
         <!-- JaCoCo sets argLine to its agent; empty when JaCoCo is skipped, so @{argLine} still resolves. -->
         <argLine/>
         <!--
