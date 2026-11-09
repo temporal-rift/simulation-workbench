@@ -30,10 +30,17 @@ public class CommandLedgerAdapter implements CommandLedger {
     private final InsertOnce insertOnce;
     private final CommandSlots slots;
 
-    CommandLedgerAdapter(CaseCommandJpaRepository commands, InsertOnce insertOnce, CommandSlots slots) {
+    private final SettlementUpdates settlements;
+
+    CommandLedgerAdapter(
+            CaseCommandJpaRepository commands,
+            InsertOnce insertOnce,
+            CommandSlots slots,
+            SettlementUpdates settlements) {
         this.commands = commands;
         this.insertOnce = insertOnce;
         this.slots = slots;
+        this.settlements = settlements;
     }
 
     @Override
@@ -48,17 +55,7 @@ public class CommandLedgerAdapter implements CommandLedger {
     @Override
     @Transactional
     public void resolve(SlotId slot, SlotResolution resolution, Instant now) {
-        var window = slot.window();
-        commands.resolve(
-                slot.caseId(),
-                slot.seatIndex(),
-                window.kind(),
-                window.era(),
-                CaseCommandJpaEntity.roundColumn(window),
-                resolution.status().name(),
-                CaseCommandJpaEntity.kindOf(resolution),
-                CaseCommandJpaEntity.codeOf(resolution),
-                now);
+        settlements.resolveSlot(slot, resolution, now);
     }
 
     @Override

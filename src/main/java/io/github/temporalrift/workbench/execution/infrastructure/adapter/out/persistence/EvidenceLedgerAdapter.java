@@ -40,7 +40,6 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
 
     private static final String JSON = "application/json";
     private static final String TEXT = "text/plain";
-    private static final String UNACKNOWLEDGED = "UNACKNOWLEDGED";
 
     /** Sources are topic names, so their natural order is the byte order the ledger always listed them in. */
     private static final Comparator<EvidenceEventJpaEntity> EVENT_ORDER = Comparator.comparing(
@@ -56,6 +55,7 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
     private final InsertOnce insertOnce;
     private final EvidenceUpdates updates;
     private final EvidenceBatchWrites batches;
+    private final SettlementUpdates settlements;
     private final Clock clock;
 
     EvidenceLedgerAdapter(
@@ -67,7 +67,9 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
             InsertOnce insertOnce,
             EvidenceUpdates updates,
             EvidenceBatchWrites batches,
+            SettlementUpdates settlements,
             Clock clock) {
+        this.settlements = settlements;
         this.artifacts = artifacts;
         this.evidence = evidence;
         this.steps = steps;
@@ -119,21 +121,7 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
     @Override
     @Transactional
     public void resolve(UUID scopeId, UUID gameId, int seatIndex, WindowRef window, StepOutcome outcome, String code) {
-        if (window.round() == null) {
-            steps.resolveWithoutRound(
-                    scopeId, gameId, seatIndex, window.kind(), window.era(), UNACKNOWLEDGED, outcome.name(), code);
-        } else {
-            steps.resolveInRound(
-                    scopeId,
-                    gameId,
-                    seatIndex,
-                    window.kind(),
-                    window.era(),
-                    window.round(),
-                    UNACKNOWLEDGED,
-                    outcome.name(),
-                    code);
-        }
+        settlements.resolveSteps(scopeId, gameId, seatIndex, window, outcome, code);
     }
 
     @Override
