@@ -85,7 +85,7 @@ class SimulatorEventObserverTest {
     }
 
     @Test
-    void resumesFromTheOffsetsItRetainedWithoutRetainingARecordTwice() {
+    void anObserverOfTheSameRouterRetainsNoRecordTwice() {
         router.bind(allTo(NOBODY));
         publish(SlotEventRouter.GAME_EVENTS, GAME, "LobbyStarted", "{}");
         awaitIdle();
@@ -100,6 +100,57 @@ class SimulatorEventObserverTest {
                 .containsExactlyInAnyOrder("LobbyStarted", "EraStarted");
         assertThat(evidence.offsets(SCOPE, GAME))
                 .containsEntry(new EvidenceLedger.SourcePartition(SlotEventRouter.GAME_EVENTS, 0), 2L);
+    }
+
+    @Test
+    void aReattemptOnAFreshRouterReadsItsOwnGameEvenThoughAnEarlierAttemptRetainedLaterOffsets() {
+        router.bind(allTo(NOBODY));
+        for (var i = 0; i < 5; i++) {
+            publish(SlotEventRouter.GAME_EVENTS, OTHER_GAME, "LobbyStarted", "{}");
+        }
+        publish(SlotEventRouter.GAME_EVENTS, GAME, "LobbyStarted", "{}");
+        awaitIdle();
+        observer(GAME).drain();
+        assertThat(evidence.offsets(SCOPE, GAME))
+                .containsEntry(new EvidenceLedger.SourcePartition(SlotEventRouter.GAME_EVENTS, 0), 6L);
+        // The services restarted: the game is the same one (its identity is derived from the case), the router is new.
+        try (var restarted = new SlotEventRouter()) {
+            restarted.bind(allTo(NOBODY));
+            publish(restarted, SlotEventRouter.GAME_EVENTS, GAME, "LobbyStarted", "{}");
+            publish(restarted, SlotEventRouter.GAME_EVENTS, GAME, "GameEnded", ended(GAME));
+            Awaitility.await().atMost(5, TimeUnit.SECONDS).until(restarted::idle);
+            var reattempt = new SimulatorEventObserver(
+                    restarted,
+                    evidence,
+                    JsonMapper.builder().build(),
+                    new SimulatorEventObserver.Target(SCOPE, new UUID(5, 5), GAME));
+
+            reattempt.drain();
+
+            assertThat(reattempt.gameEnded()).isPresent();
+            assertThat(evidence.events(SCOPE, GAME))
+                    .extracting(ObservedEvent::eventType)
+                    .contains("GameEnded");
+        }
+    }
+
+    @Test
+    void aReattemptDoesNotTakeTheEndOfAnEarlierAttemptsGameForItsOwn() {
+        router.bind(allTo(NOBODY));
+        publish(SlotEventRouter.GAME_EVENTS, GAME, "GameEnded", ended(GAME));
+        awaitIdle();
+        observer(GAME).drain();
+
+        try (var restarted = new SlotEventRouter()) {
+            restarted.bind(allTo(NOBODY));
+            var reattempt = new SimulatorEventObserver(
+                    restarted,
+                    evidence,
+                    JsonMapper.builder().build(),
+                    new SimulatorEventObserver.Target(SCOPE, new UUID(5, 5), GAME));
+
+            assertThat(reattempt.gameEnded()).isEmpty();
+        }
     }
 
     @Test
@@ -148,7 +199,15 @@ class SimulatorEventObserverTest {
                 new SimulatorEventObserver.Target(SCOPE, ATTEMPT, game));
     }
 
+    private static String ended(UUID game) {
+        return "{\"gameId\":\"" + game + "\",\"endReason\":\"TIMELINE_COLLAPSED\",\"finalScores\":[]}";
+    }
+
     private UUID publish(String topic, UUID game, String type, String payload) {
+        return publish(router, topic, game, type, payload);
+    }
+
+    private static UUID publish(SlotEventRouter router, String topic, UUID game, String type, String payload) {
         var eventId = UUID.randomUUID();
         router.publish(Map.of(
                 "topic",
