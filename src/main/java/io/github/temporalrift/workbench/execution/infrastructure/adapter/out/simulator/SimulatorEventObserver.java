@@ -18,9 +18,16 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 import io.github.temporalrift.workbench.shared.execution.FailureCode;
 
 /**
- * Retains the records the slot routed for one game as evidence, exactly as delivered to the services. It resumes from
- * the offsets it retained, and a drain reports the end of every source only once the slot has delivered everything it
- * was handed, so nothing published earlier is still on its way. It never feeds a policy.
+ * Retains the records the slot routed for one game as evidence, exactly as delivered to the services. It reads the
+ * router from its first record and keeps its own position, and a drain reports the end of every source only once the
+ * slot has delivered everything it was handed, so nothing published earlier is still on its way. It never feeds a
+ * policy.
+ *
+ * <p>It does not resume from the offsets earlier observers retained. A router lives as long as its slot's services and
+ * numbers the records of every game the slot played, so an offset retained by an earlier attempt means nothing in the
+ * router of this one; and a case's game keeps its identity across attempts, so the evidence of the earlier attempt is
+ * under the same game. Resuming there skips everything this attempt's game published before that offset, its end
+ * included. For the same reason the end of a game is only the one this router delivered.
  */
 final class SimulatorEventObserver implements GameEventObserver {
 
@@ -45,12 +52,9 @@ final class SimulatorEventObserver implements GameEventObserver {
         this.evidence = evidence;
         this.objectMapper = objectMapper;
         this.target = target;
-        var retained = evidence.offsets(target.scopeId(), target.gameId());
         for (var topic : TOPICS) {
-            positions.put(topic, retained.getOrDefault(new EvidenceLedger.SourcePartition(topic, PARTITION), 0L));
+            positions.put(topic, 0L);
         }
-        evidence.firstEventOfType(target.scopeId(), target.gameId(), GameEndedParser.EVENT_TYPE)
-                .ifPresent(event -> gameEnded = GameEndedParser.parse(objectMapper, event));
     }
 
     @Override
