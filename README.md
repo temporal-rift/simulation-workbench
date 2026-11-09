@@ -314,10 +314,13 @@ read with `listParameterSpaces` and `getParameterSpace`. Its constraints are exp
 chains over `+`, `-`, `*`, `max` and `and`; a subtraction needs spaces around `-` because keys contain it) that the
 workbench both serves and evaluates.
 
-Budget record version 2 ([docs/budget/v2.md](docs/budget/v2.md)) computes, from the measured capacity, the search
-parameters that fit the default budget of 4 active hours on the simulator and the duration of the confirmation; it
-supersedes version 1 ([docs/budget/v1.md](docs/budget/v1.md)), which is unchanged. Its search parameters are
-configuration (`search-budgets/v2.json`) and the default `SearchAlgorithm` values of a new campaign.
+Budget record version 3 ([docs/budget/v3.md](docs/budget/v3.md)) computes the search parameters that fit the default
+budget of 4 active hours on the simulator and the duration of the confirmation, which plays on the simulator with no
+baseline run, and measures the confirmation matrix on the baseline rules
+([docs/capacity/confirmation-matrix-v1.md](docs/capacity/confirmation-matrix-v1.md)). It supersedes version 2
+([docs/budget/v2.md](docs/budget/v2.md)) and version 1 ([docs/budget/v1.md](docs/budget/v1.md)), both unchanged. Its
+search parameters are configuration (`search-budgets/v3.json`) and the default `SearchAlgorithm` values of a new
+campaign.
 
 Materialising a variant is a pure function of the baseline document, the space and the overrides: every key must be a
 parameter, every value in range and on its step; overrides equal to the baseline are dropped; the rest replace the
@@ -743,7 +746,8 @@ whatever policies the search used), and starts one run per experiment. No baseli
 the criterion's fixed bands and never against the baseline. Under criterion version 2 the tables include the mixed table
 `random-seat-vs-faction-greedy-v1`, so a candidate over player counts 3, 4 and 5 plays 104 seeds × 165 games = 17,160
 games: about 3.2 hours at 12 games at once (5,402 games per hour on the simulator) and about 4.3 hours at the default of
-4 (4,003 per hour). Those rates were measured before the mixed table existed. The runs play one after another, each at
+4 (4,003 per hour). The confirmation matrix played at 12 slots at 5,579 games per hour over its last 2.4 hours
+([docs/capacity/confirmation-matrix-v1.md](docs/capacity/confirmation-matrix-v1.md)). The runs play one after another, each at
 the campaign's `parallelism`, and a change of it applies from the next case on; the worker releases the next run when the
 one before it is complete and resumes an interrupted run after a restart. A confirmation recorded when it still played on
 the real services keeps its runs, its `baseline` run included, and is evaluated and shown as it was. When every run is complete the worker evaluates each
