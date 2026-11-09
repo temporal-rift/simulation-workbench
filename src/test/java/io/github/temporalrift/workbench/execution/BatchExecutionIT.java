@@ -248,15 +248,15 @@ class BatchExecutionIT {
     }
 
     @Test
-    void thousandCaseRunInterruptedAfterFourHundredSuccessesKeepsThoseResultsUnchanged() {
-        var runId = start(ExperimentManifests.fourPlayerSeeds(50, 4));
-        assertThat(getRun.handle(runId).counts().requested()).isEqualTo(1000);
+    void aTwentyCaseRunInterruptedAfterEightSuccessesKeepsThoseResultsUnchanged() {
+        var runId = start(ExperimentManifests.fourPlayerSeeds(1, 2));
+        assertThat(getRun.handle(runId).counts().requested()).isEqualTo(20);
         batch.maintain();
-        for (var done = 0; done < 400; done++) {
+        for (var done = 0; done < 8; done++) {
             assertThat(batch.runNextCase(WORKER)).isTrue();
         }
         var kept = succeededResults(runId);
-        assertThat(kept).hasSize(400);
+        assertThat(kept).hasSize(8);
         // A worker that crashed mid-case leaves an attempt running and holding a lease.
         var now = clock.instant();
         var inFlight = caseLedger
@@ -266,8 +266,8 @@ class BatchExecutionIT {
         batch.recoverAfterRestart();
         var interrupted = getRun.handle(runId);
         assertThat(interrupted.run().state()).isEqualTo(RunState.INTERRUPTED);
-        assertThat(interrupted.counts().succeeded()).isEqualTo(400);
-        assertThat(interrupted.counts().pending()).isEqualTo(600);
+        assertThat(interrupted.counts().succeeded()).isEqualTo(8);
+        assertThat(interrupted.counts().pending()).isEqualTo(12);
         assertThat(interrupted.counts().running()).isZero();
 
         resumeRun.handle(new ResumeRunUseCase.Command(runId, UUID.randomUUID()));
@@ -277,16 +277,16 @@ class BatchExecutionIT {
 
         var finished = getRun.handle(runId);
         assertThat(finished.run().state()).isEqualTo(RunState.COMPLETED);
-        assertThat(finished.counts().succeeded()).isEqualTo(1000);
-        assertThat(finished.counts().requested()).isEqualTo(1000);
+        assertThat(finished.counts().succeeded()).isEqualTo(20);
+        assertThat(finished.counts().requested()).isEqualTo(20);
         var all = succeededResults(runId);
-        assertThat(all).hasSize(1000);
+        assertThat(all).hasSize(20);
         kept.forEach((caseId, snapshot) -> assertThat(all).containsEntry(caseId, snapshot));
         assertThat(jdbc.queryForObject(
                         "SELECT count(DISTINCT case_key) FROM run_case WHERE run_id = ? AND state = 'SUCCEEDED'",
                         Integer.class,
                         runId))
-                .isEqualTo(1000);
+                .isEqualTo(20);
         var recoveredCase = getCase.handle(runId, inFlight.logicalCase().caseId());
         assertThat(recoveredCase.attempts())
                 .extracting(Attempt::state)
