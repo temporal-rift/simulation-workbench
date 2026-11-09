@@ -258,13 +258,16 @@ to move the database off its fsynced mount. First attempts did not fail in any o
 | `810dffa2-600b-4c98-b448-9da4967e7b18` | 5023 | 5 | mixed | WEAVERS, ACTIVISTS, ERASERS, PROPHETS, REVISIONISTS |
 | `94071193-9968-48e1-b955-2c4529821a83` | 5024 | 3 | `faction-greedy-v1` | ACTIVISTS, ERASERS, PROPHETS |
 
-**Cause.** A command ledger is keyed by case, seat and decision window, and it answers a slot an earlier attempt had
-accepted with "already accepted" without sending it. A real lane keeps the game between attempts, so that is right
-there. The simulator keeps a game only in memory, so a second attempt of an interrupted case plays a new game that
-never receives the commands the ledger skips, plays on to the last window and waits for an ending that does not
-come. Of 12 second attempts after the stop, 10 failed this way; an earlier stop of the same kind left nine such cases
-running for 36 minutes each until they were cancelled, which is why the case limit was lowered to 300 s for this run (a
-normal case takes 3 to 67 s). It was not caused by a seed, by load, or by the game services.
+**Cause.** A case keeps the same game identity in every attempt. The observer of a second attempt resumed from the
+source offsets the first attempt had retained under that game. On the simulator those offsets number the records of a
+slot's in-memory router, which counts every game the slot played; after the workbench restart the router is new, so the
+second attempt's records, its game-ended record included, lie before the resumed position and are never retained, and
+the attempt waits for an ending it cannot see. In the stored evidence of one failed case the retained offset on the game
+topic is 54,766 and every retained event belongs to the first attempt, while the command ledger holds only the second
+attempt's 84 commands. Of 12 second attempts after the stop, 10 failed this way; an earlier stop of the same kind left
+nine such cases running for 36 minutes each until they were cancelled, which is why the case limit was lowered to 300 s
+for this run (a normal case takes 3 to 67 s). The fix is temporal-rift/simulation-workbench#142, not part of the builds
+measured here. It was not caused by a seed, by load, or by the game services.
 
 **Other interruptions.** The first two attempts to run the matrix were set to `INTERRUPTED` by the workbench, because a
 case's 60 s lease ran out while 12 slots were starting their services at once and no checkpoint had yet renewed it; the
