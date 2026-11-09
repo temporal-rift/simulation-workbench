@@ -20,10 +20,12 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -130,15 +132,18 @@ class FidelityProgressTest {
         when(playback.reproduce(eq(RUN), any(), eq("lane-1"), any()))
                 .thenAnswer(call ->
                         UUID.nameUUIDFromBytes(call.getArgument(1).toString().getBytes(StandardCharsets.UTF_8)));
-        when(playback.reproduction(any()))
-                .thenReturn(Optional.of(new FidelityPlayback.Reproduced(
-                        status,
-                        status == FidelityPlayback.Reproduced.Status.DIVERGED
-                                ? new FirstDivergence(7, "END_REASON", Map.of(), Map.of())
-                                : null,
-                        status == FidelityPlayback.Reproduced.Status.FAILED
-                                ? new FidelityFailure("EXECUTION_FAILED", "crashed")
-                                : null)));
+        when(playback.reproductions(any())).thenAnswer(call -> {
+            var reproduced = new FidelityPlayback.Reproduced(
+                    status,
+                    status == FidelityPlayback.Reproduced.Status.DIVERGED
+                            ? new FirstDivergence(7, "END_REASON", Map.of(), Map.of())
+                            : null,
+                    status == FidelityPlayback.Reproduced.Status.FAILED
+                            ? new FidelityFailure("EXECUTION_FAILED", "crashed")
+                            : null);
+            return ((Collection<UUID>) call.getArgument(0))
+                    .stream().collect(Collectors.toMap(id -> id, id -> reproduced));
+        });
     }
 
     @Test

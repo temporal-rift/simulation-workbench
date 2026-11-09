@@ -1,9 +1,12 @@
 package io.github.temporalrift.workbench.fidelity.infrastructure.adapter.out.execution;
 
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import io.github.temporalrift.workbench.execution.CaseReproducer;
 import io.github.temporalrift.workbench.execution.DivergenceReport;
@@ -77,8 +80,9 @@ public class FidelityPlaybackAdapter implements FidelityPlayback {
     }
 
     @Override
-    public Optional<Reproduced> reproduction(UUID reproductionId) {
-        return reproducer.reproduction(reproductionId).map(FidelityPlaybackAdapter::reproduced);
+    public Map<UUID, Reproduced> reproductions(Collection<UUID> reproductionIds) {
+        return reproducer.reproductions(reproductionIds).entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, entry -> reproduced(entry.getValue())));
     }
 
     private static RunStatus status(RunSummary run) {

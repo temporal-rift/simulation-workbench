@@ -4,19 +4,17 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import io.github.temporalrift.workbench.shared.window.WindowKind;
-
 interface EvidenceStepJpaRepository extends JpaRepository<EvidenceStepJpaEntity, EvidenceStepJpaEntity.Key> {
 
-    Optional<EvidenceStepJpaEntity> findFirstByScopeIdAndGameIdOrderByStepDesc(UUID scopeId, UUID gameId);
+    /** The last recorded step number, read without loading the row and its observation text. */
+    @Query("select max(s.step) from EvidenceStepJpaEntity s where s.scopeId = :scopeId and s.gameId = :gameId")
+    Optional<Integer> lastStep(@Param("scopeId") UUID scopeId, @Param("gameId") UUID gameId);
 
     List<EvidenceStepJpaEntity> findAllByScopeIdAndGameIdOrderByStep(UUID scopeId, UUID gameId);
 
@@ -25,10 +23,6 @@ interface EvidenceStepJpaRepository extends JpaRepository<EvidenceStepJpaEntity,
 
     List<EvidenceStepJpaEntity> findByScopeIdAndGameIdAndSeatIndexAndStepGreaterThanOrderByStep(
             UUID scopeId, UUID gameId, int seatIndex, int afterStep, Limit limit);
-
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    List<EvidenceStepJpaEntity> findAllWithLockByScopeIdAndGameIdAndSeatIndexAndWindowKindAndEraAndRoundAndOutcome(
-            UUID scopeId, UUID gameId, int seatIndex, WindowKind windowKind, int era, Integer round, String outcome);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from EvidenceStepJpaEntity s where s.scopeId = :scopeId")

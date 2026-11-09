@@ -161,4 +161,4 @@ jobs:
               "-Dsonar.pullrequest.base=$SONAR_PR_BASE"
             )
           fi
-          mvn --batch-mode -f pom.xml -Dfailsafe.forkCount=2 verify sonar:sonar "${SONAR_ARGS[@]}"
+          mvn --batch-mode -f pom.xml verify sonar:sonar "${SONAR_ARGS[@]}"

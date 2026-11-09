@@ -1,6 +1,7 @@
 package io.github.temporalrift.workbench.execution.application.query;
 
-import java.util.Optional;
+import java.util.Collection;
+import java.util.Map;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.execution.application.port.in.GetReproductionUseCase;
@@ -16,7 +17,7 @@ public class GetReproductionQueryHandler implements GetReproductionUseCase {
     }
 
     @Override
-    public Optional<Reproduction> handle(UUID reproductionId) {
-        return reproductions.find(reproductionId);
+    public Map<UUID, Reproduction> handle(Collection<UUID> reproductionIds) {
+        return reproductions.findAll(reproductionIds);
     }
 }

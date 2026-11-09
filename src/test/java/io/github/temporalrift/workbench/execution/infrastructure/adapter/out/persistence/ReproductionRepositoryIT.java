@@ -115,8 +115,7 @@ class ReproductionRepositoryIT {
                 .isFalse();
         assertThat(reproductions.settle(queued.reproductionId(), "worker-a", queued.matched(NOW)))
                 .isTrue();
-        assertThat(reproductions.find(queued.reproductionId()).orElseThrow().state())
-                .isEqualTo(ReproductionState.MATCH);
+        assertThat(stored(queued).state()).isEqualTo(ReproductionState.MATCH);
         assertThat(reproductions.settle(queued.reproductionId(), "worker-a", queued.matched(NOW)))
                 .isFalse();
     }
@@ -141,8 +140,7 @@ class ReproductionRepositoryIT {
                 .isEmpty();
         assertThat(reproductions.claimNext("worker", NOW.plusSeconds(30), Map.of("lane-2", FIT)))
                 .isEmpty();
-        assertThat(reproductions.find(queued.reproductionId()).orElseThrow().state())
-                .isEqualTo(ReproductionState.QUEUED);
+        assertThat(stored(queued).state()).isEqualTo(ReproductionState.QUEUED);
         assertThat(reproductions.claimNext("worker", NOW.plusSeconds(30), Map.of("lane-1", FIT, "lane-2", OTHER_FIT)))
                 .map(Reproduction::reproductionId)
                 .contains(queued.reproductionId());
@@ -162,10 +160,10 @@ class ReproductionRepositoryIT {
                 "worker",
                 failed.failed(new Failure(FailureCode.RUNNER_TIMEOUT, "too slow"), NOW));
 
-        var stored = reproductions.find(diverged.reproductionId()).orElseThrow();
+        var stored = stored(diverged);
         assertThat(stored.state()).isEqualTo(ReproductionState.DIVERGED);
         assertThat(stored.firstDivergence()).isEqualTo(divergence);
-        var storedFailure = reproductions.find(failed.reproductionId()).orElseThrow();
+        var storedFailure = stored(failed);
         assertThat(storedFailure.state()).isEqualTo(ReproductionState.FAILED);
         assertThat(storedFailure.failure()).isEqualTo(new Failure(FailureCode.RUNNER_TIMEOUT, "too slow"));
     }
@@ -205,8 +203,11 @@ class ReproductionRepositoryIT {
 
         reproductions.release(queued.reproductionId(), "worker-a");
 
-        assertThat(reproductions.find(queued.reproductionId()).orElseThrow().state())
-                .isEqualTo(ReproductionState.QUEUED);
+        assertThat(stored(queued).state()).isEqualTo(ReproductionState.QUEUED);
+    }
+
+    private Reproduction stored(Reproduction reproduction) {
+        return reproductions.findAll(List.of(reproduction.reproductionId())).get(reproduction.reproductionId());
     }
 
     private Reproduction queue() {

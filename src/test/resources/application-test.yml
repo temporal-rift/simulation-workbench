@@ -23,8 +23,8 @@ spring:
 
 logging:
   level:
-    io.github.temporalrift: DEBUG
-    org.springframework.modulith: DEBUG
+    io.github.temporalrift: INFO
+    org.springframework.modulith: INFO
 
 workbench:
   execution:

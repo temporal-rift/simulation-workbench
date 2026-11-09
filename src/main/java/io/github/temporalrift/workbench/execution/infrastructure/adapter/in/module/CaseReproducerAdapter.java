@@ -1,7 +1,9 @@
 package io.github.temporalrift.workbench.execution.infrastructure.adapter.in.module;
 
-import java.util.Optional;
+import java.util.Collection;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import io.github.temporalrift.workbench.execution.CaseReproducer;
 import io.github.temporalrift.workbench.execution.ExecutionRefusedException;
@@ -40,8 +42,9 @@ public class CaseReproducerAdapter implements CaseReproducer {
     }
 
     @Override
-    public Optional<ReproductionOutcome> reproduction(UUID reproductionId) {
-        return getReproduction.handle(reproductionId).map(CaseReproducerAdapter::outcome);
+    public Map<UUID, ReproductionOutcome> reproductions(Collection<UUID> reproductionIds) {
+        return getReproduction.handle(reproductionIds).entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, entry -> outcome(entry.getValue())));
     }
 
     private static ReproductionOutcome outcome(Reproduction reproduction) {

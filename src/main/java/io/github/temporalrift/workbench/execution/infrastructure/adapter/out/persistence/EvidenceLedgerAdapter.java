@@ -40,7 +40,6 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
 
     private static final String JSON = "application/json";
     private static final String TEXT = "text/plain";
-    private static final String UNACKNOWLEDGED = "UNACKNOWLEDGED";
 
     /** Sources are topic names, so their natural order is the byte order the ledger always listed them in. */
     private static final Comparator<EvidenceEventJpaEntity> EVENT_ORDER = Comparator.comparing(
@@ -56,6 +55,7 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
     private final InsertOnce insertOnce;
     private final EvidenceUpdates updates;
     private final EvidenceBatchWrites batches;
+    private final SettlementUpdates settlements;
     private final Clock clock;
 
     EvidenceLedgerAdapter(
@@ -67,7 +67,9 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
             InsertOnce insertOnce,
             EvidenceUpdates updates,
             EvidenceBatchWrites batches,
+            SettlementUpdates settlements,
             Clock clock) {
+        this.settlements = settlements;
         this.artifacts = artifacts;
         this.evidence = evidence;
         this.steps = steps;
@@ -111,9 +113,7 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
     @Override
     @Transactional
     public int append(UUID scopeId, UUID gameId, UUID attemptId, StepRecord step) {
-        var next = steps.findFirstByScopeIdAndGameIdOrderByStepDesc(scopeId, gameId)
-                .map(latest -> latest.step() + 1)
-                .orElse(0);
+        var next = steps.lastStep(scopeId, gameId).map(latest -> latest + 1).orElse(0);
         steps.saveAndFlush(new EvidenceStepJpaEntity(scopeId, gameId, next, attemptId, step, clock.instant()));
         return next;
     }
@@ -121,9 +121,7 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
     @Override
     @Transactional
     public void resolve(UUID scopeId, UUID gameId, int seatIndex, WindowRef window, StepOutcome outcome, String code) {
-        steps.findAllWithLockByScopeIdAndGameIdAndSeatIndexAndWindowKindAndEraAndRoundAndOutcome(
-                        scopeId, gameId, seatIndex, window.kind(), window.era(), window.round(), UNACKNOWLEDGED)
-                .forEach(step -> step.resolve(outcome.name(), code));
+        settlements.resolveSteps(scopeId, gameId, seatIndex, window, outcome, code);
     }
 
     @Override
@@ -145,9 +143,7 @@ public class EvidenceLedgerAdapter implements EvidenceLedger {
 
     @Override
     public OptionalInt lastStep(UUID scopeId, UUID gameId) {
-        return steps.findFirstByScopeIdAndGameIdOrderByStepDesc(scopeId, gameId)
-                .map(latest -> OptionalInt.of(latest.step()))
-                .orElseGet(OptionalInt::empty);
+        return steps.lastStep(scopeId, gameId).map(OptionalInt::of).orElseGet(OptionalInt::empty);
     }
 
     @Override
