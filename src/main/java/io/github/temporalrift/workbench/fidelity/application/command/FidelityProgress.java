@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.fidelity.application.port.in.AdvanceFidelityUseCase;
@@ -229,8 +230,11 @@ public class FidelityProgress implements AdvanceFidelityUseCase {
 
     private boolean collect(FidelityCheck check) {
         var progressed = false;
-        for (var fidelityCase : checks.casesAwaitingReproduction(check.id())) {
-            var reproduction = playback.reproduction(fidelityCase.reproductionId());
+        var awaiting = checks.casesAwaitingReproduction(check.id());
+        var reproductions = playback.reproductions(
+                awaiting.stream().map(FidelityCase::reproductionId).toList());
+        for (var fidelityCase : awaiting) {
+            var reproduction = Optional.ofNullable(reproductions.get(fidelityCase.reproductionId()));
             if (reproduction.isEmpty()) {
                 checks.updateCase(
                         check.id(),

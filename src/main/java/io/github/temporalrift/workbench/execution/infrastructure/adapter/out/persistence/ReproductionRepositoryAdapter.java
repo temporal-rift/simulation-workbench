@@ -1,10 +1,12 @@
 package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.persistence;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -63,8 +65,9 @@ public class ReproductionRepositoryAdapter implements ReproductionRepository {
     }
 
     @Override
-    public Optional<Reproduction> find(UUID reproductionId) {
-        return reproductions.findById(reproductionId).map(this::reproduction);
+    public Map<UUID, Reproduction> findAll(Collection<UUID> reproductionIds) {
+        return reproductions.findAllById(reproductionIds).stream()
+                .collect(Collectors.toMap(ReproductionJpaEntity::getId, this::reproduction));
     }
 
     @Override

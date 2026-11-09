@@ -1,6 +1,7 @@
 package io.github.temporalrift.workbench.execution;
 
-import java.util.Optional;
+import java.util.Collection;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -18,6 +19,6 @@ public interface CaseReproducer {
      */
     ReproductionOutcome reproduceOn(UUID runId, UUID caseId, String laneId, UUID idempotencyKey);
 
-    /** The reproduction as it stands, or empty when it does not exist. */
-    Optional<ReproductionOutcome> reproduction(UUID reproductionId);
+    /** The reproductions as they stand, by identifier; one that does not exist is absent from the result. */
+    Map<UUID, ReproductionOutcome> reproductions(Collection<UUID> reproductionIds);
 }

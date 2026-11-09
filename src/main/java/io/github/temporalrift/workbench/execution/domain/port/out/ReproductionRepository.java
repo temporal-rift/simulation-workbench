@@ -1,6 +1,8 @@
 package io.github.temporalrift.workbench.execution.domain.port.out;
 
 import java.time.Instant;
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -22,7 +24,12 @@ public interface ReproductionRepository {
     /** The claim an idempotency key already holds, if any. */
     Optional<ReproductionClaim> findByKey(UUID idempotencyKey);
 
-    Optional<Reproduction> find(UUID reproductionId);
+    /** The reproductions that exist among {@code reproductionIds}, by identifier, read in one query. */
+    Map<UUID, Reproduction> findAll(Collection<UUID> reproductionIds);
+
+    default Optional<Reproduction> find(UUID reproductionId) {
+        return Optional.ofNullable(findAll(List.of(reproductionId)).get(reproductionId));
+    }
 
     /**
      * Atomically moves the oldest queued reproduction whose lane is among {@code freeLanes} and still fits its

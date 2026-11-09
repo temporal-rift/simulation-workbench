@@ -1,6 +1,8 @@
 package io.github.temporalrift.workbench.fidelity.domain.port.out;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -37,7 +39,8 @@ public interface FidelityPlayback {
      */
     UUID reproduce(UUID runId, UUID runCaseId, String laneId, UUID idempotencyKey);
 
-    Optional<Reproduced> reproduction(UUID reproductionId);
+    /** The reproductions as they stand, by identifier; one that no longer exists is absent from the result. */
+    Map<UUID, Reproduced> reproductions(Collection<UUID> reproductionIds);
 
     /** Where the run stands; {@code failureMessage} is set only when it failed. */
     record RunStatus(Phase phase, String failureMessage) {

@@ -1,12 +1,14 @@
 package io.github.temporalrift.workbench.execution.application.port.in;
 
-import java.util.Optional;
+import java.util.Collection;
+import java.util.Map;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.execution.domain.reproduction.Reproduction;
 
-/** Reads a reproduction by its identifier. */
+/** Reads reproductions by their identifiers. */
 public interface GetReproductionUseCase {
 
-    Optional<Reproduction> handle(UUID reproductionId);
+    /** The reproductions that exist among {@code reproductionIds}, by identifier. */
+    Map<UUID, Reproduction> handle(Collection<UUID> reproductionIds);
 }
