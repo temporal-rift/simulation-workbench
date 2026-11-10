@@ -33,6 +33,9 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
 
     static final String POISONED = "poisoned";
 
+    /** The cases one candidate plays on one seed over the screening tables. */
+    static final int CASES_PER_GAME = 10;
+
     synchronized List<Experiment> frozen() {
         return List.copyOf(experiments.values());
     }
@@ -94,7 +97,7 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
 
     @Override
     public int casesPerGame(CampaignDefinition definition, List<SeatTable> tables) {
-        return 10;
+        return CASES_PER_GAME;
     }
 
     private boolean policiesServed = true;

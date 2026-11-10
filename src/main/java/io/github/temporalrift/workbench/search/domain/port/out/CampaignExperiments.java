@@ -76,7 +76,10 @@ public interface CampaignExperiments {
     /** Whether the simulator that plays a campaign is enabled. */
     boolean simulatorEnabled();
 
-    /** How many cases a candidate playing one seed over the tables has, which sizes a wave. */
+    /**
+     * How many cases, each one played game, a candidate playing one seed over the tables has. It sizes a wave and turns
+     * the seeds of a log entry into the games it records.
+     */
     int casesPerGame(
             CampaignDefinition definition,
             List<io.github.temporalrift.workbench.search.domain.campaign.SeatTable> tables);

@@ -25,6 +25,7 @@ import io.github.temporalrift.workbench.shared.execution.RunPhase;
 class CampaignProgressTest {
 
     private static final Instant START = Instant.parse("2026-01-01T00:00:00Z");
+    private static final int GAMES_PER_SEED = SimulatedPlay.CASES_PER_GAME;
 
     @Test
     void aQueuedCampaignStartsOnItsFirstStep() {
@@ -65,6 +66,21 @@ class CampaignProgressTest {
                 .extracting(LogEntry::round)
                 .containsExactlyInAnyOrder(0, 0, 0, 0, 1, 1, 2);
         assertThat(campaign.shortList()).hasSizeLessThanOrEqualTo(1);
+        assertGamesSpentCountsGames(log);
+        assertThat(log)
+                .filteredOn(entry -> entry.round() == 2 && entry.decision() != LogEntry.Decision.GENERATED)
+                .allSatisfy(entry -> assertThat(entry.gamesSpent()).isEqualTo(8 * GAMES_PER_SEED));
+    }
+
+    /** Every decided entry counts its seeds times the games a seed plays; a generated one has played nothing. */
+    private static void assertGamesSpentCountsGames(List<LogEntry> log) {
+        assertThat(log)
+                .isNotEmpty()
+                .allSatisfy(entry -> assertThat(entry.gamesSpent())
+                        .isEqualTo(
+                                entry.decision() == LogEntry.Decision.GENERATED
+                                        ? 0
+                                        : entry.seeds().size() * GAMES_PER_SEED));
     }
 
     @Test
@@ -138,6 +154,7 @@ class CampaignProgressTest {
                 .doesNotHaveDuplicates();
         var finalSeeds = new HashSet<>(games.stream().map(Game::seed).toList());
         assertThat(finalSeeds).hasSizeGreaterThanOrEqualTo(2);
+        assertGamesSpentCountsGames(log);
     }
 
     @Test
@@ -248,6 +265,7 @@ class CampaignProgressTest {
         harness.campaigns
                 .waves(id)
                 .forEach(wave -> assertThat(harness.play.phaseOf(wave.runId())).isEqualTo(RunPhase.CANCELLED));
+        assertGamesSpentCountsGames(log);
     }
 
     @Test

@@ -387,13 +387,14 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
         // Version 1 never ranked by gate miss, so its entries keep recording none.
         var ranksByGateMiss =
                 campaign.definition().algorithm().version() == SearchAlgorithm.Version.SUCCESSIVE_HALVING_V2;
+        var gamesSpent = seeds.size() * gamesPerSeed(campaign);
         return candidates.stream()
                 .map(candidate -> {
                     var evaluated = screening.evaluations().get(candidate.id());
                     return new Assessment(
                             candidate,
                             seeds,
-                            seeds.size(),
+                            gamesSpent,
                             Assessment.Verdict.valueOf(evaluated.verdict()),
                             evaluated.score(),
                             evaluated.failingGateLineIds(),
@@ -401,6 +402,15 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
                             screening.dominators().getOrDefault(candidate.id(), List.of()));
                 })
                 .toList();
+    }
+
+    /**
+     * The games one seed plays for one candidate on the campaign's screening tables, so a log entry's
+     * {@code gamesSpent} follows from its definition and seeds, never from retried attempts.
+     */
+    private int gamesPerSeed(Campaign campaign) {
+        var definition = campaign.definition();
+        return experiments.casesPerGame(definition, evaluation.screeningTables(definition.criterionVersion()));
     }
 
     private List<CandidateEvaluation.WaveGames> wavesPlaying(Ledger ledger, Candidate candidate) {
@@ -422,6 +432,7 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
         var campaign = step.campaign;
         var algorithm = campaign.definition().algorithm();
         var round = campaign.round();
+        var gamesPerSeed = gamesPerSeed(campaign);
         var survivors = new ArrayList<Assessment>();
         if (round > 0) {
             var earlier = ledger.rounds().get(round - 1);
@@ -432,7 +443,7 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
                 survivors.add(new Assessment(
                         byId.get(index),
                         seeds,
-                        seeds.size(),
+                        seeds.size() * gamesPerSeed,
                         Assessment.Verdict.valueOf(survivor.verdict()),
                         survivor.score(),
                         List.of(),
@@ -446,7 +457,7 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
                     return new Assessment(
                             candidate,
                             played,
-                            played.size(),
+                            played.size() * gamesPerSeed,
                             Assessment.Verdict.UNCONFIRMED,
                             null,
                             List.of(),
