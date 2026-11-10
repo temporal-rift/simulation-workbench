@@ -602,7 +602,7 @@ workbench:
     game-service-jar: /builds/game-service.jar
     timeline-service-jar: /builds/timeline-service.jar
     read-service-jar: /builds/read-service.jar
-    rules-file: /builds/rules.yml   # the game.rules.* properties every service plays under (.yml, .yaml, .properties)
+    rules-file: /builds/rules.yml   # the services' game.* configuration: rules, timers, limits, catalog (.yml, .yaml, .properties)
     work-directory: /var/tmp/workbench-simulator   # optional; where the jars are extracted
     bots: 5                       # bot identities per slot; at least the largest player count of a case
     idle-timeout: 10m             # a slot that hosted no case for this long stops its services; 0 keeps them running
@@ -622,7 +622,14 @@ workbench:
       contracts: { session-api: 3.0.0, action-api: 7.1.0 }
 ```
 
-The jars are the executable jars the services' builds produce, built from the declared source revisions. A service's
+The rules file stands in for the configuration server a lane's services read: it must carry every `game.*` value the
+services need, not only `game.rules.*` but also their `game.timers.*` and limits, and the event catalog (`game.catalog`).
+A service missing a value it requires, such as a timer interval, does not start, and the slot fails every case it is
+given. A multi-document YAML file is read as one set of properties, in document order: when two documents set the same
+property the first one wins, unlike Spring Boot config data, where the last one does. Conditions such as
+`spring.config.activate.on-profile` are not applied, so every document counts; resolve conditional documents before
+using the file. The jars are the executable jars the services' builds produce, built from the declared source
+revisions. A service's
 image digest in the bundle's provenance is the digest of its jar. The workbench refuses to start, naming the slot and
 the path, when a jar or the rules file is missing or unreadable, and names the key when a declaration is missing or
 malformed.

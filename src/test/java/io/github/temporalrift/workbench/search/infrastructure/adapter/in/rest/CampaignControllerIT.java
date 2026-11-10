@@ -1,7 +1,9 @@
 package io.github.temporalrift.workbench.search.infrastructure.adapter.in.rest;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -247,15 +249,14 @@ class CampaignControllerIT {
                 .andExpect(status().isCreated());
 
         verify(create)
-                .handle(org.mockito.ArgumentMatchers.argThat(
-                        command -> command.idempotencyKey().equals(key)
-                                && command.budgetSeconds() == 14_400
-                                && command.parallelism() == 4
-                                && command.playerCounts().equals(List.of(3, 4))
-                                && command.searchMasterSeed().equals("7")
-                                && command.algorithm()
-                                        .equals(new CreateCampaignUseCase.AlgorithmRequest(
-                                                "SUCCESSIVE_HALVING_V1", 8, 4, 2, 2))));
+                .handle(argThat(command -> command.idempotencyKey().equals(key)
+                        && command.budgetSeconds() == 14_400
+                        && command.parallelism() == 4
+                        && command.playerCounts().equals(List.of(3, 4))
+                        && command.searchMasterSeed().equals("7")
+                        && command.algorithm()
+                                .equals(new CreateCampaignUseCase.AlgorithmRequest(
+                                        "SUCCESSIVE_HALVING_V1", 8, 4, 2, 2))));
     }
 
     @Test
@@ -265,13 +266,44 @@ class CampaignControllerIT {
         send("/api/v1/campaigns", MINIMAL, WRITE).andExpect(status().isCreated());
 
         verify(create)
-                .handle(org.mockito.ArgumentMatchers.argThat(command -> command.parameterSpaceVersion() == null
+                .handle(argThat(command -> command.parameterSpaceVersion() == null
                         && command.criterionVersion() == null
                         && command.searchMasterSeed() == null
                         && command.confirmationMasterSeed() == null
                         && command.algorithm() == null
                         && command.budgetSeconds() == 14_400
                         && command.parallelism() == 4));
+    }
+
+    @Test
+    void aDefinitionWithoutPoliciesLeavesThemToTheService() throws Exception {
+        when(create.handle(any())).thenReturn(campaign());
+        var withoutPolicies = """
+                {
+                  "name": "threshold-halving-01",
+                  "baseline": {
+                    "rulesArtifact": {"digest": "%s"},
+                    "contentArtifact": {"digest": "%s"}
+                  },
+                  "playerCounts": [3]
+                }
+                """.formatted("a".repeat(64), "b".repeat(64));
+
+        send("/api/v1/campaigns", withoutPolicies, WRITE).andExpect(status().isCreated());
+
+        verify(create).handle(argThat(command -> command.policies() == null));
+    }
+
+    @Test
+    void anEmptyPolicyListAnswers400AsAnInvalidValue() throws Exception {
+        var empty = MINIMAL.replaceFirst("(?s)\"policies\": \\[.*?\\],", "\"policies\": [],");
+
+        send("/api/v1/campaigns", empty, WRITE)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_CAMPAIGN"))
+                .andExpect(jsonPath("$.field").value("policies"))
+                .andExpect(jsonPath("$.reason").value("INVALID_VALUE"));
+        verify(create, never()).handle(any());
     }
 
     @Test
@@ -283,7 +315,7 @@ class CampaignControllerIT {
         send("/api/v1/campaigns", partial, WRITE).andExpect(status().isCreated());
 
         verify(create)
-                .handle(org.mockito.ArgumentMatchers.argThat(command -> command.algorithm()
+                .handle(argThat(command -> command.algorithm()
                         .equals(new CreateCampaignUseCase.AlgorithmRequest(null, 10, null, null, null))));
     }
 

@@ -21,8 +21,8 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.sim
  * same rules, so one declaration serves all of them.
  *
  * @param slots how many cases may play at once; 0 disables the simulator
- * @param rulesFile the {@code game.rules.*} properties (a {@code .yml}, {@code .yaml} or {@code .properties} file)
- *     every service of a slot is started under
+ * @param rulesFile the {@code game.*} configuration (rules, timers, limits and catalog; a {@code .yml},
+ *     {@code .yaml} or {@code .properties} file) every service of a slot is started under
  * @param workDirectory where the jars are extracted; defaults to a directory under the JVM temporary directory
  * @param bots how many bot identities each slot mints; at least the largest player count a case may have
  * @param botPlayerIds the player id of each bot identity in seat order, when the deployment declares them; they let a
