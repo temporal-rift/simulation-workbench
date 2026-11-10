@@ -100,6 +100,17 @@ class RoundDeciderTest {
     }
 
     @Test
+    void theEndOfAVersion2PlanDiscardsAnInvalidCandidateWithoutClaimingItFailsAGate() {
+        var entries = RoundDecider.concludePlan(List.of(invalid(7)), VERSION_2, 4, 20);
+
+        assertThat(entries).singleElement().satisfies(entry -> {
+            assertThat(entry.decision()).isEqualTo(Decision.DISCARDED);
+            assertThat(entry.reason()).isEqualTo(Reason.NOT_IN_TOP_FRACTION);
+            assertThat(entry.evidence()).isNull();
+        });
+    }
+
+    @Test
     void version2DominanceCountsOnlyAmongCandidatesThatPassEveryGate() {
         var outcome = RoundDecider.decide(
                 List.of(passing(0, 1.0, "c-0003"), passing(1, 2.0, "c-0000"), invalid(2), failing(3, 0.1, 0.1, "G-01")),

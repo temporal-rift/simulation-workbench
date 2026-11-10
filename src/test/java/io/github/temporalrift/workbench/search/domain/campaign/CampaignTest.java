@@ -187,30 +187,16 @@ class CampaignTest {
 
     @Test
     void aBudgetBelongsToVersion1AndOnlyToIt() {
-        var definition = queued.definition();
-        assertThatThrownBy(() -> new CampaignDefinition(
-                        "search",
-                        JSON.createObjectNode(),
-                        1,
-                        1,
-                        JSON.createArrayNode(),
-                        List.of(3),
-                        14_400,
-                        "1",
-                        "2",
-                        definition.algorithm()))
+        var version2 = queued.definition().algorithm();
+        var version1 = new SearchAlgorithm(SearchAlgorithm.Version.SUCCESSIVE_HALVING_V1, 32, 2, 2, 1);
+        var policies = JSON.createObjectNode();
+        var gates = JSON.createArrayNode();
+        var seats = List.of(3);
+        assertThatThrownBy(() ->
+                        new CampaignDefinition("search", policies, 1, 1, gates, seats, 14_400, "1", "2", version2))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new CampaignDefinition(
-                        "search",
-                        JSON.createObjectNode(),
-                        1,
-                        1,
-                        JSON.createArrayNode(),
-                        List.of(3),
-                        null,
-                        "1",
-                        "2",
-                        new SearchAlgorithm(SearchAlgorithm.Version.SUCCESSIVE_HALVING_V1, 32, 2, 2, 1)))
+        assertThatThrownBy(
+                        () -> new CampaignDefinition("search", policies, 1, 1, gates, seats, null, "1", "2", version1))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 

@@ -95,8 +95,9 @@ public final class RoundDecider {
 
     /**
      * The entries that end a version 2 plan, after its last round is decided: each kept candidate that passes every
-     * gate is short-listed in rank order, and each that does not is discarded as not meeting the gates, with its
-     * failing lines.
+     * gate is short-listed in rank order, and each that fails a gate is discarded as not meeting the gates, with its
+     * failing lines. One whose evaluation is invalid has no gate result, so it is discarded as outside the top
+     * fraction, as is a passing one beyond the short list's size.
      *
      * @param kept the candidates the last round kept, best first
      */
@@ -109,11 +110,13 @@ public final class RoundDecider {
             if (validAndPassing(assessment) && listed < algorithm.shortListSize()) {
                 verdict = new Verdict(Decision.SHORT_LISTED, null, null);
                 listed++;
-            } else {
+            } else if (assessment.verdict() != Assessment.Verdict.INVALID && !assessment.passesEveryGate()) {
                 verdict = new Verdict(
                         Decision.DISCARDED,
                         Reason.GATES_NOT_MET,
                         Evidence.failingLines(assessment.failingGateLineIds()));
+            } else {
+                verdict = new Verdict(Decision.DISCARDED, Reason.NOT_IN_TOP_FRACTION, null);
             }
             entries.add(entry(assessment, round, nextSequence + entries.size(), verdict));
         }

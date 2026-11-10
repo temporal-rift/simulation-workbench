@@ -726,8 +726,9 @@ gate ids, so each gate counts equally however many lines it has; every decision 
 failing lines) or `NOT_IN_TOP_FRACTION`. Later rounds add no candidates, so the plan is fixed by `initialCandidates`,
 `screeningSeeds`, `eta` and `shortListSize`: the search ends after the first round that keeps at most `shortListSize`
 candidates, however long that takes. The kept candidates with no failing gate line are short-listed; one that still
-fails a gate is discarded as `GATES_NOT_MET` with its failing lines and gate miss, so a search whose last candidates all
-fail a gate ends with an empty short list. The campaign then becomes `SEARCH_COMPLETED`.
+fails a gate is discarded as `GATES_NOT_MET` with its failing lines and gate miss, and one whose evaluation is invalid
+as `NOT_IN_TOP_FRACTION`, so a search whose last candidates all fail a gate ends with an empty short list. The campaign
+then becomes `SEARCH_COMPLETED`.
 
 A campaign stored with `SUCCESSIVE_HALVING_V1` reads and, if unfinished, finishes as version 1 did: round 0 is the
 baseline and one-step perturbations, a failing gate discards, later rounds add mutated and random candidates, and the
