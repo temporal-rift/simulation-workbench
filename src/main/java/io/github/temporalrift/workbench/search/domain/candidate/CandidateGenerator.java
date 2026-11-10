@@ -54,10 +54,12 @@ public final class CandidateGenerator {
     }
 
     /**
-     * Round 0: the baseline, then for each parameter in key order the grid value one step below and one step above
-     * the baseline where they exist, then a Latin hypercube sample for the remaining places. When the baseline and
-     * the perturbations reach {@code initialCandidates}, they are taken in order up to it and no sample is drawn. A
-     * perturbation that breaks a constraint is not a candidate and is left out.
+     * Round 0 begins with the baseline. Version 2 fills the remaining places with a Latin hypercube sample of the
+     * whole space. Version 1 first takes, for each parameter in key order, the grid value one step below and one step
+     * above the baseline where they exist, and samples only the places those leave; when the baseline and the
+     * perturbations reach {@code initialCandidates} they are taken in order up to it and no sample is drawn. A
+     * perturbation that breaks a constraint is not a candidate and is left out; a sample point that breaks one is
+     * redrawn.
      *
      * @throws CandidateGenerationExhaustedException when the space cannot supply enough distinct valid candidates
      */
@@ -66,6 +68,22 @@ public final class CandidateGenerator {
         var baselinePoint = grid.baselinePoint();
         round.accept(baselinePoint)
                 .orElseThrow(() -> new IllegalStateException("the baseline rules do not validate against themselves"));
+        if (algorithm.version() == SearchAlgorithm.Version.SUCCESSIVE_HALVING_V1) {
+            addPerturbations(round, baselinePoint);
+        }
+        var missing = algorithm.initialCandidates() - round.size();
+        if (missing > 0) {
+            var sample = latinHypercube(missing, seeds.stream(0, "latin-hypercube"));
+            var redraws = seeds.stream(0, "redraw");
+            for (var point : sample) {
+                round.place(point, () -> randomPoint(redraws));
+            }
+        }
+        return round.candidates();
+    }
+
+    /** Version 1's one-step perturbations of the baseline, in parameter key order, up to the round's size. */
+    private void addPerturbations(Round round, List<Integer> baselinePoint) {
         for (var axis = 0; axis < grid.axes().size() && !round.filled(algorithm.initialCandidates()); axis++) {
             var baseIndex = grid.axes().get(axis).baselineIndex();
             for (var delta : new int[] {-1, 1}) {
@@ -79,20 +97,12 @@ public final class CandidateGenerator {
                 }
             }
         }
-        var missing = algorithm.initialCandidates() - round.size();
-        if (missing > 0) {
-            var sample = latinHypercube(missing, seeds.stream(0, "latin-hypercube"));
-            var redraws = seeds.stream(0, "redraw");
-            for (var point : sample) {
-                round.place(point, () -> randomPoint(redraws));
-            }
-        }
-        return round.candidates();
     }
 
     /**
-     * A later round: local mutations of {@code survivors}, taken in the order given and wrapping round when there
-     * are more places than survivors, and a fixed share of random candidates.
+     * A later round: under version 1, local mutations of {@code survivors}, taken in the order given and wrapping round
+     * when there are more places than survivors, and a fixed share of random candidates. Version 2 adds none: a later
+     * round plays only the candidates the round before kept.
      *
      * @param survivors the candidates still in play, best first
      * @param earlier every candidate generated so far, which no new candidate may duplicate
@@ -103,6 +113,9 @@ public final class CandidateGenerator {
             int round, List<Candidate> survivors, Collection<Candidate> earlier, int firstIndex) {
         if (round < 1 || survivors.isEmpty()) {
             throw new IllegalArgumentException("a later round needs a round after 0 and at least one survivor");
+        }
+        if (algorithm.version() == SearchAlgorithm.Version.SUCCESSIVE_HALVING_V2) {
+            return List.of();
         }
         var generated = new Round(round, firstIndex, earlier);
         var places = newCandidatesIn(round);
@@ -119,8 +132,14 @@ public final class CandidateGenerator {
         return generated.candidates();
     }
 
-    /** How many candidates a round after 0 adds: half the initial count, halved again every round, at least one. */
+    /**
+     * How many candidates a round after 0 adds: under version 1, half the initial count, halved again every round, at
+     * least one; under version 2, none.
+     */
     public int newCandidatesIn(int round) {
+        if (algorithm.version() == SearchAlgorithm.Version.SUCCESSIVE_HALVING_V2) {
+            return 0;
+        }
         var places = (long) algorithm.initialCandidates();
         var divisor = 2L;
         for (var step = 1; step < round && divisor <= places; step++) {

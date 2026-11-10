@@ -26,12 +26,31 @@ class CampaignTest {
                     1,
                     JSON.createArrayNode(),
                     List.of(3, 4),
-                    CampaignDefinition.DEFAULT_BUDGET_SECONDS,
+                    null,
                     "1",
                     "2",
-                    new SearchAlgorithm(32, 2, 2, 1)),
+                    new SearchAlgorithm(SearchAlgorithm.Version.SUCCESSIVE_HALVING_V2, 32, 2, 2, 1)),
             CampaignDefinition.DEFAULT_PARALLELISM,
             NOW);
+
+    /** A campaign as version 1 stored it, with the budget it recorded. */
+    private static Campaign version1(int budgetSeconds) {
+        return Campaign.queued(
+                new UUID(1, 2),
+                new CampaignDefinition(
+                        "search",
+                        JSON.createObjectNode(),
+                        1,
+                        1,
+                        JSON.createArrayNode(),
+                        List.of(3, 4),
+                        budgetSeconds,
+                        "1",
+                        "2",
+                        new SearchAlgorithm(SearchAlgorithm.Version.SUCCESSIVE_HALVING_V1, 32, 2, 2, 1)),
+                CampaignDefinition.DEFAULT_PARALLELISM,
+                NOW);
+    }
 
     @Test
     void aCampaignIsAcceptedQueuedWithNothingSpent() {
@@ -148,18 +167,58 @@ class CampaignTest {
     }
 
     @Test
-    void onlyARunningCampaignSpendsBudget() {
+    void onlyARunningCampaignSpendsTimeAndVersion2NeverRunsOutOfIt() {
         var running = queued.start(NOW).spend(30);
 
         assertThat(running.spentSeconds()).isEqualTo(30);
-        assertThat(running.remainingSeconds()).isEqualTo(CampaignDefinition.DEFAULT_BUDGET_SECONDS - 30);
         assertThat(running.budgetSpent()).isFalse();
         var paused = running.pause();
         assertThatThrownBy(() -> paused.spend(1)).isInstanceOf(InvalidCampaignStateException.class);
-        assertThat(running.spend(CampaignDefinition.DEFAULT_BUDGET_SECONDS).budgetSpent())
-                .isTrue();
-        assertThat(running.spend(CampaignDefinition.DEFAULT_BUDGET_SECONDS).remainingSeconds())
-                .isZero();
+        assertThat(running.spend(1_000_000).budgetSpent()).isFalse();
+    }
+
+    @Test
+    void aVersion1CampaignRunsOutOfTheBudgetItRecorded() {
+        var running = version1(600).start(NOW).spend(30);
+
+        assertThat(running.budgetSpent()).isFalse();
+        assertThat(running.spend(570).budgetSpent()).isTrue();
+    }
+
+    @Test
+    void aBudgetBelongsToVersion1AndOnlyToIt() {
+        var version2 = queued.definition().algorithm();
+        var version1 = new SearchAlgorithm(SearchAlgorithm.Version.SUCCESSIVE_HALVING_V1, 32, 2, 2, 1);
+        var policies = JSON.createObjectNode();
+        var gates = JSON.createArrayNode();
+        var seats = List.of(3);
+        assertThatThrownBy(() ->
+                        new CampaignDefinition("search", policies, 1, 1, gates, seats, 14_400, "1", "2", version2))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(
+                        () -> new CampaignDefinition("search", policies, 1, 1, gates, seats, null, "1", "2", version1))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void aSearchStoredBeforeVersionsIsVersion1() {
+        assertThat(new SearchAlgorithm(null, 32, 2, 2, 1).version())
+                .isEqualTo(SearchAlgorithm.Version.SUCCESSIVE_HALVING_V1);
+    }
+
+    @Test
+    void theVersion2PlanHalvesTheCandidatesUntilTheShortListIsLeft() {
+        var algorithm = new SearchAlgorithm(SearchAlgorithm.Version.SUCCESSIVE_HALVING_V2, 32, 2, 2, 1);
+
+        assertThat(java.util.stream.IntStream.rangeClosed(0, algorithm.lastRound())
+                        .map(algorithm::candidatesInRound)
+                        .boxed())
+                .containsExactly(32, 16, 8, 4, 2);
+        assertThat(algorithm.lastRound()).isEqualTo(4);
+        assertThat(new SearchAlgorithm(SearchAlgorithm.Version.SUCCESSIVE_HALVING_V2, 32, 2, 2, 2).lastRound())
+                .isEqualTo(3);
+        assertThat(new SearchAlgorithm(SearchAlgorithm.Version.SUCCESSIVE_HALVING_V2, 10, 2, 3, 1).lastRound())
+                .isEqualTo(2);
     }
 
     @Test
@@ -174,20 +233,25 @@ class CampaignTest {
 
     @Test
     void theDefinitionRefusesWhatTheContractRefuses() {
-        assertThatThrownBy(() -> new SearchAlgorithm(1, 2, 2, 1)).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new SearchAlgorithm(2, 1, 2, 1)).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new SearchAlgorithm(2, 2, 1, 1)).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new SearchAlgorithm(2, 2, 2, 0)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new SearchAlgorithm(SearchAlgorithm.Version.SUCCESSIVE_HALVING_V2, 1, 2, 2, 1))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new SearchAlgorithm(SearchAlgorithm.Version.SUCCESSIVE_HALVING_V2, 2, 1, 2, 1))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new SearchAlgorithm(SearchAlgorithm.Version.SUCCESSIVE_HALVING_V2, 2, 2, 1, 1))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new SearchAlgorithm(SearchAlgorithm.Version.SUCCESSIVE_HALVING_V2, 2, 2, 2, 0))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void seedsGrowByEtaEveryRound() {
-        var algorithm = new SearchAlgorithm(32, 2, 2, 1);
+        var algorithm = new SearchAlgorithm(SearchAlgorithm.Version.SUCCESSIVE_HALVING_V2, 32, 2, 2, 1);
 
         assertThat(algorithm.seedsInRound(0)).isEqualTo(2);
         assertThat(algorithm.seedsInRound(1)).isEqualTo(4);
         assertThat(algorithm.seedsInRound(2)).isEqualTo(8);
-        assertThat(new SearchAlgorithm(32, 3, 3, 1).seedsInRound(2)).isEqualTo(27);
+        assertThat(new SearchAlgorithm(SearchAlgorithm.Version.SUCCESSIVE_HALVING_V2, 32, 3, 3, 1).seedsInRound(2))
+                .isEqualTo(27);
     }
 
     @Test

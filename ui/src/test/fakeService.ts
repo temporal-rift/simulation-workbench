@@ -1,4 +1,5 @@
 import type { Case, Comparison, Experiment, ExperimentManifest, LaneBundle, Report, Reproduction, ReproductionState, Run, RunEvaluation } from '../api/generated'
+import { numericParameters } from '../experiments/parameterSpace'
 import { IDS, REPORT_CSV, SEAT_STEPS, caseDetail, comparison, criterion, eventStep, evaluation, experiment, experimentTemplates, laneBundles, parameterSpace, policyCatalog, preview, report, run } from './fixtures'
 
 export interface RecordedRequest {
@@ -137,7 +138,7 @@ export class FakeService {
         const baseline = this.laneBundles.find((bundle) => bundle.rulesArtifact.digest === body.rulesArtifact.digest)
         const changed: Record<string, number> = {}
         for (const [key, value] of Object.entries(body.overrides).sort(([a], [b]) => a.localeCompare(b))) {
-          const parameter = space.parameters.find((candidate) => candidate.key === key)
+          const parameter = numericParameters(space).find((candidate) => candidate.key === key)
           if (!parameter) {
             return problem(400, 'INVALID_REQUEST', `${key} is not a parameter`, `overrides.${key}`, { reason: 'UNKNOWN_PARAMETER' })
           }

@@ -15,6 +15,7 @@ import io.github.temporalrift.workbench.search.application.port.in.CreateCampaig
 import io.github.temporalrift.workbench.search.domain.campaign.Confirmation;
 import io.github.temporalrift.workbench.search.domain.log.LogEntry;
 import io.github.temporalrift.workbench.shared.Page;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.OverrideValues;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Campaign;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CampaignBaseline;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CampaignConfirmation;
@@ -60,7 +61,6 @@ class CampaignApiMapper {
                 definition.getCriterionVersion(),
                 definition.getPolicies() == null ? null : mapper.valueToTree(definition.getPolicies()),
                 playerCounts,
-                definition.getBudgetSeconds(),
                 definition.getParallelism(),
                 definition.getSearchMasterSeed(),
                 definition.getConfirmationMasterSeed(),
@@ -93,12 +93,12 @@ class CampaignApiMapper {
                 definition.playerCounts().stream()
                         .map(Campaign.PlayerCountsEnum::fromValue)
                         .collect(Collectors.toCollection(LinkedHashSet::new)),
-                definition.budgetSeconds(),
                 campaign.parallelism(),
                 definition.searchMasterSeed(),
                 definition.confirmationMasterSeed(),
                 new SearchAlgorithm(
-                        SearchAlgorithm.VersionEnum.SUCCESSIVE_HALVING_V1,
+                        SearchAlgorithm.VersionEnum.fromValue(
+                                algorithm.version().name()),
                         algorithm.initialCandidates(),
                         algorithm.screeningSeeds(),
                         algorithm.eta(),
@@ -132,7 +132,8 @@ class CampaignApiMapper {
             return null;
         }
         var score = evaluation.score() == null ? null : BigDecimal.valueOf(evaluation.score());
-        return new CampaignEvaluation(EvaluationVerdict.valueOf(evaluation.verdict()), score);
+        // A confirmation is judged on the criterion's verdict alone; gate miss only ranks search candidates.
+        return new CampaignEvaluation(EvaluationVerdict.valueOf(evaluation.verdict()), score, null);
     }
 
     private List<PolicyBundleReference> policies(tools.jackson.databind.JsonNode node) {
@@ -160,17 +161,16 @@ class CampaignApiMapper {
             return null;
         }
         var score = evaluation.score() == null ? null : BigDecimal.valueOf(evaluation.score());
-        return new CampaignEvaluation(EvaluationVerdict.valueOf(evaluation.verdict()), score);
+        var gateMiss = evaluation.gateMiss() == null ? null : BigDecimal.valueOf(evaluation.gateMiss());
+        return new CampaignEvaluation(EvaluationVerdict.valueOf(evaluation.verdict()), score, gateMiss);
     }
 
     private static CampaignLogEntry toApi(LogEntry entry) {
-        var overrides = new java.util.LinkedHashMap<String, BigDecimal>();
-        entry.overrides().forEach(overrides::put);
         return new CampaignLogEntry(
                 entry.sequence(),
                 entry.round(),
                 entry.candidateId(),
-                overrides,
+                OverrideValues.of(entry.overrides()),
                 entry.effectiveRulesDigest(),
                 new LinkedHashSet<>(entry.seeds()),
                 entry.gamesSpent(),

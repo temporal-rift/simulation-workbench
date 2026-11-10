@@ -94,7 +94,7 @@ describe('overriding parameters of a variant', () => {
     await addAnOverride(user)
 
     const list = document.querySelector('datalist')!
-    expect([...list.querySelectorAll('option')].map((option) => option.getAttribute('value'))).toEqual(gridValues({ key: threshold, services: ['game-service'], baseline: 20, min: 16, max: 26, step: 1 }))
+    expect([...list.querySelectorAll('option')].map((option) => option.getAttribute('value'))).toEqual(gridValues({ type: 'NUMBER', key: threshold, services: ['game-service'], baseline: 20, min: 16, max: 26, step: 1 }))
     const parameter = screen.getByRole('combobox', { name: 'Parameter 1' })
     await user.click(screen.getAllByRole('button', { name: 'Add override' })[1]!)
     const options = within(await screen.findByRole('combobox', { name: 'Parameter 2' })).getAllByRole('option')

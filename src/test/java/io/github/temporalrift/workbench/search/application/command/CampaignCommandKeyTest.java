@@ -255,6 +255,6 @@ class CampaignCommandKeyTest {
                 3600,
                 "7",
                 "9",
-                new SearchAlgorithm(8, 2, 2, 2));
+                new SearchAlgorithm(SearchAlgorithm.Version.SUCCESSIVE_HALVING_V1, 8, 2, 2, 2));
     }
 }

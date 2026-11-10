@@ -1,4 +1,4 @@
-import type { CampaignLogDecision, CampaignLogReason, CampaignState } from '../api/generated'
+import type { CampaignEvaluation, CampaignLogDecision, CampaignLogReason, CampaignState } from '../api/generated'
 
 export const CAMPAIGN_STATE_LABELS: Readonly<Record<CampaignState, string>> = {
   QUEUED: 'Queued',
@@ -22,7 +22,15 @@ export const REASON_LABELS: Readonly<Record<CampaignLogReason, string>> = {
   GATE_FAILS: 'A gate line fails',
   DOMINATED: 'Dominated',
   NOT_IN_TOP_FRACTION: 'Outside the top fraction',
+  GATES_NOT_MET: 'Still fails a gate when the search ended',
   BUDGET_EXHAUSTED: 'Budget exhausted',
+}
+
+/** A log entry's evaluation in words: its verdict, its score and, when it has one, how far it misses the gates. */
+export function evaluationText(evaluation: CampaignEvaluation): string {
+  const score = evaluation.score === null ? '' : `, score ${evaluation.score}`
+  const gateMiss = evaluation.gateMiss === null || evaluation.gateMiss === undefined ? '' : `, gate miss ${evaluation.gateMiss}`
+  return `${evaluation.verdict}${score}${gateMiss}`
 }
 
 /** A campaign that is still moving by itself or can be moved by the designer; its page keeps reading it. */
@@ -69,10 +77,6 @@ export function formatSeconds(total: number): string {
     return `${minutes} min ${String(seconds).padStart(2, '0')} s`
   }
   return `${seconds} s`
-}
-
-export function remainingSeconds(budgetSeconds: number, spentSeconds: number): number {
-  return Math.max(0, budgetSeconds - spentSeconds)
 }
 
 const UINT64_MAX = 18446744073709551615n

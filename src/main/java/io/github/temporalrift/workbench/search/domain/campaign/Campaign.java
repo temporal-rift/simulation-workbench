@@ -59,14 +59,12 @@ public record Campaign(
                 null);
     }
 
-    /** Whether the search has spent all the active time it was given. */
+    /**
+     * Whether a version 1 search has spent the active time it recorded as its budget. A version 2 search has no
+     * budget and never has.
+     */
     public boolean budgetSpent() {
-        return spentSeconds >= definition.budgetSeconds();
-    }
-
-    /** Active time still available, never below 0. */
-    public long remainingSeconds() {
-        return Math.max(0, definition.budgetSeconds() - spentSeconds);
+        return definition.budgetSeconds() != null && spentSeconds >= definition.budgetSeconds();
     }
 
     /** Pauses a queued or running campaign; pausing a paused one changes nothing. */

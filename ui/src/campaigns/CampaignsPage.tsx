@@ -24,8 +24,8 @@ export function CampaignsPage() {
       <h1>Campaigns</h1>
       <p>
         A campaign searches the rules of a baseline for configurations that meet the balance criterion. It plays candidate configurations on the same seeds,
-        discards those that fail, are dominated or fall outside the top fraction, and gives more seeds to the rest, until its budget is spent or its short
-        list stops changing.
+        keeps the best share of each round, those that pass every gate first and then those that miss the gates least, and gives them more seeds, until its
+        plan ends. It has no time limit; the campaign page shows how long it has played.
       </p>
       <StartSection />
       <CampaignsSection />
@@ -37,7 +37,6 @@ interface Draft {
   name: string
   bundle: number
   playerCounts: number[]
-  budgetHours: string
   parallelism: string
   // The rest is optional: an empty value is left out of the request and the service decides.
   parameterSpaceVersion: string
@@ -54,7 +53,6 @@ const INITIAL: Draft = {
   name: '',
   bundle: 0,
   playerCounts: [3],
-  budgetHours: '4',
   parallelism: '4',
   parameterSpaceVersion: '',
   criterionVersion: '',
@@ -77,13 +75,6 @@ const ADVANCED = [
   'shortListSize',
 ] as const satisfies readonly (keyof Draft)[]
 
-const MINIMUM_BUDGET_SECONDS = 60
-
-/** The budget the designer typed, in seconds of active time; null when it is not a number of hours. */
-function budgetSeconds(hours: string): number | null {
-  return /^[0-9]+(\.[0-9]+)?$/.test(hours) ? Math.round(Number(hours) * 3600) : null
-}
-
 /** What is wrong with the draft that the designer can fix before sending it; the service stays the authority. */
 function problems(draft: Draft): Partial<Record<keyof Draft, string>> {
   const found: Partial<Record<keyof Draft, string>> = {}
@@ -92,10 +83,6 @@ function problems(draft: Draft): Partial<Record<keyof Draft, string>> {
   }
   if (draft.playerCounts.length === 0) {
     found.playerCounts = 'Choose at least one player count.'
-  }
-  const seconds = budgetSeconds(draft.budgetHours)
-  if (seconds === null || seconds < MINIMUM_BUDGET_SECONDS) {
-    found.budgetHours = 'Enter a number of hours of at least 0.02 (one minute).'
   }
   if (!isWholeNumber(draft.parallelism, 1)) {
     found.parallelism = 'Enter a whole number of at least 1.'
@@ -137,16 +124,10 @@ function algorithmOf(draft: Draft): SearchAlgorithmRequest | null {
 
 function definitionOf(draft: Draft, bundle: LaneBundle): CampaignDefinition {
   const algorithm = algorithmOf(draft)
-  const budget = budgetSeconds(draft.budgetHours)
-  if (budget === null) {
-    // The form validates the budget before it builds a request, so this is a defect, not a user error.
-    throw new Error('The budget was not validated before the definition was built.')
-  }
   return {
     name: draft.name.trim(),
     baseline: { rulesArtifact: bundle.rulesArtifact, contentArtifact: bundle.contentArtifact },
     playerCounts: [...draft.playerCounts].sort() as CampaignDefinition['playerCounts'],
-    budgetSeconds: budget,
     parallelism: Number(draft.parallelism),
     ...(draft.parameterSpaceVersion !== '' && { parameterSpaceVersion: Number(draft.parameterSpaceVersion) }),
     ...(draft.criterionVersion !== '' && { criterionVersion: Number(draft.criterionVersion) }),
@@ -252,14 +233,6 @@ function StartForm({ bundles }: { readonly bundles: readonly LaneBundle[] }) {
         ))}
         {shown('playerCounts') && <p className="field-error">{shown('playerCounts')}</p>}
       </fieldset>
-      <TextField
-        label="Budget (hours of active time)"
-        value={draft.budgetHours}
-        onChange={(value) => set('budgetHours', value)}
-        inputMode="decimal"
-        error={shown('budgetHours')}
-        hint="Time spent paused or queued is not counted."
-      />
       <TextField label="Games at once" value={draft.parallelism} onChange={(value) => set('parallelism', value)} inputMode="numeric" error={shown('parallelism')} />
       <details open={advancedOpen || ADVANCED.some((key) => shown(key) !== undefined)} onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}>
         <summary>Advanced</summary>
@@ -321,7 +294,7 @@ function CampaignsSection() {
                     <th scope="col">Name</th>
                     <th scope="col">State</th>
                     <th scope="col">Round</th>
-                    <th scope="col">Budget spent</th>
+                    <th scope="col">Time spent</th>
                     <th scope="col">Created</th>
                   </tr>
                 </thead>
@@ -336,9 +309,7 @@ function CampaignsSection() {
                       <td>{campaign.name}</td>
                       <td>{CAMPAIGN_STATE_LABELS[campaign.state]}</td>
                       <td>{campaign.round}</td>
-                      <td>
-                        {formatSeconds(campaign.spentSeconds)} of {formatSeconds(campaign.budgetSeconds)}
-                      </td>
+                      <td>{formatSeconds(campaign.spentSeconds)}</td>
                       <td>{formatInstant(campaign.createdAt)}</td>
                     </tr>
                   ))}

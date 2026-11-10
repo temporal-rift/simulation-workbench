@@ -142,7 +142,11 @@ class CandidateGeneratorTest {
     @Test
     void aSpaceTooSmallToSupplyDistinctCandidatesFailsInsteadOfLooping() {
         var tiny = new ParameterGrid(List.of(axis("a", 0, 1, 1, 0)));
-        var generator = new CandidateGenerator(tiny, VALIDATION, new SearchSeeds("7"), new SearchAlgorithm(5, 2, 2, 1));
+        var generator = new CandidateGenerator(
+                tiny,
+                VALIDATION,
+                new SearchSeeds("7"),
+                new SearchAlgorithm(SearchAlgorithm.Version.SUCCESSIVE_HALVING_V1, 5, 2, 2, 1));
 
         assertThatThrownBy(generator::roundZero).isInstanceOf(CandidateGenerationExhaustedException.class);
     }
@@ -176,8 +180,47 @@ class CandidateGeneratorTest {
     }
 
     private static CandidateGenerator generator(int initialCandidates, String masterSeed) {
+        return generator(SearchAlgorithm.Version.SUCCESSIVE_HALVING_V1, initialCandidates, masterSeed);
+    }
+
+    private static CandidateGenerator generator(
+            SearchAlgorithm.Version version, int initialCandidates, String masterSeed) {
         return new CandidateGenerator(
-                GRID, VALIDATION, new SearchSeeds(masterSeed), new SearchAlgorithm(initialCandidates, 2, 2, 1));
+                GRID,
+                VALIDATION,
+                new SearchSeeds(masterSeed),
+                new SearchAlgorithm(version, initialCandidates, 2, 2, 1));
+    }
+
+    @Test
+    void version2RoundZeroIsTheBaselineAndASampleOfTheWholeSpace() {
+        var round =
+                generator(SearchAlgorithm.Version.SUCCESSIVE_HALVING_V2, 6, "7").roundZero();
+
+        assertThat(round).hasSize(6);
+        assertThat(round.getFirst().point()).isEqualTo(GRID.baselinePoint());
+        // A sample point moves every parameter it draws, not one parameter by one step as a perturbation does.
+        assertThat(round.subList(1, round.size()))
+                .anySatisfy(candidate -> assertThat(changedAxes(candidate)).isGreaterThan(1));
+        assertThat(round).extracting(Candidate::effectiveRulesDigest).doesNotHaveDuplicates();
+    }
+
+    @Test
+    void version2AddsNoCandidateAfterRoundZero() {
+        var generator = generator(SearchAlgorithm.Version.SUCCESSIVE_HALVING_V2, 6, "7");
+        var round = generator.roundZero();
+
+        assertThat(generator.laterRound(1, round.subList(0, 3), round, round.size()))
+                .isEmpty();
+        assertThat(generator.newCandidatesIn(1)).isZero();
+    }
+
+    private static long changedAxes(Candidate candidate) {
+        var baseline = GRID.baselinePoint();
+        var point = candidate.point();
+        return java.util.stream.IntStream.range(0, point.size())
+                .filter(axis -> !point.get(axis).equals(baseline.get(axis)))
+                .count();
     }
 
     private static ParameterGrid.Axis axis(String key, int min, int max, int step, int baseline) {

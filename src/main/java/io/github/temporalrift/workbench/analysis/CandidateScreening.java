@@ -54,8 +54,11 @@ public interface CandidateScreening {
      *
      * @param score null when the evaluation is invalid; lower is better
      * @param failingGateLineIds every gate line that fails, in id order
+     * @param gateMiss how far the candidate misses the gates: for each gate line id, the mean deviation of that id's
+     *     lines that have a value, summed over the gate line ids; 0 when no gate line deviates, null when the
+     *     evaluation is invalid
      */
-    record Evaluation(Verdict verdict, Double score, List<String> failingGateLineIds) {
+    record Evaluation(Verdict verdict, Double score, List<String> failingGateLineIds, Double gateMiss) {
 
         public Evaluation {
             failingGateLineIds = List.copyOf(failingGateLineIds);

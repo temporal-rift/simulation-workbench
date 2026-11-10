@@ -56,7 +56,7 @@ public class CandidateEvaluationAdapter implements CandidateEvaluation {
     @Override
     public Evaluation confirm(int criterionVersion, UUID runId, String variantLabel) {
         var result = confirmation.confirm(criterionVersion, runId, variantLabel);
-        return new Evaluation(result.verdict(), result.score(), List.of());
+        return new Evaluation(result.verdict(), result.score(), List.of(), null);
     }
 
     @Override
@@ -80,7 +80,10 @@ public class CandidateEvaluationAdapter implements CandidateEvaluation {
                 .forEach((id, evaluation) -> evaluations.put(
                         id,
                         new Evaluation(
-                                evaluation.verdict().name(), evaluation.score(), evaluation.failingGateLineIds())));
+                                evaluation.verdict().name(),
+                                evaluation.score(),
+                                evaluation.failingGateLineIds(),
+                                evaluation.gateMiss())));
         return new Screening(evaluations, screened.dominators());
     }
 }

@@ -35,7 +35,8 @@ import io.github.temporalrift.workbench.shared.text.Sha256;
  */
 public class CreateCampaignCommandHandler implements CreateCampaignUseCase {
 
-    private static final String SUPPORTED_ALGORITHM = "SUCCESSIVE_HALVING_V1";
+    /** The only version a new campaign may use: version 1 needs a time budget, which a campaign no longer has. */
+    private static final SearchAlgorithm.Version NEW_CAMPAIGN_VERSION = SearchAlgorithm.Version.SUCCESSIVE_HALVING_V2;
 
     private final CampaignRepository campaigns;
     private final CampaignExperiments experiments;
@@ -61,11 +62,9 @@ public class CreateCampaignCommandHandler implements CreateCampaignUseCase {
 
     @Override
     public Campaign handle(Command command) {
-        var budgetSeconds =
-                command.budgetSeconds() == null ? CampaignDefinition.DEFAULT_BUDGET_SECONDS : command.budgetSeconds();
         var parallelism =
                 command.parallelism() == null ? CampaignDefinition.DEFAULT_PARALLELISM : command.parallelism();
-        var hash = requestHash(command, budgetSeconds, parallelism);
+        var hash = requestHash(command, parallelism);
         if (campaigns.claimedRequestHash(command.idempotencyKey()).isPresent()) {
             // A campaign and its claim are stored together, so a claimed key with no campaign belongs to a command.
             return campaigns
@@ -73,7 +72,7 @@ public class CreateCampaignCommandHandler implements CreateCampaignUseCase {
                     .map(claim -> replay(claim, hash, command.idempotencyKey()))
                     .orElseThrow(() -> new CampaignIdempotencyConflictException(command.idempotencyKey()));
         }
-        var definition = definitionOf(command, budgetSeconds);
+        var definition = definitionOf(command);
         experiments.check(definition);
         if (!evaluation.servesCriterion(definition.criterionVersion())) {
             throw new InvalidCampaignException(
@@ -91,7 +90,7 @@ public class CreateCampaignCommandHandler implements CreateCampaignUseCase {
         };
     }
 
-    private CampaignDefinition definitionOf(Command command, int budgetSeconds) {
+    private CampaignDefinition definitionOf(Command command) {
         var supplied = command.searchMasterSeed();
         if (supplied != null && supplied.equals(command.confirmationMasterSeed())) {
             throw new InvalidCampaignException(
@@ -116,7 +115,7 @@ public class CreateCampaignCommandHandler implements CreateCampaignUseCase {
                     criterionVersion,
                     policiesOf(command.policies(), criterionVersion),
                     command.playerCounts(),
-                    budgetSeconds,
+                    null,
                     searchSeed,
                     confirmationSeed,
                     algorithm);
@@ -159,17 +158,22 @@ public class CreateCampaignCommandHandler implements CreateCampaignUseCase {
     /** The approved record's parameters, with each one the designer set in place of the record's. */
     private SearchAlgorithm algorithmOf(AlgorithmRequest request) {
         var approved = defaults.algorithm();
+        if (approved.version() != NEW_CAMPAIGN_VERSION) {
+            throw new IllegalStateException("The newest search budget record names " + approved.version()
+                    + ", which a new campaign cannot use");
+        }
         if (request == null) {
             return approved;
         }
-        if (request.version() != null && !SUPPORTED_ALGORITHM.equals(request.version())) {
+        if (request.version() != null && !NEW_CAMPAIGN_VERSION.name().equals(request.version())) {
             throw new InvalidCampaignException(
                     InvalidCampaignReason.INVALID_VALUE,
                     "algorithm.version",
-                    "Algorithm " + request.version() + " is not supported");
+                    "A new campaign searches with " + NEW_CAMPAIGN_VERSION + ", not " + request.version());
         }
         try {
             return new SearchAlgorithm(
+                    NEW_CAMPAIGN_VERSION,
                     orElse(request.initialCandidates(), approved.initialCandidates()),
                     orElse(request.screeningSeeds(), approved.screeningSeeds()),
                     orElse(request.eta(), approved.eta()),
@@ -220,10 +224,10 @@ public class CreateCampaignCommandHandler implements CreateCampaignUseCase {
     }
 
     /**
-     * The identity of a request as sent, whatever order its keys came in: only the budget and parallelism defaults are
-     * filled in, so an omitted input stays omitted.
+     * The identity of a request as sent, whatever order its keys came in: only the parallelism default is filled in,
+     * so an omitted input stays omitted.
      */
-    private static String requestHash(Command command, int budgetSeconds, int parallelism) {
+    private static String requestHash(Command command, int parallelism) {
         var identity = new LinkedHashMap<String, Object>();
         // The request as sent: an omitted field stays omitted, so a retry hashes the same although the first attempt
         // drew its seeds at random.
@@ -233,7 +237,6 @@ public class CreateCampaignCommandHandler implements CreateCampaignUseCase {
         identity.put("criterionVersion", command.criterionVersion());
         identity.put("policies", command.policies());
         identity.put("playerCounts", command.playerCounts());
-        identity.put("budgetSeconds", budgetSeconds);
         identity.put("parallelism", parallelism);
         identity.put("searchMasterSeed", command.searchMasterSeed());
         identity.put("confirmationMasterSeed", command.confirmationMasterSeed());

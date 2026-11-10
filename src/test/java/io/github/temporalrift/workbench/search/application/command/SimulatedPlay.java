@@ -283,7 +283,8 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
                     new Evaluation(
                             rejected ? "REJECTED" : "CONFIRMED",
                             (double) ((number * 7 + 3) % 11) + number / 100.0,
-                            rejected ? List.of("line-" + number) : List.of()));
+                            rejected ? List.of("line-" + number) : List.of(),
+                            rejected ? 1.0 + (number % 4) : 0.0));
         }
         return new Screening(evaluations, Map.of());
     }
@@ -297,7 +298,7 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
 
     /** Scripts what confirming the subject's variant answers; every other subject is confirmed with score 1. */
     synchronized void confirmationOf(String subject, String verdict, Double score) {
-        confirmations.put(subject, new Evaluation(verdict, score, List.of()));
+        confirmations.put(subject, new Evaluation(verdict, score, List.of(), null));
     }
 
     @Override
@@ -338,7 +339,7 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
 
     @Override
     public synchronized Evaluation confirm(int criterionVersion, UUID runId, String variantLabel) {
-        return confirmations.getOrDefault(variantLabel, new Evaluation("CONFIRMED", 1.0, List.of()));
+        return confirmations.getOrDefault(variantLabel, new Evaluation("CONFIRMED", 1.0, List.of(), null));
     }
 
     static UUID idOf(String name) {

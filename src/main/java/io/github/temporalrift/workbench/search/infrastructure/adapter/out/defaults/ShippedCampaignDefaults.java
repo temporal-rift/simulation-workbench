@@ -90,12 +90,10 @@ public class ShippedCampaignDefaults implements CampaignDefaults {
             if (!document.path(VERSION).isInt()) {
                 throw new IllegalStateException("Search budget record " + name + " has no integer version");
             }
-            if (!algorithm.path(VERSION).asString().equals("SUCCESSIVE_HALVING_V1")) {
-                throw new IllegalStateException("Search budget record " + name + " names an unknown algorithm");
-            }
             return new BudgetRecord(
                     document.path(VERSION).asInt(),
                     new SearchAlgorithm(
+                            algorithmVersion(algorithm, name),
                             integer(algorithm, "initialCandidates", name),
                             integer(algorithm, "screeningSeeds", name),
                             integer(algorithm, "eta", name),
@@ -104,6 +102,14 @@ public class ShippedCampaignDefaults implements CampaignDefaults {
             throw new UncheckedIOException("Search budget record " + name + " could not be read", e);
         } catch (IllegalArgumentException e) {
             throw new IllegalStateException("Search budget record " + name + " is invalid: " + e.getMessage(), e);
+        }
+    }
+
+    private static SearchAlgorithm.Version algorithmVersion(JsonNode algorithm, String name) {
+        try {
+            return SearchAlgorithm.Version.valueOf(algorithm.path(VERSION).asString());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("Search budget record " + name + " names an unknown algorithm", e);
         }
     }
 
