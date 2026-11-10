@@ -20,7 +20,6 @@ import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinitio
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignFailure;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
 import io.github.temporalrift.workbench.search.domain.campaign.Confirmation;
-import io.github.temporalrift.workbench.search.domain.campaign.FidelityNotEstablishedException;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignStateException;
 import io.github.temporalrift.workbench.search.domain.campaign.PolicyNotAvailableException;
 import io.github.temporalrift.workbench.search.domain.campaign.SearchAlgorithm;
@@ -40,9 +39,9 @@ class ConfirmationTest {
     private final InMemoryCampaigns campaigns = new InMemoryCampaigns();
     private final SimulatedPlay play = new SimulatedPlay();
     private final StartConfirmationCommandHandler start =
-            new StartConfirmationCommandHandler(campaigns, play, play, play, play, CLOCK);
+            new StartConfirmationCommandHandler(campaigns, play, play, play, CLOCK);
     private final CampaignProgress progress =
-            new CampaignProgress(campaigns, play, play, play, play, new CampaignSettings(1_000), CLOCK);
+            new CampaignProgress(campaigns, play, play, play, new CampaignSettings(1_000), CLOCK);
     private final CancelCampaignCommandHandler cancel = new CancelCampaignCommandHandler(campaigns, play, CLOCK);
     private final SetCampaignParallelismCommandHandler parallelism =
             new SetCampaignParallelismCommandHandler(campaigns, play, CLOCK);
@@ -81,23 +80,12 @@ class ConfirmationTest {
     }
 
     @Test
-    void aDisabledSimulatorIsRefusedBeforeFidelityAndNothingIsFrozen() {
+    void aDisabledSimulatorIsRefusedBeforePoliciesAndNothingIsFrozen() {
         var id = searched("c-0000");
         play.simulator(false);
-        play.fidelity(false);
-
-        assertThatThrownBy(() -> start.handle(id, refusedKey)).isInstanceOf(SimulatorNotAvailableException.class);
-
-        assertNothingStarted(id);
-    }
-
-    @Test
-    void aSimulatorWithoutEstablishedFidelityIsRefusedBeforePoliciesAndNothingIsFrozen() {
-        var id = searched("c-0000");
-        play.fidelity(false);
         play.policiesServed(false);
 
-        assertThatThrownBy(() -> start.handle(id, refusedKey)).isInstanceOf(FidelityNotEstablishedException.class);
+        assertThatThrownBy(() -> start.handle(id, refusedKey)).isInstanceOf(SimulatorNotAvailableException.class);
 
         assertNothingStarted(id);
     }
@@ -113,11 +101,11 @@ class ConfirmationTest {
     }
 
     @Test
-    void aConfirmationRefusedForWantOfFidelityCanBeStartedOnceItIsEstablished() {
+    void aConfirmationRefusedForWantOfAPolicyCanBeStartedOnceItIsServed() {
         var id = searched("c-0000");
-        play.fidelity(false);
-        assertThatThrownBy(() -> start.handle(id, refusedKey)).isInstanceOf(FidelityNotEstablishedException.class);
-        play.fidelity(true);
+        play.policiesServed(false);
+        assertThatThrownBy(() -> start.handle(id, refusedKey)).isInstanceOf(PolicyNotAvailableException.class);
+        play.policiesServed(true);
 
         var confirming = start.handle(id, UUID.randomUUID());
 

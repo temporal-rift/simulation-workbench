@@ -46,7 +46,6 @@ import io.github.temporalrift.workbench.search.domain.campaign.CampaignIdempoten
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignNotFoundException;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
 import io.github.temporalrift.workbench.search.domain.campaign.Confirmation;
-import io.github.temporalrift.workbench.search.domain.campaign.FidelityNotEstablishedException;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignException;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignReason;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignStateException;
@@ -327,16 +326,16 @@ class CampaignControllerIT {
     }
 
     @Test
-    void aWaitingCampaignShowsWhyItHasNotStarted() throws Exception {
-        var waiting = campaign()
-                .waiting(new CampaignFailure(
-                        CampaignFailure.FIDELITY_NOT_ESTABLISHED, "The simulator has no passing fidelity record"));
-        when(get.handle(CAMPAIGN)).thenReturn(waiting);
+    void aFailedCampaignShowsWhyItStopped() throws Exception {
+        var failed = campaign()
+                .start(NOW)
+                .fail(new CampaignFailure(CampaignFailure.CANDIDATE_GENERATION_EXHAUSTED, "too few candidates"), NOW);
+        when(get.handle(CAMPAIGN)).thenReturn(failed);
 
         read("/api/v1/campaigns/" + CAMPAIGN, READ)
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.state").value("QUEUED"))
-                .andExpect(jsonPath("$.failure.code").value("FIDELITY_NOT_ESTABLISHED"));
+                .andExpect(jsonPath("$.state").value("FAILED"))
+                .andExpect(jsonPath("$.failure.code").value("CANDIDATE_GENERATION_EXHAUSTED"));
     }
 
     @Test
@@ -508,15 +507,6 @@ class CampaignControllerIT {
         send("/api/v1/campaigns/" + CAMPAIGN + "/confirmation", "", WRITE)
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("SIMULATOR_NOT_AVAILABLE"));
-    }
-
-    @Test
-    void confirmingWithoutEstablishedFidelityAnswers409() throws Exception {
-        when(startConfirmation.handle(eq(CAMPAIGN), any())).thenThrow(new FidelityNotEstablishedException());
-
-        send("/api/v1/campaigns/" + CAMPAIGN + "/confirmation", "", WRITE)
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("FIDELITY_NOT_ESTABLISHED"));
     }
 
     @Test

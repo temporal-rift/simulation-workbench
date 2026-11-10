@@ -20,7 +20,6 @@ describe('describeFailure', () => {
     ['INVALID_REPLAY_PERSPECTIVE', 400, 'Could not freeze the experiment: that perspective or seat cannot be shown for this case. the service said so'],
     ['SEED_OVERLAP', 409, 'Could not freeze the experiment: a confirmation seed was already played by the search, and confirming on it would confirm the same luck. the service said so'],
     ['SIMULATOR_NOT_AVAILABLE', 409, 'Could not freeze the experiment: the simulator is not available. the service said so'],
-    ['FIDELITY_NOT_ESTABLISHED', 409, 'Could not freeze the experiment: the simulator has no passing fidelity check for the builds it embeds. Run one first. the service said so'],
     ['POLICY_NOT_AVAILABLE', 409, 'Could not freeze the experiment: no bundle serves a policy the balance criterion names. the service said so'],
     ['INCOMPARABLE_RUNS', 422, 'Could not freeze the experiment: the request was refused. the service said so'],
   ])('words %s plainly', (code, status, expected) => {

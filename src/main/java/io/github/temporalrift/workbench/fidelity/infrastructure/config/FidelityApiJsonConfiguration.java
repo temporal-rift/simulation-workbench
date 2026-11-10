@@ -14,7 +14,8 @@ import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1
 /**
  * Every field of the fidelity representations is required by the published contract, including the nullable ones (a
  * check's {@code verdict}, {@code lane}, {@code failure} and timestamps, a case's {@code firstDivergence} and
- * {@code failure}, and the gate's {@code record}), so the service-wide non-null inclusion must not drop them.
+ * {@code failure}, and the simulator fidelity {@code record}), so the service-wide non-null inclusion must not drop
+ * them.
  */
 @Configuration
 public class FidelityApiJsonConfiguration {

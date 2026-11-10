@@ -37,7 +37,7 @@ import io.github.temporalrift.workbench.shared.game.EndReason;
 /**
  * A whole check on the scripted lanes: {@code lane-0} stands for the simulator and {@code lane-1} for the real lane, so
  * the services' games are scripted, and what is exercised is the check itself: the experiment it freezes, the run, the
- * reproductions on the chosen lane, the records and the gate.
+ * reproductions on the chosen lane, the records and the simulator's fidelity status.
  */
 @WorkbenchIntegrationTest
 class FidelityCheckIT {
@@ -196,11 +196,11 @@ class FidelityCheckIT {
     }
 
     private void assertTheSimulatorIsEstablishedForItsRevisions(FidelityCheckView done) {
-        var gate = simulatorFidelity.handle();
+        var status = simulatorFidelity.handle();
 
-        assertThat(gate.established()).isTrue();
-        assertThat(gate.passingCheck().check().id()).isEqualTo(done.check().id());
-        assertThat(gate.sourceRevisions()).isEqualTo(done.check().simulator().sourceRevisions());
+        assertThat(status.established()).isTrue();
+        assertThat(status.passingCheck().check().id()).isEqualTo(done.check().id());
+        assertThat(status.sourceRevisions()).isEqualTo(done.check().simulator().sourceRevisions());
     }
 
     @Test

@@ -301,12 +301,11 @@ class CampaignConfirmationIT {
     }
 
     private CampaignProgress progress(CandidateEvaluation evaluation) {
-        return new CampaignProgress(
-                campaigns, experiments, runs, evaluation, () -> true, new CampaignSettings(50_000), clock);
+        return new CampaignProgress(campaigns, experiments, runs, evaluation, new CampaignSettings(50_000), clock);
     }
 
     private StartConfirmationCommandHandler handler(CandidateEvaluation evaluation) {
-        return new StartConfirmationCommandHandler(campaigns, experiments, runs, evaluation, () -> true, clock);
+        return new StartConfirmationCommandHandler(campaigns, experiments, runs, evaluation, clock);
     }
 
     private int concurrencyOf(UUID runId) {

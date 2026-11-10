@@ -58,8 +58,6 @@ export function describeFailure(error: unknown, context: FailureContext): string
       return `Could not ${context.action}: another fidelity check is queued or running. Wait for it to end.`
     case 'SIMULATOR_NOT_AVAILABLE':
       return `Could not ${context.action}: the simulator is not available.${explanation}`
-    case 'FIDELITY_NOT_ESTABLISHED':
-      return `Could not ${context.action}: the simulator has no passing fidelity check for the builds it embeds. Run one first.${explanation}`
     case 'POLICY_NOT_AVAILABLE':
       return `Could not ${context.action}: no bundle serves a policy the balance criterion names.${explanation}`
     case 'SEED_OVERLAP':

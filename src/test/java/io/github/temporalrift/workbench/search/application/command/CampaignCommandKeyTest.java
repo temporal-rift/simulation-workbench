@@ -18,8 +18,8 @@ import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinitio
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignIdempotencyConflictException;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignNotFoundException;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
-import io.github.temporalrift.workbench.search.domain.campaign.FidelityNotEstablishedException;
 import io.github.temporalrift.workbench.search.domain.campaign.SearchAlgorithm;
+import io.github.temporalrift.workbench.search.domain.campaign.SimulatorNotAvailableException;
 
 /** What a campaign command does with its idempotency key, whichever command it is. */
 class CampaignCommandKeyTest {
@@ -36,7 +36,7 @@ class CampaignCommandKeyTest {
     private final SetCampaignParallelismCommandHandler parallelism =
             new SetCampaignParallelismCommandHandler(campaigns, play, CLOCK);
     private final StartConfirmationCommandHandler confirm =
-            new StartConfirmationCommandHandler(campaigns, play, play, play, play, CLOCK);
+            new StartConfirmationCommandHandler(campaigns, play, play, play, CLOCK);
 
     @Test
     void aRepeatedKeyDoesNotApplyTheCommandAgainAndReturnsTheCampaignAsItStands() {
@@ -211,12 +211,12 @@ class CampaignCommandKeyTest {
     @Test
     void aRefusedCommandClaimsNothingSoItCanBeAskedAgainWithTheSameKey() {
         var id = searched();
-        play.fidelity(false);
+        play.simulator(false);
 
-        assertThatThrownBy(() -> confirm.handle(id, KEY)).isInstanceOf(FidelityNotEstablishedException.class);
+        assertThatThrownBy(() -> confirm.handle(id, KEY)).isInstanceOf(SimulatorNotAvailableException.class);
         assertThat(campaigns.claimedRequestHash(KEY)).isEmpty();
 
-        play.fidelity(true);
+        play.simulator(true);
 
         assertThat(confirm.handle(id, KEY).state()).isEqualTo(CampaignState.CONFIRMING);
     }

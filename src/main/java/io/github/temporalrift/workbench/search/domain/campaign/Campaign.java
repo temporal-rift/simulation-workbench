@@ -15,7 +15,7 @@ import java.util.UUID;
  * @param round the round being played, or the last one played once the search is complete
  * @param shortList the short-listed candidate ids; empty until the search completes
  * @param confirmation the confirmation of the short list on fresh seeds, or null until it starts
- * @param failure why the campaign has not started or stopped, when it has not
+ * @param failure why the campaign stopped with an error, or null
  */
 public record Campaign(
         UUID campaignId,
@@ -120,8 +120,8 @@ public record Campaign(
     }
 
     /**
-     * Starts the search: a queued campaign becomes running and no longer waits for anything, and a campaign that was
-     * resumed before it ever started records now as its start.
+     * Starts the search: a queued campaign becomes running, and a campaign that was resumed before it ever started
+     * records now as its start. Either way the campaign carries no failure afterwards.
      */
     public Campaign start(Instant now) {
         if (state == CampaignState.RUNNING && startedAt == null) {
@@ -131,22 +131,6 @@ public record Campaign(
             throw new InvalidCampaignStateException("start", state);
         }
         return with(CampaignState.RUNNING, now, null, null);
-    }
-
-    /** Records why a queued campaign cannot start yet, without changing its state. */
-    public Campaign waiting(CampaignFailure reason) {
-        if (state != CampaignState.QUEUED) {
-            throw new InvalidCampaignStateException("wait", state);
-        }
-        return with(state, startedAt, finishedAt, reason);
-    }
-
-    /** Puts a running campaign that never started back in the queue because it cannot start yet. */
-    public Campaign requeue(CampaignFailure reason) {
-        if (state != CampaignState.RUNNING || startedAt != null) {
-            throw new InvalidCampaignStateException("requeue", state);
-        }
-        return with(CampaignState.QUEUED, null, null, reason);
     }
 
     /** Counts {@code seconds} of active time; only a running campaign spends any. */

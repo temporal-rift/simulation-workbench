@@ -15,7 +15,6 @@ import io.github.temporalrift.workbench.search.domain.campaign.CampaignNotFoundE
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
 import io.github.temporalrift.workbench.search.domain.campaign.Confirmation;
-import io.github.temporalrift.workbench.search.domain.campaign.FidelityNotEstablishedException;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignStateException;
 import io.github.temporalrift.workbench.search.domain.campaign.PolicyNotAvailableException;
 import io.github.temporalrift.workbench.search.domain.campaign.SeatTable;
@@ -27,12 +26,11 @@ import io.github.temporalrift.workbench.search.domain.port.out.CampaignExperimen
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRepository;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRuns;
 import io.github.temporalrift.workbench.search.domain.port.out.CandidateEvaluation;
-import io.github.temporalrift.workbench.search.domain.port.out.FidelityGate;
 
 /**
  * Confirms a finished search's short list on the simulator. The seeds derive from the confirmation master seed only.
- * Nothing is frozen unless they overlap no seed the campaign's log records, the simulator is enabled and its fidelity
- * established, and every policy the criterion names has a bundle. One experiment per short-listed candidate is then
+ * Nothing is frozen unless they overlap no seed the campaign's log records, the simulator is enabled, and every policy
+ * the criterion names has a bundle. One experiment per short-listed candidate is then
  * frozen and one run per experiment is started held: the campaign write releases the first, and the worker releases
  * each next one when the one before it is complete, so the runs play one after another and nothing plays before the
  * campaign records the confirmation. Experiments and runs are requested with keys derived from the campaign and the
@@ -46,7 +44,6 @@ public class StartConfirmationCommandHandler implements StartConfirmationUseCase
     private final CampaignExperiments experiments;
     private final CampaignRuns runs;
     private final CandidateEvaluation evaluation;
-    private final FidelityGate gate;
     private final WaveRuns waveRuns;
     private final CampaignUpdates updates;
 
@@ -55,13 +52,11 @@ public class StartConfirmationCommandHandler implements StartConfirmationUseCase
             CampaignExperiments experiments,
             CampaignRuns runs,
             CandidateEvaluation evaluation,
-            FidelityGate gate,
             Clock clock) {
         this.campaigns = campaigns;
         this.experiments = experiments;
         this.runs = runs;
         this.evaluation = evaluation;
-        this.gate = gate;
         this.waveRuns = new WaveRuns(campaigns, runs);
         this.updates = new CampaignUpdates(campaigns, clock);
     }
@@ -133,13 +128,10 @@ public class StartConfirmationCommandHandler implements StartConfirmationUseCase
         }
     }
 
-    /** Whether the simulator can play the confirmation. The fidelity gate is also shut for a disabled simulator. */
+    /** Whether the simulator can play the confirmation. */
     private void requirePlayable(CampaignDefinition definition) {
         if (!experiments.simulatorEnabled()) {
             throw new SimulatorNotAvailableException("The simulator is not enabled");
-        }
-        if (!gate.established()) {
-            throw new FidelityNotEstablishedException();
         }
         experiments.bundles(evaluation.confirmationPolicies(definition.criterionVersion()));
     }

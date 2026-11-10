@@ -59,7 +59,7 @@ function Gate({ gate }: { readonly gate: SimulatorFidelity }) {
         </p>
       ) : (
         <p className="notice notice-warning">
-          Not established: no passing check exists for exactly these revisions, so search campaigns are refused until one passes.
+          Not established: no passing check exists for exactly these revisions. Nothing waits for one: run a check when a change could matter.
         </p>
       )}
       <table>

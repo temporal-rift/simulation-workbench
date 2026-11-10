@@ -36,7 +36,7 @@ describe('accessibility', () => {
 
   it('the campaigns page and a campaign with its log have no axe violations', async () => {
     serveCampaigns(service, {
-      campaigns: [campaign({ state: 'QUEUED', failure: { code: 'FIDELITY_NOT_ESTABLISHED', message: 'No passing record' } })],
+      campaigns: [campaign({ state: 'QUEUED' })],
       log: [logEntry(), logEntry({ sequence: 2, decision: 'DISCARDED', reason: 'GATE_FAILS', evidence: { lineIds: ['G-01'] }, evaluation: { verdict: 'REJECTED', score: null } })],
     })
     const page = await renderApp('/campaigns', service)
