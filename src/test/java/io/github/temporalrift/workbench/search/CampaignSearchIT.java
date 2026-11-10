@@ -141,7 +141,7 @@ class CampaignSearchIT {
 
     private CampaignProgress progress() {
         return new CampaignProgress(
-                campaigns, experiments, runs, scriptedCriterion(), () -> true, new CampaignSettings(50_000), clock);
+                campaigns, experiments, runs, scriptedCriterion(), new CampaignSettings(50_000), clock);
     }
 
     /** One table on which the first catalogued policy plays every seat. */

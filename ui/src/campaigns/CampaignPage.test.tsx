@@ -127,14 +127,14 @@ describe('a running campaign', () => {
 })
 
 describe('a campaign that has not started', () => {
-  it('shows the fidelity gate as the reason it is waiting', async () => {
+  it('says nothing about simulator fidelity', async () => {
     serveCampaigns(service, {
       campaigns: [campaign({ state: 'QUEUED', spentSeconds: 0, round: 0, startedAt: null, failure: { code: 'FIDELITY_NOT_ESTABLISHED', message: 'No passing record' } })],
     })
     await renderApp(PATH, service)
 
-    expect(await screen.findByText(/This campaign has not started: the simulator has no passing fidelity record/)).toBeInTheDocument()
-    expect(screen.getAllByRole('link', { name: 'Simulator fidelity' })).toHaveLength(2)
+    expect(await screen.findByText('State: Queued')).toBeInTheDocument()
+    expect(within(screen.getByRole('main')).queryByText(/fidelity/i)).not.toBeInTheDocument()
   })
 })
 

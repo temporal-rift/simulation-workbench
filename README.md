@@ -651,8 +651,9 @@ measures one slot count; its results are in [docs/capacity/simulator-v1.md](docs
 
 ## Simulator fidelity
 
-The search plays on the simulator, so its results hold only if the simulator plays the same game as the real services.
-A **fidelity check** validates that. It plays on the simulator the full case matrix on one seed (3, 4 and 5 players,
+The search plays on the simulator. A **fidelity check** compares the simulator with the real services: the designer runs
+one when they judge that a change could make the simulator play a different game, and nothing in the workbench waits for
+one or is refused without one. It plays on the simulator the full case matrix on one seed (3, 4 and 5 players,
 every faction set and seat rotation, the policies `faction-greedy` and `random` on every seat) for three variants, then
 reproduces every case on one real lane. The variants are the baseline and the two edge variants `low` and `high`, which
 set as many parameters as the constraints allow at the minimum and the maximum of their ranges
@@ -684,10 +685,10 @@ run that failed, or a check that could not complete fails it, with no tolerance.
 environments (source revisions, image digests, content digest, contract versions), the three variants with their effective
 rules digests and overrides, every case's result with its first divergence or failure, and the verdict.
 
-**The gate.** A record applies only to the exact source revisions it ran with. When the simulator embeds a revision no
-passing record covers, `established` is `false` until a check passes on the new revisions; the search campaign is refused
-while it is. The operator page of the designer application (**Simulator fidelity**) shows the gate, starts a check from a
-seed and lists a check's cases with their first divergence. A passing check for the revisions current at a release is
+**The status.** A record applies only to the exact source revisions it ran with. When the simulator embeds a revision no
+passing record covers, `established` is `false` until a check passes on the new revisions. The status is information for
+the designer; campaigns and confirmations play whatever it says. The operator page of the designer application
+(**Simulator fidelity**) shows the status, starts a check from a seed and lists a check's cases with their first divergence. A passing check for the revisions current at a release is
 committed as a report under [docs/fidelity](docs/fidelity): the check page offers **Download report**, which renders the served record, with the cases that did not match, as `report-<seed>-<game revision>.md`.
 
 ## Search campaigns
@@ -702,7 +703,7 @@ same definition always gives the same log.
 | `GET /api/v1/campaigns`, `.../{id}`, `.../{id}/log` | The campaigns newest first, one campaign with the active time it has spent so far, and its decision log in sequence order |
 | `POST .../{id}/pause`, `.../resume`, `.../cancel` | Pause a queued or running campaign, resume a paused one, cancel one that is not over; repeating the one that already holds changes nothing, any other state answers `409 INVALID_CAMPAIGN_STATE` |
 | `PUT .../{id}/parallelism` | Changes the games played at once; the next game claimed obeys it and games in flight finish. Pause, resume, cancel, this and confirmation all take an `Idempotency-Key`: an accepted command repeated with its key returns the campaign and applies nothing, the key on any other request is `409 IDEMPOTENCY_CONFLICT`, and a refused command claims nothing. The key is claimed in the write that applies the command, so the two exist together or not at all |
-| `POST .../{id}/confirmation` | From `SEARCH_COMPLETED` only (`simulation:write`, `Idempotency-Key`): freezes and starts the confirmation of the short list on fresh seeds (see "Confirming the short list") and answers `202` with the campaign now `CONFIRMING`; `409 INVALID_CAMPAIGN_STATE` from any other state; `409 SEED_OVERLAP`, `SIMULATOR_NOT_AVAILABLE`, `FIDELITY_NOT_ESTABLISHED` or `POLICY_NOT_AVAILABLE` when it cannot be played, and nothing plays |
+| `POST .../{id}/confirmation` | From `SEARCH_COMPLETED` only (`simulation:write`, `Idempotency-Key`): freezes and starts the confirmation of the short list on fresh seeds (see "Confirming the short list") and answers `202` with the campaign now `CONFIRMING`; `409 INVALID_CAMPAIGN_STATE` from any other state; `409 SEED_OVERLAP`, `SIMULATOR_NOT_AVAILABLE` or `POLICY_NOT_AVAILABLE` when it cannot be played, and nothing plays |
 
 **The search.** Round 0 generates `initialCandidates`: the baseline, its one-step perturbations in key order, then a Latin
 hypercube sample of the parameter space. Every candidate plays the same seeds, which derive from `searchMasterSeed` and
@@ -726,19 +727,18 @@ paused or the process is down is not.
 **Durability.** A worker (`workbench.search.worker-enabled`, default `true`) advances campaigns one persisted step at a
 time. A step applies, with everything it records, only if the campaign is still at the version it read, and the
 experiment and run of a wave are requested with keys derived from the campaign, so a restart repeats nothing. A queued
-campaign stays queued with the failure `FIDELITY_NOT_ESTABLISHED` until the simulator is established (see
-"Simulator fidelity"). The worker polls every `workbench.search.poll-interval` (default `2s`); a round is split into waves
+campaign starts on the worker's next step. The worker polls every `workbench.search.poll-interval` (default `2s`); a round is split into waves
 of at most `workbench.search.max-cases-per-wave` cases (default `50000`), and
 `workbench.search.case-wall-timeout-seconds` and `workbench.search.max-rejected-candidates-per-window` bound the cases of
 its experiments.
 
 **Confirming the short list.** Each short-listed candidate is the best of many noisy candidates measured on the same
 search seeds, so its score is optimistically biased. `startConfirmation` therefore confirms on fresh seeds, which remove
-that bias on any lane; whether the simulator plays the real game is what its fidelity check establishes. It derives the
+that bias on any lane. It derives the
 criterion's `confirmationMinimumSeeds` (100 for version 1, 104 for version 2) from `confirmationMasterSeed` alone and
 refuses with `409`, having frozen nothing, in this order: `SEED_OVERLAP` when one of them is already in the campaign log,
-`SIMULATOR_NOT_AVAILABLE` when the simulator is not enabled, `FIDELITY_NOT_ESTABLISHED` when it has no passing fidelity
-record for the source revisions it embeds, and `POLICY_NOT_AVAILABLE` when no bundle serves a policy the criterion names. Should the simulator still refuse an
+`SIMULATOR_NOT_AVAILABLE` when the simulator is not enabled, and `POLICY_NOT_AVAILABLE` when no bundle serves a policy the
+criterion names. Fidelity records are not consulted. Should the simulator still refuse an
 experiment or a run after those checks, for instance after a rebuild on other baseline rules, the answer is
 `409 SIMULATOR_NOT_AVAILABLE` with the reason in the detail: the experiments and held runs of earlier candidates then
 exist, play nothing, and are reused by a retry.
@@ -772,8 +772,7 @@ The designer application has a **Campaigns** page that lists campaigns and start
 bundle, policy, player counts, budget in hours and games at once; the versions, algorithm and master seeds sit in a
 collapsed **Advanced** block and are sent only when filled in), and a campaign page with its state, active time spent
 and remaining, round, short list, the algorithm, versions and master seeds it runs with, and paged decision log, pause,
-resume and cancel enabled only where the state accepts them, a control for the games at once, and the fidelity gate
-shown as the reason a campaign has not started. Once the search is complete the page offers **Confirm short list**; from
+resume and cancel enabled only where the state accepts them, and a control for the games at once. Once the search is complete the page offers **Confirm short list**; from
 then on it shows a **Confirmation** report that states the seeds, the games and the tables played and has one entry per
 short-listed candidate (and one for the baseline only on a confirmation recorded when it still played one): the progress
 of the run while it plays, then the verdict, every criterion line's verdict, the confirmation sample (seeds played against

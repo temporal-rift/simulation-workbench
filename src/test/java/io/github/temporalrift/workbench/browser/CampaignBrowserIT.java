@@ -21,16 +21,15 @@ import tools.jackson.databind.json.JsonMapper;
 import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignChange;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
-import io.github.temporalrift.workbench.search.domain.campaign.CampaignFailure;
 import io.github.temporalrift.workbench.search.domain.campaign.SearchAlgorithm;
 import io.github.temporalrift.workbench.search.domain.candidate.Candidate;
 import io.github.temporalrift.workbench.search.domain.log.LogEntry;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRepository;
 
 /**
- * A designer follows a campaign that is waiting for the simulator to be established: pauses it, changes how many
- * games it plays at once, resumes it and reads the decisions it has taken, without calling any endpoint. The campaign
- * worker is off, so the page shows exactly what the designer commands.
+ * A designer follows a queued campaign: pauses it, changes how many games it plays at once, resumes it and reads the
+ * decisions it has taken, without calling any endpoint. The campaign worker is off, so the page shows exactly what the
+ * designer commands.
  */
 @BrowserIntegrationTest
 class CampaignBrowserIT extends DesignerBrowserTest {
@@ -53,14 +52,13 @@ class CampaignBrowserIT extends DesignerBrowserTest {
     }
 
     @Test
-    void aDesignerPausesAWaitingCampaignChangesItsGamesAtOnceResumesItAndReadsItsLog() {
-        var campaignId = waitingCampaign();
+    void aDesignerPausesAQueuedCampaignChangesItsGamesAtOnceResumesItAndReadsItsLog() {
+        var campaignId = queuedCampaign();
 
         signInAndOpen(TestIssuer.DESIGNER, "/campaigns/" + campaignId);
 
         assertThat(page.getByRole(AriaRole.HEADING, new Page.GetByRoleOptions().setName("Campaign browser-search")))
                 .isVisible();
-        assertThat(page.getByText("This campaign has not started")).isVisible();
         assertThat(page.getByText("State: Queued")).isVisible();
 
         page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Pause campaign"))
@@ -113,7 +111,7 @@ class CampaignBrowserIT extends DesignerBrowserTest {
 
     @Test
     void theCampaignsPageListsTheCampaignAndLinksToIt() {
-        var campaignId = waitingCampaign();
+        var campaignId = queuedCampaign();
 
         signInAndOpen(TestIssuer.DESIGNER, "/campaigns");
 
@@ -125,14 +123,14 @@ class CampaignBrowserIT extends DesignerBrowserTest {
 
     /** A campaign whose search is complete with a short list, as the worker leaves it. */
     private UUID searchedCampaign() {
-        var waiting = waitingCampaign();
-        var stored = campaigns.find(waiting).orElseThrow();
+        var queued = queuedCampaign();
+        var stored = campaigns.find(queued).orElseThrow();
         var searched = stored.campaign().start(Instant.now()).completeSearch(List.of("c-0001"));
         campaigns.apply(CampaignChange.of(stored, searched, Instant.now()));
-        return waiting;
+        return queued;
     }
 
-    private UUID waitingCampaign() {
+    private UUID queuedCampaign() {
         var mapper = JsonMapper.builder().build();
         var baseline = mapper.createObjectNode();
         baseline.putObject("rulesArtifact").put("digest", "a".repeat(64));
@@ -156,8 +154,6 @@ class CampaignBrowserIT extends DesignerBrowserTest {
         var now = Instant.now();
         var queued = Campaign.queued(UUID.randomUUID(), definition, 4, now);
         campaigns.create(UUID.randomUUID(), "h".repeat(64), queued, now);
-        var waiting = queued.waiting(new CampaignFailure(
-                CampaignFailure.FIDELITY_NOT_ESTABLISHED, "The simulator has no passing fidelity record"));
         var overrides = new TreeMap<String, BigDecimal>();
         overrides.put("game.rules.win-score-threshold", new BigDecimal("22"));
         var candidate = new Candidate("c-0001", 0, List.of(1), overrides, "d".repeat(64), 0);
@@ -189,7 +185,7 @@ class CampaignBrowserIT extends DesignerBrowserTest {
                 LogEntry.Evidence.failingLines(List.of("G-01")));
         var stored = campaigns.find(queued.campaignId()).orElseThrow();
         campaigns.apply(
-                CampaignChange.of(stored, waiting, now).recording(List.of(candidate), List.of(generated, discarded)));
+                CampaignChange.of(stored, queued, now).recording(List.of(candidate), List.of(generated, discarded)));
         return queued.campaignId();
     }
 }

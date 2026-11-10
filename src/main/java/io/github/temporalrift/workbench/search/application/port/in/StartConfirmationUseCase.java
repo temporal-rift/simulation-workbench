@@ -19,8 +19,6 @@ public interface StartConfirmationUseCase {
      *     was played by the search; nothing is frozen
      * @throws io.github.temporalrift.workbench.search.domain.campaign.SimulatorNotAvailableException when the
      *     simulator is not enabled, or refuses what the confirmation needs; nothing plays
-     * @throws io.github.temporalrift.workbench.search.domain.campaign.FidelityNotEstablishedException when the
-     *     simulator has no passing fidelity record for its source revisions; nothing is frozen
      * @throws io.github.temporalrift.workbench.search.domain.campaign.PolicyNotAvailableException when no bundle
      *     serves a policy the criterion names; nothing is frozen
      * @throws io.github.temporalrift.workbench.search.domain.campaign.CampaignIdempotencyConflictException when another

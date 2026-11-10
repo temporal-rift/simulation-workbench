@@ -42,8 +42,6 @@ import { ConfirmationReport } from './ConfirmationReport'
 
 type Command = 'pause' | 'resume' | 'cancel' | 'confirm'
 
-const FIDELITY_NOT_ESTABLISHED = 'FIDELITY_NOT_ESTABLISHED'
-
 export function CampaignPage() {
   const { campaignId } = useParams({ from: '/campaigns/$campaignId' })
   const client = useApiClient()
@@ -109,7 +107,6 @@ function CampaignDetail({ campaign, stale }: { readonly campaign: Campaign; read
     },
   })
 
-  const waiting = campaign.state === 'QUEUED' && campaign.failure?.code === FIDELITY_NOT_ESTABLISHED
   const failedCommand = command.isError && !refused ? command.variables : null
 
   return (
@@ -124,12 +121,6 @@ function CampaignDetail({ campaign, stale }: { readonly campaign: Campaign; read
         {stale && <span className="stale"> (stale: the service could not be reached)</span>}
         {isLive(campaign.state) && !stale && <span className="hint"> Refreshing while the campaign is open.</span>}
       </p>
-      {waiting && (
-        <p role="status" className="notice notice-warning">
-          This campaign has not started: the simulator has no passing fidelity record for the source revisions it embeds. It starts by itself once a
-          fidelity check passes. <Link to="/fidelity">Simulator fidelity</Link>
-        </p>
-      )}
       {campaign.state === 'FAILED' && campaign.failure && (
         <div className="notice notice-error">
           <h2>Campaign failure</h2>

@@ -58,7 +58,6 @@ class GetSimulatorFidelityQueryHandlerTest {
         assertThat(answer.established()).isTrue();
         assertThat(answer.passingCheck().check().id()).isEqualTo(passed.id());
         assertThat(answer.sourceRevisions().gameService()).isEqualTo("1111111");
-        assertThat(handlerFor("1111111").established()).isTrue();
     }
 
     @Test
@@ -69,7 +68,6 @@ class GetSimulatorFidelityQueryHandlerTest {
 
         assertThat(answer.established()).isFalse();
         assertThat(answer.passingCheck()).isNull();
-        assertThat(handlerFor("2222222").established()).isFalse();
     }
 
     @Test
@@ -92,7 +90,7 @@ class GetSimulatorFidelityQueryHandlerTest {
         checks.create(UUID.randomUUID(), "hash", queued);
         checks.update(queued.failed(new FidelityFailure("RUN_FAILED", "no"), NOW), queued.state());
 
-        assertThat(handlerFor("1111111").established()).isFalse();
+        assertThat(handlerFor("1111111").handle().established()).isFalse();
     }
 
     @Test
@@ -104,7 +102,7 @@ class GetSimulatorFidelityQueryHandlerTest {
     }
 
     @Test
-    void withoutASimulatorTheAnswerIsRefusedAndTheGateIsClosed() {
+    void withoutASimulatorTheAnswerIsRefused() {
         var handler = new GetSimulatorFidelityQueryHandler(checks, new FidelityEnvironments() {
             @Override
             public Optional<Simulator> simulator() {
@@ -123,6 +121,5 @@ class GetSimulatorFidelityQueryHandlerTest {
         });
 
         assertThatThrownBy(handler::handle).isInstanceOf(SimulatorNotAvailableException.class);
-        assertThat(handler.established()).isFalse();
     }
 }

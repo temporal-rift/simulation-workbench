@@ -31,7 +31,6 @@ import io.github.temporalrift.workbench.search.domain.port.out.CampaignExperimen
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRepository;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRuns;
 import io.github.temporalrift.workbench.search.domain.port.out.CandidateEvaluation;
-import io.github.temporalrift.workbench.search.domain.port.out.FidelityGate;
 import io.github.temporalrift.workbench.search.domain.round.Assessment;
 import io.github.temporalrift.workbench.search.domain.round.RoundDecider;
 import io.github.temporalrift.workbench.search.domain.round.RoundResult;
@@ -45,7 +44,7 @@ import io.github.temporalrift.workbench.search.domain.wave.Wave;
  * campaign is still at the version the step read.
  *
  * <ol>
- *   <li>A queued campaign starts once the simulator's fidelity is established, and says why while it is not.
+ *   <li>A queued campaign starts on its next step.
  *   <li>A running campaign counts the active time since its last step against its budget.
  *   <li>A round generates its candidates, plays the seeds they lack in waves one after another, and, when every
  *       game is played, decides the whole round at once in candidate order.
@@ -64,10 +63,6 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
     static final String RUN_MISSING = "RUN_MISSING";
     static final String EVALUATION_FAILED = "EVALUATION_FAILED";
 
-    private static final CampaignFailure FIDELITY_NOT_ESTABLISHED = new CampaignFailure(
-            CampaignFailure.FIDELITY_NOT_ESTABLISHED,
-            "The simulator has no passing fidelity record for the source revisions it embeds");
-
     private static final Logger LOG = LoggerFactory.getLogger(CampaignProgress.class);
 
     private static final int RECOVERY_ATTEMPTS = 5;
@@ -76,7 +71,6 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
     private final CampaignExperiments experiments;
     private final CampaignRuns runs;
     private final CandidateEvaluation evaluation;
-    private final FidelityGate gate;
     private final CampaignSettings settings;
     private final Clock clock;
     private final WaveRuns waveRuns;
@@ -87,14 +81,12 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
             CampaignExperiments experiments,
             CampaignRuns runs,
             CandidateEvaluation evaluation,
-            FidelityGate gate,
             CampaignSettings settings,
             Clock clock) {
         this.campaigns = campaigns;
         this.experiments = experiments;
         this.runs = runs;
         this.evaluation = evaluation;
-        this.gate = gate;
         this.settings = settings;
         this.clock = clock;
         this.waveRuns = new WaveRuns(campaigns, runs);
@@ -146,16 +138,10 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
         };
     }
 
+    /** A queued campaign starts now; a failure it was stored with from an earlier version is cleared. */
     private boolean queued(StoredCampaign stored) {
-        var campaign = stored.campaign();
         var now = clock.instant();
-        if (gate.established()) {
-            return campaigns.apply(CampaignChange.of(stored, campaign.start(now), now));
-        }
-        if (FIDELITY_NOT_ESTABLISHED.equals(campaign.failure())) {
-            return false;
-        }
-        return campaigns.apply(CampaignChange.of(stored, campaign.waiting(FIDELITY_NOT_ESTABLISHED), now));
+        return campaigns.apply(CampaignChange.of(stored, stored.campaign().start(now), now));
     }
 
     private boolean running(StoredCampaign stored) {
@@ -177,11 +163,9 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
         }
     }
 
-    /** A campaign resumed before it ever started starts now, or waits for the fidelity gate like a queued one. */
+    /** A campaign resumed before it ever started records now as its start. */
     private boolean begin(StoredCampaign stored, Instant now) {
-        var campaign = stored.campaign();
-        var next = gate.established() ? campaign.start(now) : campaign.requeue(FIDELITY_NOT_ESTABLISHED);
-        return campaigns.apply(CampaignChange.of(stored, next, now));
+        return campaigns.apply(CampaignChange.of(stored, stored.campaign().start(now), now));
     }
 
     private boolean advanceRound(Step step) {

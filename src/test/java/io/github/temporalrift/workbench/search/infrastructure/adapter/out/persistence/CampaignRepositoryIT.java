@@ -164,8 +164,9 @@ class CampaignRepositoryIT {
         var queued = queued("moving", NOW);
         store(queued, NOW);
         var later = NOW.plusSeconds(90);
-        var next = queued.waiting(new CampaignFailure(CampaignFailure.FIDELITY_NOT_ESTABLISHED, "no passing record"))
-                .withParallelism(7);
+        var next = queued.start(NOW)
+                .withParallelism(7)
+                .fail(new CampaignFailure(CampaignFailure.CANDIDATE_GENERATION_EXHAUSTED, "too few candidates"), later);
 
         assertThat(repository.save(next, later, 0)).isTrue();
 

@@ -10,7 +10,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException;
@@ -23,15 +22,14 @@ import io.github.temporalrift.workbench.search.domain.port.out.CampaignExperimen
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRuns;
 import io.github.temporalrift.workbench.search.domain.port.out.CandidateEvaluation;
 import io.github.temporalrift.workbench.search.domain.port.out.CandidateValidation;
-import io.github.temporalrift.workbench.search.domain.port.out.FidelityGate;
 import io.github.temporalrift.workbench.shared.execution.RunPhase;
 import io.github.temporalrift.workbench.shared.text.Sha256;
 
 /**
- * The experiment, run, evaluation and fidelity sides of a campaign, simulated: runs play when the test lets them, and
- * a candidate score is a fixed function of its id, so everything a campaign decides is a function of its definition.
+ * The experiment, run and evaluation sides of a campaign, simulated: runs play when the test lets them, and a
+ * candidate score is a fixed function of its id, so everything a campaign decides is a function of its definition.
  */
-final class SimulatedPlay implements CampaignExperiments, CampaignRuns, CandidateEvaluation, FidelityGate {
+final class SimulatedPlay implements CampaignExperiments, CampaignRuns, CandidateEvaluation {
 
     static final String POISONED = "poisoned";
 
@@ -39,19 +37,9 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
         return List.copyOf(experiments.values());
     }
 
-    private final AtomicBoolean fidelityEstablished = new AtomicBoolean(true);
     private final Map<UUID, Run> runs = new HashMap<>();
     private final Map<UUID, UUID> experimentOfRun = new HashMap<>();
     private final Map<UUID, Experiment> experiments = new HashMap<>();
-
-    void fidelity(boolean established) {
-        fidelityEstablished.set(established);
-    }
-
-    @Override
-    public boolean established() {
-        return fidelityEstablished.get();
-    }
 
     // --- experiments ---
 

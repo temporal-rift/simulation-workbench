@@ -14,7 +14,6 @@ import io.github.temporalrift.workbench.execution.LaneEnvironments;
 import io.github.temporalrift.workbench.execution.RunCatalog;
 import io.github.temporalrift.workbench.execution.RunStarter;
 import io.github.temporalrift.workbench.experiment.ExperimentFactory;
-import io.github.temporalrift.workbench.fidelity.SimulatorFidelityGate;
 import io.github.temporalrift.workbench.policy.PolicyCatalog;
 import io.github.temporalrift.workbench.search.application.command.CampaignProgress;
 import io.github.temporalrift.workbench.search.application.command.CancelCampaignCommandHandler;
@@ -41,7 +40,6 @@ import io.github.temporalrift.workbench.search.domain.port.out.CampaignExperimen
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRepository;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRuns;
 import io.github.temporalrift.workbench.search.domain.port.out.CandidateEvaluation;
-import io.github.temporalrift.workbench.search.domain.port.out.FidelityGate;
 import io.github.temporalrift.workbench.search.domain.port.out.MasterSeeds;
 import io.github.temporalrift.workbench.search.infrastructure.adapter.in.scheduler.CampaignWorker;
 import io.github.temporalrift.workbench.search.infrastructure.adapter.out.analysis.CandidateEvaluationAdapter;
@@ -49,7 +47,6 @@ import io.github.temporalrift.workbench.search.infrastructure.adapter.out.defaul
 import io.github.temporalrift.workbench.search.infrastructure.adapter.out.defaults.ShippedCampaignDefaults;
 import io.github.temporalrift.workbench.search.infrastructure.adapter.out.execution.CampaignRunsAdapter;
 import io.github.temporalrift.workbench.search.infrastructure.adapter.out.experiment.CampaignExperimentsAdapter;
-import io.github.temporalrift.workbench.search.infrastructure.adapter.out.fidelity.FidelityGateAdapter;
 
 @Configuration
 @EnableConfigurationProperties(SearchProperties.class)
@@ -76,20 +73,14 @@ public class SearchConfiguration {
     }
 
     @Bean
-    FidelityGate fidelityGate(SimulatorFidelityGate gate) {
-        return new FidelityGateAdapter(gate);
-    }
-
-    @Bean
     AdvanceCampaignsUseCase advanceCampaignsUseCase(
             CampaignRepository campaigns,
             CampaignExperiments experiments,
             CampaignRuns runs,
             CandidateEvaluation evaluation,
-            FidelityGate gate,
             SearchProperties properties,
             Clock clock) {
-        return new CampaignProgress(campaigns, experiments, runs, evaluation, gate, properties.settings(), clock);
+        return new CampaignProgress(campaigns, experiments, runs, evaluation, properties.settings(), clock);
     }
 
     @Bean
@@ -120,9 +111,8 @@ public class SearchConfiguration {
             CampaignExperiments experiments,
             CampaignRuns runs,
             CandidateEvaluation evaluation,
-            FidelityGate gate,
             Clock clock) {
-        return new StartConfirmationCommandHandler(campaigns, experiments, runs, evaluation, gate, clock);
+        return new StartConfirmationCommandHandler(campaigns, experiments, runs, evaluation, clock);
     }
 
     @Bean

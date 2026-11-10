@@ -27,25 +27,45 @@ class CampaignProgressTest {
     private static final Instant START = Instant.parse("2026-01-01T00:00:00Z");
 
     @Test
-    void aCampaignWaitsInTheQueueWhileTheFidelityIsNotEstablishedAndStartsWhenItIs() {
+    void aQueuedCampaignStartsOnItsFirstStep() {
         var harness = new Harness(3600);
-        harness.play.fidelity(false);
         var id = harness.create(4);
 
-        assertThat(harness.progress.advance()).isTrue();
-        assertThat(harness.progress.advance()).isFalse();
-
-        var waiting = harness.campaign(id);
-        assertThat(waiting.state()).isEqualTo(CampaignState.QUEUED);
-        assertThat(waiting.failure().code()).isEqualTo(CampaignFailure.FIDELITY_NOT_ESTABLISHED);
-
-        harness.play.fidelity(true);
         assertThat(harness.progress.advance()).isTrue();
 
         var started = harness.campaign(id);
         assertThat(started.state()).isEqualTo(CampaignState.RUNNING);
         assertThat(started.failure()).isNull();
         assertThat(started.startedAt()).isEqualTo(START);
+    }
+
+    @Test
+    void aCampaignStoredWaitingForTheRetiredFidelityGateStartsWithItsFailureCleared() {
+        var harness = new Harness(3600);
+        var id = harness.createQueuedWith(
+                new CampaignFailure("FIDELITY_NOT_ESTABLISHED", "The simulator has no passing fidelity record"));
+
+        assertThat(harness.progress.advance()).isTrue();
+
+        var started = harness.campaign(id);
+        assertThat(started.state()).isEqualTo(CampaignState.RUNNING);
+        assertThat(started.failure()).isNull();
+        assertThat(started.startedAt()).isEqualTo(START);
+    }
+
+    @Test
+    void aCampaignResumedBeforeItStartedBeginsRoundZero() {
+        var harness = new Harness(3600);
+        var id = harness.create(4);
+        harness.pause.handle(id, UUID.randomUUID());
+        harness.resume.handle(id, UUID.randomUUID());
+
+        assertThat(harness.progress.advance()).isTrue();
+
+        var started = harness.campaign(id);
+        assertThat(started.state()).isEqualTo(CampaignState.RUNNING);
+        assertThat(started.startedAt()).isEqualTo(START);
+        assertThat(started.round()).isZero();
     }
 
     @Test
@@ -333,8 +353,7 @@ class CampaignProgressTest {
         }
 
         private CampaignProgress newProgress() {
-            return new CampaignProgress(
-                    campaigns, play, play, play, play, new CampaignSettings(maxCasesPerWave), clock);
+            return new CampaignProgress(campaigns, play, play, play, new CampaignSettings(maxCasesPerWave), clock);
         }
 
         /** A new process over the same storage: nothing is remembered but what was persisted. */
@@ -348,10 +367,36 @@ class CampaignProgressTest {
         }
 
         UUID create(int parallelism, String name) {
+            var campaign = Campaign.queued(UUID.randomUUID(), definition(name), parallelism, START);
+            campaigns.create(UUID.randomUUID(), "h".repeat(64), campaign, START);
+            return campaign.campaignId();
+        }
+
+        /** A queued campaign as an earlier version stored it, with the failure it was waiting under. */
+        UUID createQueuedWith(CampaignFailure failure) {
+            var queued = Campaign.queued(UUID.randomUUID(), definition("search"), 4, START);
+            var stored = new Campaign(
+                    queued.campaignId(),
+                    queued.definition(),
+                    queued.parallelism(),
+                    queued.state(),
+                    queued.spentSeconds(),
+                    queued.round(),
+                    queued.shortList(),
+                    queued.confirmation(),
+                    failure,
+                    queued.createdAt(),
+                    queued.startedAt(),
+                    queued.finishedAt());
+            campaigns.create(UUID.randomUUID(), "h".repeat(64), stored, START);
+            return stored.campaignId();
+        }
+
+        private CampaignDefinition definition(String name) {
             var mapper = JsonMapper.builder().build();
             var baseline = mapper.createObjectNode();
             baseline.putObject("rulesArtifact").put("digest", "d".repeat(64));
-            var definition = new CampaignDefinition(
+            return new CampaignDefinition(
                     name,
                     baseline,
                     1,
@@ -362,9 +407,6 @@ class CampaignProgressTest {
                     "7",
                     "9",
                     new SearchAlgorithm(8, 2, 2, 2));
-            var campaign = Campaign.queued(UUID.randomUUID(), definition, parallelism, START);
-            campaigns.create(UUID.randomUUID(), "h".repeat(64), campaign, START);
-            return campaign.campaignId();
         }
 
         Campaign campaign(UUID id) {

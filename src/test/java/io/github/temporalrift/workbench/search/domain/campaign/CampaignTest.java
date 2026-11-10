@@ -76,29 +76,26 @@ class CampaignTest {
     }
 
     @Test
-    void aCampaignThatCannotStartYetWaitsWithItsReasonAndStartsLater() {
-        var reason = new CampaignFailure(CampaignFailure.FIDELITY_NOT_ESTABLISHED, "no passing fidelity record");
+    void aQueuedCampaignStoredWithAFailureStartsWithoutIt() {
+        var stored = new Campaign(
+                queued.campaignId(),
+                queued.definition(),
+                queued.parallelism(),
+                CampaignState.QUEUED,
+                0,
+                0,
+                List.of(),
+                null,
+                new CampaignFailure("FIDELITY_NOT_ESTABLISHED", "no passing fidelity record"),
+                queued.createdAt(),
+                null,
+                null);
 
-        var waiting = queued.waiting(reason);
-        assertThat(waiting.state()).isEqualTo(CampaignState.QUEUED);
-        assertThat(waiting.failure()).isEqualTo(reason);
+        var started = stored.start(NOW);
 
-        var started = waiting.start(NOW);
         assertThat(started.state()).isEqualTo(CampaignState.RUNNING);
         assertThat(started.failure()).isNull();
         assertThat(started.startedAt()).isEqualTo(NOW);
-    }
-
-    @Test
-    void aResumedCampaignThatNeverStartedGoesBackToTheQueueWhenItCannotStart() {
-        var reason = new CampaignFailure(CampaignFailure.FIDELITY_NOT_ESTABLISHED, "no passing fidelity record");
-
-        var requeued = queued.pause().resume().requeue(reason);
-
-        assertThat(requeued.state()).isEqualTo(CampaignState.QUEUED);
-        assertThat(requeued.failure()).isEqualTo(reason);
-        var started = queued.start(NOW);
-        assertThatThrownBy(() -> started.requeue(reason)).isInstanceOf(InvalidCampaignStateException.class);
     }
 
     @Test

@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignIdempotencyConflictException;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignNotFoundException;
-import io.github.temporalrift.workbench.search.domain.campaign.FidelityNotEstablishedException;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignException;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignReason;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignStateException;
@@ -70,11 +69,6 @@ class CampaignExceptionHandler {
     @ExceptionHandler(SimulatorNotAvailableException.class)
     ProblemDetail handleSimulatorNotAvailable(SimulatorNotAvailableException ex) {
         return ProblemDetails.of(HttpStatus.CONFLICT, ex.getMessage(), "SIMULATOR_NOT_AVAILABLE");
-    }
-
-    @ExceptionHandler(FidelityNotEstablishedException.class)
-    ProblemDetail handleFidelityNotEstablished(FidelityNotEstablishedException ex) {
-        return ProblemDetails.of(HttpStatus.CONFLICT, ex.getMessage(), "FIDELITY_NOT_ESTABLISHED");
     }
 
     @ExceptionHandler(PolicyNotAvailableException.class)
