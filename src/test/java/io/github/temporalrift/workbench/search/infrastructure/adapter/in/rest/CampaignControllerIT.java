@@ -275,6 +275,37 @@ class CampaignControllerIT {
     }
 
     @Test
+    void aDefinitionWithoutPoliciesLeavesThemToTheService() throws Exception {
+        when(create.handle(any())).thenReturn(campaign());
+        var withoutPolicies = """
+                {
+                  "name": "threshold-halving-01",
+                  "baseline": {
+                    "rulesArtifact": {"digest": "%s"},
+                    "contentArtifact": {"digest": "%s"}
+                  },
+                  "playerCounts": [3]
+                }
+                """.formatted("a".repeat(64), "b".repeat(64));
+
+        send("/api/v1/campaigns", withoutPolicies, WRITE).andExpect(status().isCreated());
+
+        verify(create).handle(org.mockito.ArgumentMatchers.argThat(command -> command.policies() == null));
+    }
+
+    @Test
+    void anEmptyPolicyListAnswers400AsAnInvalidValue() throws Exception {
+        var empty = MINIMAL.replaceFirst("(?s)\"policies\": \\[.*?\\],", "\"policies\": [],");
+
+        send("/api/v1/campaigns", empty, WRITE)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_CAMPAIGN"))
+                .andExpect(jsonPath("$.field").value("policies"))
+                .andExpect(jsonPath("$.reason").value("INVALID_VALUE"));
+        verify(create, org.mockito.Mockito.never()).handle(any());
+    }
+
+    @Test
     void aPartialAlgorithmPassesOnlyTheFieldsItSets() throws Exception {
         when(create.handle(any())).thenReturn(campaign());
         var partial = MINIMAL.replace(

@@ -337,6 +337,11 @@
                             </apiPackage>
                             <modelPackage>io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model
                             </modelPackage>
+                            <configOptions>
+                                <!-- An absent list or map stays null, so an omitted field keeps its documented
+                                     default and is not mistaken for an empty value. -->
+                                <containerDefaultToNull>true</containerDefaultToNull>
+                            </configOptions>
                         </configuration>
                     </execution>
                     <!-- Participant and execution-control contracts are consumed through generated HTTP clients only. -->
