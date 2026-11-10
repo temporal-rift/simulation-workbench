@@ -71,7 +71,7 @@ public final class SimulatorLanePool extends RosterBackedLaneProvider {
     /**
      * What the deployment declares about the slots.
      *
-     * @param rulesFile the {@code game.rules.*} properties the services play under
+     * @param rulesFile the {@code game.*} configuration the services play under: rules, timers, limits and catalog
      * @param workDirectory where the jars are extracted
      * @param botPlayerIds the player id of each bot identity every slot mints, in seat order
      * @param idleTimeout how long a slot's services may host no case before they stop; zero keeps them running
