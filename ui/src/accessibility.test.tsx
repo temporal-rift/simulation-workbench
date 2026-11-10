@@ -37,7 +37,7 @@ describe('accessibility', () => {
   it('the campaigns page and a campaign with its log have no axe violations', async () => {
     serveCampaigns(service, {
       campaigns: [campaign({ state: 'QUEUED' })],
-      log: [logEntry(), logEntry({ sequence: 2, decision: 'DISCARDED', reason: 'GATE_FAILS', evidence: { lineIds: ['G-01'] }, evaluation: { verdict: 'REJECTED', score: null } })],
+      log: [logEntry(), logEntry({ sequence: 2, decision: 'DISCARDED', reason: 'GATE_FAILS', evidence: { lineIds: ['G-01'] }, evaluation: { verdict: 'REJECTED', score: null, gateMiss: 1.5 } })],
     })
     const page = await renderApp('/campaigns', service)
     await page.findByRole('table', { name: 'Campaigns, newest first' })

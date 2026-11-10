@@ -16,14 +16,15 @@ beforeEach(() => {
 const PATH = `/campaigns/${CAMPAIGN_IDS.campaign}`
 
 describe('a running campaign', () => {
-  it('shows its state, budget spent and remaining, round and games at once', async () => {
+  it('shows its state, time spent, round and games at once, and no time budget', async () => {
     serveCampaigns(service)
     await renderApp(PATH, service)
 
     expect(await screen.findByRole('heading', { name: /Campaign threshold-halving-01/ })).toBeInTheDocument()
     expect(screen.getByText('State: Running')).toBeInTheDocument()
-    expect(screen.getByText('1 h 02 min 05 s')).toBeInTheDocument()
-    expect(screen.getByText('2 h 57 min 55 s')).toBeInTheDocument()
+    expect(screen.getByText('Time spent').nextElementSibling).toHaveTextContent('1 h 02 min 05 s')
+    expect(screen.queryByText(/remaining/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/budget/i)).not.toBeInTheDocument()
     expect(screen.getByText('None yet')).toBeInTheDocument()
   })
 
@@ -34,7 +35,7 @@ describe('a running campaign', () => {
         criterionVersion: 3,
         searchMasterSeed: '12345678901234567890',
         confirmationMasterSeed: '98765432109876543210',
-        algorithm: { version: 'SUCCESSIVE_HALVING_V1', initialCandidates: 32, screeningSeeds: 2, eta: 2, shortListSize: 1 },
+        algorithm: { version: 'SUCCESSIVE_HALVING_V2', initialCandidates: 32, screeningSeeds: 2, eta: 2, shortListSize: 1 },
       })],
     })
     await renderApp(PATH, service)
@@ -175,22 +176,32 @@ describe('the decision log', () => {
           decision: 'DISCARDED',
           reason: 'GATE_FAILS',
           evidence: { lineIds: ['G-01'] },
-          evaluation: { verdict: 'REJECTED', score: null },
+          evaluation: { verdict: 'REJECTED', score: null, gateMiss: 1.5 },
           seeds: ['11', '12'],
           gamesSpent: 2,
         }),
         logEntry({ sequence: 3, candidateId: 'c-0002', overrides: {}, decision: 'DISCARDED', reason: 'DOMINATED', evidence: { dominatedBy: 'c-0001' } }),
+        logEntry({
+          sequence: 4,
+          candidateId: 'c-0003',
+          decision: 'DISCARDED',
+          reason: 'GATES_NOT_MET',
+          evidence: { lineIds: ['G-05'] },
+          evaluation: { verdict: 'REJECTED', score: 27.5, gateMiss: 0.4 },
+        }),
       ],
     })
     await renderApp(PATH, service)
 
     const table = await screen.findByRole('table', { name: 'Decisions, in the order they were taken' })
     const rows = within(table).getAllByRole('row').slice(1)
-    expect(rows).toHaveLength(3)
+    expect(rows).toHaveLength(4)
+    expect(within(rows[1]!).getByText('REJECTED, gate miss 1.5')).toBeInTheDocument()
+    expect(within(rows[3]!).getByText(/Still fails a gate when the search ended \(G-05\)/)).toBeInTheDocument()
+    expect(within(rows[3]!).getByText('REJECTED, score 27.5, gate miss 0.4')).toBeInTheDocument()
     expect(within(rows[0]!).getByText('Generated')).toBeInTheDocument()
     expect(within(rows[0]!).getByText('win-score-threshold = 22')).toBeInTheDocument()
     expect(within(rows[1]!).getByText(/A gate line fails \(G-01\)/)).toBeInTheDocument()
-    expect(within(rows[1]!).getByText('REJECTED')).toBeInTheDocument()
     expect(within(rows[2]!).getByText(/Dominated by/)).toBeInTheDocument()
     expect(within(rows[2]!).getByText('baseline')).toBeInTheDocument()
   })

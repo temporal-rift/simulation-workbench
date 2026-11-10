@@ -36,7 +36,7 @@ import {
   isResumable,
   isTuneable,
   isWholeNumber,
-  remainingSeconds,
+  evaluationText,
 } from './campaignView'
 import { ConfirmationReport } from './ConfirmationReport'
 
@@ -130,10 +130,8 @@ function CampaignDetail({ campaign, stale }: { readonly campaign: Campaign; read
         </div>
       )}
       <dl>
-        <dt>Budget spent</dt>
+        <dt>Time spent</dt>
         <dd>{formatSeconds(campaign.spentSeconds)}</dd>
-        <dt>Budget remaining</dt>
-        <dd>{formatSeconds(remainingSeconds(campaign.budgetSeconds, campaign.spentSeconds))}</dd>
         <dt>Round</dt>
         <dd>{campaign.round}</dd>
         <dt>Games at once</dt>
@@ -286,7 +284,7 @@ function LogSection({ campaign }: { readonly campaign: Campaign }) {
                           </>
                         )}
                       </td>
-                      <td>{entry.evaluation ? `${entry.evaluation.verdict}${entry.evaluation.score === null ? '' : `, score ${entry.evaluation.score}`}` : '—'}</td>
+                      <td>{entry.evaluation ? evaluationText(entry.evaluation) : '—'}</td>
                       <td>{entry.gamesSpent}</td>
                       <td>
                         {Object.keys(entry.overrides).length === 0

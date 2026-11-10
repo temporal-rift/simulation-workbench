@@ -26,15 +26,17 @@ class ShippedCampaignDefaultsTest {
 
     @Test
     void theAlgorithmIsTheNewestApprovedSearchBudgetRecord() {
-        assertThat(defaults.algorithm()).isEqualTo(new SearchAlgorithm(32, 2, 2, 1));
+        assertThat(defaults.algorithm())
+                .isEqualTo(new SearchAlgorithm(SearchAlgorithm.Version.SUCCESSIVE_HALVING_V2, 32, 2, 2, 1));
     }
 
     @Test
     void theNewestOfSeveralRecordsWins() {
         var older = record("{\"version\":1,\"algorithm\":" + algorithm("SUCCESSIVE_HALVING_V1", 4) + "}");
-        var newer = record("{\"version\":3,\"algorithm\":" + algorithm("SUCCESSIVE_HALVING_V1", 16) + "}");
+        var newer = record("{\"version\":3,\"algorithm\":" + algorithm("SUCCESSIVE_HALVING_V2", 16) + "}");
 
-        assertThat(over(newer, older).algorithm()).isEqualTo(new SearchAlgorithm(16, 2, 2, 1));
+        assertThat(over(newer, older).algorithm())
+                .isEqualTo(new SearchAlgorithm(SearchAlgorithm.Version.SUCCESSIVE_HALVING_V2, 16, 2, 2, 1));
     }
 
     @Test

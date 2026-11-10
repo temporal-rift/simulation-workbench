@@ -88,6 +88,7 @@ class VariantRulesIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.version").value(1))
                 .andExpect(jsonPath("$.parameters.length()").value(46))
+                .andExpect(jsonPath("$.parameters[0].type").value("NUMBER"))
                 .andExpect(jsonPath("$.parameters[0].key").value(THRESHOLD))
                 .andExpect(jsonPath("$.parameters[0].baseline").value(20))
                 .andExpect(jsonPath("$.parameters[0].min").value(16))
@@ -235,6 +236,34 @@ class VariantRulesIT {
         mockMvc.perform(get("/api/v1/experiments/{id}/variants/{label}/rules", UUID.randomUUID(), "baseline")
                         .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:read"))))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void aBooleanOverrideOfANumericParameterIsRefusedAsTheWrongType() throws Exception {
+        mockMvc.perform(post("/api/v1/variant-rules-previews")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:read")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"rulesArtifact\": {\"digest\": \"" + VariantRulesFixtures.ARTIFACT_DIGEST
+                                + "\"}, \"parameterSpaceVersion\": 1, \"overrides\": {\"" + THRESHOLD + "\": true}}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.reason").value("WRONG_TYPE"))
+                .andExpect(jsonPath("$.field").value("overrides." + THRESHOLD));
+
+        var manifest = VariantRulesFixtures.manifest(
+                VariantRulesFixtures.variant(
+                        "baseline", VariantRulesFixtures.baseline().digest(), "{}"),
+                VariantRulesFixtures.variant("candidate", "f".repeat(64), "{\"" + THRESHOLD + "\": true}"));
+
+        mockMvc.perform(post("/api/v1/experiments")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:write")))
+                        .header("Idempotency-Key", UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(manifest)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_EXPERIMENT"))
+                .andExpect(jsonPath("$.reason").value("WRONG_TYPE"))
+                .andExpect(jsonPath("$.field").value("variants[1].overrides." + THRESHOLD));
     }
 
     @Test

@@ -6,15 +6,23 @@ import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonValue;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.JsonNodeFactory;
 
 import io.github.temporalrift.workbench.experiment.EffectiveRules;
 import io.github.temporalrift.workbench.experiment.application.port.in.PreviewVariantRulesUseCase;
+import io.github.temporalrift.workbench.experiment.domain.ExperimentErrorCode;
 import io.github.temporalrift.workbench.experiment.domain.rules.ParameterSpace;
+import io.github.temporalrift.workbench.experiment.domain.rules.VariantRules;
+import io.github.temporalrift.workbench.experiment.domain.rules.VariantRulesRefusal;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.OverrideValues;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.DerivedParameter;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.EffectiveRulesPropertiesValue;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.HeldFixedParameter;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.NumberParameterDefinition;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.OverrideValue;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ParameterConstraint;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ParameterDefinition;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ParameterType;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.VariantRulesPreview;
 
 /** Maps parameter spaces and variant rules onto the published contract. */
@@ -27,7 +35,8 @@ final class VariantRulesMapper {
         return new io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ParameterSpace(
                 space.version(),
                 space.parameters().stream()
-                        .map(parameter -> new ParameterDefinition(
+                        .<ParameterDefinition>map(parameter -> new NumberParameterDefinition(
+                                ParameterType.NUMBER,
                                 parameter.key(),
                                 parameter.services(),
                                 parameter.baseline(),
@@ -49,7 +58,7 @@ final class VariantRulesMapper {
 
     static VariantRulesPreview preview(PreviewVariantRulesUseCase.Result result) {
         return new VariantRulesPreview(
-                rules(result.rules()), result.effectiveRulesDigest(), new LinkedHashMap<>(result.overrides()));
+                rules(result.rules()), result.effectiveRulesDigest(), OverrideValues.of(result.overrides()));
     }
 
     static io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.EffectiveRules rules(
@@ -62,8 +71,20 @@ final class VariantRulesMapper {
                 properties);
     }
 
-    static Map<String, BigDecimal> overrides(Map<String, BigDecimal> overrides) {
-        return overrides == null ? Map.of() : overrides;
+    /**
+     * The numeric overrides a preview request sets; empty when it sets none.
+     *
+     * @throws io.github.temporalrift.workbench.experiment.domain.ExperimentValidationException {@code WRONG_TYPE} for a
+     *     value that is not a number
+     */
+    static Map<String, BigDecimal> overrides(Map<String, OverrideValue> overrides) {
+        var variant = JsonNodeFactory.instance.objectNode();
+        variant.set("overrides", OverrideValues.json(overrides));
+        try {
+            return VariantRules.overridesOf(variant);
+        } catch (VariantRulesRefusal refusal) {
+            throw refusal.at(ExperimentErrorCode.INVALID_REQUEST, "");
+        }
     }
 
     /** A rules value as the JSON number, boolean, string or array it is; the generated union names none of them. */

@@ -26,7 +26,6 @@ public interface CreateCampaignUseCase {
      *
      * @param parameterSpaceVersion the parameter space version, or null for the newest
      * @param criterionVersion the balance criterion version, or null for the newest
-     * @param budgetSeconds the active time the search may spend, or null for the default
      * @param parallelism games played at once, or null for the default
      * @param searchMasterSeed the seed that derives every search seed, or null for a random one
      * @param confirmationMasterSeed the seed that derives every confirmation seed, or null for a random one
@@ -40,7 +39,6 @@ public interface CreateCampaignUseCase {
             Integer criterionVersion,
             JsonNode policies,
             List<Integer> playerCounts,
-            Integer budgetSeconds,
             Integer parallelism,
             String searchMasterSeed,
             String confirmationMasterSeed,
@@ -49,7 +47,7 @@ public interface CreateCampaignUseCase {
     /**
      * The search parameters a request sets; each null one takes the approved record's value.
      *
-     * @param version the algorithm, or null for the one the service implements
+     * @param version the algorithm, or null; a new campaign can only be {@code SUCCESSIVE_HALVING_V2}
      */
     record AlgorithmRequest(
             String version, Integer initialCandidates, Integer screeningSeeds, Integer eta, Integer shortListSize) {}

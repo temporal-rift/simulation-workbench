@@ -80,8 +80,10 @@ public interface CandidateEvaluation {
     /**
      * @param verdict {@code REJECTED}, {@code CONFIRMED}, {@code UNCONFIRMED} or {@code INVALID}
      * @param score null when the evaluation is invalid; lower is better
+     * @param gateMiss how far the candidate misses the criterion's gates, each gate counted once; 0 when it misses
+     *     none, null when the evaluation is invalid or was not screened
      */
-    record Evaluation(String verdict, Double score, List<String> failingGateLineIds) {
+    record Evaluation(String verdict, Double score, List<String> failingGateLineIds, Double gateMiss) {
 
         public Evaluation {
             failingGateLineIds = List.copyOf(failingGateLineIds);

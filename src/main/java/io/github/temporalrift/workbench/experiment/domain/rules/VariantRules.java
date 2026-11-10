@@ -66,7 +66,12 @@ public final class VariantRules {
     }
 
     private void freezeVariant(ObjectNode variant, String path, Map<String, String> retained) {
-        var overrides = overridesOf(variant);
+        SortedMap<String, BigDecimal> overrides;
+        try {
+            overrides = overridesOf(variant);
+        } catch (VariantRulesRefusal refusal) {
+            throw refusal.at(ExperimentErrorCode.INVALID_EXPERIMENT, path);
+        }
         var artifactDigest = variant.path("rulesArtifact").path("digest").asString();
         var baseline = baselines.find(artifactDigest);
         if (baseline.isEmpty()) {
@@ -169,14 +174,26 @@ public final class VariantRules {
                         null));
     }
 
-    /** The overrides a variant node carries, by key; empty when it has none. */
+    /**
+     * The overrides a variant node carries, by key; empty when it has none. Every parameter of the served spaces is
+     * numeric, so any other value is refused as the wrong type.
+     *
+     * @throws VariantRulesRefusal with {@link VariantRulesReason#WRONG_TYPE} for a value that is not a number
+     */
     public static SortedMap<String, BigDecimal> overridesOf(JsonNode variant) {
         var overrides = new TreeMap<String, BigDecimal>();
         var node = variant.get(OVERRIDES);
         if (node != null && node.isObject()) {
-            node.properties()
-                    .forEach(entry ->
-                            overrides.put(entry.getKey(), entry.getValue().decimalValue()));
+            node.properties().forEach(entry -> {
+                if (!entry.getValue().isNumber()) {
+                    throw new VariantRulesRefusal(
+                            VariantRulesReason.WRONG_TYPE,
+                            "override " + entry.getKey() + " must be a number: its parameter is numeric",
+                            entry.getKey(),
+                            null);
+                }
+                overrides.put(entry.getKey(), entry.getValue().decimalValue());
+            });
         }
         return overrides;
     }

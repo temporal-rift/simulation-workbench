@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import io.github.temporalrift.workbench.analysis.CandidateScreening;
 import io.github.temporalrift.workbench.analysis.domain.AnalysisVersion;
@@ -123,6 +124,23 @@ public class CandidateScreeningService implements CandidateScreening {
                 .distinct()
                 .sorted()
                 .toList();
-        return new Evaluation(Verdict.valueOf(evaluation.verdict().name()), evaluation.score(), failing);
+        var verdict = Verdict.valueOf(evaluation.verdict().name());
+        return new Evaluation(
+                verdict, evaluation.score(), failing, verdict == Verdict.INVALID ? null : gateMiss(evaluation.lines()));
+    }
+
+    /**
+     * Each gate counts once, whatever its number of lines: the mean deviation of a gate's lines that have a value,
+     * summed over the gates.
+     */
+    static double gateMiss(List<EvaluatedLine> lines) {
+        return lines.stream()
+                .filter(line -> line.role() == CriterionRole.GATE && line.value() != null)
+                .collect(Collectors.groupingBy(
+                        EvaluatedLine::lineId, TreeMap::new, Collectors.averagingDouble(EvaluatedLine::deviation)))
+                .values()
+                .stream()
+                .mapToDouble(Double::doubleValue)
+                .sum();
     }
 }

@@ -5,6 +5,8 @@ public enum VariantRulesReason {
     UNKNOWN_PARAMETER_SPACE,
     UNKNOWN_BASELINE,
     UNKNOWN_PARAMETER,
+    /** A boolean for a numeric parameter, or a number for a boolean one. */
+    WRONG_TYPE,
     OUT_OF_RANGE,
     OFF_STEP,
     CONSTRAINT_VIOLATED

@@ -1,4 +1,15 @@
-import type { ParameterDefinition, ParameterSpace } from '../api/generated'
+import type { NumberParameterDefinition, ParameterSpace } from '../api/generated'
+
+/** A parameter on a numeric grid; the only kind the served spaces hold so far. */
+export type NumericParameter = NumberParameterDefinition & { type: 'NUMBER' }
+
+/**
+ * The parameters an override may set from this form: the numeric ones, on their grid. A space with on/off parameters
+ * needs its own control for them, which this form does not offer yet.
+ */
+export function numericParameters(space: ParameterSpace): NumericParameter[] {
+  return space.parameters.filter((parameter): parameter is NumericParameter => parameter.type === 'NUMBER')
+}
 
 function decimalPlaces(value: number): number {
   const text = String(value)
@@ -10,7 +21,7 @@ function decimalPlaces(value: number): number {
  * Every value the parameter takes: from its minimum to its maximum in steps of its step. Computed on whole numbers
  * scaled by the finest decimal place, so steps of 0.25 do not drift.
  */
-export function gridValues(parameter: ParameterDefinition): string[] {
+export function gridValues(parameter: NumberParameterDefinition): string[] {
   const scale = 10 ** Math.max(decimalPlaces(parameter.min), decimalPlaces(parameter.max), decimalPlaces(parameter.step))
   const step = Math.round(parameter.step * scale)
   if (step <= 0) {
@@ -24,7 +35,7 @@ export function gridValues(parameter: ParameterDefinition): string[] {
 }
 
 /** The parameter as a designer weighs it: where it stands, how far it may move and in what steps. */
-export function describeParameter(parameter: ParameterDefinition): string {
+export function describeParameter(parameter: NumberParameterDefinition): string {
   return `Baseline ${parameter.baseline}, from ${parameter.min} to ${parameter.max} in steps of ${parameter.step}.`
 }
 

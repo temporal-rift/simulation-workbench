@@ -54,11 +54,25 @@ public record LogEntry(
         GATE_FAILS,
         DOMINATED,
         NOT_IN_TOP_FRACTION,
+        /** The plan ended and the candidate, though kept, still fails a gate, so it is not short-listed. */
+        GATES_NOT_MET,
+        /** Only on version 1 campaigns, whose search ended on a time budget. */
         BUDGET_EXHAUSTED
     }
 
-    /** The compact screening evaluation behind a decision; {@code score} is null for an invalid evaluation. */
-    public record Evaluation(String verdict, Double score) {}
+    /**
+     * The compact screening evaluation behind a decision.
+     *
+     * @param score null for an invalid evaluation
+     * @param gateMiss how far the candidate misses the gates; null for an invalid evaluation and on version 1 entries
+     */
+    public record Evaluation(String verdict, Double score, Double gateMiss) {
+
+        /** An evaluation recorded without a gate miss, as version 1 records them. */
+        public Evaluation(String verdict, Double score) {
+            this(verdict, score, null);
+        }
+    }
 
     /**
      * Why a decision was taken.
@@ -133,6 +147,10 @@ public record LogEntry(
             evaluationNode.putNull("score");
         } else {
             evaluationNode.put("score", evaluation.score());
+        }
+        // Version 1 entries record no gate miss, so their canonical form stays what it always was.
+        if (evaluation.gateMiss() != null) {
+            evaluationNode.put("gateMiss", evaluation.gateMiss());
         }
     }
 

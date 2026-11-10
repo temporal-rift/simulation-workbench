@@ -159,11 +159,13 @@ public final class ExperimentValidator {
             return;
         }
         if (!overrides.isObject()) {
-            throw invalid(path + OVERRIDES_FIELD, "overrides must be an object of numbers keyed by parameter");
+            throw invalid(path + OVERRIDES_FIELD, "overrides must be an object of values keyed by parameter");
         }
+        // Whether the value's type fits its parameter is decided against the parameter space, as WRONG_TYPE.
         for (var entry : overrides.properties()) {
-            if (!entry.getValue().isNumber()) {
-                throw invalid(path + OVERRIDES_FIELD + "." + entry.getKey(), "an override must be a number");
+            if (!entry.getValue().isNumber() && !entry.getValue().isBoolean()) {
+                throw invalid(
+                        path + OVERRIDES_FIELD + "." + entry.getKey(), "an override must be a number or a boolean");
             }
         }
         if (!overrides.isEmpty() && version == null) {

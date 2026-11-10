@@ -379,7 +379,7 @@ class ConfirmationTest {
                 3600,
                 "7",
                 "9",
-                new SearchAlgorithm(8, 2, 2, 2));
+                new SearchAlgorithm(SearchAlgorithm.Version.SUCCESSIVE_HALVING_V1, 8, 2, 2, 2));
         var queued = Campaign.queued(UUID.randomUUID(), definition, PARALLELISM, NOW);
         campaigns.create(UUID.randomUUID(), "h".repeat(64), queued, NOW);
         var candidates = new java.util.ArrayList<Candidate>();

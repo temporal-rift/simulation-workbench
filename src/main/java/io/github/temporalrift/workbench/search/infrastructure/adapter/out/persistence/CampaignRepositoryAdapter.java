@@ -474,7 +474,11 @@ class CampaignRepositoryAdapter implements CampaignRepository {
             return null;
         }
         var score = evaluation.path("score");
-        return new LogEntry.Evaluation(evaluation.path("verdict").asString(), score.isNull() ? null : score.asDouble());
+        var gateMiss = evaluation.path("gateMiss");
+        return new LogEntry.Evaluation(
+                evaluation.path("verdict").asString(),
+                score.isNumber() ? score.asDouble() : null,
+                gateMiss.isNumber() ? gateMiss.asDouble() : null);
     }
 
     private static LogEntry.Reason reason(JsonNode reason) {

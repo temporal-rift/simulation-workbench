@@ -504,7 +504,46 @@ class CampaignRepositoryIT {
         assertThat(repository.list(null, 10, 0).total()).isOne();
     }
 
+    @Test
+    void eachVersionKeepsWhatItRecordsAboutTime() {
+        var version2 = queued("plan", NOW);
+        var version1 = queued("budget", NOW, 14_400, SearchAlgorithm.Version.SUCCESSIVE_HALVING_V1);
+        store(version2, NOW);
+        store(version1, NOW);
+
+        var readVersion2 =
+                repository.find(version2.campaignId()).orElseThrow().campaign().definition();
+        var readVersion1 =
+                repository.find(version1.campaignId()).orElseThrow().campaign().definition();
+
+        assertThat(readVersion2.algorithm().version()).isEqualTo(SearchAlgorithm.Version.SUCCESSIVE_HALVING_V2);
+        assertThat(readVersion2.budgetSeconds()).isNull();
+        assertThat(readVersion1.algorithm().version()).isEqualTo(SearchAlgorithm.Version.SUCCESSIVE_HALVING_V1);
+        assertThat(readVersion1.budgetSeconds()).isEqualTo(14_400);
+    }
+
+    @Test
+    void aDefinitionStoredBeforeVersionsReadsAsVersion1WithItsBudget() {
+        var stored = queued("old", NOW, 14_400, SearchAlgorithm.Version.SUCCESSIVE_HALVING_V1);
+        store(stored, NOW);
+        // A definition written before algorithm versions existed carries no version at all.
+        jdbc.update(
+                "UPDATE campaign SET definition_json = replace(definition_json, ?, '') WHERE campaign_id = ?",
+                "\"version\":\"SUCCESSIVE_HALVING_V1\",",
+                stored.campaignId());
+
+        var read = repository.find(stored.campaignId()).orElseThrow().campaign().definition();
+
+        assertThat(read.algorithm().version()).isEqualTo(SearchAlgorithm.Version.SUCCESSIVE_HALVING_V1);
+        assertThat(read.budgetSeconds()).isEqualTo(14_400);
+    }
+
     private static Campaign queued(String name, Instant createdAt) {
+        return queued(name, createdAt, null, SearchAlgorithm.Version.SUCCESSIVE_HALVING_V2);
+    }
+
+    private static Campaign queued(
+            String name, Instant createdAt, Integer budgetSeconds, SearchAlgorithm.Version version) {
         var mapper = JsonMapper.builder().build();
         var baseline = mapper.createObjectNode();
         baseline.putObject("rulesArtifact").put("digest", "d".repeat(64));
@@ -515,10 +554,10 @@ class CampaignRepositoryIT {
                 1,
                 mapper.createObjectNode().put("kind", "heuristic"),
                 List.of(3, 4),
-                CampaignDefinition.DEFAULT_BUDGET_SECONDS,
+                budgetSeconds,
                 "7",
                 "9",
-                new SearchAlgorithm(8, 2, 2, 2));
+                new SearchAlgorithm(version, 8, 2, 2, 2));
         return Campaign.queued(UUID.randomUUID(), definition, CampaignDefinition.DEFAULT_PARALLELISM, createdAt);
     }
 }

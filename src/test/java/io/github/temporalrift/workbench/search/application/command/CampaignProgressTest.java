@@ -40,6 +40,51 @@ class CampaignProgressTest {
     }
 
     @Test
+    void aVersion2SearchPlaysItsWholePlanAndEndsWithoutABudget() {
+        var harness = Harness.version2(8, 1);
+        var id = harness.create(4);
+
+        harness.drive(id);
+
+        var campaign = harness.campaign(id);
+        assertThat(campaign.state()).isEqualTo(CampaignState.SEARCH_COMPLETED);
+        assertThat(campaign.round()).isEqualTo(2);
+        assertThat(campaign.definition().budgetSeconds()).isNull();
+        // 8 candidates on 2 seeds, then the best 4 on 2 more, then the best 2 on 4 more.
+        assertThat(harness.campaigns.games(id)).hasSize(8 * 2 + 4 * 2 + 2 * 4);
+        var log = harness.campaigns.log(id, 1000, 0).items();
+        assertThat(log)
+                .filteredOn(entry -> entry.decision() == LogEntry.Decision.GENERATED)
+                .allSatisfy(entry -> assertThat(entry.round()).isZero())
+                .hasSize(8);
+        assertThat(log)
+                .filteredOn(entry -> entry.decision() != LogEntry.Decision.GENERATED)
+                .allSatisfy(entry -> assertThat(entry.evaluation().gateMiss()).isNotNull());
+        assertThat(log)
+                .filteredOn(entry -> entry.decision() == LogEntry.Decision.KEPT)
+                .extracting(LogEntry::round)
+                .containsExactlyInAnyOrder(0, 0, 0, 0, 1, 1, 2);
+        assertThat(campaign.shortList()).hasSizeLessThanOrEqualTo(1);
+    }
+
+    @Test
+    void aVersion2SearchIsNotCutShortHoweverLongItsGamesTake() {
+        var harness = Harness.version2(8, 1);
+        var id = harness.create(4);
+        harness.driveUntil(() -> harness.campaign(id).round() == 1);
+
+        harness.clock.advance(Duration.ofDays(30));
+        harness.drive(id);
+
+        var campaign = harness.campaign(id);
+        assertThat(campaign.state()).isEqualTo(CampaignState.SEARCH_COMPLETED);
+        assertThat(campaign.round()).isEqualTo(2);
+        assertThat(harness.campaigns.log(id, 1000, 0).items())
+                .extracting(LogEntry::reason)
+                .doesNotContain(LogEntry.Reason.BUDGET_EXHAUSTED);
+    }
+
+    @Test
     void aCampaignStoredWaitingForTheRetiredFidelityGateStartsWithItsFailureCleared() {
         var harness = new Harness(3600);
         var id = harness.createQueuedWith(
@@ -330,7 +375,8 @@ class CampaignProgressTest {
         final InMemoryCampaigns campaigns = new InMemoryCampaigns();
         final SimulatedPlay play = new SimulatedPlay();
         final TestClock clock = new TestClock(START);
-        final int budgetSeconds;
+        final Integer budgetSeconds;
+        final SearchAlgorithm algorithm;
         final int maxCasesPerWave;
         CampaignProgress progress;
         final PauseCampaignCommandHandler pause;
@@ -338,12 +384,30 @@ class CampaignProgressTest {
         final CancelCampaignCommandHandler cancel;
         final SetCampaignParallelismCommandHandler parallelism;
 
+        /** A version 1 search with the budget it records. */
         Harness(int budgetSeconds) {
             this(budgetSeconds, 1_000);
         }
 
         Harness(int budgetSeconds, int maxCasesPerWave) {
+            this(
+                    budgetSeconds,
+                    new SearchAlgorithm(SearchAlgorithm.Version.SUCCESSIVE_HALVING_V1, 8, 2, 2, 2),
+                    maxCasesPerWave);
+        }
+
+        /** A version 2 search, which has no budget. */
+        static Harness version2(int initialCandidates, int shortListSize) {
+            return new Harness(
+                    null,
+                    new SearchAlgorithm(
+                            SearchAlgorithm.Version.SUCCESSIVE_HALVING_V2, initialCandidates, 2, 2, shortListSize),
+                    1_000);
+        }
+
+        private Harness(Integer budgetSeconds, SearchAlgorithm algorithm, int maxCasesPerWave) {
             this.budgetSeconds = budgetSeconds;
+            this.algorithm = algorithm;
             this.maxCasesPerWave = maxCasesPerWave;
             this.progress = newProgress();
             this.pause = new PauseCampaignCommandHandler(campaigns, play, clock);
@@ -406,7 +470,7 @@ class CampaignProgressTest {
                     budgetSeconds,
                     "7",
                     "9",
-                    new SearchAlgorithm(8, 2, 2, 2));
+                    algorithm);
         }
 
         Campaign campaign(UUID id) {

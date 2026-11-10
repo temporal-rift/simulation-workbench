@@ -13,7 +13,7 @@ beforeEach(() => {
 })
 
 describe('the campaigns', () => {
-  it('lists them newest first with their state, round and budget', async () => {
+  it('lists them newest first with their state, round and time spent', async () => {
     serveCampaigns(service, {
       campaigns: [
         campaign(),
@@ -26,7 +26,7 @@ describe('the campaigns', () => {
     const rows = within(table).getAllByRole('row').slice(1)
     expect(rows).toHaveLength(2)
     expect(within(rows[0]!).getByText('Running')).toBeInTheDocument()
-    expect(within(rows[0]!).getByText('1 h 02 min 05 s of 4 h 00 min 00 s')).toBeInTheDocument()
+    expect(within(rows[0]!).getByText('1 h 02 min 05 s')).toBeInTheDocument()
     expect(within(rows[1]!).getByText('Paused')).toBeInTheDocument()
     expect(within(rows[1]!).getByRole('link')).toHaveAttribute('href', `/campaigns/${CAMPAIGN_IDS.other}`)
   })
@@ -57,7 +57,7 @@ describe('starting a campaign', () => {
     const user = userEvent.setup()
 
     await fillName(user)
-    expect(screen.getByLabelText('Budget (hours of active time)')).toHaveValue('4')
+    expect(screen.queryByLabelText(/Budget/)).not.toBeInTheDocument()
     expect(screen.getByLabelText('Games at once')).toHaveValue('4')
     expect(screen.getByText('Advanced').closest('details')).not.toHaveProperty('open', true)
     await user.click(screen.getByRole('button', { name: 'Start campaign' }))
@@ -65,40 +65,11 @@ describe('starting a campaign', () => {
     await waitFor(() => expect(service.count('POST', /campaigns$/)).toBe(1))
     const request = service.requests.find((item) => item.method === 'POST')!
     expect(request.headers.get('Idempotency-Key')).toMatch(/^[0-9a-f-]{36}$/)
-    expect(request.body).toMatchObject({ name: 'first search', playerCounts: [3], budgetSeconds: 14400, parallelism: 4 })
-    for (const omitted of ['parameterSpaceVersion', 'criterionVersion', 'searchMasterSeed', 'confirmationMasterSeed', 'algorithm']) {
+    expect(request.body).toMatchObject({ name: 'first search', playerCounts: [3], parallelism: 4 })
+    for (const omitted of ['budgetSeconds', 'parameterSpaceVersion', 'criterionVersion', 'searchMasterSeed', 'confirmationMasterSeed', 'algorithm']) {
       expect(request.body).not.toHaveProperty(omitted)
     }
     expect(await screen.findByRole('heading', { name: /Campaign threshold-halving-01/ })).toBeInTheDocument()
-  })
-
-  it('converts the budget from hours to seconds', async () => {
-    serveCampaigns(service, { campaigns: [] })
-    service.override('POST', /^\/api\/v1\/campaigns$/, () => json(campaign({ state: 'QUEUED' }), 201))
-    await renderApp('/campaigns', service)
-    const user = userEvent.setup()
-
-    await fillName(user)
-    await user.clear(screen.getByLabelText('Budget (hours of active time)'))
-    await user.type(screen.getByLabelText('Budget (hours of active time)'), '1.5')
-    await user.click(screen.getByRole('button', { name: 'Start campaign' }))
-
-    await waitFor(() => expect(service.count('POST', /campaigns$/)).toBe(1))
-    expect(service.requests.find((item) => item.method === 'POST')!.body).toMatchObject({ budgetSeconds: 5400 })
-  })
-
-  it('refuses a budget that is not a number of hours or is under a minute', async () => {
-    serveCampaigns(service, { campaigns: [] })
-    await renderApp('/campaigns', service)
-    const user = userEvent.setup()
-
-    await fillName(user)
-    await user.clear(screen.getByLabelText('Budget (hours of active time)'))
-    await user.type(screen.getByLabelText('Budget (hours of active time)'), '0.001')
-    await user.click(screen.getByRole('button', { name: 'Start campaign' }))
-
-    expect(await screen.findByText('Enter a number of hours of at least 0.02 (one minute).')).toBeInTheDocument()
-    expect(service.count('POST', /campaigns$/)).toBe(0)
   })
 
   it('sends only the advanced values the designer filled in', async () => {
@@ -137,7 +108,6 @@ describe('starting a campaign', () => {
     expect(request.body).toMatchObject({
       name: 'first search',
       playerCounts: [3],
-      budgetSeconds: 14400,
       parallelism: 4,
       searchMasterSeed: '7',
       confirmationMasterSeed: '9',

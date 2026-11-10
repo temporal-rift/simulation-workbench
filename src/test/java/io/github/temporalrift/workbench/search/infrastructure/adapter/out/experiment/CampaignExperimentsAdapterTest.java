@@ -55,10 +55,10 @@ class CampaignExperimentsAdapterTest {
                 1,
                 MAPPER.createArrayNode().add(MAPPER.createObjectNode().put("id", "random")),
                 List.of(3, 4, 5),
-                CampaignDefinition.DEFAULT_BUDGET_SECONDS,
+                null,
                 "7",
                 "9",
-                new SearchAlgorithm(100, 4, 2, 2));
+                new SearchAlgorithm(SearchAlgorithm.Version.SUCCESSIVE_HALVING_V2, 100, 4, 2, 2));
     }
 
     @Test

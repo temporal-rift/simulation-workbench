@@ -1,11 +1,9 @@
 package io.github.temporalrift.workbench.fidelity.infrastructure.adapter.in.rest;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 import io.github.temporalrift.workbench.fidelity.application.FidelityCheckView;
@@ -17,6 +15,7 @@ import io.github.temporalrift.workbench.fidelity.domain.FidelityFailure;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityVariant;
 import io.github.temporalrift.workbench.fidelity.domain.FirstDivergence;
 import io.github.temporalrift.workbench.fidelity.domain.VariantLabel;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.OverrideValues;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Divergence;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Failure;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.FidelityCase.PlayerCountEnum;
@@ -121,9 +120,8 @@ final class FidelityApiMapper {
 
     private static io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.FidelityVariant
             variant(FidelityVariant variant) {
-        Map<String, BigDecimal> overrides = new LinkedHashMap<>(variant.overrides());
         return new io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.FidelityVariant(
-                label(variant.label()), variant.effectiveRulesDigest(), overrides);
+                label(variant.label()), variant.effectiveRulesDigest(), OverrideValues.of(variant.overrides()));
     }
 
     private static FidelityCounts counts(io.github.temporalrift.workbench.fidelity.domain.FidelityCounts counts) {

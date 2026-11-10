@@ -3,7 +3,7 @@ import type { ParameterSpace } from '../api/generated'
 import { Field } from '../components/Field'
 import { errorAt, overridePath, type DraftOverride, type DraftVariant, type FieldErrors } from './draft'
 import type { EditDraft } from './ExperimentForm'
-import { describeParameter, gridValues } from './parameterSpace'
+import { describeParameter, gridValues, numericParameters } from './parameterSpace'
 
 interface Props {
   readonly index: number
@@ -22,7 +22,7 @@ interface Props {
  */
 export function VariantOverrides({ index, variant, space, edit, errors, rulesDigest }: Props) {
   const used = new Set(variant.overrides.map((override) => override.key))
-  const unused = space.parameters.filter((parameter) => !used.has(parameter.key))
+  const unused = numericParameters(space).filter((parameter) => !used.has(parameter.key))
   const groupError = errorAt(errors, `variants[${index}].overrides`) ?? errorAt(errors, `variants[${index}].parameterSpaceVersion`)
 
   function add() {
@@ -81,7 +81,7 @@ interface RowProps {
 
 function OverrideRow({ index, row, override, space, unused, edit, error }: RowProps) {
   const listId = useId()
-  const parameter = space.parameters.find((candidate) => candidate.key === override.key)
+  const parameter = numericParameters(space).find((candidate) => candidate.key === override.key)
   const choices = [override.key, ...unused].sort()
   return (
     <div className="override-row">

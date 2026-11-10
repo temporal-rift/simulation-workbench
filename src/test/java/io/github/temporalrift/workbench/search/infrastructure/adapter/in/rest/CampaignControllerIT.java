@@ -93,7 +93,7 @@ class CampaignControllerIT {
               "searchMasterSeed": "7",
               "confirmationMasterSeed": "9",
               "algorithm": {
-                "version": "SUCCESSIVE_HALVING_V1",
+                "version": "SUCCESSIVE_HALVING_V2",
                 "initialCandidates": 8,
                 "screeningSeeds": 4,
                 "eta": 2,
@@ -189,10 +189,10 @@ class CampaignControllerIT {
                 1,
                 mapper.createArrayNode().add(policy),
                 List.of(3, 4),
-                14_400,
+                null,
                 "7",
                 "9",
-                new SearchAlgorithm(8, 4, 2, 2));
+                new SearchAlgorithm(SearchAlgorithm.Version.SUCCESSIVE_HALVING_V2, 8, 4, 2, 2));
         return Campaign.queued(CAMPAIGN, definition, 4, NOW);
     }
 
@@ -221,12 +221,12 @@ class CampaignControllerIT {
                 .andExpect(jsonPath("$.campaignId").value(CAMPAIGN.toString()))
                 .andExpect(jsonPath("$.name").value("threshold-halving-01"))
                 .andExpect(jsonPath("$.state").value("QUEUED"))
-                .andExpect(jsonPath("$.budgetSeconds").value(14_400))
+                .andExpect(jsonPath("$.budgetSeconds").doesNotExist())
                 .andExpect(jsonPath("$.parallelism").value(4))
                 .andExpect(jsonPath("$.playerCounts[0]").value(3))
                 .andExpect(jsonPath("$.baseline.rulesArtifact.digest").value("a".repeat(64)))
                 .andExpect(jsonPath("$.policies[0].id").value("faction-greedy"))
-                .andExpect(jsonPath("$.algorithm.version").value("SUCCESSIVE_HALVING_V1"))
+                .andExpect(jsonPath("$.algorithm.version").value("SUCCESSIVE_HALVING_V2"))
                 .andExpect(jsonPath("$.spentSeconds").value(0))
                 .andExpect(jsonPath("$.round").value(0))
                 .andExpect(jsonPath("$.shortList").isEmpty())
@@ -250,13 +250,12 @@ class CampaignControllerIT {
 
         verify(create)
                 .handle(argThat(command -> command.idempotencyKey().equals(key)
-                        && command.budgetSeconds() == 14_400
                         && command.parallelism() == 4
                         && command.playerCounts().equals(List.of(3, 4))
                         && command.searchMasterSeed().equals("7")
                         && command.algorithm()
                                 .equals(new CreateCampaignUseCase.AlgorithmRequest(
-                                        "SUCCESSIVE_HALVING_V1", 8, 4, 2, 2))));
+                                        "SUCCESSIVE_HALVING_V2", 8, 4, 2, 2))));
     }
 
     @Test
@@ -271,7 +270,6 @@ class CampaignControllerIT {
                         && command.searchMasterSeed() == null
                         && command.confirmationMasterSeed() == null
                         && command.algorithm() == null
-                        && command.budgetSeconds() == 14_400
                         && command.parallelism() == 4));
     }
 
@@ -415,16 +413,49 @@ class CampaignControllerIT {
                 List.of("11", "12"),
                 2,
                 3,
-                new LogEntry.Evaluation("REJECTED", null),
+                new LogEntry.Evaluation("REJECTED", null, 1.5),
                 LogEntry.Decision.DISCARDED,
                 LogEntry.Reason.GATE_FAILS,
                 LogEntry.Evidence.failingLines(List.of("G-01")));
+        var notMet = new LogEntry(
+                3,
+                4,
+                "c-0002",
+                overrides,
+                "e".repeat(64),
+                List.of("11", "12"),
+                2,
+                0,
+                new LogEntry.Evaluation("REJECTED", 27.5, 0.4),
+                LogEntry.Decision.DISCARDED,
+                LogEntry.Reason.GATES_NOT_MET,
+                LogEntry.Evidence.failingLines(List.of("G-05")));
+        var version1 = new LogEntry(
+                4,
+                0,
+                "c-0003",
+                overrides,
+                "f".repeat(64),
+                List.of("11", "12"),
+                2,
+                0,
+                new LogEntry.Evaluation("UNCONFIRMED", 3.0),
+                LogEntry.Decision.KEPT,
+                null,
+                null);
         when(log.handle(new GetCampaignLogUseCase.Query(CAMPAIGN, 50, 0)))
-                .thenReturn(new Page<>(List.of(generated, discarded), 2));
+                .thenReturn(new Page<>(List.of(generated, discarded, notMet, version1), 4));
 
         read("/api/v1/campaigns/" + CAMPAIGN + "/log", READ)
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.total").value(2))
+                .andExpect(jsonPath("$.total").value(4))
+                .andExpect(jsonPath("$.items[1].evaluation.gateMiss").value(1.5))
+                .andExpect(jsonPath("$.items[2].reason").value("GATES_NOT_MET"))
+                .andExpect(jsonPath("$.items[2].evidence.lineIds[0]").value("G-05"))
+                .andExpect(jsonPath("$.items[2].evaluation.gateMiss").value(0.4))
+                // The field is required by the contract, so a missing gate miss is written as null, not left out.
+                .andExpect(jsonPath("$.items[3].evaluation").value(org.hamcrest.Matchers.hasKey("gateMiss")))
+                .andExpect(jsonPath("$.items[3].evaluation.gateMiss").value((Object) null))
                 .andExpect(jsonPath("$.items[0].decision").value("GENERATED"))
                 .andExpect(jsonPath("$.items[0].redraws").value(3))
                 .andExpect(jsonPath("$.items[0].evaluation").value((Object) null))

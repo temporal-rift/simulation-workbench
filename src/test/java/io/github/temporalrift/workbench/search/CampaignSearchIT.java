@@ -199,7 +199,8 @@ class CampaignSearchIT {
                             new Evaluation(
                                     first ? "CONFIRMED" : "REJECTED",
                                     first ? 1.0 : 9.0,
-                                    first ? List.of() : List.of("g1")));
+                                    first ? List.of() : List.of("g1"),
+                                    first ? 0.0 : 1.0));
                 });
                 return new Screening(evaluations, java.util.Map.of());
             }
@@ -227,10 +228,10 @@ class CampaignSearchIT {
                 1,
                 mapper.createArrayNode().add(node),
                 List.of(3),
-                CampaignDefinition.DEFAULT_BUDGET_SECONDS,
+                14_400,
                 "7",
                 "9",
-                new SearchAlgorithm(2, 2, 2, 1));
+                new SearchAlgorithm(SearchAlgorithm.Version.SUCCESSIVE_HALVING_V1, 2, 2, 2, 1));
         var campaign = Campaign.queued(UUID.randomUUID(), definition, games, clock.instant());
         campaigns.create(UUID.randomUUID(), "h".repeat(64), campaign, clock.instant());
         return campaign.campaignId();

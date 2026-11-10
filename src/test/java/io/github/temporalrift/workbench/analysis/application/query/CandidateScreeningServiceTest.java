@@ -2,6 +2,7 @@ package io.github.temporalrift.workbench.analysis.application.query;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.within;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -20,7 +21,10 @@ import io.github.temporalrift.workbench.analysis.domain.AnalysisVersion;
 import io.github.temporalrift.workbench.analysis.domain.SyntheticRun;
 import io.github.temporalrift.workbench.analysis.domain.TestCriteria;
 import io.github.temporalrift.workbench.analysis.domain.criterion.BalanceCriterion;
+import io.github.temporalrift.workbench.analysis.domain.criterion.CriterionRole;
+import io.github.temporalrift.workbench.analysis.domain.evaluation.EvaluatedLine;
 import io.github.temporalrift.workbench.analysis.domain.evaluation.EvaluationMode;
+import io.github.temporalrift.workbench.analysis.domain.evaluation.LineVerdict;
 import io.github.temporalrift.workbench.analysis.domain.evaluation.RunEvaluator;
 import io.github.temporalrift.workbench.analysis.domain.fact.CaseFacts;
 import io.github.temporalrift.workbench.analysis.domain.game.AnalyzedCase;
@@ -153,6 +157,73 @@ class CandidateScreeningServiceTest {
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> service.screen(criterionVersion, gamesOfNoCase))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void gateMissWeighsEveryGateEquallyWhateverItsNumberOfLines() {
+        var lines = List.of(
+                gateLine("G-05", 1.0),
+                gateLine("G-05", 0.0),
+                gateLine("G-05", 0.0),
+                gateLine("G-06", 0.5),
+                gateLine("G-06", 0.5),
+                // A line without data says nothing about how far the candidate misses.
+                new EvaluatedLine(
+                        "G-01",
+                        CriterionRole.GATE,
+                        "m",
+                        null,
+                        "t",
+                        "p",
+                        3,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        0.0,
+                        LineVerdict.INCONCLUSIVE,
+                        null),
+                // A scored line is not a gate.
+                new EvaluatedLine(
+                        "L-01",
+                        CriterionRole.SCORED,
+                        "m",
+                        null,
+                        "t",
+                        "p",
+                        3,
+                        null,
+                        null,
+                        9.0,
+                        null,
+                        null,
+                        7.0,
+                        LineVerdict.FAILS,
+                        1.0));
+
+        assertThat(CandidateScreeningService.gateMiss(lines)).isCloseTo(1.0 / 3 + 0.5, within(1e-12));
+        assertThat(CandidateScreeningService.gateMiss(List.of(gateLine("G-05", 0.0))))
+                .isZero();
+    }
+
+    private static EvaluatedLine gateLine(String lineId, double deviation) {
+        return new EvaluatedLine(
+                lineId,
+                CriterionRole.GATE,
+                "faction_win_rate",
+                null,
+                "faction-greedy-v1",
+                "faction-greedy-v1",
+                3,
+                null,
+                null,
+                1.0,
+                null,
+                null,
+                deviation,
+                deviation > 0 ? LineVerdict.FAILS : LineVerdict.MEETS,
+                null);
     }
 
     @Test

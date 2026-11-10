@@ -147,10 +147,10 @@ class CampaignBrowserIT extends DesignerBrowserTest {
                 1,
                 mapper.createArrayNode().add(policy),
                 List.of(3),
-                CampaignDefinition.DEFAULT_BUDGET_SECONDS,
+                null,
                 "7",
                 "9",
-                new SearchAlgorithm(8, 4, 2, 2));
+                new SearchAlgorithm(SearchAlgorithm.Version.SUCCESSIVE_HALVING_V2, 8, 4, 2, 2));
         var now = Instant.now();
         var queued = Campaign.queued(UUID.randomUUID(), definition, 4, now);
         campaigns.create(UUID.randomUUID(), "h".repeat(64), queued, now);

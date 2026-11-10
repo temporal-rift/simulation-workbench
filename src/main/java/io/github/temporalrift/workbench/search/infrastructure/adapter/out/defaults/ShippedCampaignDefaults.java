@@ -90,12 +90,17 @@ public class ShippedCampaignDefaults implements CampaignDefaults {
             if (!document.path(VERSION).isInt()) {
                 throw new IllegalStateException("Search budget record " + name + " has no integer version");
             }
-            if (!algorithm.path(VERSION).asString().equals("SUCCESSIVE_HALVING_V1")) {
-                throw new IllegalStateException("Search budget record " + name + " names an unknown algorithm");
+            SearchAlgorithm.Version version;
+            try {
+                version =
+                        SearchAlgorithm.Version.valueOf(algorithm.path(VERSION).asString());
+            } catch (IllegalArgumentException e) {
+                throw new IllegalStateException("Search budget record " + name + " names an unknown algorithm", e);
             }
             return new BudgetRecord(
                     document.path(VERSION).asInt(),
                     new SearchAlgorithm(
+                            version,
                             integer(algorithm, "initialCandidates", name),
                             integer(algorithm, "screeningSeeds", name),
                             integer(algorithm, "eta", name),

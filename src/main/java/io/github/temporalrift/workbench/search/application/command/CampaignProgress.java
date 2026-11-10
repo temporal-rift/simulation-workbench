@@ -21,6 +21,7 @@ import io.github.temporalrift.workbench.search.domain.campaign.CampaignEvaluatio
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignFailure;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
+import io.github.temporalrift.workbench.search.domain.campaign.SearchAlgorithm;
 import io.github.temporalrift.workbench.search.domain.campaign.StoredCampaign;
 import io.github.temporalrift.workbench.search.domain.candidate.Candidate;
 import io.github.temporalrift.workbench.search.domain.candidate.CandidateGenerationExhaustedException;
@@ -45,11 +46,13 @@ import io.github.temporalrift.workbench.search.domain.wave.Wave;
  *
  * <ol>
  *   <li>A queued campaign starts on its next step.
- *   <li>A running campaign counts the active time since its last step against its budget.
- *   <li>A round generates its candidates, plays the seeds they lack in waves one after another, and, when every
- *       game is played, decides the whole round at once in candidate order.
- *   <li>The search ends with a short list when the budget is spent, when nothing survives, or when the short list has
- *       stayed the same through two rounds.
+ *   <li>A running campaign records the active time since its last step.
+ *   <li>A round plays the seeds its candidates lack in waves one after another and, when every game is played,
+ *       decides the whole round at once in candidate order. Round 0 generates its candidates; under version 1 every
+ *       later round generates more, under version 2 none does.
+ *   <li>Version 2 ends when its plan does: after the round that keeps at most {@code shortListSize} candidates. Version
+ *       1 ends when its recorded budget is spent, when nothing survives, or when the short list has stayed the same
+ *       through two rounds.
  * </ol>
  *
  * A campaign whose search is complete and whose short list is being confirmed on fresh seeds is stepped by
@@ -172,7 +175,8 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
         var campaign = step.campaign;
         var round = campaign.round();
         var ledger = Ledger.read(campaigns, campaign.campaignId());
-        if (ledger.generatedIn(round).isEmpty()) {
+        if (generates(campaign.definition().algorithm(), round)
+                && ledger.generatedIn(round).isEmpty()) {
             return budgetSpent(step) ? concludeOutOfBudget(step, ledger) : generate(step, ledger);
         }
         var waiting = false;
@@ -212,6 +216,12 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
         return decide(step, ledger);
     }
 
+    /** Whether {@code round} generates candidates: every round of version 1, only round 0 of version 2. */
+    private static boolean generates(SearchAlgorithm algorithm, int round) {
+        return round == 0 || algorithm.version() == SearchAlgorithm.Version.SUCCESSIVE_HALVING_V1;
+    }
+
+    /** Only a version 1 campaign has a budget to spend; a version 2 one never runs out. */
     private boolean budgetSpent(Step step) {
         return step.campaign.budgetSpent();
     }
@@ -323,7 +333,19 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
                 ledger.rounds().stream().map(RoundResult::shortList).toList());
         shortLists.add(outcome.shortList());
         Campaign next;
-        if (outcome.survivors().isEmpty()) {
+        if (algorithm.version() == SearchAlgorithm.Version.SUCCESSIVE_HALVING_V2) {
+            if (outcome.survivors().size() <= algorithm.shortListSize() || round >= algorithm.lastRound()) {
+                var closing = RoundDecider.concludePlan(
+                        outcome.survivors(), algorithm, round, ledger.nextSequence() + entries.size());
+                entries.addAll(closing);
+                next = campaign.completeSearch(closing.stream()
+                        .filter(entry -> entry.decision() == LogEntry.Decision.SHORT_LISTED)
+                        .map(LogEntry::candidateId)
+                        .toList());
+            } else {
+                next = campaign.nextRound();
+            }
+        } else if (outcome.survivors().isEmpty()) {
             next = campaign.completeSearch(List.of());
         } else if (RoundDecider.stable(shortLists)) {
             entries.addAll(RoundDecider.conclude(
@@ -362,6 +384,9 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
         } catch (IllegalArgumentException e) {
             throw new CampaignEvaluationException(e.getMessage(), e);
         }
+        // Version 1 never ranked by gate miss, so its entries keep recording none.
+        var ranksByGateMiss =
+                campaign.definition().algorithm().version() == SearchAlgorithm.Version.SUCCESSIVE_HALVING_V2;
         return candidates.stream()
                 .map(candidate -> {
                     var evaluated = screening.evaluations().get(candidate.id());
@@ -372,6 +397,7 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
                             Assessment.Verdict.valueOf(evaluated.verdict()),
                             evaluated.score(),
                             evaluated.failingGateLineIds(),
+                            ranksByGateMiss ? evaluated.gateMiss() : null,
                             screening.dominators().getOrDefault(candidate.id(), List.of()));
                 })
                 .toList();
@@ -410,6 +436,7 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
                         Assessment.Verdict.valueOf(survivor.verdict()),
                         survivor.score(),
                         List.of(),
+                        null,
                         List.of()));
             }
         }
@@ -423,6 +450,7 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
                             Assessment.Verdict.UNCONFIRMED,
                             null,
                             List.of(),
+                            null,
                             List.of());
                 })
                 .toList();
