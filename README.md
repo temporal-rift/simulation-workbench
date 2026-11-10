@@ -625,7 +625,11 @@ workbench:
 The rules file stands in for the configuration server a lane's services read: it must carry every `game.*` value the
 services need, not only `game.rules.*` but also their `game.timers.*` and limits, and the event catalog (`game.catalog`).
 A service missing a value it requires, such as a timer interval, does not start, and the slot fails every case it is
-given. A multi-document YAML file is read as one set of properties. The jars are the executable jars the services' builds produce, built from the declared source revisions. A service's
+given. A multi-document YAML file is read as one set of properties, in document order: when two documents set the same
+property the first one wins, unlike Spring Boot config data, where the last one does. Conditions such as
+`spring.config.activate.on-profile` are not applied, so every document counts; resolve conditional documents before
+using the file. The jars are the executable jars the services' builds produce, built from the declared source
+revisions. A service's
 image digest in the bundle's provenance is the digest of its jar. The workbench refuses to start, naming the slot and
 the path, when a jar or the rules file is missing or unreadable, and names the key when a declaration is missing or
 malformed.
