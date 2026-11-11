@@ -46,6 +46,30 @@ public final class VariantRules {
      */
     public record Frozen(JsonNode manifest, Map<String, String> baselineDocuments) {}
 
+    /**
+     * A declared baseline that lacks what a parameter space needs.
+     *
+     * @param scope the property prefix naming the deployment that declares the baseline
+     * @param missing each missing key with its type
+     */
+    public record BaselineGap(String scope, List<String> missing) {}
+
+    /**
+     * The declared baselines that cannot serve the parameter space, with what each lacks. Empty when the space is not
+     * served or every baseline carries what it needs.
+     */
+    public List<BaselineGap> baselineGaps(int parameterSpaceVersion) {
+        return spaces.find(parameterSpaceVersion).stream()
+                .flatMap(space -> baselines.declared().stream()
+                        .map(declared -> new BaselineGap(
+                                declared.scope(),
+                                VariantMaterializer.missing(declared.baseline().rules(), space).stream()
+                                        .map(entry -> entry.getValue() + " " + entry.getKey())
+                                        .toList())))
+                .filter(gap -> !gap.missing().isEmpty())
+                .toList();
+    }
+
     /** The effective rules a request for a variant stands for. */
     public record Preview(EffectiveRules rules, String digest, SortedMap<String, ParameterValue> overrides) {}
 

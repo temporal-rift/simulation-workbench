@@ -1,5 +1,6 @@
 package io.github.temporalrift.workbench.experiment;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -10,6 +11,17 @@ public interface BaselineRulesCatalog {
 
     /** The baseline document whose rules artifact has this digest, or empty when no lane serves one. */
     Optional<Baseline> find(String rulesArtifactDigest);
+
+    /** Every baseline document the deployment declares, each with the setting that names where it is configured. */
+    List<Declared> declared();
+
+    /**
+     * A declared baseline document.
+     *
+     * @param scope the property prefix naming the deployment that declares it
+     * @param baseline the document
+     */
+    record Declared(String scope, Baseline baseline) {}
 
     /**
      * A baseline document as the lane publishes it.

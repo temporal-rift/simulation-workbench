@@ -1,5 +1,6 @@
 package io.github.temporalrift.workbench.experiment.domain.rules;
 
+import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.SortedSet;
@@ -67,6 +68,18 @@ public final class VariantMaterializer {
     }
 
     private static void requireBaselineCarries(EffectiveRules baseline, ParameterSpace space) {
+        missing(baseline, space).stream().findFirst().ifPresent(entry -> {
+            throw new VariantRulesRefusal(
+                    VariantRulesReason.UNKNOWN_BASELINE,
+                    "the baseline rules carry no " + entry.getValue() + " at " + entry.getKey()
+                            + ", which parameter space " + space.version() + " needs",
+                    null,
+                    null);
+        });
+    }
+
+    /** The keys, with their types, that the space needs and the baseline does not carry, by key. */
+    static List<Map.Entry<String, String>> missing(EffectiveRules baseline, ParameterSpace space) {
         var required = new TreeMap<String, String>();
         space.parameters()
                 .forEach(parameter -> required.put(
@@ -74,17 +87,9 @@ public final class VariantMaterializer {
         space.constraints()
                 .forEach(
                         constraint -> constraint.expression().keys().forEach(key -> required.putIfAbsent(key, NUMBER)));
-        required.entrySet().stream()
+        return required.entrySet().stream()
                 .filter(entry -> !carries(baseline, entry.getKey(), entry.getValue()))
-                .findFirst()
-                .ifPresent(entry -> {
-                    throw new VariantRulesRefusal(
-                            VariantRulesReason.UNKNOWN_BASELINE,
-                            "the baseline rules carry no " + entry.getValue() + " at " + entry.getKey()
-                                    + ", which parameter space " + space.version() + " needs",
-                            null,
-                            null);
-                });
+                .toList();
     }
 
     private static boolean carries(EffectiveRules baseline, String key, String type) {

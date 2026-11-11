@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 
 import tools.jackson.databind.ObjectMapper;
@@ -18,6 +19,8 @@ public final class VariantRulesFixtures {
 
     /** The digest of the rules artifact that names the baseline document. */
     public static final String ARTIFACT_DIGEST = "e".repeat(64);
+
+    public static final String SCOPE = "workbench.execution.lanes[id=lane-1].";
 
     private static final String RESOURCE = "/rules/baseline-effective-rules.json";
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -43,8 +46,22 @@ public final class VariantRulesFixtures {
 
     /** A catalog whose one baseline is named by {@link #ARTIFACT_DIGEST}. */
     public static BaselineRulesCatalog catalog() {
-        var baseline = new BaselineRulesCatalog.Baseline(baselineText(), baseline());
-        return digest -> ARTIFACT_DIGEST.equals(digest) ? Optional.of(baseline) : Optional.empty();
+        return catalogOf(new BaselineRulesCatalog.Baseline(baselineText(), baseline()));
+    }
+
+    /** A catalog whose one baseline, declared by the setting {@link #SCOPE}, is named by {@link #ARTIFACT_DIGEST}. */
+    public static BaselineRulesCatalog catalogOf(BaselineRulesCatalog.Baseline baseline) {
+        return new BaselineRulesCatalog() {
+            @Override
+            public Optional<Baseline> find(String rulesArtifactDigest) {
+                return ARTIFACT_DIGEST.equals(rulesArtifactDigest) ? Optional.of(baseline) : Optional.empty();
+            }
+
+            @Override
+            public List<Declared> declared() {
+                return List.of(new Declared(SCOPE, baseline));
+            }
+        };
     }
 
     /** A variant over the baseline: its overrides, and the digest it claims for the rules they make. */
@@ -75,6 +92,16 @@ public final class VariantRulesFixtures {
 
     /** Variant rules for tests of experiments that name rules by digest alone: no lane publishes any baseline. */
     public static VariantRules withoutBaselines() {
-        return new VariantRules(spaces(), digest -> Optional.empty());
+        return new VariantRules(spaces(), new BaselineRulesCatalog() {
+            @Override
+            public Optional<Baseline> find(String rulesArtifactDigest) {
+                return Optional.empty();
+            }
+
+            @Override
+            public List<Declared> declared() {
+                return List.of();
+            }
+        });
     }
 }

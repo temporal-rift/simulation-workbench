@@ -110,6 +110,11 @@ public class ExperimentConfiguration {
     }
 
     @Bean
+    NewestSpaceBaselineCheck newestSpaceBaselineCheck(ParameterSpaces spaces, VariantRules variantRules) {
+        return new NewestSpaceBaselineCheck(spaces, variantRules);
+    }
+
+    @Bean
     ParameterSpaceQueryHandler parameterSpaceQueryHandler(ParameterSpaces spaces) {
         return new ParameterSpaceQueryHandler(spaces);
     }
