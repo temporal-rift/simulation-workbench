@@ -37,8 +37,11 @@ public interface FidelityRepository {
     /** Stores the check's next state; false when it was no longer in {@code expected}. */
     boolean update(FidelityCheck next, FidelityCheckState expected);
 
-    /** The newest {@code PASSED} check whose simulator ran exactly these source revisions. */
-    Optional<FidelityCheck> newestPassed(SourceRevisions revisions);
+    /**
+     * The newest {@code PASSED} check whose simulator ran exactly these source revisions and which ran on this
+     * parameter space.
+     */
+    Optional<FidelityCheck> newestPassed(SourceRevisions revisions, int parameterSpaceVersion);
 
     /** Stores the cases of a check that has none yet; cases already stored are left as they are. */
     void insertCases(UUID checkId, List<FidelityCase> cases);

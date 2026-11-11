@@ -53,6 +53,7 @@ class FidelityRepositoryIT {
         return FidelityCheck.queued(
                 UUID.randomUUID(),
                 "42",
+                1,
                 FidelityFixtures.environment(FidelityFixtures.SIMULATOR_IMAGE, revision),
                 FidelityFixtures.environment(FidelityFixtures.LANE_IMAGE, revision),
                 "lane-1",
@@ -177,7 +178,7 @@ class FidelityRepositoryIT {
         var older = stored(queued("1111111"));
         repository.update(older.failed(new FidelityFailure("X", "y"), NOW), FidelityCheckState.QUEUED);
         var newer = FidelityCheck.queued(
-                UUID.randomUUID(), "43", older.simulator(), older.lane(), "lane-1", List.of(), NOW.plusSeconds(5));
+                UUID.randomUUID(), "43", 1, older.simulator(), older.lane(), "lane-1", List.of(), NOW.plusSeconds(5));
         stored(newer);
 
         assertThat(repository.list(null, 10, 0).items())
@@ -200,10 +201,63 @@ class FidelityRepositoryIT {
         repository.update(running.passed(NOW.plusSeconds(1)), FidelityCheckState.RUNNING);
 
         var same = check.simulator().sourceRevisions();
-        assertThat(repository.newestPassed(same)).map(FidelityCheck::id).contains(check.id());
-        assertThat(repository.newestPassed(new io.github.temporalrift.workbench.fidelity.domain.SourceRevisions(
-                        "1111111", "1111111", "2222222")))
+        assertThat(repository.newestPassed(same, 1)).map(FidelityCheck::id).contains(check.id());
+        assertThat(repository.newestPassed(
+                        new io.github.temporalrift.workbench.fidelity.domain.SourceRevisions(
+                                "1111111", "1111111", "2222222"),
+                        1))
                 .isEmpty();
+    }
+
+    @Test
+    void aPassedCheckIsFoundOnlyForTheParameterSpaceItRanOn() {
+        var check = stored(queued("1111111"));
+        var running = check.begun(UUID.randomUUID(), UUID.randomUUID(), NOW);
+        repository.update(running, FidelityCheckState.QUEUED);
+        repository.update(running.passed(NOW.plusSeconds(1)), FidelityCheckState.RUNNING);
+
+        var revisions = check.simulator().sourceRevisions();
+        assertThat(repository.newestPassed(revisions, 2)).isEmpty();
+        assertThat(repository.newestPassed(revisions, 1)).isPresent();
+    }
+
+    @Test
+    void theParameterSpaceOfACheckRoundTrips() {
+        var queued = queued("1111111");
+        var onSpaceTwo = FidelityCheck.queued(
+                queued.id(),
+                queued.seed(),
+                2,
+                queued.simulator(),
+                queued.lane(),
+                queued.laneId(),
+                queued.variants(),
+                queued.createdAt());
+        stored(onSpaceTwo);
+
+        assertThat(repository.find(onSpaceTwo.id()))
+                .map(FidelityCheck::parameterSpaceVersion)
+                .contains(2);
+    }
+
+    @Test
+    void aCheckStoredBeforeTheSpaceWasRecordedReadsAsSpaceOne() {
+        var template = stored(queued("1111111"));
+        var id = UUID.randomUUID();
+
+        // A row written by the code before the column existed names no parameter space, so the column default applies.
+        jdbc.update("""
+                INSERT INTO fidelity_check (check_id, idempotency_key, request_hash, seed, state, lane_id,
+                    simulator_json, lane_json, variants_json, game_revision, timeline_revision, read_revision,
+                    created_at)
+                SELECT ?, ?, request_hash, seed, 'FAILED', lane_id, simulator_json, lane_json, variants_json,
+                    game_revision, timeline_revision, read_revision, created_at
+                FROM fidelity_check WHERE check_id = ?
+                """, id, UUID.randomUUID(), template.id());
+
+        assertThat(repository.find(id))
+                .map(FidelityCheck::parameterSpaceVersion)
+                .contains(1);
     }
 
     @Test

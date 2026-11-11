@@ -89,6 +89,7 @@ class FidelityControllerIT {
         var check = FidelityCheck.queued(
                 CHECK,
                 "42",
+                1,
                 FidelityFixtures.environment(FidelityFixtures.SIMULATOR_IMAGE, "1111111"),
                 FidelityFixtures.environment(FidelityFixtures.LANE_IMAGE, "1111111"),
                 "lane-1",
@@ -186,6 +187,26 @@ class FidelityControllerIT {
         start("{\"seed\":\"42\"}", WRITE)
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("SIMULATOR_NOT_AVAILABLE"));
+    }
+
+    @Test
+    void aBaselineThatCannotCarryTheParameterSpaceIsAConflictNamingTheReason() throws Exception {
+        when(startCheck.handle(any()))
+                .thenThrow(new SimulatorNotAvailableException(
+                        "The simulator's baseline rules cannot carry the low variant of parameter space 2",
+                        "UNKNOWN_BASELINE"));
+
+        start("{\"seed\":\"42\"}", WRITE)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("SIMULATOR_NOT_AVAILABLE"))
+                .andExpect(jsonPath("$.reason").value("UNKNOWN_BASELINE"));
+    }
+
+    @Test
+    void anUnavailableSimulatorNamesNoReason() throws Exception {
+        when(startCheck.handle(any())).thenThrow(new SimulatorNotAvailableException("The simulator is not enabled"));
+
+        start("{\"seed\":\"42\"}", WRITE).andExpect(jsonPath("$.reason").doesNotExist());
     }
 
     @Test

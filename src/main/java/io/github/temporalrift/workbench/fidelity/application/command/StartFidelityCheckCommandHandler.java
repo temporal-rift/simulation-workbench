@@ -12,6 +12,7 @@ import io.github.temporalrift.workbench.fidelity.application.FidelityCheckView;
 import io.github.temporalrift.workbench.fidelity.application.port.in.StartFidelityCheckUseCase;
 import io.github.temporalrift.workbench.fidelity.domain.CheckClaim;
 import io.github.temporalrift.workbench.fidelity.domain.CheckCreation;
+import io.github.temporalrift.workbench.fidelity.domain.EdgeVariantCatalog;
 import io.github.temporalrift.workbench.fidelity.domain.EdgeVariants;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityCheck;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityCheckActiveException;
@@ -29,7 +30,8 @@ import io.github.temporalrift.workbench.shared.text.Sha256;
 
 /**
  * Accepts a fidelity check for a seed: the simulator and a build-equivalent real lane are chosen and the three variants
- * are resolved now, so the record says from the start what will be compared. The same idempotency key with the same
+ * are resolved now on the newest parameter space that has edge variants, so the record says from the start what will be
+ * compared and on which space. The same idempotency key with the same
  * seed returns the original check; with another seed it conflicts. Only one check may be queued or running.
  */
 public class StartFidelityCheckCommandHandler implements StartFidelityCheckUseCase {
@@ -42,19 +44,19 @@ public class StartFidelityCheckCommandHandler implements StartFidelityCheckUseCa
     private final FidelityRepository checks;
     private final FidelityEnvironments environments;
     private final FidelityExperiments experiments;
-    private final EdgeVariants edgeVariants;
+    private final EdgeVariantCatalog edgeVariantCatalog;
     private final Clock clock;
 
     public StartFidelityCheckCommandHandler(
             FidelityRepository checks,
             FidelityEnvironments environments,
             FidelityExperiments experiments,
-            EdgeVariants edgeVariants,
+            EdgeVariantCatalog edgeVariantCatalog,
             Clock clock) {
         this.checks = checks;
         this.environments = environments;
         this.experiments = experiments;
-        this.edgeVariants = edgeVariants;
+        this.edgeVariantCatalog = edgeVariantCatalog;
         this.clock = clock;
     }
 
@@ -80,13 +82,15 @@ public class StartFidelityCheckCommandHandler implements StartFidelityCheckUseCa
                 .orElseThrow(() -> new SimulatorNotAvailableException(
                         "No configured real lane has the simulator's content, source revisions, contract versions"
                                 + " and bot identities"));
+        var edgeVariants = edgeVariantCatalog.newest();
         var queued = FidelityCheck.queued(
                 UUID.randomUUID(),
                 command.seed(),
+                edgeVariants.parameterSpaceVersion(),
                 simulator.environment(),
                 lane.environment(),
                 lane.laneId(),
-                variants(simulator),
+                variants(simulator, edgeVariants),
                 clock.instant());
         return switch (checks.create(command.idempotencyKey(), requestHash, queued)) {
             case CheckCreation.Created _ -> view(queued);
@@ -95,24 +99,28 @@ public class StartFidelityCheckCommandHandler implements StartFidelityCheckUseCa
         };
     }
 
-    private List<FidelityVariant> variants(FidelityEnvironments.Simulator simulator) {
+    private List<FidelityVariant> variants(FidelityEnvironments.Simulator simulator, EdgeVariants edgeVariants) {
         var variants = new ArrayList<FidelityVariant>();
-        variants.add(variant(VariantLabel.BASELINE, simulator, Map.of()));
-        variants.add(variant(VariantLabel.LOW, simulator, edgeVariants.low()));
-        variants.add(variant(VariantLabel.HIGH, simulator, edgeVariants.high()));
+        var space = edgeVariants.parameterSpaceVersion();
+        variants.add(variant(VariantLabel.BASELINE, simulator, space, Map.of()));
+        variants.add(variant(VariantLabel.LOW, simulator, space, edgeVariants.low()));
+        variants.add(variant(VariantLabel.HIGH, simulator, space, edgeVariants.high()));
         return variants;
     }
 
     private FidelityVariant variant(
-            VariantLabel label, FidelityEnvironments.Simulator simulator, Map<String, ParameterValue> overrides) {
+            VariantLabel label,
+            FidelityEnvironments.Simulator simulator,
+            int parameterSpaceVersion,
+            Map<String, ParameterValue> overrides) {
         try {
-            var rules = experiments.previewVariant(
-                    simulator.rulesArtifactDigest(), edgeVariants.parameterSpaceVersion(), overrides);
+            var rules = experiments.previewVariant(simulator.rulesArtifactDigest(), parameterSpaceVersion, overrides);
             return new FidelityVariant(label, rules.effectiveRulesDigest(), rules.overrides());
         } catch (FidelityExperimentRefusedException e) {
-            throw new SimulatorNotAvailableException("The simulator's baseline rules cannot carry the "
-                    + label.label() + " variant of parameter space " + edgeVariants.parameterSpaceVersion() + ": "
-                    + e.getMessage());
+            throw new SimulatorNotAvailableException(
+                    "The simulator's baseline rules cannot carry the " + label.label() + " variant of parameter space "
+                            + parameterSpaceVersion + ": " + e.getMessage(),
+                    e.reason().orElse(null));
         }
     }
 

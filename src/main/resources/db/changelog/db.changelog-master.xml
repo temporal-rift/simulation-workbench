@@ -35,6 +35,7 @@
     <!-- Fidelity module: simulator fidelity checks and their cases -->
     <include file="db/changelog/fidelity/001-create-fidelity-check.xml"/>
     <include file="db/changelog/fidelity/002-create-fidelity-case.xml"/>
+    <include file="db/changelog/fidelity/003-add-fidelity-check-parameter-space.xml"/>
 
     <!-- Analysis module: extracted case facts and stored comparison definitions -->
     <include file="db/changelog/analysis/001-create-analysis-case-fact.xml"/>

@@ -27,9 +27,9 @@ class FidelityManifestFactoryTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final String IMAGE = "sha256:" + "1".repeat(64);
 
-    private final EdgeVariants edge = ConfiguredEdgeVariants.load(MAPPER);
+    private final EdgeVariants edge = ConfiguredEdgeVariants.load(MAPPER).forSpace(1);
     private final FidelityManifestFactory factory =
-            new FidelityManifestFactory(MAPPER, new FidelitySettings(3600, 10, 20, 64), 1);
+            new FidelityManifestFactory(MAPPER, new FidelitySettings(3600, 10, 20, 64));
 
     private static FidelityEnvironments.Simulator simulator(int slots) {
         var build = new FidelityEnvironment.ServiceBuild(IMAGE, "1111111");
@@ -66,7 +66,7 @@ class FidelityManifestFactoryTest {
 
     @Test
     void theExperimentPlaysTheFullMatrixOfThreeVariantsAndTwoPolicies() {
-        var manifest = factory.build("42", simulator(4), variants(), policies());
+        var manifest = factory.build("42", 1, simulator(4), variants(), policies());
 
         var cases = new PreviewMatrixQueryHandler(new PolicyReferenceVerifierAdapter(new BaselinePolicyCatalog()))
                 .handle(manifest);
@@ -81,7 +81,7 @@ class FidelityManifestFactoryTest {
 
     @Test
     void theManifestFreezesWithTheDigestsTheVariantsMean() {
-        var manifest = factory.build("42", simulator(4), variants(), policies());
+        var manifest = factory.build("42", 1, simulator(4), variants(), policies());
 
         var frozen = VariantRulesFixtures.variantRules().freeze(manifest);
 
@@ -90,7 +90,7 @@ class FidelityManifestFactoryTest {
 
     @Test
     void theBaselineVariantHasNoOverridesAndTheEdgesHaveOnlyTheirNormalisedOnes() {
-        var manifest = factory.build("42", simulator(4), variants(), policies());
+        var manifest = factory.build("42", 1, simulator(4), variants(), policies());
 
         var variantNodes = manifest.get("variants");
         assertThat(variantNodes.get(0).has("overrides")).isFalse();
@@ -101,7 +101,7 @@ class FidelityManifestFactoryTest {
 
     @Test
     void theManifestPinsTheSimulatorsBuildsAndContracts() {
-        var manifest = factory.build("42", simulator(4), variants(), policies());
+        var manifest = factory.build("42", 1, simulator(4), variants(), policies());
 
         assertThat(manifest.get("services")
                         .get("gameService")
@@ -118,11 +118,11 @@ class FidelityManifestFactoryTest {
 
     @Test
     void concurrencyFollowsTheSimulatorsSlotsWithinTheBound() {
-        assertThat(factory.build("42", simulator(4), variants(), policies())
+        assertThat(factory.build("42", 1, simulator(4), variants(), policies())
                         .get("concurrency")
                         .asInt())
                 .isEqualTo(4);
-        assertThat(factory.build("42", simulator(500), variants(), policies())
+        assertThat(factory.build("42", 1, simulator(500), variants(), policies())
                         .get("concurrency")
                         .asInt())
                 .isEqualTo(64);

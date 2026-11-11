@@ -73,21 +73,20 @@ class FidelityProgressTest {
                 .thenReturn(List.of(
                         new FidelityExperiments.Policy("random", "1.0.0", "1".repeat(64)),
                         new FidelityExperiments.Policy("faction-greedy", "1.0.0", "2".repeat(64))));
-        var edge = ConfiguredEdgeVariants.load(mapper);
-        var view = new StartFidelityCheckCommandHandler(checks, environments, experiments, edge, clock)
+        var catalog = ConfiguredEdgeVariants.load(mapper);
+        var view = new StartFidelityCheckCommandHandler(checks, environments, experiments, catalog, clock)
                 .handle(new StartFidelityCheckUseCase.Command(UUID.randomUUID(), "42"));
         checkId = view.check().id();
     }
 
     private FidelityProgress progress() {
         var settings = new FidelitySettings(3600, 10, 20, 64);
-        var edge = ConfiguredEdgeVariants.load(mapper);
         return new FidelityProgress(
                 checks,
                 environments,
                 experiments,
                 playback,
-                new FidelityManifestFactory(mapper, settings, edge.parameterSpaceVersion()),
+                new FidelityManifestFactory(mapper, settings),
                 settings,
                 clock);
     }
@@ -160,6 +159,63 @@ class FidelityProgressTest {
         var manifest = ArgumentCaptor.forClass(ObjectNode.class);
         verify(experiments).freeze(any(), manifest.capture());
         assertThat(manifest.getValue().get("seeds").get(0).asText()).isEqualTo("42");
+    }
+
+    @Test
+    void theManifestNamesTheParameterSpaceTheCheckRecorded() {
+        givenTheRunStarts();
+
+        progress().advance();
+
+        var manifest = ArgumentCaptor.forClass(ObjectNode.class);
+        verify(experiments).freeze(any(), manifest.capture());
+        assertThat(check().parameterSpaceVersion()).isEqualTo(2);
+        assertThat(manifest.getValue().at("/variants/0").has("parameterSpaceVersion"))
+                .isFalse();
+        assertThat(manifest.getValue().at("/variants/1/parameterSpaceVersion").asInt())
+                .isEqualTo(2);
+        assertThat(manifest.getValue().at("/variants/2/parameterSpaceVersion").asInt())
+                .isEqualTo(2);
+    }
+
+    @Test
+    void aCheckStoredOnSpaceOneKeepsItsManifestOnceNewerSpacesHaveEdgeVariants() {
+        var stored = check();
+        var onSpaceOne = new FidelityCheck(
+                stored.id(),
+                stored.seed(),
+                1,
+                stored.state(),
+                stored.simulator(),
+                stored.lane(),
+                stored.laneId(),
+                stored.variants(),
+                stored.experimentId(),
+                stored.runId(),
+                stored.failure(),
+                stored.createdAt(),
+                stored.startedAt(),
+                stored.finishedAt());
+        var replacement = new InMemoryFidelityRepository();
+        replacement.create(UUID.randomUUID(), "hash", onSpaceOne);
+        givenTheRunStarts();
+        var progress = new FidelityProgress(
+                replacement,
+                environments,
+                experiments,
+                playback,
+                new FidelityManifestFactory(mapper, new FidelitySettings(3600, 10, 20, 64)),
+                new FidelitySettings(3600, 10, 20, 64),
+                clock);
+
+        progress.advance();
+
+        var manifest = ArgumentCaptor.forClass(ObjectNode.class);
+        verify(experiments).freeze(any(), manifest.capture());
+        assertThat(manifest.getValue().at("/variants/1/parameterSpaceVersion").asInt())
+                .isEqualTo(1);
+        assertThat(manifest.getValue().at("/variants/2/parameterSpaceVersion").asInt())
+                .isEqualTo(1);
     }
 
     @Test

@@ -103,7 +103,8 @@ public class FidelityProgress implements AdvanceFidelityUseCase {
             return;
         }
         try {
-            var manifest = manifests.build(check.seed(), simulator.get(), check.variants(), policies());
+            var manifest = manifests.build(
+                    check.seed(), check.parameterSpaceVersion(), simulator.get(), check.variants(), policies());
             var experimentId = experiments.freeze(key(check, "experiment"), manifest);
             var runId = playback.startRun(experimentId, key(check, "run"));
             checks.update(check.begun(experimentId, runId, clock.instant()), FidelityCheckState.QUEUED);

@@ -39,7 +39,9 @@ class FidelityExceptionHandler {
 
     @ExceptionHandler(SimulatorNotAvailableException.class)
     ProblemDetail handleNotAvailable(SimulatorNotAvailableException ex) {
-        return ProblemDetails.of(HttpStatus.CONFLICT, ex.getMessage(), "SIMULATOR_NOT_AVAILABLE");
+        var problem = ProblemDetails.of(HttpStatus.CONFLICT, ex.getMessage(), "SIMULATOR_NOT_AVAILABLE");
+        ex.refusalReason().ifPresent(reason -> problem.setProperty("reason", reason));
+        return problem;
     }
 
     /** A request body that breaks the published schema: the seed is the only value a check is started with. */

@@ -23,16 +23,16 @@ public final class FidelityManifestFactory {
 
     private final ObjectMapper mapper;
     private final FidelitySettings settings;
-    private final int parameterSpaceVersion;
 
-    public FidelityManifestFactory(ObjectMapper mapper, FidelitySettings settings, int parameterSpaceVersion) {
+    public FidelityManifestFactory(ObjectMapper mapper, FidelitySettings settings) {
         this.mapper = mapper;
         this.settings = settings;
-        this.parameterSpaceVersion = parameterSpaceVersion;
     }
 
+    /** The manifest of a check; its edge variants name {@code parameterSpaceVersion}, the space the check recorded. */
     public ObjectNode build(
             String seed,
+            int parameterSpaceVersion,
             FidelityEnvironments.Simulator simulator,
             List<FidelityVariant> variants,
             List<FidelityExperiments.Policy> policies) {
@@ -40,7 +40,7 @@ public final class FidelityManifestFactory {
         manifest.put("schemaVersion", SCHEMA_VERSION);
         manifest.put("name", "simulator fidelity, seed " + seed);
         var variantNodes = manifest.putArray("variants");
-        variants.forEach(variant -> variantNodes.add(variant(variant, simulator)));
+        variants.forEach(variant -> variantNodes.add(variant(variant, simulator, parameterSpaceVersion)));
         var environment = simulator.environment();
         var services = manifest.putObject("services");
         services.set("gameService", service(environment.gameService()));
@@ -68,7 +68,8 @@ public final class FidelityManifestFactory {
         return manifest;
     }
 
-    private ObjectNode variant(FidelityVariant variant, FidelityEnvironments.Simulator simulator) {
+    private ObjectNode variant(
+            FidelityVariant variant, FidelityEnvironments.Simulator simulator, int parameterSpaceVersion) {
         var node = mapper.createObjectNode();
         node.put("label", variant.label().label());
         node.set("rulesArtifact", artifact(simulator.rulesArtifactDigest(), simulator.rulesArtifactName()));

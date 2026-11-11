@@ -74,6 +74,7 @@ public class FidelityRepositoryAdapter implements FidelityRepository {
                         idempotencyKey,
                         requestHash,
                         queued.seed(),
+                        queued.parameterSpaceVersion(),
                         queued.laneId(),
                         json.write(queued.simulator()),
                         json.write(queued.lane()),
@@ -135,12 +136,17 @@ public class FidelityRepositoryAdapter implements FidelityRepository {
     }
 
     @Override
-    public Optional<FidelityCheck> newestPassed(SourceRevisions revisions) {
-        return checks.findFirstByStateAndGameRevisionAndTimelineRevisionAndReadRevisionOrderByFinishedAtDesc(
+    public Optional<FidelityCheck> newestPassed(SourceRevisions revisions, int parameterSpaceVersion) {
+        return checks
+                .newest(
                         FidelityCheckState.PASSED.name(),
                         revisions.gameService(),
                         revisions.timelineService(),
-                        revisions.readService())
+                        revisions.readService(),
+                        parameterSpaceVersion,
+                        Pageable.ofSize(1))
+                .stream()
+                .findFirst()
                 .map(this::check);
     }
 
@@ -230,6 +236,7 @@ public class FidelityRepositoryAdapter implements FidelityRepository {
         return new FidelityCheck(
                 entity.checkId(),
                 entity.seed(),
+                entity.parameterSpaceVersion(),
                 FidelityCheckState.valueOf(entity.state()),
                 json.read(entity.simulatorJson(), FidelityEnvironment.class),
                 json.read(entity.laneJson(), FidelityEnvironment.class),

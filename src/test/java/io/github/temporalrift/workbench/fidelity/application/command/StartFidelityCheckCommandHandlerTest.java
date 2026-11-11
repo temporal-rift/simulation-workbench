@@ -5,9 +5,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -21,6 +25,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import tools.jackson.databind.ObjectMapper;
 
 import io.github.temporalrift.workbench.fidelity.application.port.in.StartFidelityCheckUseCase;
+import io.github.temporalrift.workbench.fidelity.domain.EdgeVariantCatalog;
 import io.github.temporalrift.workbench.fidelity.domain.EdgeVariants;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityCheckActiveException;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityCheckState;
@@ -41,11 +46,12 @@ class StartFidelityCheckCommandHandlerTest {
 
     private final InMemoryFidelityRepository checks = new InMemoryFidelityRepository();
     private final FidelityExperiments experiments = mock(FidelityExperiments.class);
-    private final EdgeVariants edge = ConfiguredEdgeVariants.load(new ObjectMapper());
+    private final EdgeVariantCatalog catalog = ConfiguredEdgeVariants.load(new ObjectMapper());
+    private final EdgeVariants edge = catalog.newest();
 
     private StartFidelityCheckCommandHandler handler(FidelityEnvironments environments) {
         return new StartFidelityCheckCommandHandler(
-                checks, environments, experiments, edge, Clock.fixed(NOW, ZoneOffset.UTC));
+                checks, environments, experiments, catalog, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     private StartFidelityCheckCommandHandler handler() {
@@ -71,6 +77,29 @@ class StartFidelityCheckCommandHandlerTest {
         assertThat(check.variants().get(1).overrides()).isEqualTo(edge.low());
         assertThat(check.variants().get(2).overrides()).isEqualTo(edge.high());
         assertThat(view.counts().total()).isZero();
+    }
+
+    @Test
+    void aNewCheckRunsOnTheNewestParameterSpaceAndRecordsIt() {
+        var view = handler().handle(new StartFidelityCheckUseCase.Command(UUID.randomUUID(), "42"));
+
+        var check = view.check();
+        assertThat(check.parameterSpaceVersion()).isEqualTo(2);
+        assertThat(check.variants().get(1).overrides())
+                .containsEntry("game.rules.annihilate-earliest-round", ParameterValue.of(new BigDecimal("1")))
+                .containsEntry("game.rules.scoring.written-outcome-shields-annihilation", ParameterValue.of(false))
+                .containsEntry("game.rules.probability.erased-weight-to-written-outcome", ParameterValue.of(false));
+        assertThat(check.variants().get(2).overrides())
+                .containsEntry("game.rules.annihilate-earliest-round", ParameterValue.of(new BigDecimal("3")))
+                .containsEntry("game.rules.scoring.written-outcome-shields-annihilation", ParameterValue.of(true))
+                .containsEntry("game.rules.probability.erased-weight-to-written-outcome", ParameterValue.of(true));
+    }
+
+    @Test
+    void everyVariantIsResolvedAgainstTheRecordedParameterSpace() {
+        handler().handle(new StartFidelityCheckUseCase.Command(UUID.randomUUID(), "42"));
+
+        verify(experiments, times(3)).previewVariant(anyString(), eq(2), any());
     }
 
     @Test
@@ -171,6 +200,30 @@ class StartFidelityCheckCommandHandlerTest {
         assertThatThrownBy(() -> handler.handle(command))
                 .isInstanceOf(SimulatorNotAvailableException.class)
                 .hasMessageContaining("low variant");
+    }
+
+    @Test
+    void aBaselineWithoutTheKeysOfTheSpaceIsRefusedWithTheUnknownBaselineReasonAndCreatesNothing() {
+        when(experiments.previewVariant(anyString(), anyInt(), any())).thenAnswer(call -> {
+            Map<String, ParameterValue> overrides = call.getArgument(2);
+            if (overrides.isEmpty()) {
+                return FidelityFixtures.rules(overrides);
+            }
+            throw new FidelityExperimentRefusedException(
+                    "the baseline rules carry no number at game.rules.annihilate-earliest-round, which parameter"
+                            + " space 2 needs",
+                    "UNKNOWN_BASELINE",
+                    null);
+        });
+        var handler = handler(FidelityFixtures.environments("1111111"));
+
+        var command = new StartFidelityCheckUseCase.Command(UUID.randomUUID(), "42");
+        assertThatThrownBy(() -> handler.handle(command))
+                .isInstanceOfSatisfying(SimulatorNotAvailableException.class, e -> {
+                    assertThat(e.refusalReason()).contains("UNKNOWN_BASELINE");
+                    assertThat(e).hasMessageContaining("game.rules.annihilate-earliest-round");
+                });
+        assertThat(checks.list(null, 10, 0).total()).isZero();
     }
 
     @ParameterizedTest
