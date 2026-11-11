@@ -26,7 +26,7 @@ import io.github.temporalrift.workbench.fidelity.application.query.GetFidelityCh
 import io.github.temporalrift.workbench.fidelity.application.query.GetSimulatorFidelityQueryHandler;
 import io.github.temporalrift.workbench.fidelity.application.query.ListFidelityCasesQueryHandler;
 import io.github.temporalrift.workbench.fidelity.application.query.ListFidelityChecksQueryHandler;
-import io.github.temporalrift.workbench.fidelity.domain.EdgeVariants;
+import io.github.temporalrift.workbench.fidelity.domain.EdgeVariantCatalog;
 import io.github.temporalrift.workbench.fidelity.domain.port.out.FidelityEnvironments;
 import io.github.temporalrift.workbench.fidelity.domain.port.out.FidelityExperiments;
 import io.github.temporalrift.workbench.fidelity.domain.port.out.FidelityPlayback;
@@ -43,7 +43,7 @@ import io.github.temporalrift.workbench.policy.PolicyCatalog;
 public class FidelityConfiguration {
 
     @Bean
-    EdgeVariants edgeVariants(ObjectMapper objectMapper) {
+    EdgeVariantCatalog edgeVariantCatalog(ObjectMapper objectMapper) {
         return ConfiguredEdgeVariants.load(objectMapper);
     }
 
@@ -67,9 +67,9 @@ public class FidelityConfiguration {
             FidelityRepository checks,
             FidelityEnvironments environments,
             FidelityExperiments experiments,
-            EdgeVariants edgeVariants,
+            EdgeVariantCatalog edgeVariantCatalog,
             Clock clock) {
-        return new StartFidelityCheckCommandHandler(checks, environments, experiments, edgeVariants, clock);
+        return new StartFidelityCheckCommandHandler(checks, environments, experiments, edgeVariantCatalog, clock);
     }
 
     @Bean
@@ -88,8 +88,9 @@ public class FidelityConfiguration {
     }
 
     @Bean
-    GetSimulatorFidelityUseCase simulatorFidelity(FidelityRepository checks, FidelityEnvironments environments) {
-        return new GetSimulatorFidelityQueryHandler(checks, environments);
+    GetSimulatorFidelityUseCase simulatorFidelity(
+            FidelityRepository checks, FidelityEnvironments environments, EdgeVariantCatalog edgeVariantCatalog) {
+        return new GetSimulatorFidelityQueryHandler(checks, environments, edgeVariantCatalog);
     }
 
     @Bean
@@ -98,7 +99,6 @@ public class FidelityConfiguration {
             FidelityEnvironments environments,
             FidelityExperiments experiments,
             FidelityPlayback playback,
-            EdgeVariants edgeVariants,
             FidelityProperties properties,
             ObjectMapper objectMapper,
             Clock clock) {
@@ -108,7 +108,7 @@ public class FidelityConfiguration {
                 environments,
                 experiments,
                 playback,
-                new FidelityManifestFactory(objectMapper, settings, edgeVariants.parameterSpaceVersion()),
+                new FidelityManifestFactory(objectMapper, settings),
                 settings,
                 clock);
     }

@@ -73,7 +73,8 @@ public class ExperimentFactoryService implements ExperimentFactory {
                     new PreviewVariantRulesUseCase.Query(rulesArtifactDigest, parameterSpaceVersion, overrides));
             return new VariantPreview(result.effectiveRulesDigest(), result.overrides());
         } catch (ExperimentValidationException e) {
-            throw new ExperimentRefusedException(e.getMessage(), e);
+            throw new ExperimentRefusedException(
+                    e.getMessage(), e.reason().map(Enum::name).orElse(null), e);
         }
     }
 

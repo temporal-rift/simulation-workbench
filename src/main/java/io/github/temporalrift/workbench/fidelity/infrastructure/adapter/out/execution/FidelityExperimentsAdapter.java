@@ -31,7 +31,7 @@ public class FidelityExperimentsAdapter implements FidelityExperiments {
             var preview = experiments.previewVariant(rulesArtifactDigest, parameterSpaceVersion, overrides);
             return new VariantRules(preview.effectiveRulesDigest(), preview.overrides());
         } catch (ExperimentRefusedException e) {
-            throw new FidelityExperimentRefusedException(e.getMessage(), e);
+            throw new FidelityExperimentRefusedException(e.getMessage(), e.reason(), e);
         }
     }
 

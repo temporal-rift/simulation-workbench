@@ -16,12 +16,14 @@ import java.util.UUID;
  * </pre>
  *
  * @param lane the environment of the real lane and {@code laneId} its id, chosen when the check is accepted
+ * @param parameterSpaceVersion the parameter space the variants were resolved against, fixed when the check is accepted
  * @param experimentId the frozen experiment and {@code runId} its run; null until the check has begun
  * @param failure set only when the check failed for a reason other than its cases' results
  */
 public record FidelityCheck(
         UUID id,
         String seed,
+        int parameterSpaceVersion,
         FidelityCheckState state,
         FidelityEnvironment simulator,
         FidelityEnvironment lane,
@@ -37,6 +39,9 @@ public record FidelityCheck(
     public FidelityCheck {
         Objects.requireNonNull(id, "id");
         Objects.requireNonNull(seed, "seed");
+        if (parameterSpaceVersion < 1) {
+            throw new IllegalArgumentException("parameterSpaceVersion must be at least 1: " + parameterSpaceVersion);
+        }
         Objects.requireNonNull(state, "state");
         Objects.requireNonNull(simulator, "simulator");
         Objects.requireNonNull(lane, "lane");
@@ -48,6 +53,7 @@ public record FidelityCheck(
     public static FidelityCheck queued(
             UUID id,
             String seed,
+            int parameterSpaceVersion,
             FidelityEnvironment simulator,
             FidelityEnvironment lane,
             String laneId,
@@ -56,6 +62,7 @@ public record FidelityCheck(
         return new FidelityCheck(
                 id,
                 seed,
+                parameterSpaceVersion,
                 FidelityCheckState.QUEUED,
                 simulator,
                 lane,
@@ -75,6 +82,7 @@ public record FidelityCheck(
         return new FidelityCheck(
                 id,
                 seed,
+                parameterSpaceVersion,
                 FidelityCheckState.RUNNING,
                 simulator,
                 lane,
@@ -121,6 +129,7 @@ public record FidelityCheck(
         return new FidelityCheck(
                 id,
                 seed,
+                parameterSpaceVersion,
                 next,
                 simulator,
                 lane,

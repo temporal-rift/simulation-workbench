@@ -79,9 +79,10 @@ public class InMemoryFidelityRepository implements FidelityRepository {
     }
 
     @Override
-    public synchronized Optional<FidelityCheck> newestPassed(SourceRevisions revisions) {
+    public synchronized Optional<FidelityCheck> newestPassed(SourceRevisions revisions, int parameterSpaceVersion) {
         return checks.values().stream()
                 .filter(check -> check.state() == FidelityCheckState.PASSED)
+                .filter(check -> check.parameterSpaceVersion() == parameterSpaceVersion)
                 .filter(check -> check.simulator().sourceRevisions().equals(revisions))
                 .max(Comparator.comparing(FidelityCheck::finishedAt));
     }

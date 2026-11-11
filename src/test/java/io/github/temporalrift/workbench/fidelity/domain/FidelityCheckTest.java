@@ -25,6 +25,7 @@ class FidelityCheckTest {
         return FidelityCheck.queued(
                 UUID.randomUUID(),
                 "42",
+                1,
                 environment("1111111"),
                 environment("1111111"),
                 "lane-1",

@@ -665,14 +665,17 @@ one when they judge that a change could make the simulator play a different game
 one or is refused without one. It plays on the simulator the full case matrix on one seed (3, 4 and 5 players,
 every faction set and seat rotation, the policies `faction-greedy` and `random` on every seat) for three variants, then
 reproduces every case on one real lane. The variants are the baseline and the two edge variants `low` and `high`, which
-set as many parameters as the constraints allow at the minimum and the maximum of their ranges
-([docs/fidelity/v1.md](docs/fidelity/v1.md)). That is 55 cases per table and variant, 330 in all.
+set as many parameters as the constraints allow at the minimum and the maximum of their ranges. A new check resolves
+them against the newest parameter space that has edge variants, which is parameter space 2
+([docs/fidelity/v2.md](docs/fidelity/v2.md); parameter space 1 is in [docs/fidelity/v1.md](docs/fidelity/v1.md)), and
+records that space, so a stored check keeps the variants it was accepted with. That is 55 cases per table and variant,
+330 in all.
 
 | Operation | Meaning |
 |---|---|
-| `POST /api/v1/fidelity-checks` | Accepts a check for a `seed` (`simulation:write`, `Idempotency-Key`); `409 FIDELITY_CHECK_ACTIVE` while another is queued or running, `409 SIMULATOR_NOT_AVAILABLE` when the simulator is not enabled or no real lane matches it |
+| `POST /api/v1/fidelity-checks` | Accepts a check for a `seed` (`simulation:write`, `Idempotency-Key`); `409 FIDELITY_CHECK_ACTIVE` while another is queued or running, `409 SIMULATOR_NOT_AVAILABLE` when the simulator is not enabled or no real lane matches it, or when its baseline rules lack a key the newest parameter space needs (then with `reason` `UNKNOWN_BASELINE`) |
 | `GET /api/v1/fidelity-checks`, `.../{id}`, `.../{id}/cases` | The records, newest first, and a check's cases in matrix order, filterable by variant and result |
-| `GET /api/v1/simulator/fidelity` | The three source revisions the simulator embeds, and whether a passing record exists for exactly them |
+| `GET /api/v1/simulator/fidelity` | The three source revisions the simulator embeds, and whether a passing record exists for exactly them on the newest parameter space, the one new checks use |
 
 The **real lane** is chosen when the check is accepted: the configured lane with the lowest id that serves the simulator's
 content, runs the same source revision of each of the three services, implements the same contract versions, and gives

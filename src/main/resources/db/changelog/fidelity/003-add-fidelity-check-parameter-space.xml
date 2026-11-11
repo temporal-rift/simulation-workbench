@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+  <changeSet id="003-add-fidelity-check-parameter-space" author="simulation-workbench">
+    <!--
+      The parameter space the check's variants were resolved against. Every check stored before this column existed ran
+      on parameter space 1, the only space that had edge variants, so the default is its value.
+    -->
+    <addColumn tableName="fidelity_check">
+      <column name="parameter_space_version" type="INT" defaultValueNumeric="1">
+        <constraints nullable="false"/>
+      </column>
+    </addColumn>
+  </changeSet>
+</databaseChangeLog>

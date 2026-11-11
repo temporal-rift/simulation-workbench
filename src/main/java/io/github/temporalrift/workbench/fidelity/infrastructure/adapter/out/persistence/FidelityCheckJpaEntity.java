@@ -27,6 +27,9 @@ class FidelityCheckJpaEntity extends AssignedIdJpaEntity<UUID> {
     @Column(name = "seed", nullable = false, length = 20)
     private String seed;
 
+    @Column(name = "parameter_space_version", nullable = false)
+    private int parameterSpaceVersion;
+
     @Column(name = "state", nullable = false, length = 16)
     private String state;
 
@@ -80,6 +83,7 @@ class FidelityCheckJpaEntity extends AssignedIdJpaEntity<UUID> {
             UUID idempotencyKey,
             String requestHash,
             String seed,
+            int parameterSpaceVersion,
             String laneId,
             String simulatorJson,
             String laneJson,
@@ -94,6 +98,7 @@ class FidelityCheckJpaEntity extends AssignedIdJpaEntity<UUID> {
         this.idempotencyKey = accepted.idempotencyKey();
         this.requestHash = accepted.requestHash();
         this.seed = accepted.seed();
+        this.parameterSpaceVersion = accepted.parameterSpaceVersion();
         this.state = "QUEUED";
         this.laneId = accepted.laneId();
         this.simulatorJson = accepted.simulatorJson();
@@ -140,6 +145,10 @@ class FidelityCheckJpaEntity extends AssignedIdJpaEntity<UUID> {
 
     String seed() {
         return seed;
+    }
+
+    int parameterSpaceVersion() {
+        return parameterSpaceVersion;
     }
 
     String state() {
