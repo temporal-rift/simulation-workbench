@@ -19,6 +19,9 @@ import io.github.temporalrift.workbench.shared.rules.ParameterValue;
  */
 public final class VariantMaterializer {
 
+    private static final String NUMBER = "number";
+    private static final String BOOLEAN = "boolean";
+
     private VariantMaterializer() {}
 
     /** The effective rules of a variant and the overrides that remain once those equal to the baseline are dropped. */
@@ -67,10 +70,10 @@ public final class VariantMaterializer {
         var required = new TreeMap<String, String>();
         space.parameters()
                 .forEach(parameter -> required.put(
-                        parameter.key(), parameter instanceof ParameterSpace.BooleanParameter ? "boolean" : "number"));
+                        parameter.key(), parameter instanceof ParameterSpace.BooleanParameter ? BOOLEAN : NUMBER));
         space.constraints()
-                .forEach(constraint ->
-                        constraint.expression().keys().forEach(key -> required.putIfAbsent(key, "number")));
+                .forEach(
+                        constraint -> constraint.expression().keys().forEach(key -> required.putIfAbsent(key, NUMBER)));
         required.entrySet().stream()
                 .filter(entry -> !carries(baseline, entry.getKey(), entry.getValue()))
                 .findFirst()
@@ -85,7 +88,7 @@ public final class VariantMaterializer {
     }
 
     private static boolean carries(EffectiveRules baseline, String key, String type) {
-        return "boolean".equals(type)
+        return BOOLEAN.equals(type)
                 ? baseline.flag(key).isPresent()
                 : baseline.number(key).isPresent();
     }
@@ -99,11 +102,13 @@ public final class VariantMaterializer {
                         null));
         switch (parameter) {
             case ParameterSpace.NumberParameter number -> requireNumber(number, value);
-            case ParameterSpace.BooleanParameter ignored -> {
-                if (!(value instanceof ParameterValue.Flag)) {
-                    throw wrongType(key, "a boolean", value);
-                }
-            }
+            case ParameterSpace.BooleanParameter flag -> requireFlag(flag, value);
+        }
+    }
+
+    private static void requireFlag(ParameterSpace.BooleanParameter parameter, ParameterValue value) {
+        if (!(value instanceof ParameterValue.Flag)) {
+            throw wrongType(parameter.key(), "a boolean", value);
         }
     }
 

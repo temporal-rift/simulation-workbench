@@ -207,8 +207,8 @@ class VariantRulesTest {
     void theAxesOfSpaceTwoTypeEachParameterAndCarryTheBaselineValue() {
         var axes = rules.axes(VariantRulesFixtures.ARTIFACT_DIGEST, 2);
 
-        assertThat(axes).hasSize(49);
         assertThat(axes)
+                .hasSize(49)
                 .contains(
                         new VariantRules.NumberAxis(
                                 "game.rules.annihilate-earliest-round",

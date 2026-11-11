@@ -268,8 +268,8 @@ class CampaignRepositoryIT {
         repository.insertGames(id, List.of(new Game("c-0000", "42", 0), new Game("c-0001", "44", 0)));
 
         assertThat(repository.candidates(id)).extracting(Candidate::id).containsExactly("c-0000", "c-0001");
-        assertThat(repository.candidates(id).get(1).overrides().get("game.rules.a"))
-                .isEqualTo(ParameterValue.of(new BigDecimal("1.50")));
+        assertThat(repository.candidates(id).get(1).overrides())
+                .containsEntry("game.rules.a", ParameterValue.of(new BigDecimal("1.50")));
         assertThat(repository.candidates(id).get(1).point()).containsExactly(1, 2);
         assertThat(repository.candidates(id).get(1).redraws()).isEqualTo(3);
         assertThat(repository.waves(id)).containsExactly(wave);

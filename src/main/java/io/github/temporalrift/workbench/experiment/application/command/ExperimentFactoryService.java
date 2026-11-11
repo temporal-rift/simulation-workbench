@@ -59,9 +59,9 @@ public class ExperimentFactoryService implements ExperimentFactory {
 
     private static ParameterAxis axis(VariantRules.Axis axis) {
         return switch (axis) {
-            case VariantRules.NumberAxis number ->
-                new NumberAxis(number.key(), number.min(), number.max(), number.step(), number.baseline());
-            case VariantRules.BooleanAxis flag -> new BooleanAxis(flag.key(), flag.baseline());
+            case VariantRules.NumberAxis(var key, var min, var max, var step, var baseline) ->
+                new NumberAxis(key, min, max, step, baseline);
+            case VariantRules.BooleanAxis(var key, var baseline) -> new BooleanAxis(key, baseline);
         };
     }
 

@@ -50,17 +50,10 @@ final class VariantRulesMapper {
 
     private static ParameterDefinition definition(ParameterSpace.Parameter parameter) {
         return switch (parameter) {
-            case ParameterSpace.NumberParameter number ->
-                new NumberParameterDefinition(
-                        ParameterType.NUMBER,
-                        number.key(),
-                        number.services(),
-                        number.baseline(),
-                        number.min(),
-                        number.max(),
-                        number.step());
-            case ParameterSpace.BooleanParameter flag ->
-                new BooleanParameterDefinition(ParameterType.BOOLEAN, flag.key(), flag.services(), flag.baseline());
+            case ParameterSpace.NumberParameter(var key, var services, var baseline, var min, var max, var step) ->
+                new NumberParameterDefinition(ParameterType.NUMBER, key, services, baseline, min, max, step);
+            case ParameterSpace.BooleanParameter(var key, var services, var baseline) ->
+                new BooleanParameterDefinition(ParameterType.BOOLEAN, key, services, baseline);
         };
     }
 

@@ -88,10 +88,9 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
 
     private static ParameterGrid.Axis axis(ExperimentFactory.ParameterAxis axis) {
         return switch (axis) {
-            case ExperimentFactory.NumberAxis number ->
-                new ParameterGrid.NumberAxis(
-                        number.key(), number.min(), number.max(), number.step(), number.baseline());
-            case ExperimentFactory.BooleanAxis flag -> new ParameterGrid.FlagAxis(flag.key(), flag.baseline());
+            case ExperimentFactory.NumberAxis(var key, var min, var max, var step, var baseline) ->
+                new ParameterGrid.NumberAxis(key, min, max, step, baseline);
+            case ExperimentFactory.BooleanAxis(var key, var baseline) -> new ParameterGrid.FlagAxis(key, baseline);
         };
     }
 
