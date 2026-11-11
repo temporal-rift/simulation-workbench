@@ -463,7 +463,6 @@
     },
     {
       "key": "game.rules.annihilate-earliest-round",
-      "type": "NUMBER",
       "services": [
         "game-service"
       ],

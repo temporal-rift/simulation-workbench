@@ -99,6 +99,30 @@ class CampaignExperimentsAdapterTest {
     }
 
     @Test
+    void theGridOfSpaceTwoHoldsTheTwoSwitchesAsBooleanAxes() {
+        var grid = adapter.grid(definition(VariantRulesFixtures.ARTIFACT_DIGEST, 2));
+
+        assertThat(grid.axes())
+                .filteredOn(ParameterGrid.FlagAxis.class::isInstance)
+                .extracting(ParameterGrid.Axis::key)
+                .containsExactlyInAnyOrder(
+                        "game.rules.scoring.written-outcome-shields-annihilation",
+                        "game.rules.probability.erased-weight-to-written-outcome");
+        assertThat(grid.overridesOf(grid.baselinePoint())).isEmpty();
+    }
+
+    @Test
+    void aBooleanOverrideValidatesOnSpaceTwoAndFreezesIntoACandidateRules() {
+        var definition = definition(VariantRulesFixtures.ARTIFACT_DIGEST, 2);
+        var key = "game.rules.scoring.written-outcome-shields-annihilation";
+
+        var validated = adapter.validation(definition).validate(Map.of(key, ParameterValue.of(false)));
+
+        assertThat(validated).isPresent();
+        assertThat(validated.orElseThrow().overrides()).containsEntry(key, ParameterValue.of(false));
+    }
+
+    @Test
     void aGridThatCannotBeBuiltIsAPlayRefusal() {
         var unknown = definition("f".repeat(64), 1);
 
