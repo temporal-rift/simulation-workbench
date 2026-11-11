@@ -637,7 +637,8 @@ the path, when a jar or the rules file is missing or unreadable, and names the k
 malformed.
 
 Bots call the services' REST operations on loopback ports, exactly as on a real lane, with tokens an in-process issuer
-mints; the slot's services trust only that issuer, and its key never leaves the process. The services publish through
+mints. As on a real lane, game-service runs with a per-player rate limit of 1,000,000 requests a minute whatever the rules
+file says, because bots play without pause and the ordinary limit would answer them `429`; the slot's services trust only that issuer, and its key never leaves the process. The services publish through
 the slot's event sink, which delivers every record to the services that consume its topic: `game.events` to
 `timeline-service` and `read-service`, `timeline.events` to `game-service` and `read-service`. Per topic and consuming
 service, records arrive in publication order and one at a time, as a partition would deliver them for one game; the
