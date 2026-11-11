@@ -37,6 +37,7 @@ class SlotRuntimeTest {
     @BeforeEach
     void clearDeliveries() {
         FakeServiceApplication.DELIVERED.clear();
+        FakeServiceApplication.RATE_LIMITS.clear();
     }
 
     @AfterEach
@@ -55,6 +56,20 @@ class SlotRuntimeTest {
                 .hasSize(3);
         assertThat(statusOf(runtime.gameServiceUrl() + "/anything")).isEqualTo(404);
         assertThat(statusOf(runtime.readServiceUrl() + "/anything")).isEqualTo(404);
+    }
+
+    @Test
+    void runsGameServiceWithTheRateLimitOfARealLaneWhateverTheRulesSay() {
+        var served = new MapPropertySource("rules", Map.of("game.rate-limit.requests-per-minute", "120"));
+        runtime = SlotRuntime.start(
+                new SlotRuntime.Build(open("game", FIXTURE), open("timeline", FIXTURE), open("read", FIXTURE), served),
+                3,
+                Clock.systemUTC());
+
+        assertThat(FakeServiceApplication.RATE_LIMITS)
+                .containsEntry("game", "1000000")
+                .containsEntry("timeline", "120")
+                .containsEntry("read", "120");
     }
 
     @Test

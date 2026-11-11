@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,6 +35,14 @@ final class SlotRuntime implements AutoCloseable {
 
     /** Registers each service's execution controls, which a slot closes every case through. */
     private static final String SIMULATION_DEPLOYMENT = "game.simulation.enabled=true";
+
+    /**
+     * What a real lane does to game-service: it runs with {@code GAME_RATE_LIMIT_REQUESTS_PER_MINUTE=1000000}, because
+     * bots play one game after another without pause and the per-player limit of an ordinary deployment would refuse
+     * them. A slot does the same, as an argument so that the rules file, which carries the ordinary limit, does not
+     * win. Without it a bot that retries rejected candidates quickly is answered {@code 429} and loses the game.
+     */
+    private static final String GAME_RATE_LIMIT = "--game.rate-limit.requests-per-minute=1000000";
 
     /** Spring Boot DevTools' listener, present only while the workbench runs from its development classpath. */
     private static final String RESTART_LISTENER =
@@ -97,9 +106,9 @@ final class SlotRuntime implements AutoCloseable {
         parent.refresh();
         var children = new ArrayList<Hosted>();
         try (var startup = new Startup(router, parent, children)) {
-            var read = host(build.read(), parent, children, SIMULATION_DEPLOYMENT);
-            var timeline = host(build.timeline(), parent, children, SIMULATION_DEPLOYMENT);
-            var game = host(build.game(), parent, children, SIMULATION_DEPLOYMENT);
+            var read = host(build.read(), parent, children, List.of(), SIMULATION_DEPLOYMENT);
+            var timeline = host(build.timeline(), parent, children, List.of(), SIMULATION_DEPLOYMENT);
+            var game = host(build.game(), parent, children, List.of(GAME_RATE_LIMIT), SIMULATION_DEPLOYMENT);
             router.bind(Map.of(
                     SlotEventRouter.GAME_SERVICE, delivery(game),
                     SlotEventRouter.TIMELINE_SERVICE, delivery(timeline),
@@ -140,7 +149,11 @@ final class SlotRuntime implements AutoCloseable {
     }
 
     private static ConfigurableApplicationContext host(
-            ServiceJar jar, ConfigurableApplicationContext parent, List<Hosted> started, String... properties) {
+            ServiceJar jar,
+            ConfigurableApplicationContext parent,
+            List<Hosted> started,
+            List<String> arguments,
+            String... properties) {
         var loader = new ServiceClassLoader(jar, SlotRuntime.class.getClassLoader());
         var thread = Thread.currentThread();
         var previous = thread.getContextClassLoader();
@@ -164,7 +177,9 @@ final class SlotRuntime implements AutoCloseable {
                     .toList());
             application.addListeners(new HostOwnedAutoConfigurations(loader));
             // Arguments, because a service's own application.yml outranks the defaults that properties() sets.
-            var context = builder.run("--server.port=0", "--server.address=127.0.0.1");
+            var context = builder.run(
+                    Stream.concat(Stream.of("--server.port=0", "--server.address=127.0.0.1"), arguments.stream())
+                            .toArray(String[]::new));
             started.add(new Hosted(context, loader));
             running = true;
             return context;
