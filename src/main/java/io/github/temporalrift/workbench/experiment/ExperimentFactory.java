@@ -8,6 +8,8 @@ import java.util.UUID;
 
 import tools.jackson.databind.JsonNode;
 
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
+
 /** Lets another module prepare and freeze an experiment it composes itself. */
 public interface ExperimentFactory {
 
@@ -21,7 +23,7 @@ public interface ExperimentFactory {
      * @throws ExperimentRefusedException when the baseline, the parameter space or an override is refused
      */
     VariantPreview previewVariant(
-            String rulesArtifactDigest, int parameterSpaceVersion, Map<String, BigDecimal> overrides);
+            String rulesArtifactDigest, int parameterSpaceVersion, Map<String, ParameterValue> overrides);
 
     /**
      * The parameters of a parameter space that overrides may set, in key order, each with its range, its step and the
@@ -39,9 +41,19 @@ public interface ExperimentFactory {
      */
     UUID freeze(UUID idempotencyKey, JsonNode manifest);
 
-    /** One overridable parameter: the values {@code min}, {@code min + step}, ... up to {@code max}. */
-    record ParameterAxis(String key, BigDecimal min, BigDecimal max, BigDecimal step, BigDecimal baseline) {}
+    /** One overridable parameter. */
+    sealed interface ParameterAxis permits NumberAxis, BooleanAxis {
+
+        String key();
+    }
+
+    /** A numeric parameter: the values {@code min}, {@code min + step}, ... up to {@code max}. */
+    record NumberAxis(String key, BigDecimal min, BigDecimal max, BigDecimal step, BigDecimal baseline)
+            implements ParameterAxis {}
+
+    /** A boolean parameter: the values {@code false} and {@code true}. */
+    record BooleanAxis(String key, boolean baseline) implements ParameterAxis {}
 
     /** A variant's effective rules digest and its normalised overrides. */
-    record VariantPreview(String effectiveRulesDigest, SortedMap<String, BigDecimal> overrides) {}
+    record VariantPreview(String effectiveRulesDigest, SortedMap<String, ParameterValue> overrides) {}
 }

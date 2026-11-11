@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,9 +34,15 @@ public class ConfiguredBaselineRules implements BaselineRulesCatalog {
     public record Declaration(String scope, String rulesArtifactDigest, String rulesDigest, Path document) {}
 
     private final Map<String, Baseline> byArtifact = new HashMap<>();
+    private final List<Declared> declared = new ArrayList<>();
 
     public ConfiguredBaselineRules(List<Declaration> declarations, ObjectMapper objectMapper) {
         declarations.forEach(declaration -> add(declaration, read(declaration, objectMapper)));
+    }
+
+    @Override
+    public List<Declared> declared() {
+        return List.copyOf(declared);
     }
 
     @Override
@@ -65,6 +72,7 @@ public class ConfiguredBaselineRules implements BaselineRulesCatalog {
     }
 
     private void add(Declaration declaration, Baseline baseline) {
+        declared.add(new Declared(declaration.scope(), baseline));
         var earlier = byArtifact.putIfAbsent(declaration.rulesArtifactDigest(), baseline);
         if (earlier != null && !earlier.rules().digest().equals(baseline.rules().digest())) {
             throw new IllegalArgumentException(declaration.scope() + "rules-document differs from another declaration "

@@ -1,6 +1,6 @@
 package io.github.temporalrift.workbench.experiment.domain.rules;
 
-import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.SortedSet;
@@ -8,11 +8,11 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.node.JsonNodeFactory;
 
 import io.github.temporalrift.workbench.experiment.EffectiveRules;
 import io.github.temporalrift.workbench.experiment.domain.VariantRulesReason;
 import io.github.temporalrift.workbench.experiment.domain.rules.ParameterSpace.Constraint;
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
 /**
  * Turns a baseline rules document, a parameter space and overrides into the variant's effective rules. It is a pure
@@ -20,10 +20,13 @@ import io.github.temporalrift.workbench.experiment.domain.rules.ParameterSpace.C
  */
 public final class VariantMaterializer {
 
+    private static final String NUMBER = "number";
+    private static final String BOOLEAN = "boolean";
+
     private VariantMaterializer() {}
 
     /** The effective rules of a variant and the overrides that remain once those equal to the baseline are dropped. */
-    public record Materialized(EffectiveRules rules, SortedMap<String, BigDecimal> overrides) {
+    public record Materialized(EffectiveRules rules, SortedMap<String, ParameterValue> overrides) {
 
         public String digest() {
             return rules.digest();
@@ -38,17 +41,17 @@ public final class VariantMaterializer {
      * @throws VariantRulesRefusal when the baseline cannot carry the space or an override or constraint is refused
      */
     public static Materialized materialize(
-            EffectiveRules baseline, ParameterSpace space, Map<String, BigDecimal> overrides) {
+            EffectiveRules baseline, ParameterSpace space, Map<String, ParameterValue> overrides) {
         if (overrides.isEmpty()) {
             return new Materialized(baseline, new TreeMap<>());
         }
         requireBaselineCarries(baseline, space);
         var sorted = new TreeMap<>(overrides);
         sorted.forEach((key, value) -> requireAllowed(space, key, value));
-        var changed = new TreeMap<String, BigDecimal>();
+        var changed = new TreeMap<String, ParameterValue>();
         sorted.forEach((key, value) -> {
-            if (value.compareTo(baseline.number(key).orElseThrow()) != 0) {
-                changed.put(key, normalized(value));
+            if (!value.equals(baseline.value(key).orElseThrow())) {
+                changed.put(key, value);
             }
         });
         if (changed.isEmpty()) {
@@ -65,57 +68,101 @@ public final class VariantMaterializer {
     }
 
     private static void requireBaselineCarries(EffectiveRules baseline, ParameterSpace space) {
-        var required = new TreeSet<String>();
-        space.parameters().forEach(parameter -> required.add(parameter.key()));
-        space.constraints()
-                .forEach(constraint -> required.addAll(constraint.expression().keys()));
-        required.stream()
-                .filter(key -> baseline.number(key).isEmpty())
-                .findFirst()
-                .ifPresent(key -> {
-                    throw new VariantRulesRefusal(
-                            VariantRulesReason.UNKNOWN_BASELINE,
-                            "the baseline rules carry no number at " + key + ", which parameter space "
-                                    + space.version() + " needs",
-                            null,
-                            null);
-                });
+        missing(baseline, space).stream().findFirst().ifPresent(entry -> {
+            throw new VariantRulesRefusal(
+                    VariantRulesReason.UNKNOWN_BASELINE,
+                    "the baseline rules carry no " + entry.getValue() + " at " + entry.getKey()
+                            + ", which parameter space " + space.version() + " needs",
+                    null,
+                    null);
+        });
     }
 
-    private static void requireAllowed(ParameterSpace space, String key, BigDecimal value) {
+    /** The keys, with their types, that the space needs and the baseline does not carry, by key. */
+    static List<Map.Entry<String, String>> missing(EffectiveRules baseline, ParameterSpace space) {
+        var required = new TreeMap<String, String>();
+        space.parameters()
+                .forEach(parameter -> required.put(
+                        parameter.key(), parameter instanceof ParameterSpace.BooleanParameter ? BOOLEAN : NUMBER));
+        space.constraints()
+                .forEach(
+                        constraint -> constraint.expression().keys().forEach(key -> required.putIfAbsent(key, NUMBER)));
+        return required.entrySet().stream()
+                .filter(entry -> !carries(baseline, entry.getKey(), entry.getValue()))
+                .toList();
+    }
+
+    private static boolean carries(EffectiveRules baseline, String key, String type) {
+        return BOOLEAN.equals(type)
+                ? baseline.flag(key).isPresent()
+                : baseline.number(key).isPresent();
+    }
+
+    private static void requireAllowed(ParameterSpace space, String key, ParameterValue value) {
         var parameter = space.parameter(key)
                 .orElseThrow(() -> new VariantRulesRefusal(
                         VariantRulesReason.UNKNOWN_PARAMETER,
                         key + " is not a parameter of parameter space " + space.version(),
                         key,
                         null));
-        if (!parameter.inRange(value)) {
+        switch (parameter) {
+            case ParameterSpace.NumberParameter number -> requireNumber(number, value);
+            case ParameterSpace.BooleanParameter flag -> requireFlag(flag, value);
+        }
+    }
+
+    private static void requireFlag(ParameterSpace.BooleanParameter parameter, ParameterValue value) {
+        if (!(value instanceof ParameterValue.Flag)) {
+            throw wrongType(parameter.key(), "a boolean", value);
+        }
+    }
+
+    private static void requireNumber(ParameterSpace.NumberParameter parameter, ParameterValue value) {
+        var key = parameter.key();
+        if (!(value instanceof ParameterValue.Decimal(var number))) {
+            throw wrongType(key, "a number", value);
+        }
+        if (!parameter.inRange(number)) {
             throw new VariantRulesRefusal(
                     VariantRulesReason.OUT_OF_RANGE,
                     key + " must be from " + parameter.min().toPlainString() + " to "
-                            + parameter.max().toPlainString() + ": " + value.toPlainString(),
+                            + parameter.max().toPlainString() + ": " + number.toPlainString(),
                     key,
                     null);
         }
-        if (!parameter.onStep(value)) {
+        if (!parameter.onStep(number)) {
             throw new VariantRulesRefusal(
                     VariantRulesReason.OFF_STEP,
                     key + " must lie on a step of " + parameter.step().toPlainString() + " from "
-                            + parameter.min().toPlainString() + ": " + value.toPlainString(),
+                            + parameter.min().toPlainString() + ": " + number.toPlainString(),
                     key,
                     null);
         }
     }
 
+    private static VariantRulesRefusal wrongType(String key, String expected, ParameterValue value) {
+        return new VariantRulesRefusal(
+                VariantRulesReason.WRONG_TYPE,
+                key + " must be " + expected + ": its parameter is "
+                        + (expected.equals("a number") ? "numeric" : BOOLEAN) + ", not " + value.text(),
+                key,
+                null);
+    }
+
     /** The overrides as rules properties, followed by the derived values of every overridden source. */
-    private static SortedMap<String, JsonNode> applied(ParameterSpace space, SortedMap<String, BigDecimal> changed) {
+    private static SortedMap<String, JsonNode> applied(
+            ParameterSpace space, SortedMap<String, ParameterValue> changed) {
         var properties = new TreeMap<String, JsonNode>();
-        changed.forEach((key, value) -> properties.put(key, number(value)));
+        changed.forEach((key, value) -> properties.put(key, value.json()));
         space.derived().stream()
                 .filter(derived -> changed.containsKey(derived.from()))
-                .forEach(derived -> properties.put(
-                        derived.key(),
-                        number(normalized(changed.get(derived.from()).multiply(derived.factor())))));
+                .forEach(derived -> {
+                    var source = (ParameterValue.Decimal) changed.get(derived.from());
+                    properties.put(
+                            derived.key(),
+                            ParameterValue.of(source.value().multiply(derived.factor()))
+                                    .json());
+                });
         return properties;
     }
 
@@ -137,19 +184,5 @@ public final class VariantMaterializer {
                 .map(ParameterSpace.Derived::from)
                 .findFirst()
                 .orElse(key);
-    }
-
-    /** The value without trailing zeros, so that {@code 25}, {@code 25.0} and {@code 2.5E+1} are one value. */
-    public static BigDecimal normalized(BigDecimal value) {
-        var stripped = value.stripTrailingZeros();
-        return stripped.scale() < 0 ? stripped.setScale(0) : stripped;
-    }
-
-    /** A rules number: an integer when the value is whole, a decimal otherwise. */
-    public static JsonNode number(BigDecimal value) {
-        var normalized = normalized(value);
-        return normalized.scale() == 0 && normalized.precision() <= 18
-                ? JsonNodeFactory.instance.numberNode(normalized.longValueExact())
-                : JsonNodeFactory.instance.numberNode(normalized);
     }
 }

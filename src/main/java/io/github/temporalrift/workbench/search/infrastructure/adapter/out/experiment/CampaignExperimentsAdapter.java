@@ -1,6 +1,5 @@
 package io.github.temporalrift.workbench.search.infrastructure.adapter.out.experiment;
 
-import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -32,6 +31,7 @@ import io.github.temporalrift.workbench.search.domain.port.out.CampaignExperimen
 import io.github.temporalrift.workbench.search.domain.port.out.CandidateValidation;
 import io.github.temporalrift.workbench.shared.game.Faction;
 import io.github.temporalrift.workbench.shared.game.FactionSets;
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
 /**
  * Prepares and freezes the experiments of a campaign through the experiment module. A wave is a frozen experiment
@@ -79,12 +79,19 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
                     experiments
                             .parameterAxes(definition.baselineRulesDigest(), definition.parameterSpaceVersion())
                             .stream()
-                            .map(axis -> new ParameterGrid.Axis(
-                                    axis.key(), axis.min(), axis.max(), axis.step(), axis.baseline()))
+                            .<ParameterGrid.Axis>map(CampaignExperimentsAdapter::axis)
                             .toList());
         } catch (ExperimentRefusedException | IllegalArgumentException e) {
             throw new CampaignPlayRefusedException(e.getMessage(), e);
         }
+    }
+
+    private static ParameterGrid.Axis axis(ExperimentFactory.ParameterAxis axis) {
+        return switch (axis) {
+            case ExperimentFactory.NumberAxis(var key, var min, var max, var step, var baseline) ->
+                new ParameterGrid.NumberAxis(key, min, max, step, baseline);
+            case ExperimentFactory.BooleanAxis(var key, var baseline) -> new ParameterGrid.FlagAxis(key, baseline);
+        };
     }
 
     @Override
@@ -352,7 +359,7 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
     private ObjectNode variant(
             CampaignDefinition definition,
             String label,
-            Map<String, BigDecimal> overrides,
+            Map<String, ParameterValue> overrides,
             String effectiveRulesDigest,
             LaneBundle simulator) {
         var node = mapper.createObjectNode();
@@ -364,7 +371,7 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
         node.put("effectiveContentDigest", simulator.effectiveContentDigest());
         if (!overrides.isEmpty()) {
             var overrideNodes = node.putObject("overrides");
-            overrides.forEach(overrideNodes::put);
+            overrides.forEach((key, value) -> overrideNodes.set(key, value.json()));
             node.put("parameterSpaceVersion", definition.parameterSpaceVersion());
         }
         return node;

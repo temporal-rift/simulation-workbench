@@ -9,6 +9,7 @@ import java.util.TreeMap;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.JsonNodeFactory;
 
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 import io.github.temporalrift.workbench.shared.text.Sha256;
 
 /**
@@ -72,6 +73,20 @@ public record EffectiveRules(SortedMap<String, JsonNode> properties) {
         return Optional.ofNullable(properties.get(key))
                 .filter(JsonNode::isNumber)
                 .map(JsonNode::decimalValue);
+    }
+
+    /** The boolean value of a property, or empty when it is absent or not a boolean. */
+    public Optional<Boolean> flag(String key) {
+        return Optional.ofNullable(properties.get(key))
+                .filter(JsonNode::isBoolean)
+                .map(JsonNode::asBoolean);
+    }
+
+    /** The number or boolean a property holds, or empty when it is absent or holds neither. */
+    public Optional<ParameterValue> value(String key) {
+        return Optional.ofNullable(properties.get(key))
+                .filter(node -> node.isNumber() || node.isBoolean())
+                .map(ParameterValue::of);
     }
 
     /** This document with the given properties replaced or added. */

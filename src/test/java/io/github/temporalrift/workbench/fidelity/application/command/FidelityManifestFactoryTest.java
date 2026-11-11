@@ -2,7 +2,6 @@ package io.github.temporalrift.workbench.fidelity.application.command;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -21,6 +20,7 @@ import io.github.temporalrift.workbench.fidelity.domain.port.out.FidelityEnviron
 import io.github.temporalrift.workbench.fidelity.domain.port.out.FidelityExperiments;
 import io.github.temporalrift.workbench.fidelity.infrastructure.adapter.out.configuration.ConfiguredEdgeVariants;
 import io.github.temporalrift.workbench.policy.application.query.BaselinePolicyCatalog;
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
 class FidelityManifestFactoryTest {
 
@@ -45,7 +45,7 @@ class FidelityManifestFactoryTest {
                 slots);
     }
 
-    private static FidelityVariant variant(VariantLabel label, Map<String, BigDecimal> overrides) {
+    private static FidelityVariant variant(VariantLabel label, Map<String, ParameterValue> overrides) {
         var preview = VariantRulesFixtures.variantRules().preview(VariantRulesFixtures.ARTIFACT_DIGEST, 1, overrides);
         return new FidelityVariant(label, preview.digest(), preview.overrides());
     }

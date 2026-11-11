@@ -1,6 +1,5 @@
 package io.github.temporalrift.workbench.fidelity.support;
 
-import java.math.BigDecimal;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
@@ -8,6 +7,7 @@ import java.util.TreeMap;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityEnvironment;
 import io.github.temporalrift.workbench.fidelity.domain.port.out.FidelityEnvironments;
 import io.github.temporalrift.workbench.fidelity.domain.port.out.FidelityExperiments;
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
 /** The simulator, the real lane and the variant rules the fidelity tests agree on. */
 public final class FidelityFixtures {
@@ -69,7 +69,7 @@ public final class FidelityFixtures {
     }
 
     /** The rules digest a variant means is a function of its overrides, which is all the tests need of it. */
-    public static FidelityExperiments.VariantRules rules(Map<String, BigDecimal> overrides) {
+    public static FidelityExperiments.VariantRules rules(Map<String, ParameterValue> overrides) {
         return new FidelityExperiments.VariantRules(
                 String.format("%064x", Math.abs(overrides.hashCode())), new TreeMap<>(overrides));
     }

@@ -1,16 +1,17 @@
 package io.github.temporalrift.workbench.fidelity.domain;
 
-import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.SortedMap;
 import java.util.TreeMap;
+
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
 /**
  * The two variants at opposite edges of a parameter space, each as overrides on the baseline: {@code low} holds as many
  * parameters as the constraints allow at their range minimum, {@code high} at their range maximum.
  */
 public record EdgeVariants(
-        int parameterSpaceVersion, SortedMap<String, BigDecimal> low, SortedMap<String, BigDecimal> high) {
+        int parameterSpaceVersion, SortedMap<String, ParameterValue> low, SortedMap<String, ParameterValue> high) {
 
     public EdgeVariants {
         if (parameterSpaceVersion < 1) {

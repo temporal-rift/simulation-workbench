@@ -6,9 +6,11 @@ import java.util.List;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
+
 /**
  * The discrete space a search moves in: every overridable parameter of a parameter space in key order, each with the
- * values on its step grid. A point of the space is one grid index per parameter.
+ * values in order. A point of the space is one grid index per parameter.
  */
 public record ParameterGrid(List<Axis> axes) {
 
@@ -24,13 +26,24 @@ public record ParameterGrid(List<Axis> axes) {
         }
     }
 
-    /**
-     * One parameter: the values {@code min}, {@code min + step}, ... up to {@code max}, and the one the baseline
-     * rules carry.
-     */
-    public record Axis(String key, BigDecimal min, BigDecimal max, BigDecimal step, BigDecimal baseline) {
+    /** One parameter: its values in order, indexed from 0, and the one the baseline rules carry. */
+    public sealed interface Axis permits NumberAxis, FlagAxis {
 
-        public Axis {
+        String key();
+
+        /** The highest value index; the indices run from 0. */
+        int highestIndex();
+
+        int baselineIndex();
+
+        ParameterValue valueAt(int index);
+    }
+
+    /** A numeric parameter: the values {@code min}, {@code min + step}, ... up to {@code max}. */
+    public record NumberAxis(String key, BigDecimal min, BigDecimal max, BigDecimal step, BigDecimal baseline)
+            implements Axis {
+
+        public NumberAxis {
             if (step.signum() <= 0 || min.compareTo(max) > 0) {
                 throw new IllegalArgumentException(key + " has an empty range or a non-positive step");
             }
@@ -42,22 +55,46 @@ public record ParameterGrid(List<Axis> axes) {
             }
         }
 
-        /** The highest grid index; the indices run from 0. */
+        @Override
         public int highestIndex() {
             return max.subtract(min).divideToIntegralValue(step).intValueExact();
         }
 
+        @Override
         public int baselineIndex() {
             return baseline.subtract(min)
                     .divide(step, 0, RoundingMode.UNNECESSARY)
                     .intValueExact();
         }
 
-        public BigDecimal valueAt(int index) {
+        @Override
+        public ParameterValue valueAt(int index) {
             if (index < 0 || index > highestIndex()) {
                 throw new IllegalArgumentException(key + " has no grid index " + index);
             }
-            return min.add(step.multiply(BigDecimal.valueOf(index)));
+            return ParameterValue.of(min.add(step.multiply(BigDecimal.valueOf(index))));
+        }
+    }
+
+    /** A boolean parameter: index 0 is {@code false} and index 1 is {@code true}. */
+    public record FlagAxis(String key, boolean baseline) implements Axis {
+
+        @Override
+        public int highestIndex() {
+            return 1;
+        }
+
+        @Override
+        public int baselineIndex() {
+            return baseline ? 1 : 0;
+        }
+
+        @Override
+        public ParameterValue valueAt(int index) {
+            if (index < 0 || index > 1) {
+                throw new IllegalArgumentException(key + " has no grid index " + index);
+            }
+            return ParameterValue.of(index == 1);
         }
     }
 
@@ -67,11 +104,11 @@ public record ParameterGrid(List<Axis> axes) {
     }
 
     /** The overrides a point stands for: the parameters that differ from the baseline, by key. */
-    public SortedMap<String, BigDecimal> overridesOf(List<Integer> point) {
+    public SortedMap<String, ParameterValue> overridesOf(List<Integer> point) {
         if (point.size() != axes.size()) {
             throw new IllegalArgumentException("a point needs one index per parameter");
         }
-        var overrides = new TreeMap<String, BigDecimal>();
+        var overrides = new TreeMap<String, ParameterValue>();
         for (var index = 0; index < axes.size(); index++) {
             var axis = axes.get(index);
             if (point.get(index) != axis.baselineIndex()) {

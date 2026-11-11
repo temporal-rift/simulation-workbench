@@ -61,7 +61,7 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
     }
 
     private static ParameterGrid.Axis axis(String key, int min, int max, int baseline) {
-        return new ParameterGrid.Axis(
+        return new ParameterGrid.NumberAxis(
                 key, BigDecimal.valueOf(min), BigDecimal.valueOf(max), BigDecimal.ONE, BigDecimal.valueOf(baseline));
     }
 

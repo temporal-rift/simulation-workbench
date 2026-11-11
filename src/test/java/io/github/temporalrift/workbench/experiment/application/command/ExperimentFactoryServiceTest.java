@@ -24,6 +24,7 @@ import io.github.temporalrift.workbench.experiment.domain.ExperimentErrorCode;
 import io.github.temporalrift.workbench.experiment.domain.ExperimentValidationException;
 import io.github.temporalrift.workbench.experiment.domain.IdempotencyConflictException;
 import io.github.temporalrift.workbench.experiment.domain.rules.ParameterSpace;
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
 class ExperimentFactoryServiceTest {
 
@@ -50,7 +51,7 @@ class ExperimentFactoryServiceTest {
         var changed = factory.previewVariant(
                 VariantRulesFixtures.ARTIFACT_DIGEST,
                 1,
-                Map.of("game.rules.win-score-threshold", BigDecimal.valueOf(22)));
+                Map.of("game.rules.win-score-threshold", ParameterValue.of(BigDecimal.valueOf(22))));
 
         assertThat(baseline.overrides()).isEmpty();
         assertThat(changed.overrides()).containsOnlyKeys("game.rules.win-score-threshold");
@@ -66,7 +67,10 @@ class ExperimentFactoryServiceTest {
         assertThat(axes)
                 .filteredOn(axis -> axis.key().equals("game.rules.win-score-threshold"))
                 .singleElement()
-                .satisfies(axis -> assertThat(axis.baseline()).isBetween(axis.min(), axis.max()));
+                .satisfies(axis -> assertThat(((ExperimentFactory.NumberAxis) axis).baseline())
+                        .isBetween(
+                                ((ExperimentFactory.NumberAxis) axis).min(),
+                                ((ExperimentFactory.NumberAxis) axis).max()));
     }
 
     @Test
@@ -78,7 +82,7 @@ class ExperimentFactoryServiceTest {
 
     @Test
     void anOverrideOutsideTheParameterSpaceIsRefused() {
-        var outOfRange = Map.of("game.rules.win-score-threshold", BigDecimal.TEN);
+        var outOfRange = Map.of("game.rules.win-score-threshold", ParameterValue.of(BigDecimal.TEN));
         assertThatThrownBy(() -> factory.previewVariant(VariantRulesFixtures.ARTIFACT_DIGEST, 1, outOfRange))
                 .isInstanceOf(ExperimentRefusedException.class);
     }

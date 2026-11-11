@@ -1,6 +1,5 @@
 package io.github.temporalrift.workbench.fidelity.infrastructure.adapter.out.execution;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -12,6 +11,7 @@ import io.github.temporalrift.workbench.experiment.ExperimentRefusedException;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityExperimentRefusedException;
 import io.github.temporalrift.workbench.fidelity.domain.port.out.FidelityExperiments;
 import io.github.temporalrift.workbench.policy.PolicyCatalog;
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
 /** Prepares and freezes the experiment through the experiment and policy modules. */
 public class FidelityExperimentsAdapter implements FidelityExperiments {
@@ -26,7 +26,7 @@ public class FidelityExperimentsAdapter implements FidelityExperiments {
 
     @Override
     public VariantRules previewVariant(
-            String rulesArtifactDigest, int parameterSpaceVersion, Map<String, BigDecimal> overrides) {
+            String rulesArtifactDigest, int parameterSpaceVersion, Map<String, ParameterValue> overrides) {
         try {
             var preview = experiments.previewVariant(rulesArtifactDigest, parameterSpaceVersion, overrides);
             return new VariantRules(preview.effectiveRulesDigest(), preview.overrides());

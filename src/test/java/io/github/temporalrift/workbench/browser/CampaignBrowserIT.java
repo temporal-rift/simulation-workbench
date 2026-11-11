@@ -25,6 +25,7 @@ import io.github.temporalrift.workbench.search.domain.campaign.SearchAlgorithm;
 import io.github.temporalrift.workbench.search.domain.candidate.Candidate;
 import io.github.temporalrift.workbench.search.domain.log.LogEntry;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRepository;
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
 /**
  * A designer follows a queued campaign: pauses it, changes how many games it plays at once, resumes it and reads the
@@ -154,8 +155,8 @@ class CampaignBrowserIT extends DesignerBrowserTest {
         var now = Instant.now();
         var queued = Campaign.queued(UUID.randomUUID(), definition, 4, now);
         campaigns.create(UUID.randomUUID(), "h".repeat(64), queued, now);
-        var overrides = new TreeMap<String, BigDecimal>();
-        overrides.put("game.rules.win-score-threshold", new BigDecimal("22"));
+        var overrides = new TreeMap<String, ParameterValue>();
+        overrides.put("game.rules.win-score-threshold", ParameterValue.of(new BigDecimal("22")));
         var candidate = new Candidate("c-0001", 0, List.of(1), overrides, "d".repeat(64), 0);
         var generated = new LogEntry(
                 1,

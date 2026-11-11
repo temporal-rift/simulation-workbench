@@ -29,6 +29,7 @@ import io.github.temporalrift.workbench.fidelity.domain.FirstDivergence;
 import io.github.temporalrift.workbench.fidelity.domain.VariantLabel;
 import io.github.temporalrift.workbench.fidelity.domain.port.out.FidelityRepository;
 import io.github.temporalrift.workbench.fidelity.support.FidelityFixtures;
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
 @WorkbenchIntegrationTest
 class FidelityRepositoryIT {
@@ -61,8 +62,9 @@ class FidelityRepositoryIT {
                                 VariantLabel.LOW,
                                 "b".repeat(64),
                                 new TreeMap<>(Map.of(
-                                        "game.rules.win-score-threshold", new BigDecimal("16"),
-                                        "game.rules.probability.amplify-multiplier.I", new BigDecimal("1.25"))))),
+                                        "game.rules.win-score-threshold", ParameterValue.of(new BigDecimal("16")),
+                                        "game.rules.probability.amplify-multiplier.I",
+                                                ParameterValue.of(new BigDecimal("1.25")))))),
                 NOW);
     }
 
@@ -96,7 +98,8 @@ class FidelityRepositoryIT {
 
         assertThat(read).isEqualTo(check);
         assertThat(read.variants().get(1).overrides())
-                .containsEntry("game.rules.probability.amplify-multiplier.I", new BigDecimal("1.25"));
+                .containsEntry(
+                        "game.rules.probability.amplify-multiplier.I", ParameterValue.of(new BigDecimal("1.25")));
         assertThat(read.simulator().contracts()).containsEntry("session-api", "3.0.0");
         assertThat(repository.open()).contains(check);
     }

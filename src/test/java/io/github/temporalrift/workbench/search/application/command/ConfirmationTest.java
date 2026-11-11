@@ -29,6 +29,7 @@ import io.github.temporalrift.workbench.search.domain.candidate.Candidate;
 import io.github.temporalrift.workbench.search.domain.candidate.ConfirmationSeeds;
 import io.github.temporalrift.workbench.search.domain.log.LogEntry;
 import io.github.temporalrift.workbench.shared.execution.RunPhase;
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
 class ConfirmationTest {
 
@@ -384,8 +385,8 @@ class ConfirmationTest {
         campaigns.create(UUID.randomUUID(), "h".repeat(64), queued, NOW);
         var candidates = new java.util.ArrayList<Candidate>();
         for (var index = 0; index < shortList.length; index++) {
-            var overrides = new TreeMap<String, BigDecimal>();
-            overrides.put("game.rules.a", BigDecimal.valueOf(index + 1));
+            var overrides = new TreeMap<String, ParameterValue>();
+            overrides.put("game.rules.a", ParameterValue.of(BigDecimal.valueOf(index + 1)));
             candidates.add(new Candidate(shortList[index], 0, List.of(index), overrides, "e".repeat(64), 0));
         }
         campaigns.insertCandidates(queued.campaignId(), candidates);

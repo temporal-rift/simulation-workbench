@@ -59,6 +59,7 @@ import io.github.temporalrift.workbench.search.domain.log.LogEntry;
 import io.github.temporalrift.workbench.search.infrastructure.config.SearchApiJsonConfiguration;
 import io.github.temporalrift.workbench.shared.Page;
 import io.github.temporalrift.workbench.shared.infrastructure.config.SecurityConfig;
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
 @WebMvcTest(
         controllers = CampaignController.class,
@@ -389,8 +390,8 @@ class CampaignControllerIT {
 
     @Test
     void theLogShowsEveryDecisionWithItsEvidenceAndRedraws() throws Exception {
-        var overrides = new TreeMap<String, BigDecimal>();
-        overrides.put("game.rules.win-score-threshold", new BigDecimal("22"));
+        var overrides = new TreeMap<String, ParameterValue>();
+        overrides.put("game.rules.win-score-threshold", ParameterValue.of(new BigDecimal("22")));
         var generated = new LogEntry(
                 1,
                 0,

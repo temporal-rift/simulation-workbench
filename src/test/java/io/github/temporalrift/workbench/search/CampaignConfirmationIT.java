@@ -41,10 +41,12 @@ import io.github.temporalrift.workbench.search.domain.campaign.SearchAlgorithm;
 import io.github.temporalrift.workbench.search.domain.campaign.SeatTable;
 import io.github.temporalrift.workbench.search.domain.candidate.Candidate;
 import io.github.temporalrift.workbench.search.domain.candidate.ConfirmationSeeds;
+import io.github.temporalrift.workbench.search.domain.candidate.ParameterGrid;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignExperiments;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRepository;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRuns;
 import io.github.temporalrift.workbench.search.domain.port.out.CandidateEvaluation;
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
 /**
  * A search that ends with a short list, then its confirmation on the scripted lanes: lane 0 stands for the simulator
@@ -382,10 +384,11 @@ class CampaignConfirmationIT {
         }
         var validated = experiments.grid(definition).axes().stream()
                 .skip(index - 1L)
+                .map(axis -> (ParameterGrid.NumberAxis) axis)
                 .flatMap(axis -> Stream.of(
                                 axis.baseline().add(axis.step()),
                                 axis.baseline().subtract(axis.step()))
-                        .map(value -> validation.validate(new TreeMap<>(Map.of(axis.key(), value)))))
+                        .map(value -> validation.validate(new TreeMap<>(Map.of(axis.key(), ParameterValue.of(value))))))
                 .flatMap(Optional::stream)
                 .findFirst()
                 .orElseThrow();

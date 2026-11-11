@@ -6,7 +6,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
+import java.util.stream.Collectors;
+
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
 /**
  * One immutable version of the rules a variant may override: the parameters with their ranges and steps, the values
@@ -33,12 +35,15 @@ public record ParameterSpace(
         for (var parameter : parameters) {
             requireUnique(keys, parameter.key());
         }
-        var parameterKeys = Set.copyOf(keys);
+        var numberKeys = parameters.stream()
+                .filter(NumberParameter.class::isInstance)
+                .map(Parameter::key)
+                .collect(Collectors.toUnmodifiableSet());
         for (var value : derived) {
             requireUnique(keys, value.key());
-            if (!parameterKeys.contains(value.from())) {
+            if (!numberKeys.contains(value.from())) {
                 throw new IllegalArgumentException(
-                        value.key() + " derives from " + value.from() + ", which is not a parameter");
+                        value.key() + " derives from " + value.from() + ", which is not a numeric parameter");
             }
         }
         var ids = new HashSet<String>();
@@ -59,22 +64,32 @@ public record ParameterSpace(
                 .findFirst();
     }
 
+    /** A property override may set: a number on a grid, or a boolean. */
+    public sealed interface Parameter permits NumberParameter, BooleanParameter {
+
+        String key();
+
+        /** The services that read it. */
+        List<String> services();
+
+        /** The value the shared configuration serves. */
+        ParameterValue baselineValue();
+    }
+
     /**
-     * A property override may set.
+     * A numeric property.
      *
      * @param services the services that read it
      * @param baseline the value the shared configuration serves
      * @param step the grid the values lie on, starting from {@code min}
      */
-    public record Parameter(
-            String key, List<String> services, BigDecimal baseline, BigDecimal min, BigDecimal max, BigDecimal step) {
+    public record NumberParameter(
+            String key, List<String> services, BigDecimal baseline, BigDecimal min, BigDecimal max, BigDecimal step)
+            implements Parameter {
 
-        public Parameter {
+        public NumberParameter {
             Objects.requireNonNull(key, "key");
-            services = List.copyOf(services);
-            if (services.isEmpty()) {
-                throw new IllegalArgumentException(key + " is read by no service");
-            }
+            services = requireServices(key, services);
             if (step.signum() <= 0 || min.compareTo(max) > 0) {
                 throw new IllegalArgumentException(key + " has an empty range or a non-positive step");
             }
@@ -90,6 +105,11 @@ public record ParameterSpace(
                     && value.subtract(min).remainder(step).signum() == 0;
         }
 
+        @Override
+        public ParameterValue baselineValue() {
+            return ParameterValue.of(baseline);
+        }
+
         public boolean inRange(BigDecimal value) {
             return value.compareTo(min) >= 0 && value.compareTo(max) <= 0;
         }
@@ -97,6 +117,33 @@ public record ParameterSpace(
         public boolean onStep(BigDecimal value) {
             return value.subtract(min).remainder(step).signum() == 0;
         }
+    }
+
+    /**
+     * An on/off property: its only values are {@code true} and {@code false}.
+     *
+     * @param services the services that read it
+     * @param baseline the value the shared configuration serves
+     */
+    public record BooleanParameter(String key, List<String> services, boolean baseline) implements Parameter {
+
+        public BooleanParameter {
+            Objects.requireNonNull(key, "key");
+            services = requireServices(key, services);
+        }
+
+        @Override
+        public ParameterValue baselineValue() {
+            return ParameterValue.of(baseline);
+        }
+    }
+
+    private static List<String> requireServices(String key, List<String> services) {
+        var copy = List.copyOf(services);
+        if (copy.isEmpty()) {
+            throw new IllegalArgumentException(key + " is read by no service");
+        }
+        return copy;
     }
 
     /** A value that always equals {@code factor} times the parameter {@code from}. */

@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 
 import io.github.temporalrift.workbench.search.domain.campaign.SearchAlgorithm;
 import io.github.temporalrift.workbench.search.domain.port.out.CandidateValidation;
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
 class CandidateGeneratorTest {
 
@@ -24,7 +25,7 @@ class CandidateGeneratorTest {
     /** The space's one constraint: "a" may not exceed 8. */
     private static final CandidateValidation VALIDATION = overrides -> {
         var a = overrides.get("a");
-        if (a != null && a.compareTo(BigDecimal.valueOf(8)) > 0) {
+        if (a != null && ((ParameterValue.Decimal) a).value().compareTo(BigDecimal.valueOf(8)) > 0) {
             return Optional.empty();
         }
         return Optional.of(
@@ -76,7 +77,9 @@ class CandidateGeneratorTest {
         var candidates = generator(120, "7").roundZero();
 
         assertThat(candidates)
-                .allSatisfy(candidate -> assertThat(candidate.overrides().getOrDefault("a", BigDecimal.ZERO))
+                .allSatisfy(candidate -> assertThat(((ParameterValue.Decimal)
+                                        candidate.overrides().getOrDefault("a", ParameterValue.of(BigDecimal.ZERO)))
+                                .value())
                         .isLessThanOrEqualTo(BigDecimal.valueOf(8)));
         assertThat(candidates).extracting(Candidate::redraws).anyMatch(redraws -> redraws > 0);
     }
@@ -224,7 +227,7 @@ class CandidateGeneratorTest {
     }
 
     private static ParameterGrid.Axis axis(String key, int min, int max, int step, int baseline) {
-        return new ParameterGrid.Axis(
+        return new ParameterGrid.NumberAxis(
                 key,
                 BigDecimal.valueOf(min),
                 BigDecimal.valueOf(max),

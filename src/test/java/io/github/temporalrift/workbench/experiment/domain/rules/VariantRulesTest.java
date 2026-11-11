@@ -12,6 +12,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 
+import io.github.temporalrift.workbench.experiment.BaselineRulesCatalog;
 import io.github.temporalrift.workbench.experiment.EffectiveRules;
 import io.github.temporalrift.workbench.experiment.ExperimentManifests;
 import io.github.temporalrift.workbench.experiment.VariantRulesFixtures;
@@ -19,6 +20,7 @@ import io.github.temporalrift.workbench.experiment.domain.ExperimentErrorCode;
 import io.github.temporalrift.workbench.experiment.domain.ExperimentValidationException;
 import io.github.temporalrift.workbench.experiment.domain.ManifestDigest;
 import io.github.temporalrift.workbench.experiment.domain.VariantRulesReason;
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
 class VariantRulesTest {
 
@@ -37,10 +39,10 @@ class VariantRulesTest {
     }
 
     private String digestWith(String overridesJson) {
-        var overrides = new java.util.TreeMap<String, BigDecimal>();
+        var overrides = new java.util.TreeMap<String, ParameterValue>();
         MAPPER.readTree(overridesJson)
                 .properties()
-                .forEach(e -> overrides.put(e.getKey(), e.getValue().decimalValue()));
+                .forEach(e -> overrides.put(e.getKey(), ParameterValue.of(e.getValue())));
         return overrides.isEmpty()
                 ? baseline.digest()
                 : rules.preview(VariantRulesFixtures.ARTIFACT_DIGEST, 1, overrides)
@@ -193,12 +195,69 @@ class VariantRulesTest {
 
     @Test
     void aPreviewIsARefusalOfTheRequestNotOfAnExperiment() {
-        var overrides = Map.of(THRESHOLD, new BigDecimal("27"));
+        var overrides = Map.of(THRESHOLD, ParameterValue.of(new BigDecimal("27")));
 
         assertThatThrownBy(() -> rules.preview(VariantRulesFixtures.ARTIFACT_DIGEST, 1, overrides))
                 .isInstanceOfSatisfying(ExperimentValidationException.class, e -> {
                     assertThat(e.code()).isEqualTo(ExperimentErrorCode.INVALID_REQUEST);
                     assertThat(e.field()).contains("overrides." + THRESHOLD);
+                });
+    }
+
+    @Test
+    void theAxesOfSpaceTwoTypeEachParameterAndCarryTheBaselineValue() {
+        var axes = rules.axes(VariantRulesFixtures.ARTIFACT_DIGEST, 2);
+
+        assertThat(axes)
+                .hasSize(49)
+                .contains(
+                        new VariantRules.NumberAxis(
+                                "game.rules.annihilate-earliest-round",
+                                new BigDecimal("1"),
+                                new BigDecimal("3"),
+                                new BigDecimal("1"),
+                                new BigDecimal("2")),
+                        new VariantRules.BooleanAxis("game.rules.scoring.written-outcome-shields-annihilation", true),
+                        new VariantRules.BooleanAxis("game.rules.probability.erased-weight-to-written-outcome", true));
+    }
+
+    @Test
+    void aBaselineThatPredatesSpaceTwoIsNamedByItsSettingAndLacksTheThreeKeys() {
+        var document = (tools.jackson.databind.node.ObjectNode)
+                new tools.jackson.databind.json.JsonMapper().readTree(VariantRulesFixtures.baselineText());
+        var properties = (tools.jackson.databind.node.ObjectNode) document.get("properties");
+        properties.remove("game.rules.annihilate-earliest-round");
+        properties.remove("game.rules.scoring.written-outcome-shields-annihilation");
+        properties.remove("game.rules.probability.erased-weight-to-written-outcome");
+        var old = new BaselineRulesCatalog.Baseline(document.toString(), EffectiveRules.parse(document));
+        var oldRules = new VariantRules(VariantRulesFixtures.spaces(), VariantRulesFixtures.catalogOf(old));
+
+        assertThat(oldRules.baselineGaps(2)).singleElement().satisfies(gap -> {
+            assertThat(gap.scope()).isEqualTo(VariantRulesFixtures.SCOPE);
+            assertThat(gap.missing())
+                    .containsExactly(
+                            "number game.rules.annihilate-earliest-round",
+                            "boolean game.rules.probability.erased-weight-to-written-outcome",
+                            "boolean game.rules.scoring.written-outcome-shields-annihilation");
+        });
+        assertThat(oldRules.baselineGaps(1)).isEmpty();
+        assertThat(rules.baselineGaps(2)).isEmpty();
+        assertThat(rules.baselineGaps(99)).isEmpty();
+    }
+
+    @Test
+    void aPreviewOfABooleanOverrideAppliesItAndRefusesANumberForIt() {
+        var key = "game.rules.scoring.written-outcome-shields-annihilation";
+
+        var preview = rules.preview(VariantRulesFixtures.ARTIFACT_DIGEST, 2, Map.of(key, ParameterValue.of(false)));
+        var refused = Map.of(key, ParameterValue.of(BigDecimal.ONE));
+
+        assertThat(preview.rules().flag(key)).contains(false);
+        assertThat(preview.overrides()).containsExactly(Map.entry(key, ParameterValue.of(false)));
+        assertThatThrownBy(() -> rules.preview(VariantRulesFixtures.ARTIFACT_DIGEST, 2, refused))
+                .isInstanceOfSatisfying(ExperimentValidationException.class, e -> {
+                    assertThat(e.reason()).contains(VariantRulesReason.WRONG_TYPE);
+                    assertThat(e.field()).contains("overrides." + key);
                 });
     }
 

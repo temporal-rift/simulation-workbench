@@ -77,7 +77,7 @@ public final class FidelityManifestFactory {
         node.put("effectiveContentDigest", simulator.environment().contentDigest());
         if (variant.label() != VariantLabel.BASELINE) {
             var overrides = node.putObject("overrides");
-            variant.overrides().forEach(overrides::put);
+            variant.overrides().forEach((key, value) -> overrides.set(key, value.json()));
             node.put("parameterSpaceVersion", parameterSpaceVersion);
         }
         return node;

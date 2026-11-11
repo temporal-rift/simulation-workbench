@@ -1,6 +1,5 @@
 package io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest;
 
-import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -11,6 +10,7 @@ import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.OverrideValue;
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
 /**
  * The value a variant sets for a parameter, as the contract's number-or-boolean union. The generated
@@ -30,10 +30,10 @@ public final class OverrideValues {
         }
     }
 
-    /** Numeric overrides as contract values, in the order given. */
-    public static Map<String, OverrideValue> of(Map<String, BigDecimal> overrides) {
+    /** Overrides as contract values, in the order given. */
+    public static Map<String, OverrideValue> of(Map<String, ParameterValue> overrides) {
         var values = new LinkedHashMap<String, OverrideValue>();
-        overrides.forEach((key, value) -> values.put(key, new Value(JsonNodeFactory.instance.numberNode(value))));
+        overrides.forEach((key, value) -> values.put(key, new Value(value.json())));
         return values;
     }
 

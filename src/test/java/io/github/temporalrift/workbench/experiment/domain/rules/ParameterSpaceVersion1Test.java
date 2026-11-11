@@ -44,7 +44,8 @@ class ParameterSpaceVersion1Test {
         space.parameters()
                 .forEach(parameter -> assertThat(baseline.number(parameter.key()))
                         .as(parameter.key())
-                        .hasValueSatisfying(value -> assertThat(value).isEqualByComparingTo(parameter.baseline())));
+                        .hasValueSatisfying(value -> assertThat(value)
+                                .isEqualByComparingTo(((ParameterSpace.NumberParameter) parameter).baseline())));
     }
 
     @Test

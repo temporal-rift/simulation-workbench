@@ -1,6 +1,5 @@
 package io.github.temporalrift.workbench.fidelity.application.command;
 
-import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.Clock;
 import java.util.ArrayList;
@@ -25,6 +24,7 @@ import io.github.temporalrift.workbench.fidelity.domain.VariantLabel;
 import io.github.temporalrift.workbench.fidelity.domain.port.out.FidelityEnvironments;
 import io.github.temporalrift.workbench.fidelity.domain.port.out.FidelityExperiments;
 import io.github.temporalrift.workbench.fidelity.domain.port.out.FidelityRepository;
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 import io.github.temporalrift.workbench.shared.text.Sha256;
 
 /**
@@ -104,7 +104,7 @@ public class StartFidelityCheckCommandHandler implements StartFidelityCheckUseCa
     }
 
     private FidelityVariant variant(
-            VariantLabel label, FidelityEnvironments.Simulator simulator, Map<String, BigDecimal> overrides) {
+            VariantLabel label, FidelityEnvironments.Simulator simulator, Map<String, ParameterValue> overrides) {
         try {
             var rules = experiments.previewVariant(
                     simulator.rulesArtifactDigest(), edgeVariants.parameterSpaceVersion(), overrides);
