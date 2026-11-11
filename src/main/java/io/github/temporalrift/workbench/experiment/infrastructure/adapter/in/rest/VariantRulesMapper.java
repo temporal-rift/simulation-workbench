@@ -1,6 +1,5 @@
 package io.github.temporalrift.workbench.experiment.infrastructure.adapter.in.rest;
 
-import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -15,6 +14,7 @@ import io.github.temporalrift.workbench.experiment.domain.rules.ParameterSpace;
 import io.github.temporalrift.workbench.experiment.domain.rules.VariantRules;
 import io.github.temporalrift.workbench.experiment.domain.rules.VariantRulesRefusal;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.OverrideValues;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.BooleanParameterDefinition;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.DerivedParameter;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.EffectiveRulesPropertiesValue;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.HeldFixedParameter;
@@ -24,6 +24,7 @@ import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ParameterDefinition;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ParameterType;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.VariantRulesPreview;
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
 /** Maps parameter spaces and variant rules onto the published contract. */
 final class VariantRulesMapper {
@@ -34,16 +35,7 @@ final class VariantRulesMapper {
             ParameterSpace space) {
         return new io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ParameterSpace(
                 space.version(),
-                space.parameters().stream()
-                        .<ParameterDefinition>map(parameter -> new NumberParameterDefinition(
-                                ParameterType.NUMBER,
-                                parameter.key(),
-                                parameter.services(),
-                                parameter.baseline(),
-                                parameter.min(),
-                                parameter.max(),
-                                parameter.step()))
-                        .toList(),
+                space.parameters().stream().map(VariantRulesMapper::definition).toList(),
                 space.derived().stream()
                         .map(derived -> new DerivedParameter(derived.key(), derived.from(), derived.factor()))
                         .toList(),
@@ -54,6 +46,22 @@ final class VariantRulesMapper {
                 space.heldFixed().stream()
                         .map(fixed -> new HeldFixedParameter(fixed.key(), fixed.reason()))
                         .toList());
+    }
+
+    private static ParameterDefinition definition(ParameterSpace.Parameter parameter) {
+        return switch (parameter) {
+            case ParameterSpace.NumberParameter number ->
+                new NumberParameterDefinition(
+                        ParameterType.NUMBER,
+                        number.key(),
+                        number.services(),
+                        number.baseline(),
+                        number.min(),
+                        number.max(),
+                        number.step());
+            case ParameterSpace.BooleanParameter flag ->
+                new BooleanParameterDefinition(ParameterType.BOOLEAN, flag.key(), flag.services(), flag.baseline());
+        };
     }
 
     static VariantRulesPreview preview(PreviewVariantRulesUseCase.Result result) {
@@ -72,12 +80,12 @@ final class VariantRulesMapper {
     }
 
     /**
-     * The numeric overrides a preview request sets; empty when it sets none.
+     * The overrides a preview request sets; empty when it sets none.
      *
      * @throws io.github.temporalrift.workbench.experiment.domain.ExperimentValidationException {@code WRONG_TYPE} for a
-     *     value that is not a number
+     *     value that is neither a number nor a boolean
      */
-    static Map<String, BigDecimal> overrides(Map<String, OverrideValue> overrides) {
+    static Map<String, ParameterValue> overrides(Map<String, OverrideValue> overrides) {
         var variant = JsonNodeFactory.instance.objectNode();
         variant.set("overrides", OverrideValues.json(overrides));
         try {

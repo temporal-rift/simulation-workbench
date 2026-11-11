@@ -309,11 +309,13 @@ service images) are not retained by the runner.
 A variant is a baseline rules document plus overrides. `rulesArtifact` names the baseline, which some configured lane
 publishes as its `rules-document` (an `EffectiveRules` document); the workbench reads every such document at startup
 and refuses to start, naming the lane, when a document's effective rules digest differs from the lane's declared
-`rules-digest`. `overrides` maps parameter keys to numbers and `parameterSpaceVersion` names the space they are
-validated against.
+`rules-digest`. `overrides` maps parameter keys to numbers, or to booleans for a boolean parameter, and `parameterSpaceVersion` names
+the space they are validated against. A value of the other type is refused with the reason `WRONG_TYPE`.
 
 Parameter space version 1 is configuration (`parameter-spaces/v1.json`, equal to `docs/parameter-space/v1.md`) and is
-read with `listParameterSpaces` and `getParameterSpace`. Its constraints are expressions in a small notation (comparison
+read with `listParameterSpaces` and `getParameterSpace`. Version 2 (`parameter-spaces/v2.json`, described in
+`docs/parameter-space/v2.md`) is version 1 plus the earliest Annihilate round and two boolean balance switches; a
+campaign search treats a boolean parameter as a two-value axis. A new campaign defaults to the newest version. Its constraints are expressions in a small notation (comparison
 chains over `+`, `-`, `*`, `max` and `and`; a subtraction needs spaces around `-` because keys contain it) that the
 workbench both serves and evaluates.
 

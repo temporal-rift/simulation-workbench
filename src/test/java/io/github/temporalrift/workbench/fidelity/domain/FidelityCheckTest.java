@@ -3,13 +3,14 @@ package io.github.temporalrift.workbench.fidelity.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.TreeMap;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
+
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
 class FidelityCheckTest {
 
@@ -27,7 +28,8 @@ class FidelityCheckTest {
                 environment("1111111"),
                 environment("1111111"),
                 "lane-1",
-                List.of(new FidelityVariant(VariantLabel.BASELINE, "a".repeat(64), new TreeMap<String, BigDecimal>())),
+                List.of(new FidelityVariant(
+                        VariantLabel.BASELINE, "a".repeat(64), new TreeMap<String, ParameterValue>())),
                 NOW);
     }
 

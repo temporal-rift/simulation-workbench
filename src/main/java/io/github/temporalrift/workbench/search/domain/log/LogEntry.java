@@ -1,12 +1,12 @@
 package io.github.temporalrift.workbench.search.domain.log;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.SortedMap;
 
 import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 import io.github.temporalrift.workbench.shared.text.JsonText;
 
 /**
@@ -27,7 +27,7 @@ public record LogEntry(
         int sequence,
         int round,
         String candidateId,
-        SortedMap<String, BigDecimal> overrides,
+        SortedMap<String, ParameterValue> overrides,
         String effectiveRulesDigest,
         List<String> seeds,
         int gamesSpent,
@@ -122,8 +122,7 @@ public record LogEntry(
         node.put("round", round);
         node.put("candidateId", candidateId);
         var overridesNode = node.putObject("overrides");
-        overrides.forEach((key, value) ->
-                overridesNode.put(key, value.stripTrailingZeros().toPlainString()));
+        overrides.forEach((key, value) -> overridesNode.put(key, value.text()));
         node.put("effectiveRulesDigest", effectiveRulesDigest);
         var seedsNode = node.putArray("seeds");
         seeds.forEach(seedsNode::add);

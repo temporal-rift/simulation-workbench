@@ -1,6 +1,5 @@
 package io.github.temporalrift.workbench.search.infrastructure.adapter.out.persistence;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -46,6 +45,7 @@ import io.github.temporalrift.workbench.search.domain.wave.Wave;
 import io.github.temporalrift.workbench.shared.Page;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.InsertOnce;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.StoredJson;
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
 /**
  * Campaigns and everything a search records, in the workbench database. A campaign write is a compare-and-set on its
@@ -338,9 +338,9 @@ class CampaignRepositoryAdapter implements CampaignRepository {
                 .where(CAMPAIGN_ID.eq(campaignId))
                 .orderBy(CANDIDATE_ID.asc())
                 .fetch(row -> {
-                    var overrides = new TreeMap<String, BigDecimal>();
+                    var overrides = new TreeMap<String, ParameterValue>();
                     json.read(row.get(OVERRIDES), DECIMALS)
-                            .forEach((key, value) -> overrides.put(key, new BigDecimal(value)));
+                            .forEach((key, value) -> overrides.put(key, ParameterValue.parse(value)));
                     return new Candidate(
                             row.get(CANDIDATE_ID),
                             row.get(ROUND),
@@ -487,11 +487,12 @@ class CampaignRepositoryAdapter implements CampaignRepository {
 
     private LogEntry entry(String text) {
         var node = json.read(text, JsonNode.class);
-        var overrides = new TreeMap<String, BigDecimal>();
+        var overrides = new TreeMap<String, ParameterValue>();
         node.path("overrides")
                 .properties()
                 .forEach(property -> overrides.put(
-                        property.getKey(), new BigDecimal(property.getValue().asString())));
+                        property.getKey(),
+                        ParameterValue.parse(property.getValue().asString())));
         var seeds = new ArrayList<String>();
         node.path("seeds").forEach(seed -> seeds.add(seed.asString()));
         var evaluation = node.path("evaluation");
@@ -525,10 +526,7 @@ class CampaignRepositoryAdapter implements CampaignRepository {
 
     private static TreeMap<String, String> plain(Candidate candidate) {
         var plain = new TreeMap<String, String>();
-        candidate
-                .overrides()
-                .forEach((key, value) ->
-                        plain.put(key, value.stripTrailingZeros().toPlainString()));
+        candidate.overrides().forEach((key, value) -> plain.put(key, value.text()));
         return plain;
     }
 

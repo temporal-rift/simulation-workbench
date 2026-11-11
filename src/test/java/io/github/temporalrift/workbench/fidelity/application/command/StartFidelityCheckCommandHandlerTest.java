@@ -8,7 +8,6 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -34,6 +33,7 @@ import io.github.temporalrift.workbench.fidelity.domain.port.out.FidelityExperim
 import io.github.temporalrift.workbench.fidelity.infrastructure.adapter.out.configuration.ConfiguredEdgeVariants;
 import io.github.temporalrift.workbench.fidelity.support.FidelityFixtures;
 import io.github.temporalrift.workbench.fidelity.support.InMemoryFidelityRepository;
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
 class StartFidelityCheckCommandHandlerTest {
 
@@ -159,7 +159,7 @@ class StartFidelityCheckCommandHandlerTest {
     @Test
     void aBaselineThatCannotCarryTheEdgeVariantsMakesTheSimulatorUnavailable() {
         when(experiments.previewVariant(anyString(), anyInt(), any())).thenAnswer(call -> {
-            Map<String, BigDecimal> overrides = call.getArgument(2);
+            Map<String, ParameterValue> overrides = call.getArgument(2);
             if (overrides.isEmpty()) {
                 return FidelityFixtures.rules(overrides);
             }

@@ -1,8 +1,9 @@
 package io.github.temporalrift.workbench.search.domain.candidate;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.SortedMap;
+
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
 /**
  * One configuration under test: a point of the parameter grid, the overrides it stands for, and the digest of the
@@ -18,7 +19,7 @@ public record Candidate(
         String id,
         int round,
         List<Integer> point,
-        SortedMap<String, BigDecimal> overrides,
+        SortedMap<String, ParameterValue> overrides,
         String effectiveRulesDigest,
         int redraws) {
 

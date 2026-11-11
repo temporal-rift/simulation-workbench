@@ -1,6 +1,5 @@
 package io.github.temporalrift.workbench.experiment.application.command;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -16,6 +15,8 @@ import io.github.temporalrift.workbench.experiment.application.port.in.PreviewVa
 import io.github.temporalrift.workbench.experiment.domain.ExperimentValidationException;
 import io.github.temporalrift.workbench.experiment.domain.IdempotencyConflictException;
 import io.github.temporalrift.workbench.experiment.domain.rules.ParameterSpace;
+import io.github.temporalrift.workbench.experiment.domain.rules.VariantRules;
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
 /** Offers the preview and freeze use cases to other modules. */
 public class ExperimentFactoryService implements ExperimentFactory {
@@ -48,7 +49,7 @@ public class ExperimentFactoryService implements ExperimentFactory {
     public List<ParameterAxis> parameterAxes(String rulesArtifactDigest, int parameterSpaceVersion) {
         try {
             return axes.handle(rulesArtifactDigest, parameterSpaceVersion).stream()
-                    .map(axis -> new ParameterAxis(axis.key(), axis.min(), axis.max(), axis.step(), axis.baseline()))
+                    .map(ExperimentFactoryService::axis)
                     .toList();
         } catch (ExperimentValidationException e) {
             throw new ExperimentRefusedException(
@@ -56,9 +57,17 @@ public class ExperimentFactoryService implements ExperimentFactory {
         }
     }
 
+    private static ParameterAxis axis(VariantRules.Axis axis) {
+        return switch (axis) {
+            case VariantRules.NumberAxis number ->
+                new NumberAxis(number.key(), number.min(), number.max(), number.step(), number.baseline());
+            case VariantRules.BooleanAxis flag -> new BooleanAxis(flag.key(), flag.baseline());
+        };
+    }
+
     @Override
     public VariantPreview previewVariant(
-            String rulesArtifactDigest, int parameterSpaceVersion, Map<String, BigDecimal> overrides) {
+            String rulesArtifactDigest, int parameterSpaceVersion, Map<String, ParameterValue> overrides) {
         try {
             var result = preview.handle(
                     new PreviewVariantRulesUseCase.Query(rulesArtifactDigest, parameterSpaceVersion, overrides));

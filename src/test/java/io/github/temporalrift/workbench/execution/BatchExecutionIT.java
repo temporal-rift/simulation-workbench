@@ -61,6 +61,7 @@ import io.github.temporalrift.workbench.shared.execution.CaseState;
 import io.github.temporalrift.workbench.shared.execution.FailureCode;
 import io.github.temporalrift.workbench.shared.game.EndReason;
 import io.github.temporalrift.workbench.shared.game.Faction;
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
 @WorkbenchIntegrationTest
 class BatchExecutionIT {
@@ -690,7 +691,7 @@ class BatchExecutionIT {
                 .handle(new PreviewVariantRulesUseCase.Query(
                         VariantRulesFixtures.ARTIFACT_DIGEST,
                         1,
-                        Map.of("game.rules.win-score-threshold", new BigDecimal(threshold))))
+                        Map.of("game.rules.win-score-threshold", ParameterValue.of(new BigDecimal(threshold)))))
                 .effectiveRulesDigest();
         return VariantRulesFixtures.variant(label, digest, "{\"game.rules.win-score-threshold\":" + threshold + "}");
     }

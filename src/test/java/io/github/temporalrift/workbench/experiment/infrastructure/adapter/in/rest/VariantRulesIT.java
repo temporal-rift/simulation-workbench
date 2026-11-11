@@ -266,6 +266,68 @@ class VariantRulesIT {
                 .andExpect(jsonPath("$.field").value("variants[1].overrides." + THRESHOLD));
     }
 
+    private static final String SHIELD = "game.rules.scoring.written-outcome-shields-annihilation";
+    private static final String ERASED_WEIGHT = "game.rules.probability.erased-weight-to-written-outcome";
+    private static final String EARLIEST_ROUND = "game.rules.annihilate-earliest-round";
+
+    private org.springframework.test.web.servlet.ResultActions previewSpaceTwo(String overridesJson) throws Exception {
+        return mockMvc.perform(post("/api/v1/variant-rules-previews")
+                .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:read")))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"rulesArtifact\": {\"digest\": \"" + VariantRulesFixtures.ARTIFACT_DIGEST
+                        + "\"}, \"parameterSpaceVersion\": 2, \"overrides\": " + overridesJson + "}"));
+    }
+
+    @Test
+    void parameterSpaceTwoServesTheBalanceRulesBesideEverySpaceOneParameter() throws Exception {
+        mockMvc.perform(get("/api/v1/parameter-spaces/2")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:read"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value(2))
+                .andExpect(jsonPath("$.parameters.length()").value(49))
+                .andExpect(jsonPath("$.parameters[?(@.key=='" + EARLIEST_ROUND + "')].type")
+                        .value("NUMBER"))
+                .andExpect(jsonPath("$.parameters[?(@.key=='" + EARLIEST_ROUND + "')].baseline")
+                        .value(2))
+                .andExpect(jsonPath("$.parameters[?(@.key=='" + EARLIEST_ROUND + "')].max")
+                        .value(3))
+                .andExpect(jsonPath("$.parameters[?(@.key=='" + SHIELD + "')].type")
+                        .value("BOOLEAN"))
+                .andExpect(jsonPath("$.parameters[?(@.key=='" + SHIELD + "')].baseline")
+                        .value(true))
+                .andExpect(
+                        jsonPath("$.parameters[?(@.key=='" + SHIELD + "')].min").isEmpty())
+                .andExpect(jsonPath("$.parameters[?(@.key=='" + ERASED_WEIGHT + "')].services[0]")
+                        .value("timeline-service"));
+    }
+
+    @Test
+    void aBooleanOverrideOfASpaceTwoParameterAppliesAndOneEqualToTheBaselineIsDropped() throws Exception {
+        previewSpaceTwo("{\"" + SHIELD + "\": false, \"" + EARLIEST_ROUND + "\": 1, \"" + ERASED_WEIGHT + "\": true}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rules.properties['" + SHIELD + "']").value(false))
+                .andExpect(
+                        jsonPath("$.rules.properties['" + EARLIEST_ROUND + "']").value(1))
+                .andExpect(jsonPath("$.overrides['" + SHIELD + "']").value(false))
+                .andExpect(jsonPath("$.overrides['" + ERASED_WEIGHT + "']").doesNotExist());
+    }
+
+    @Test
+    void aNumberForABooleanParameterIsRefusedAsTheWrongType() throws Exception {
+        previewSpaceTwo("{\"" + SHIELD + "\": 1}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.reason").value("WRONG_TYPE"))
+                .andExpect(jsonPath("$.field").value("overrides." + SHIELD));
+    }
+
+    @Test
+    void anEarliestRoundAboveTheRangeIsRefusedAsOutOfRange() throws Exception {
+        previewSpaceTwo("{\"" + EARLIEST_ROUND + "\": 4}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.reason").value("OUT_OF_RANGE"));
+    }
+
     @Test
     void creatingWithARefusedOverrideNamesTheValueAtItsPlaceInTheManifest() throws Exception {
         var manifest = VariantRulesFixtures.manifest(

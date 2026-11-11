@@ -3,7 +3,6 @@ package io.github.temporalrift.workbench.fidelity.infrastructure.adapter.out.con
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
-import java.math.BigDecimal;
 import java.util.TreeMap;
 
 import org.springframework.core.io.ClassPathResource;
@@ -11,6 +10,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import io.github.temporalrift.workbench.fidelity.domain.EdgeVariants;
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
 /** The edge variants shipped as {@code fidelity/edge-variants-v1.json}. */
 public final class ConfiguredEdgeVariants {
@@ -32,10 +32,9 @@ public final class ConfiguredEdgeVariants {
         }
     }
 
-    private static TreeMap<String, BigDecimal> overrides(JsonNode node) {
-        var overrides = new TreeMap<String, BigDecimal>();
-        node.properties()
-                .forEach(entry -> overrides.put(entry.getKey(), entry.getValue().decimalValue()));
+    private static TreeMap<String, ParameterValue> overrides(JsonNode node) {
+        var overrides = new TreeMap<String, ParameterValue>();
+        node.properties().forEach(entry -> overrides.put(entry.getKey(), ParameterValue.of(entry.getValue())));
         return overrides;
     }
 }

@@ -37,6 +37,7 @@ import io.github.temporalrift.workbench.search.domain.port.out.CampaignRepositor
 import io.github.temporalrift.workbench.search.domain.round.RoundResult;
 import io.github.temporalrift.workbench.search.domain.wave.Game;
 import io.github.temporalrift.workbench.search.domain.wave.Wave;
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
 @WorkbenchIntegrationTest
 class CampaignRepositoryIT {
@@ -252,8 +253,8 @@ class CampaignRepositoryIT {
         var campaign = queued("records", NOW);
         store(campaign, NOW);
         var id = campaign.campaignId();
-        var overrides = new TreeMap<String, BigDecimal>();
-        overrides.put("game.rules.a", new BigDecimal("1.50"));
+        var overrides = new TreeMap<String, ParameterValue>();
+        overrides.put("game.rules.a", ParameterValue.of(new BigDecimal("1.50")));
         var candidates = List.of(
                 new Candidate("c-0001", 0, List.of(1, 2), overrides, "b".repeat(64), 3),
                 new Candidate("c-0000", 0, List.of(0, 0), new TreeMap<>(), "a".repeat(64), 0));
@@ -268,7 +269,7 @@ class CampaignRepositoryIT {
 
         assertThat(repository.candidates(id)).extracting(Candidate::id).containsExactly("c-0000", "c-0001");
         assertThat(repository.candidates(id).get(1).overrides().get("game.rules.a"))
-                .isEqualByComparingTo(new BigDecimal("1.50"));
+                .isEqualTo(ParameterValue.of(new BigDecimal("1.50")));
         assertThat(repository.candidates(id).get(1).point()).containsExactly(1, 2);
         assertThat(repository.candidates(id).get(1).redraws()).isEqualTo(3);
         assertThat(repository.waves(id)).containsExactly(wave);
@@ -342,8 +343,8 @@ class CampaignRepositoryIT {
     void theLogComesBackInSequenceOrderAsTheEntriesThatWereAppended() {
         var campaign = queued("log", NOW);
         store(campaign, NOW);
-        var overrides = new TreeMap<String, BigDecimal>();
-        overrides.put("game.rules.a", new BigDecimal("2"));
+        var overrides = new TreeMap<String, ParameterValue>();
+        overrides.put("game.rules.a", ParameterValue.of(new BigDecimal("2")));
         var first = new LogEntry(
                 1,
                 0,

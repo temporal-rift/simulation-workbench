@@ -1,12 +1,13 @@
 package io.github.temporalrift.workbench.fidelity.domain.port.out;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.UUID;
 
 import tools.jackson.databind.JsonNode;
+
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
 /** Prepares and freezes the experiment a check plays. */
 public interface FidelityExperiments {
@@ -17,7 +18,7 @@ public interface FidelityExperiments {
      * Refused with a fidelity refusal exception when the baseline, the parameter space or an override is refused
      */
     VariantRules previewVariant(
-            String rulesArtifactDigest, int parameterSpaceVersion, Map<String, BigDecimal> overrides);
+            String rulesArtifactDigest, int parameterSpaceVersion, Map<String, ParameterValue> overrides);
 
     /** The baseline policies a manifest references, by id, each at the version the matrix plays. */
     List<Policy> baselinePolicies();
@@ -29,7 +30,7 @@ public interface FidelityExperiments {
      */
     UUID freeze(UUID idempotencyKey, JsonNode manifest);
 
-    record VariantRules(String effectiveRulesDigest, SortedMap<String, BigDecimal> overrides) {}
+    record VariantRules(String effectiveRulesDigest, SortedMap<String, ParameterValue> overrides) {}
 
     record Policy(String id, String version, String artifactDigest) {}
 }

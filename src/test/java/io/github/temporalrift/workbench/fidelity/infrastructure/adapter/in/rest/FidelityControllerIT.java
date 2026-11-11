@@ -51,6 +51,7 @@ import io.github.temporalrift.workbench.fidelity.infrastructure.config.FidelityA
 import io.github.temporalrift.workbench.fidelity.support.FidelityFixtures;
 import io.github.temporalrift.workbench.shared.Page;
 import io.github.temporalrift.workbench.shared.infrastructure.config.SecurityConfig;
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
 @WebMvcTest(
         controllers = FidelityController.class,
@@ -96,7 +97,8 @@ class FidelityControllerIT {
                         new FidelityVariant(
                                 VariantLabel.LOW,
                                 "b".repeat(64),
-                                new TreeMap<>(Map.of("game.rules.win-score-threshold", new BigDecimal("16"))))),
+                                new TreeMap<>(Map.of(
+                                        "game.rules.win-score-threshold", ParameterValue.of(new BigDecimal("16")))))),
                 NOW);
         return new FidelityCheckView(check, new FidelityCounts(0, 0, 0, 0, 0));
     }

@@ -34,6 +34,7 @@ import io.github.temporalrift.workbench.search.domain.campaign.SearchAlgorithm;
 import io.github.temporalrift.workbench.search.domain.campaign.SeatTable;
 import io.github.temporalrift.workbench.search.domain.campaign.SimulatorNotAvailableException;
 import io.github.temporalrift.workbench.search.domain.candidate.Candidate;
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
 /** The experiment a confirmation freezes: one candidate, the seeds given, and the builds of the simulator. */
 class ConfirmationFreezeTest {
@@ -132,8 +133,8 @@ class ConfirmationFreezeTest {
 
     @Test
     void theManifestNamesTheBuildsOfTheSimulatorAndTheCandidatesOverrides() {
-        var overrides = new TreeMap<String, BigDecimal>();
-        overrides.put("game.rules.a", BigDecimal.TEN);
+        var overrides = new TreeMap<String, ParameterValue>();
+        overrides.put("game.rules.a", ParameterValue.of(BigDecimal.TEN));
 
         var node = frozen(candidate("c-0001", overrides));
 
@@ -188,7 +189,7 @@ class ConfirmationFreezeTest {
         return manifest.getValue();
     }
 
-    private static Candidate candidate(String id, TreeMap<String, BigDecimal> overrides) {
+    private static Candidate candidate(String id, TreeMap<String, ParameterValue> overrides) {
         return new Candidate(id, 0, List.of(0), overrides, "e".repeat(64), 0);
     }
 

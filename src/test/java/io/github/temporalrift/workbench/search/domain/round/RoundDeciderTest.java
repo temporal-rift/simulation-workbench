@@ -16,6 +16,7 @@ import io.github.temporalrift.workbench.search.domain.log.LogEntry.Decision;
 import io.github.temporalrift.workbench.search.domain.log.LogEntry.Reason;
 import io.github.temporalrift.workbench.search.domain.round.Assessment.Verdict;
 import io.github.temporalrift.workbench.search.domain.round.RoundDecider.StopReason;
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
 class RoundDeciderTest {
 
@@ -254,7 +255,8 @@ class RoundDeciderTest {
                 3,
                 0,
                 "c-0007",
-                new TreeMap<>(java.util.Map.of("b", new BigDecimal("1.50"), "a", new BigDecimal("2"))),
+                new TreeMap<>(java.util.Map.of(
+                        "b", ParameterValue.of(new BigDecimal("1.50")), "a", ParameterValue.of(new BigDecimal("2")))),
                 "d".repeat(64),
                 List.of("11", "29"),
                 8,

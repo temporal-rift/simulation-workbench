@@ -15,9 +15,11 @@ import tools.jackson.databind.ObjectMapper;
 
 import io.github.temporalrift.workbench.experiment.domain.port.out.ParameterSpaces;
 import io.github.temporalrift.workbench.experiment.domain.rules.ParameterSpace;
+import io.github.temporalrift.workbench.experiment.domain.rules.ParameterSpace.BooleanParameter;
 import io.github.temporalrift.workbench.experiment.domain.rules.ParameterSpace.Constraint;
 import io.github.temporalrift.workbench.experiment.domain.rules.ParameterSpace.Derived;
 import io.github.temporalrift.workbench.experiment.domain.rules.ParameterSpace.HeldFixed;
+import io.github.temporalrift.workbench.experiment.domain.rules.ParameterSpace.NumberParameter;
 import io.github.temporalrift.workbench.experiment.domain.rules.ParameterSpace.Parameter;
 
 /**
@@ -71,13 +73,7 @@ public class ConfiguredParameterSpaces implements ParameterSpaces {
         return new ParameterSpace(
                 document.get("version").asInt(),
                 list(document, "parameters").stream()
-                        .map(node -> new Parameter(
-                                node.get("key").asString(),
-                                strings(node.get("services")),
-                                node.get("baseline").decimalValue(),
-                                node.get("min").decimalValue(),
-                                node.get("max").decimalValue(),
-                                node.get("step").decimalValue()))
+                        .map(ConfiguredParameterSpaces::parameter)
                         .toList(),
                 list(document, "derived").stream()
                         .map(node -> new Derived(
@@ -95,6 +91,25 @@ public class ConfiguredParameterSpaces implements ParameterSpaces {
                         .map(node -> new HeldFixed(
                                 node.get("key").asString(), node.get("reason").asString()))
                         .toList());
+    }
+
+    private static Parameter parameter(JsonNode node) {
+        var key = node.get("key").asString();
+        var services = strings(node.get("services"));
+        var type = node.has("type") ? node.get("type").asString() : "NUMBER";
+        return switch (type) {
+            case "NUMBER" ->
+                new NumberParameter(
+                        key,
+                        services,
+                        node.get("baseline").decimalValue(),
+                        node.get("min").decimalValue(),
+                        node.get("max").decimalValue(),
+                        node.get("step").decimalValue());
+            case "BOOLEAN" ->
+                new BooleanParameter(key, services, node.get("baseline").asBoolean());
+            default -> throw new IllegalArgumentException(key + " has an unknown type " + type);
+        };
     }
 
     private static List<JsonNode> list(JsonNode document, String field) {

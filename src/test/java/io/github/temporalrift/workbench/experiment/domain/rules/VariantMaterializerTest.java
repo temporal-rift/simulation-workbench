@@ -15,6 +15,7 @@ import tools.jackson.databind.node.JsonNodeFactory;
 import io.github.temporalrift.workbench.experiment.EffectiveRules;
 import io.github.temporalrift.workbench.experiment.VariantRulesFixtures;
 import io.github.temporalrift.workbench.experiment.domain.VariantRulesReason;
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
 class VariantMaterializerTest {
 
@@ -26,12 +27,101 @@ class VariantMaterializerTest {
     private final EffectiveRules baseline = VariantRulesFixtures.baseline();
     private final ParameterSpace space = VariantRulesFixtures.spaces().find(1).orElseThrow();
 
-    private static Map<String, BigDecimal> overrides(Object... keysAndValues) {
-        var overrides = new LinkedHashMap<String, BigDecimal>();
+    private static Map<String, ParameterValue> overrides(Object... keysAndValues) {
+        var overrides = new LinkedHashMap<String, ParameterValue>();
         for (int i = 0; i < keysAndValues.length; i += 2) {
-            overrides.put((String) keysAndValues[i], new BigDecimal(keysAndValues[i + 1].toString()));
+            var value = keysAndValues[i + 1];
+            overrides.put(
+                    (String) keysAndValues[i],
+                    value instanceof Boolean flag
+                            ? ParameterValue.of(flag.booleanValue())
+                            : ParameterValue.of(new BigDecimal(value.toString())));
         }
         return overrides;
+    }
+
+    private static final String EARLIEST_ROUND = "game.rules.annihilate-earliest-round";
+    private static final String SHIELD = "game.rules.scoring.written-outcome-shields-annihilation";
+    private static final String ERASED_WEIGHT = "game.rules.probability.erased-weight-to-written-outcome";
+
+    private final ParameterSpace spaceTwo =
+            VariantRulesFixtures.spaces().find(2).orElseThrow();
+
+    private VariantMaterializer.Materialized materializeInSpaceTwo(Object... keysAndValues) {
+        return VariantMaterializer.materialize(baseline, spaceTwo, overrides(keysAndValues));
+    }
+
+    @Test
+    void aBooleanOverrideReplacesTheBaselineFlagAndLeavesTheRestOfTheRulesAlone() {
+        var materialized = materializeInSpaceTwo(SHIELD, false);
+
+        assertThat(materialized.rules().flag(SHIELD)).contains(false);
+        assertThat(materialized.overrides()).containsExactly(Map.entry(SHIELD, ParameterValue.of(false)));
+        assertThat(materialized.digest()).isNotEqualTo(baseline.digest());
+        baseline.properties().forEach((key, value) -> {
+            if (!key.equals(SHIELD)) {
+                assertThat(materialized.rules().properties()).containsEntry(key, value);
+            }
+        });
+    }
+
+    @Test
+    void aBooleanOverrideEqualToTheBaselineIsDropped() {
+        var materialized = materializeInSpaceTwo(SHIELD, true, ERASED_WEIGHT, true);
+
+        assertThat(materialized.overrides()).isEmpty();
+        assertThat(materialized.rules()).isEqualTo(baseline);
+    }
+
+    @Test
+    void numericAndBooleanOverridesApplyTogether() {
+        var materialized = materializeInSpaceTwo(EARLIEST_ROUND, 1, ERASED_WEIGHT, false);
+
+        assertThat(materialized.rules().number(EARLIEST_ROUND)).contains(new BigDecimal("1"));
+        assertThat(materialized.rules().flag(ERASED_WEIGHT)).contains(false);
+        assertThat(materialized.overrides().keySet()).containsExactly(EARLIEST_ROUND, ERASED_WEIGHT);
+    }
+
+    @Test
+    void aNumberForABooleanParameterIsTheWrongType() {
+        var refusal = catchRefusal(() -> materializeInSpaceTwo(SHIELD, 1));
+
+        assertThat(refusal.reason()).isEqualTo(VariantRulesReason.WRONG_TYPE);
+        assertThat(refusal.overrideKey()).contains(SHIELD);
+    }
+
+    @Test
+    void aBooleanForANumericParameterIsTheWrongType() {
+        var refusal = catchRefusal(() -> materializeInSpaceTwo(THRESHOLD, true));
+
+        assertThat(refusal.reason()).isEqualTo(VariantRulesReason.WRONG_TYPE);
+        assertThat(refusal.overrideKey()).contains(THRESHOLD);
+    }
+
+    @Test
+    void anEarliestRoundOutsideOneToThreeIsOutOfRange() {
+        assertThat(catchRefusal(() -> materializeInSpaceTwo(EARLIEST_ROUND, 4)).reason())
+                .isEqualTo(VariantRulesReason.OUT_OF_RANGE);
+        assertThat(catchRefusal(() -> materializeInSpaceTwo(EARLIEST_ROUND, 0)).reason())
+                .isEqualTo(VariantRulesReason.OUT_OF_RANGE);
+    }
+
+    @Test
+    void theSameNumericOverridesGiveTheSameRulesInSpaceOneAndSpaceTwo() {
+        assertThat(materializeInSpaceTwo(THRESHOLD, 22, PUSH_II, 25).digest())
+                .isEqualTo(materialize(THRESHOLD, 22, PUSH_II, 25).digest());
+    }
+
+    @Test
+    void aBaselineWithoutTheBalanceRulesCannotCarrySpaceTwo() {
+        var withoutFlags = new TreeMap<>(baseline.properties());
+        withoutFlags.remove(SHIELD);
+        var incomplete = new EffectiveRules(withoutFlags);
+        var overrides = overrides(THRESHOLD, 22);
+
+        var refusal = catchRefusal(() -> VariantMaterializer.materialize(incomplete, spaceTwo, overrides));
+
+        assertThat(refusal.reason()).isEqualTo(VariantRulesReason.UNKNOWN_BASELINE);
     }
 
     private VariantMaterializer.Materialized materialize(Object... keysAndValues) {
@@ -59,7 +149,8 @@ class VariantMaterializerTest {
         assertThat(materialized.rules().number(SUPPRESS_II)).contains(new BigDecimal("-25"));
         assertThat(materialized.digest()).isEqualTo(new EffectiveRules(expected).digest());
         assertThat(materialized.digest()).isNotEqualTo(baseline.digest());
-        assertThat(materialized.overrides()).containsExactly(Map.entry(PUSH_II, new BigDecimal("25")));
+        assertThat(materialized.overrides())
+                .containsExactly(Map.entry(PUSH_II, ParameterValue.of(new BigDecimal("25"))));
     }
 
     @Test
@@ -95,7 +186,8 @@ class VariantMaterializerTest {
     void aValueIsTheSameWhateverItsSpelling() {
         assertThat(materialize(PUSH_II, "25.0").digest())
                 .isEqualTo(materialize(PUSH_II, 25).digest());
-        assertThat(materialize(PUSH_II, "25.0").overrides()).containsEntry(PUSH_II, new BigDecimal("25"));
+        assertThat(materialize(PUSH_II, "25.0").overrides())
+                .containsEntry(PUSH_II, ParameterValue.of(new BigDecimal("25")));
     }
 
     @Test
@@ -231,8 +323,8 @@ class VariantMaterializerTest {
 
     @Test
     void aWholeValueIsWrittenAsAnInteger() {
-        JsonNode whole = VariantMaterializer.number(new BigDecimal("25.00"));
-        JsonNode fraction = VariantMaterializer.number(new BigDecimal("2.50"));
+        JsonNode whole = ParameterValue.of(new BigDecimal("25.00")).json();
+        JsonNode fraction = ParameterValue.of(new BigDecimal("2.50")).json();
 
         assertThat(whole.isIntegralNumber()).isTrue();
         assertThat(whole.longValue()).isEqualTo(25);

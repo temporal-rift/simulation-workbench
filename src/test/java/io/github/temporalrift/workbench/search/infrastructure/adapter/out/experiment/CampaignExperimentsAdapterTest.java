@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -27,7 +26,9 @@ import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignRe
 import io.github.temporalrift.workbench.search.domain.campaign.SearchAlgorithm;
 import io.github.temporalrift.workbench.search.domain.candidate.Candidate;
 import io.github.temporalrift.workbench.search.domain.candidate.CandidateGenerator;
+import io.github.temporalrift.workbench.search.domain.candidate.ParameterGrid;
 import io.github.temporalrift.workbench.search.domain.candidate.SearchSeeds;
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
 /** The campaign view of the experiment module, over the shipped parameter spaces and the test baseline. */
 class CampaignExperimentsAdapterTest {
@@ -90,7 +91,10 @@ class CampaignExperimentsAdapterTest {
         var grid = adapter.grid(definition(VariantRulesFixtures.ARTIFACT_DIGEST, 1));
 
         assertThat(grid.axes()).isNotEmpty();
-        assertThat(grid.axes()).allSatisfy(axis -> assertThat(axis.baseline()).isBetween(axis.min(), axis.max()));
+        assertThat(grid.axes()).allSatisfy(axis -> {
+            var number = (ParameterGrid.NumberAxis) axis;
+            assertThat(number.baseline()).isBetween(number.min(), number.max());
+        });
         assertThat(grid.overridesOf(grid.baselinePoint())).isEmpty();
     }
 
@@ -105,13 +109,14 @@ class CampaignExperimentsAdapterTest {
     void validationAcceptsOverridesOnTheGridAndRejectsOnesOutsideTheRange() {
         var definition = definition(VariantRulesFixtures.ARTIFACT_DIGEST, 1);
         var validation = adapter.validation(definition);
-        var axis = adapter.grid(definition).axes().getFirst();
+        var axis = (ParameterGrid.NumberAxis) adapter.grid(definition).axes().getFirst();
 
-        var outside = validation.validate(Map.of(axis.key(), axis.max().add(axis.step())));
+        var outside = validation.validate(
+                Map.of(axis.key(), ParameterValue.of(axis.max().add(axis.step()))));
 
         assertThat(outside).isEmpty();
         assertThat(validation
-                        .validate(Map.<String, BigDecimal>of())
+                        .validate(Map.<String, ParameterValue>of())
                         .orElseThrow()
                         .overrides())
                 .isEmpty();

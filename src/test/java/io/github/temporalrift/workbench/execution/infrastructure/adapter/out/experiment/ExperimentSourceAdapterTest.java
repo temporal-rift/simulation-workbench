@@ -5,6 +5,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -19,6 +20,8 @@ import io.github.temporalrift.workbench.experiment.VariantRulesFixtures;
 import io.github.temporalrift.workbench.experiment.domain.ManifestDigest;
 import io.github.temporalrift.workbench.experiment.domain.StoredManifests;
 import io.github.temporalrift.workbench.experiment.domain.port.out.ExperimentRepository;
+import io.github.temporalrift.workbench.experiment.domain.rules.VariantMaterializer;
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
 class ExperimentSourceAdapterTest {
 
@@ -68,6 +71,27 @@ class ExperimentSourceAdapterTest {
         assertThat(rules.properties())
                 .containsOnlyKeys(baseline.properties().keySet().toArray(String[]::new));
         assertThat(rules.properties()).containsEntry("game.rules.win-score-threshold", new BigDecimal("20"));
+    }
+
+    @Test
+    void theRulesOfASpaceTwoVariantCarryItsNumericAndBooleanOverridesToEveryService() {
+        var space = VariantRulesFixtures.spaces().find(2).orElseThrow();
+        var rules = VariantMaterializer.materialize(
+                        VariantRulesFixtures.baseline(),
+                        space,
+                        Map.of(
+                                "game.rules.annihilate-earliest-round", ParameterValue.of(BigDecimal.ONE),
+                                "game.rules.probability.erased-weight-to-written-outcome", ParameterValue.of(false)))
+                .rules();
+        when(catalog.variantRules(EXPERIMENT, "candidate")).thenReturn(Optional.of(rules));
+
+        var served = source.rules(EXPERIMENT, "candidate").orElseThrow();
+
+        assertThat(served.digest()).isEqualTo(rules.digest());
+        assertThat(served.properties())
+                .containsEntry("game.rules.annihilate-earliest-round", BigDecimal.ONE)
+                .containsEntry("game.rules.probability.erased-weight-to-written-outcome", false)
+                .containsEntry("game.rules.scoring.written-outcome-shields-annihilation", true);
     }
 
     @Test
