@@ -12,7 +12,10 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
+import io.github.temporalrift.workbench.experiment.BaselineRulesCatalog;
+import io.github.temporalrift.workbench.experiment.EffectiveRules;
 import io.github.temporalrift.workbench.experiment.ExperimentFactory;
 import io.github.temporalrift.workbench.experiment.ExperimentRefusedException;
 import io.github.temporalrift.workbench.experiment.VariantRulesFixtures;
@@ -24,6 +27,7 @@ import io.github.temporalrift.workbench.experiment.domain.ExperimentErrorCode;
 import io.github.temporalrift.workbench.experiment.domain.ExperimentValidationException;
 import io.github.temporalrift.workbench.experiment.domain.IdempotencyConflictException;
 import io.github.temporalrift.workbench.experiment.domain.rules.ParameterSpace;
+import io.github.temporalrift.workbench.experiment.domain.rules.VariantRules;
 import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
 class ExperimentFactoryServiceTest {
@@ -56,6 +60,28 @@ class ExperimentFactoryServiceTest {
         assertThat(baseline.overrides()).isEmpty();
         assertThat(changed.overrides()).containsOnlyKeys("game.rules.win-score-threshold");
         assertThat(changed.effectiveRulesDigest()).isNotEqualTo(baseline.effectiveRulesDigest());
+    }
+
+    @Test
+    void aPreviewOnABaselineThatLacksAKeyOfTheSpaceIsRefusedWithTheUnknownBaselineReason() {
+        var mapper = new ObjectMapper();
+        var document = (ObjectNode) mapper.readTree(VariantRulesFixtures.baselineText());
+        ((ObjectNode) document.get("properties")).remove("game.rules.annihilate-earliest-round");
+        var withoutTheKey = new ExperimentFactoryService(
+                new PreviewVariantRulesQueryHandler(new VariantRules(
+                        VariantRulesFixtures.spaces(),
+                        VariantRulesFixtures.catalogOf(new BaselineRulesCatalog.Baseline(
+                                document.toString(), EffectiveRules.parse(document))))),
+                new GetParameterAxesQueryHandler(VariantRulesFixtures.variantRules()),
+                create,
+                new ParameterSpaceQueryHandler(VariantRulesFixtures.spaces()));
+        var overrides = Map.of("game.rules.win-score-threshold", ParameterValue.of(BigDecimal.valueOf(22)));
+
+        assertThatThrownBy(() -> withoutTheKey.previewVariant(VariantRulesFixtures.ARTIFACT_DIGEST, 2, overrides))
+                .isInstanceOfSatisfying(ExperimentRefusedException.class, e -> {
+                    assertThat(e.reason()).isEqualTo("UNKNOWN_BASELINE");
+                    assertThat(e).hasMessageContaining("game.rules.annihilate-earliest-round");
+                });
     }
 
     @Test

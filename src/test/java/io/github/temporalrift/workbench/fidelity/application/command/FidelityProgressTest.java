@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -41,14 +42,17 @@ import io.github.temporalrift.workbench.fidelity.domain.FidelityExperimentRefuse
 import io.github.temporalrift.workbench.fidelity.domain.FidelityFailure;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityMatrix;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityPlaybackRefusedException;
+import io.github.temporalrift.workbench.fidelity.domain.FidelityVariant;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityVerdict;
 import io.github.temporalrift.workbench.fidelity.domain.FirstDivergence;
+import io.github.temporalrift.workbench.fidelity.domain.VariantLabel;
 import io.github.temporalrift.workbench.fidelity.domain.port.out.FidelityExperiments;
 import io.github.temporalrift.workbench.fidelity.domain.port.out.FidelityPlayback;
 import io.github.temporalrift.workbench.fidelity.infrastructure.adapter.out.configuration.ConfiguredEdgeVariants;
 import io.github.temporalrift.workbench.fidelity.support.FidelityFixtures;
 import io.github.temporalrift.workbench.fidelity.support.InMemoryFidelityRepository;
 import io.github.temporalrift.workbench.shared.game.Faction;
+import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
 class FidelityProgressTest {
 
@@ -181,21 +185,20 @@ class FidelityProgressTest {
     @Test
     void aCheckStoredOnSpaceOneKeepsItsManifestOnceNewerSpacesHaveEdgeVariants() {
         var stored = check();
-        var onSpaceOne = new FidelityCheck(
+        var spaceOne = ConfiguredEdgeVariants.load(mapper).forSpace(1);
+        var spaceOneVariants = List.of(
+                spaceOneVariant(VariantLabel.BASELINE, Map.of()),
+                spaceOneVariant(VariantLabel.LOW, spaceOne.low()),
+                spaceOneVariant(VariantLabel.HIGH, spaceOne.high()));
+        var onSpaceOne = FidelityCheck.queued(
                 stored.id(),
                 stored.seed(),
                 1,
-                stored.state(),
                 stored.simulator(),
                 stored.lane(),
                 stored.laneId(),
-                stored.variants(),
-                stored.experimentId(),
-                stored.runId(),
-                stored.failure(),
-                stored.createdAt(),
-                stored.startedAt(),
-                stored.finishedAt());
+                spaceOneVariants,
+                stored.createdAt());
         var replacement = new InMemoryFidelityRepository();
         replacement.create(UUID.randomUUID(), "hash", onSpaceOne);
         givenTheRunStarts();
@@ -212,10 +215,27 @@ class FidelityProgressTest {
 
         var manifest = ArgumentCaptor.forClass(ObjectNode.class);
         verify(experiments).freeze(any(), manifest.capture());
+        for (var index = 0; index < spaceOneVariants.size(); index++) {
+            var node = manifest.getValue().at("/variants/" + index);
+            var variant = spaceOneVariants.get(index);
+            assertThat(node.get("effectiveRulesDigest").asText()).isEqualTo(variant.effectiveRulesDigest());
+            var overrides = new TreeMap<String, ParameterValue>();
+            node.path("overrides")
+                    .properties()
+                    .forEach(entry -> overrides.put(entry.getKey(), ParameterValue.of(entry.getValue())));
+            assertThat(overrides).isEqualTo(variant.overrides());
+            assertThat(node.has("parameterSpaceVersion")).isEqualTo(index > 0);
+        }
         assertThat(manifest.getValue().at("/variants/1/parameterSpaceVersion").asInt())
                 .isEqualTo(1);
         assertThat(manifest.getValue().at("/variants/2/parameterSpaceVersion").asInt())
                 .isEqualTo(1);
+        assertThat(spaceOneVariants.get(1).overrides()).doesNotContainKey("game.rules.annihilate-earliest-round");
+    }
+
+    private static FidelityVariant spaceOneVariant(VariantLabel label, Map<String, ParameterValue> overrides) {
+        var rules = FidelityFixtures.rules(overrides);
+        return new FidelityVariant(label, rules.effectiveRulesDigest(), rules.overrides());
     }
 
     @Test
