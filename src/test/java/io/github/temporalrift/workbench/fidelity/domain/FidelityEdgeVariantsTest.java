@@ -109,16 +109,16 @@ class FidelityEdgeVariantsTest {
         var one = catalog.forSpace(1);
 
         for (var overrides : List.of(one.low(), one.high())) {
-            assertThat(overrides.keySet()).doesNotContain(EARLIEST_ROUND, WRITTEN_SHIELDS, ERASED_WEIGHT);
+            assertThat(overrides).doesNotContainKeys(EARLIEST_ROUND, WRITTEN_SHIELDS, ERASED_WEIGHT);
         }
     }
 
     @Test
     void theRecordOfEachSpaceAndItsResourceAgree() throws IOException {
         for (var variants : catalog.all()) {
-            var record = Files.readAllLines(Path.of("docs/fidelity/v" + variants.parameterSpaceVersion() + ".md"));
+            var document = Files.readAllLines(Path.of("docs/fidelity/v" + variants.parameterSpaceVersion() + ".md"));
             var rows = new TreeMap<String, List<String>>();
-            for (var line : record) {
+            for (var line : document) {
                 var row = TABLE_ROW.matcher(line);
                 if (row.matches()) {
                     rows.put(row.group(1), List.of(row.group(2), row.group(3), row.group(4)));
@@ -145,8 +145,11 @@ class FidelityEdgeVariantsTest {
     void anEmptyCatalogAndAnAmbiguousOneAreRefused() {
         var variants = new EdgeVariants(1, new TreeMap<>(), new TreeMap<>());
 
-        assertThatThrownBy(() -> new EdgeVariantCatalog(List.of())).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new EdgeVariantCatalog(List.of(variants, variants)))
+        var none = List.<EdgeVariants>of();
+        var twice = List.of(variants, variants);
+
+        assertThatThrownBy(() -> new EdgeVariantCatalog(none)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new EdgeVariantCatalog(twice))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("parameter space 1");
     }
