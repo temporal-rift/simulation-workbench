@@ -139,7 +139,7 @@ public final class VariantMaterializer {
         return new VariantRulesRefusal(
                 VariantRulesReason.WRONG_TYPE,
                 key + " must be " + expected + ": its parameter is "
-                        + (expected.equals("a number") ? "numeric" : "boolean") + ", not " + value.text(),
+                        + (expected.equals("a number") ? "numeric" : BOOLEAN) + ", not " + value.text(),
                 key,
                 null);
     }
