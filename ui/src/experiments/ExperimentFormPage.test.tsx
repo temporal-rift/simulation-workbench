@@ -26,6 +26,7 @@ async function previewTheDraft(user: ReturnType<typeof userEvent.setup>) {
 describe('overriding parameters of a variant', () => {
   const VARIANT_RULES = /^\/api\/v1\/variant-rules-previews$/
   const threshold = 'game.rules.win-score-threshold'
+  const switchKey = 'game.rules.scoring.expose-requires-declared-event'
 
   async function addAnOverride(user: ReturnType<typeof userEvent.setup>) {
     const buttons = await screen.findAllByRole('button', { name: 'Add override' })
@@ -71,6 +72,51 @@ describe('overriding parameters of a variant', () => {
     }
     expect(sent.variants[1]).toMatchObject({ effectiveRulesDigest: digest, overrides: { [threshold]: 22 }, parameterSpaceVersion: 1 })
     expect(digest).not.toBe(manifest().variants[1]!.effectiveRulesDigest)
+  })
+
+  it('sets a switch with a true or false control and freezes the boolean it was set to', async () => {
+    const user = userEvent.setup()
+    await renderApp('/experiments/new', service)
+    await addAnOverride(user)
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Parameter 1' }), switchKey)
+    const value = screen.getByRole('combobox', { name: 'Value of parameter 1' })
+    expect(within(value).getAllByRole('option').map((option) => option.getAttribute('value'))).toEqual(['false', 'true'])
+    expect(value).toHaveValue('true')
+    expect(value).toHaveAccessibleDescription('Baseline true, either false or true.')
+
+    await user.selectOptions(value, 'false')
+    const digest = await waitFor(() => {
+      const shown = screen.getByText('Rules digest of variant 2').nextElementSibling!.textContent!
+      expect(shown).toMatch(/^[a-f0-9]{64}$/)
+      return shown
+    })
+    const previews = service.requests.filter((request) => VARIANT_RULES.test(request.path))
+    expect(previews.at(-1)?.body).toMatchObject({ parameterSpaceVersion: 1, overrides: { [switchKey]: false } })
+
+    await previewTheDraft(user)
+    await user.click(screen.getByRole('button', { name: 'Freeze this experiment…' }))
+    await user.click(screen.getByRole('button', { name: 'Confirm and freeze' }))
+    await screen.findByRole('heading', { name: 'threshold experiment' })
+    const sent = service.requests.filter((request) => request.method === 'POST' && EXPERIMENTS.test(request.path)).at(-1)!.body as {
+      variants: { effectiveRulesDigest: string; overrides?: Record<string, number | boolean> }[]
+    }
+    expect(sent.variants[1]).toMatchObject({ effectiveRulesDigest: digest, overrides: { [switchKey]: false } })
+  })
+
+  it('starts a row at the baseline of the parameter chosen, in the control that parameter needs', async () => {
+    const user = userEvent.setup()
+    await renderApp('/experiments/new', service)
+    await addAnOverride(user)
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Parameter 1' }), switchKey)
+    expect(screen.getByRole('combobox', { name: 'Value of parameter 1' }).tagName).toBe('SELECT')
+    // The row is keyed by its parameter, so choosing another one gives a new row.
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Parameter 1' }), threshold)
+
+    const value = screen.getByRole('combobox', { name: 'Value of parameter 1' })
+    expect(value.tagName).toBe('INPUT')
+    expect(value).toHaveValue('20')
   })
 
   it('shows the refusal on the row of an out-of-range value, and keeps the matrix from being previewed', async () => {

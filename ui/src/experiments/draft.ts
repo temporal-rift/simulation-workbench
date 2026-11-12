@@ -30,10 +30,10 @@ export interface DraftBundle {
   contracts: Record<string, string>
 }
 
-/** One parameter the variant sets, with the value as typed so a half-edited number is kept. */
+/** One parameter the variant sets: a number as typed, so a half-edited one is kept, or the state of a switch. */
 export interface DraftOverride {
   key: string
-  value: string
+  value: string | boolean
 }
 
 export interface DraftVariant {
@@ -267,8 +267,11 @@ export function overridePath(index: number, key: string): string {
   return `variants[${index}].overrides.${key}`
 }
 
-/** A typed override value as a number, or `undefined` when it is not one. */
-export function overrideNumber(value: string): number | undefined {
+/** An override value as the service takes it: a switch as it is, typed text as a number, or `undefined` when it is not one. */
+export function overrideValue(value: string | boolean): number | boolean | undefined {
+  if (typeof value === 'boolean') {
+    return value
+  }
   const trimmed = value.trim()
   const parsed = trimmed === '' ? Number.NaN : Number(trimmed)
   return Number.isFinite(parsed) ? parsed : undefined
@@ -288,7 +291,7 @@ export function localProblems(draft: Draft, lanes: readonly LaneBundle[] | null,
       problems[`variants[${index}]`] = 'No configured lane serves this bundle as selected. Choose the bundle again.'
     }
     variant.overrides.forEach((override) => {
-      if (overrideNumber(override.value) === undefined) {
+      if (overrideValue(override.value) === undefined) {
         problems[overridePath(index, override.key)] = 'Enter a number.'
       }
     })
@@ -336,7 +339,7 @@ export function draftToManifest(draft: Draft, rulesDigests: readonly (string | u
       ...(variant.overrides.length > 0
         ? {
             ...(variant.parameterSpaceVersion === null ? {} : { parameterSpaceVersion: variant.parameterSpaceVersion }),
-            overrides: Object.fromEntries(variant.overrides.map((override) => [override.key, overrideNumber(override.value) ?? null])),
+            overrides: Object.fromEntries(variant.overrides.map((override) => [override.key, overrideValue(override.value) ?? null])),
           }
         : {}),
     })),
@@ -388,7 +391,7 @@ export function manifestToDraft(manifest: StoredExperimentManifest): Draft {
     variants: manifest.variants.map((variant) => ({
       label: variant.label,
       parameterSpaceVersion: variant.parameterSpaceVersion ?? null,
-      overrides: Object.entries(variant.overrides ?? {}).map(([key, value]) => ({ key, value: String(value) })),
+      overrides: Object.entries(variant.overrides ?? {}).map(([key, value]) => ({ key, value: typeof value === 'boolean' ? value : String(value) })),
       bundle: {
         rulesArtifact: { ...variant.rulesArtifact },
         contentArtifact: { ...variant.contentArtifact },

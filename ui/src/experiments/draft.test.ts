@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import type { StoredExperimentManifest } from '../api/generated'
 import { experimentTemplates, laneBundles, manifest } from '../test/fixtures'
 import {
   BUNDLES_FIELD,
@@ -15,6 +16,7 @@ import {
   loadDraft,
   localProblems,
   manifestToDraft,
+  overrideValue,
   saveDraft,
   seedList,
 } from './draft'
@@ -157,6 +159,7 @@ describe('the draft and its manifest', () => {
 
 describe('variant overrides', () => {
   const threshold = 'game.rules.win-score-threshold'
+  const switchKey = 'game.rules.scoring.expose-requires-declared-event'
   const withOverrides = () => {
     const draft = manifestToDraft(manifest())
     draft.variants[1]!.parameterSpaceVersion = 1
@@ -188,6 +191,30 @@ describe('variant overrides', () => {
       'variants[1].overrides': 'The rules of this variant are not known yet.',
     })
     expect(localProblems(withOverrides(), laneBundles(), [undefined, 'f'.repeat(64)])).toEqual({})
+  })
+
+  it('sends a switch as the boolean it is set to and finds nothing to correct in it', () => {
+    const draft = withOverrides()
+    draft.variants[1]!.overrides = [{ key: switchKey, value: false }]
+
+    expect(draftToManifest(draft, [undefined, 'f'.repeat(64)]).variants[1]!.overrides).toEqual({ [switchKey]: false })
+    expect(localProblems(draft, laneBundles(), [undefined, 'f'.repeat(64)])).toEqual({})
+  })
+
+  it('keeps a switch of a frozen variant a boolean when the draft is copied from it', () => {
+    const frozen = draftToManifest(withOverrides(), [undefined, 'f'.repeat(64)])
+    frozen.variants[1]!.overrides = { [threshold]: 22, [switchKey]: true }
+
+    const copied = manifestToDraft(frozen as StoredExperimentManifest)
+
+    expect(copied.variants[1]!.overrides).toEqual([
+      { key: threshold, value: '22' },
+      { key: switchKey, value: true },
+    ])
+  })
+
+  it('reads a typed value as a number and a switch as itself', () => {
+    expect([overrideValue('22'), overrideValue(' 1.5 '), overrideValue(''), overrideValue('2x'), overrideValue(true), overrideValue(false)]).toEqual([22, 1.5, undefined, undefined, true, false])
   })
 
   it('round-trips the overrides of a frozen variant', () => {

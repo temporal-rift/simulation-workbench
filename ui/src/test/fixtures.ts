@@ -63,7 +63,7 @@ export const policyCatalog: PolicyBundle[] = [
 ]
 
 /** The bundles the lanes serve: the fixture manifest's baseline and candidate variants, in digest order. */
-/** A small parameter space: two whole-number parameters, one in quarter steps, and a value derived from one of them. */
+/** A small parameter space: two whole-number parameters, one in quarter steps, one switch, and a value derived from one of them. */
 export function parameterSpace(): ParameterSpace {
   return {
     version: 1,
@@ -71,6 +71,7 @@ export function parameterSpace(): ParameterSpace {
       { type: 'NUMBER', key: 'game.rules.win-score-threshold', services: ['game-service'], baseline: 20, min: 16, max: 26, step: 1 },
       { type: 'NUMBER', key: 'game.rules.probability.push-shift.II', services: ['timeline-service'], baseline: 20, min: 15, max: 25, step: 5 },
       { type: 'NUMBER', key: 'game.rules.probability.amplify-multiplier.II', services: ['timeline-service'], baseline: 2, min: 1.75, max: 2.5, step: 0.25 },
+      { type: 'BOOLEAN', key: 'game.rules.scoring.expose-requires-declared-event', services: ['game-service'], baseline: true },
     ],
     derived: [{ key: 'game.rules.probability.suppress-shift.II', from: 'game.rules.probability.push-shift.II', factor: -1 }],
     constraints: [{ id: 'C-10', expression: 'a < b', description: 'Grade II brackets the other grades' }],

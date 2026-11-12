@@ -20,6 +20,7 @@ import io.github.temporalrift.workbench.experiment.VariantRulesFixtures;
 class VariantOverridesIT extends DesignerBrowserTest {
 
     private static final String THRESHOLD = "game.rules.win-score-threshold";
+    private static final String SWITCH = "game.rules.scoring.expose-requires-declared-event";
     private static final Pattern DIGEST = Pattern.compile("^[a-f0-9]{64}$");
 
     @Test
@@ -82,6 +83,56 @@ class VariantOverridesIT extends DesignerBrowserTest {
                         String.class,
                         stored.get("experiment_id")))
                 .isEqualTo(VariantRulesFixtures.baselineText());
+    }
+
+    @Test
+    void aDesignerSwitchesARuleOffAndTheExperimentFreezesWithTheBooleanItWasSetTo() {
+        var baseline = VariantRulesFixtures.baseline();
+        lanes.serve(new BundleDigests(baseline.digest(), "b".repeat(64)));
+        signInAndOpen(TestIssuer.DESIGNER, "/experiments/new");
+        button("Start from Rules variant comparison").click();
+        page.getByLabel("Experiment name").fill("expose without declaration");
+        page.getByRole(AriaRole.COMBOBOX, new Page.GetByRoleOptions().setName("Bundle"))
+                .nth(1)
+                .selectOption(new SelectOption().setIndex(1));
+
+        overrides(2)
+                .getByRole(AriaRole.BUTTON, new Locator.GetByRoleOptions().setName("Add override"))
+                .click();
+        page.getByRole(
+                        AriaRole.COMBOBOX,
+                        new Page.GetByRoleOptions().setName("Parameter 1").setExact(true))
+                .selectOption(SWITCH);
+
+        // A switch offers exactly false and true, starting at its baseline.
+        var value = page.getByRole(
+                AriaRole.COMBOBOX,
+                new Page.GetByRoleOptions().setName("Value of parameter 1").setExact(true));
+        assertThat(value.locator("option")).hasText(new String[] {"false", "true"});
+        assertThat(value).hasValue("true");
+        value.selectOption("false");
+
+        var digest = overrides(2).locator("code");
+        assertThat(digest).hasText(DIGEST);
+        assertThat(digest).not().hasText(baseline.digest());
+        assertThat(value).not().hasAttribute("aria-invalid", "true");
+
+        button("Preview matrix").click();
+        assertThat(page.getByText(Pattern.compile("cases in total"))).isVisible();
+        button("Freeze this experiment…").click();
+        button("Confirm and freeze").click();
+        assertThat(page.getByRole(
+                        AriaRole.HEADING,
+                        new Page.GetByRoleOptions()
+                                .setName("expose without declaration")
+                                .setExact(true)))
+                .isVisible();
+
+        var stored = jdbc.queryForObject("SELECT manifest_json FROM experiment", String.class);
+        var override =
+                new ObjectMapper().readTree(stored).at("/variants/1/overrides").get(SWITCH);
+        Assertions.assertThat(override.isBoolean()).isTrue();
+        Assertions.assertThat(override.booleanValue()).isFalse();
     }
 
     private Locator overrides(int variant) {

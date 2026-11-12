@@ -1,12 +1,16 @@
-import type { NumberParameterDefinition, ParameterSpace } from '../api/generated'
+import type { BooleanParameterDefinition, NumberParameterDefinition, ParameterDefinition, ParameterSpace } from '../api/generated'
 
-/** A parameter on a numeric grid; the only kind the served spaces hold so far. */
+/** A parameter on a numeric grid. */
 export type NumericParameter = NumberParameterDefinition & { type: 'NUMBER' }
 
-/**
- * The parameters an override may set from this form: the numeric ones, on their grid. A space with on/off parameters
- * needs its own control for them, which this form does not offer yet.
- */
+/** An on/off parameter: its only values are `false` and `true`. */
+export type BooleanParameter = BooleanParameterDefinition & { type: 'BOOLEAN' }
+
+export function isBooleanParameter(parameter: ParameterDefinition): parameter is BooleanParameter {
+  return parameter.type === 'BOOLEAN'
+}
+
+/** The numeric parameters of the space, each on its grid. */
 export function numericParameters(space: ParameterSpace): NumericParameter[] {
   return space.parameters.filter((parameter): parameter is NumericParameter => parameter.type === 'NUMBER')
 }
@@ -34,9 +38,16 @@ export function gridValues(parameter: NumberParameterDefinition): string[] {
   return values
 }
 
-/** The parameter as a designer weighs it: where it stands, how far it may move and in what steps. */
-export function describeParameter(parameter: NumberParameterDefinition): string {
-  return `Baseline ${parameter.baseline}, from ${parameter.min} to ${parameter.max} in steps of ${parameter.step}.`
+/** The parameter as a designer weighs it: where it stands, and how far it may move and in what steps, or that it is a switch. */
+export function describeParameter(parameter: ParameterDefinition): string {
+  return isBooleanParameter(parameter)
+    ? `Baseline ${parameter.baseline}, either false or true.`
+    : `Baseline ${parameter.baseline}, from ${parameter.min} to ${parameter.max} in steps of ${parameter.step}.`
+}
+
+/** The value a new override of the parameter starts at: its baseline, as text for a number and as itself for a switch. */
+export function initialOverrideValue(parameter: ParameterDefinition): string | boolean {
+  return isBooleanParameter(parameter) ? parameter.baseline : String(parameter.baseline)
 }
 
 /** The newest space the workbench serves, the one a new override is chosen from. */
