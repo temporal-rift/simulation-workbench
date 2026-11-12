@@ -29,6 +29,10 @@ class FidelityEdgeVariantsTest {
     private static final String EARLIEST_ROUND = "game.rules.annihilate-earliest-round";
     private static final String WRITTEN_SHIELDS = "game.rules.scoring.written-outcome-shields-annihilation";
     private static final String ERASED_WEIGHT = "game.rules.probability.erased-weight-to-written-outcome";
+    private static final String REWRITE_ROUND = "game.rules.rewrite-latest-round";
+    private static final String SECRET_MISSED = "game.rules.scoring.score-deltas.SECRET_OUTCOME_MISSED";
+    private static final String EXPOSE_DECLARED = "game.rules.scoring.expose-requires-declared-event";
+    private static final String ANNIHILATION_CONSEQUENCE = "game.rules.scoring.annihilation-requires-consequence";
 
     /** A row of a record's override table: key, baseline, {@code low} and {@code high}, each value maybe marked †. */
     private static final Pattern TABLE_ROW =
@@ -41,19 +45,19 @@ class FidelityEdgeVariantsTest {
     }
 
     @Test
-    void edgeVariantsAreShippedForParameterSpacesOneAndTwo() {
+    void edgeVariantsAreShippedForParameterSpacesOneTwoAndThree() {
         assertThat(catalog.all())
                 .extracting(EdgeVariants::parameterSpaceVersion)
-                .containsExactly(1, 2);
-        assertThat(catalog.newest().parameterSpaceVersion()).isEqualTo(2);
+                .containsExactly(1, 2, 3);
+        assertThat(catalog.newest().parameterSpaceVersion()).isEqualTo(3);
         assertThat(catalog.forSpace(1).parameterSpaceVersion()).isEqualTo(1);
     }
 
     @Test
     void aSpaceWithoutEdgeVariantsIsRefused() {
-        assertThatThrownBy(() -> catalog.forSpace(3))
+        assertThatThrownBy(() -> catalog.forSpace(4))
                 .isInstanceOf(NoSuchElementException.class)
-                .hasMessageContaining("parameter space 3");
+                .hasMessageContaining("parameter space 4");
     }
 
     @Test
@@ -102,6 +106,45 @@ class FidelityEdgeVariantsTest {
         assertThat(two.high())
                 .containsAllEntriesOf(one.high())
                 .hasSize(one.high().size() + 3);
+    }
+
+    @Test
+    void spaceThreeTakesTheFourNewSettingsAtOppositeExtremes() {
+        var three = catalog.forSpace(3);
+
+        assertThat(three.low())
+                .containsEntry(REWRITE_ROUND, ParameterValue.of(new BigDecimal("1")))
+                .containsEntry(SECRET_MISSED, ParameterValue.of(new BigDecimal("-3")))
+                .containsEntry(EXPOSE_DECLARED, ParameterValue.of(false))
+                .containsEntry(ANNIHILATION_CONSEQUENCE, ParameterValue.of(false));
+        assertThat(three.high())
+                .containsEntry(REWRITE_ROUND, ParameterValue.of(new BigDecimal("3")))
+                .containsEntry(SECRET_MISSED, ParameterValue.of(new BigDecimal("0")))
+                .containsEntry(EXPOSE_DECLARED, ParameterValue.of(true))
+                .containsEntry(ANNIHILATION_CONSEQUENCE, ParameterValue.of(true));
+    }
+
+    @Test
+    void spaceThreeCarriesEverySpaceTwoValueOverUnchanged() {
+        var two = catalog.forSpace(2);
+        var three = catalog.forSpace(3);
+
+        assertThat(three.low())
+                .containsAllEntriesOf(two.low())
+                .hasSize(two.low().size() + 4);
+        assertThat(three.high())
+                .containsAllEntriesOf(two.high())
+                .hasSize(two.high().size() + 4);
+    }
+
+    @Test
+    void spaceTwoNamesNoneOfTheSpaceThreeSettings() {
+        var two = catalog.forSpace(2);
+
+        for (var overrides : List.of(two.low(), two.high())) {
+            assertThat(overrides)
+                    .doesNotContainKeys(REWRITE_ROUND, SECRET_MISSED, EXPOSE_DECLARED, ANNIHILATION_CONSEQUENCE);
+        }
     }
 
     @Test

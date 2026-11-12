@@ -76,7 +76,7 @@ class VariantOverridesIT extends DesignerBrowserTest {
                         manifest.at("/variants/1/overrides").get(THRESHOLD).asInt())
                 .isEqualTo(22);
         Assertions.assertThat(manifest.at("/variants/1/parameterSpaceVersion").asInt())
-                .isEqualTo(2);
+                .isEqualTo(3);
         Assertions.assertThat(jdbc.queryForObject(
                         "SELECT document FROM experiment_baseline WHERE experiment_id = ?",
                         String.class,
