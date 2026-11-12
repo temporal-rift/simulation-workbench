@@ -29,7 +29,8 @@
       "SEAL",
       "CORRUPT",
       "MIMIC",
-      "REWEAVE"
+      "REWEAVE",
+      "REWRITE"
     ],
     "game.rules.paradox-resolution-timer-seconds": 120,
     "game.rules.probability.amplify-multiplier.I": 1.5,
@@ -53,6 +54,9 @@
     "game.rules.probability.swing-shift.III": 45,
     "game.rules.probability.thread-shift": 10,
     "game.rules.reconnect-grace-period-seconds": 30,
+    "game.rules.rewrite-latest-round": 2,
+    "game.rules.scoring.annihilation-requires-consequence": true,
+    "game.rules.scoring.expose-requires-declared-event": true,
     "game.rules.scoring.score-deltas.ANNIHILATED_OUTCOME": 3,
     "game.rules.scoring.score-deltas.CHAIN_BROKEN": -3,
     "game.rules.scoring.score-deltas.CHAIN_COMPLETED": 10,
@@ -67,6 +71,7 @@
     "game.rules.scoring.score-deltas.MIMIC_CONTRIBUTED_TO_WIN": 2,
     "game.rules.scoring.score-deltas.MIMIC_NEVER_TRACED": 6,
     "game.rules.scoring.score-deltas.PARADOX_CASCADE_PENALTY": -2,
+    "game.rules.scoring.score-deltas.SECRET_OUTCOME_MISSED": -1,
     "game.rules.scoring.score-deltas.SECRET_OUTCOME_WON": 4,
     "game.rules.scoring.written-outcome-shields-annihilation": true,
     "game.rules.seal-max-uses-per-game": 2,

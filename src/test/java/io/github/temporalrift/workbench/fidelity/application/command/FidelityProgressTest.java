@@ -173,13 +173,13 @@ class FidelityProgressTest {
 
         var manifest = ArgumentCaptor.forClass(ObjectNode.class);
         verify(experiments).freeze(any(), manifest.capture());
-        assertThat(check().parameterSpaceVersion()).isEqualTo(2);
+        assertThat(check().parameterSpaceVersion()).isEqualTo(3);
         assertThat(manifest.getValue().at("/variants/0").has("parameterSpaceVersion"))
                 .isFalse();
         assertThat(manifest.getValue().at("/variants/1/parameterSpaceVersion").asInt())
-                .isEqualTo(2);
+                .isEqualTo(3);
         assertThat(manifest.getValue().at("/variants/2/parameterSpaceVersion").asInt())
-                .isEqualTo(2);
+                .isEqualTo(3);
     }
 
     @Test

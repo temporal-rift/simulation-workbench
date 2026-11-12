@@ -315,7 +315,9 @@ the space they are validated against. A value of the other type is refused with 
 Parameter space version 1 is configuration (`parameter-spaces/v1.json`, equal to `docs/parameter-space/v1.md`) and is
 read with `listParameterSpaces` and `getParameterSpace`. Version 2 (`parameter-spaces/v2.json`, described in
 `docs/parameter-space/v2.md`) is version 1 plus the earliest Annihilate round and two boolean balance switches; a
-campaign search treats a boolean parameter as a two-value axis. A new campaign defaults to the newest version. Its constraints are expressions in a small notation (comparison
+campaign search treats a boolean parameter as a two-value axis. Version 3 (`parameter-spaces/v3.json`, described in
+`docs/parameter-space/v3.md`) is version 2 plus the latest Rewrite round, the `SECRET_OUTCOME_MISSED` score value and two
+boolean contested-yield switches. A new campaign defaults to the newest version. Its constraints are expressions in a small notation (comparison
 chains over `+`, `-`, `*`, `max` and `and`; a subtraction needs spaces around `-` because keys contain it) that the
 workbench both serves and evaluates.
 
@@ -667,8 +669,9 @@ one or is refused without one. It plays on the simulator the full case matrix on
 every faction set and seat rotation, the policies `faction-greedy` and `random` on every seat) for three variants, then
 reproduces every case on one real lane. The variants are the baseline and the two edge variants `low` and `high`, which
 set as many parameters as the constraints allow at the minimum and the maximum of their ranges. A new check resolves
-them against the newest parameter space that has edge variants, which is parameter space 2
-([docs/fidelity/v2.md](docs/fidelity/v2.md); parameter space 1 is in [docs/fidelity/v1.md](docs/fidelity/v1.md)), and
+them against the newest parameter space that has edge variants, which is parameter space 3
+([docs/fidelity/v3.md](docs/fidelity/v3.md); parameter space 2 is in [docs/fidelity/v2.md](docs/fidelity/v2.md) and space 1 in
+[docs/fidelity/v1.md](docs/fidelity/v1.md)), and
 records that space, so a stored check keeps the variants it was accepted with. That is 55 cases per table and variant,
 330 in all.
 
