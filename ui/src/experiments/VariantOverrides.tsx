@@ -3,7 +3,7 @@ import type { ParameterSpace } from '../api/generated'
 import { Field } from '../components/Field'
 import { errorAt, overridePath, type DraftOverride, type DraftVariant, type FieldErrors } from './draft'
 import type { EditDraft } from './ExperimentForm'
-import { describeParameter, gridValues, numericParameters } from './parameterSpace'
+import { describeParameter, gridValues, initialOverrideValue, isBooleanParameter } from './parameterSpace'
 
 interface Props {
   readonly index: number
@@ -18,11 +18,11 @@ interface Props {
 
 /**
  * The parameters a variant changes from its baseline. Each row names a parameter of the space and a value; the value
- * is typed, with the values on the step grid offered, and the service says on the row why a value is refused.
+ * is typed, with the values on the step grid offered, or chosen as false or true for a switch, and the service says on the row why a value is refused.
  */
 export function VariantOverrides({ index, variant, space, edit, errors, rulesDigest }: Props) {
   const used = new Set(variant.overrides.map((override) => override.key))
-  const unused = numericParameters(space).filter((parameter) => !used.has(parameter.key))
+  const unused = space.parameters.filter((parameter) => !used.has(parameter.key))
   const groupError = errorAt(errors, `variants[${index}].overrides`) ?? errorAt(errors, `variants[${index}].parameterSpaceVersion`)
 
   function add() {
@@ -31,7 +31,7 @@ export function VariantOverrides({ index, variant, space, edit, errors, rulesDig
       edit((d) => {
         const target = d.variants[index]!
         target.parameterSpaceVersion = space.version
-        target.overrides.push({ key: parameter.key, value: String(parameter.baseline) })
+        target.overrides.push({ key: parameter.key, value: initialOverrideValue(parameter) })
       })
     }
   }
@@ -81,7 +81,7 @@ interface RowProps {
 
 function OverrideRow({ index, row, override, space, unused, edit, error }: RowProps) {
   const listId = useId()
-  const parameter = numericParameters(space).find((candidate) => candidate.key === override.key)
+  const parameter = space.parameters.find((candidate) => candidate.key === override.key)
   const choices = [override.key, ...unused].sort()
   return (
     <div className="override-row">
@@ -94,7 +94,7 @@ function OverrideRow({ index, row, override, space, unused, edit, error }: RowPr
               const chosen = space.parameters.find((candidate) => candidate.key === event.target.value)
               if (chosen) {
                 edit((d) => {
-                  d.variants[index]!.overrides[row] = { key: chosen.key, value: String(chosen.baseline) }
+                  d.variants[index]!.overrides[row] = { key: chosen.key, value: initialOverrideValue(chosen) }
                 })
               }
             }}
@@ -108,7 +108,17 @@ function OverrideRow({ index, row, override, space, unused, edit, error }: RowPr
         )}
       </Field>
       <Field label={`Value of parameter ${row + 1}`} error={error} hint={parameter ? describeParameter(parameter) : undefined}>
-        {(props) => (
+        {(props) =>
+          parameter !== undefined && isBooleanParameter(parameter) ? (
+            <select
+              {...props}
+              value={String(override.value)}
+              onChange={(event) => edit((d) => void (d.variants[index]!.overrides[row]!.value = event.target.value === 'true'))}
+            >
+              <option value="false">false</option>
+              <option value="true">true</option>
+            </select>
+          ) : (
           <>
             <input
               {...props}
@@ -117,12 +127,13 @@ function OverrideRow({ index, row, override, space, unused, edit, error }: RowPr
               autoComplete="off"
               spellCheck={false}
               list={listId}
-              value={override.value}
+              value={String(override.value)}
               onChange={(event) => edit((d) => void (d.variants[index]!.overrides[row]!.value = event.target.value))}
             />
-            <datalist id={listId}>{parameter && gridValues(parameter).map((value) => <option key={value} value={value} />)}</datalist>
+            <datalist id={listId}>{parameter && !isBooleanParameter(parameter) && gridValues(parameter).map((value) => <option key={value} value={value} />)}</datalist>
           </>
-        )}
+          )
+        }
       </Field>
       <button
         type="button"

@@ -1,5 +1,5 @@
 import type { Case, Comparison, Experiment, ExperimentManifest, LaneBundle, Report, Reproduction, ReproductionState, Run, RunEvaluation } from '../api/generated'
-import { numericParameters } from '../experiments/parameterSpace'
+import { isBooleanParameter } from '../experiments/parameterSpace'
 import { IDS, REPORT_CSV, SEAT_STEPS, caseDetail, comparison, criterion, eventStep, evaluation, experiment, experimentTemplates, laneBundles, parameterSpace, policyCatalog, preview, report, run } from './fixtures'
 
 export interface RecordedRequest {
@@ -133,16 +133,19 @@ export class FakeService {
       get(/^\/api\/v1\/experiment-templates$/, () => json({ items: experimentTemplates(), total: 2 })),
       get(/^\/api\/v1\/parameter-spaces$/, () => json({ items: [parameterSpace()] })),
       post(/^\/api\/v1\/variant-rules-previews$/, (request) => {
-        const body = request.body as { rulesArtifact: { digest: string }; parameterSpaceVersion: number; overrides: Record<string, number> }
+        const body = request.body as { rulesArtifact: { digest: string }; parameterSpaceVersion: number; overrides: Record<string, number | boolean> }
         const space = parameterSpace()
         const baseline = this.laneBundles.find((bundle) => bundle.rulesArtifact.digest === body.rulesArtifact.digest)
-        const changed: Record<string, number> = {}
+        const changed: Record<string, number | boolean> = {}
         for (const [key, value] of Object.entries(body.overrides).sort(([a], [b]) => a.localeCompare(b))) {
-          const parameter = numericParameters(space).find((candidate) => candidate.key === key)
+          const parameter = space.parameters.find((candidate) => candidate.key === key)
           if (!parameter) {
             return problem(400, 'INVALID_REQUEST', `${key} is not a parameter`, `overrides.${key}`, { reason: 'UNKNOWN_PARAMETER' })
           }
-          if (value < parameter.min || value > parameter.max) {
+          if (isBooleanParameter(parameter) !== (typeof value === 'boolean')) {
+            return problem(400, 'INVALID_REQUEST', `${key} takes ${isBooleanParameter(parameter) ? 'a boolean' : 'a number'}`, `overrides.${key}`, { reason: 'WRONG_TYPE' })
+          }
+          if (!isBooleanParameter(parameter) && typeof value === 'number' && (value < parameter.min || value > parameter.max)) {
             return problem(400, 'INVALID_REQUEST', `${key} must be from ${parameter.min} to ${parameter.max}: ${value}`, `overrides.${key}`, { reason: 'OUT_OF_RANGE' })
           }
           if (value !== parameter.baseline) {

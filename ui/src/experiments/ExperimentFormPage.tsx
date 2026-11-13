@@ -28,7 +28,7 @@ import {
   fingerprint,
   loadDraft,
   localProblems,
-  overrideNumber,
+  overrideValue,
   saveDraft,
   type Draft,
   type FieldErrors,
@@ -78,13 +78,13 @@ export function ExperimentFormPage() {
   // The rules each variant with overrides makes are the service's to compute: its digest enters the manifest.
   const rules = useQueries({
     queries: draft.variants.map((variant) => {
-      const complete = variant.bundle !== null && variant.parameterSpaceVersion !== null && variant.overrides.every((override) => overrideNumber(override.value) !== undefined)
+      const complete = variant.bundle !== null && variant.parameterSpaceVersion !== null && variant.overrides.every((override) => overrideValue(override.value) !== undefined)
       return variantRulesQuery(
         client,
         {
           rulesArtifact: { digest: variant.bundle?.rulesArtifact.digest ?? '' },
           parameterSpaceVersion: variant.parameterSpaceVersion ?? 1,
-          overrides: Object.fromEntries(variant.overrides.map((override) => [override.key, overrideNumber(override.value) ?? 0])),
+          overrides: Object.fromEntries(variant.overrides.map((override) => [override.key, overrideValue(override.value) ?? 0])),
         },
         complete && variant.overrides.length > 0,
       )
