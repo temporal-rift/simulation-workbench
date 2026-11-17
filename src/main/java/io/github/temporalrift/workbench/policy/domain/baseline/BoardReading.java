@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -120,17 +121,9 @@ final class BoardReading {
             }
             switch (special) {
                 case RALLY, MOMENTUM -> commitment.add(own.outcomeId());
-                case FORESIGHT -> {
-                    if (writtenEvents.add(own.eventId())) {
-                        written.add(own.outcomeId());
-                    }
-                }
+                case FORESIGHT -> write(own);
                 case FULFILLMENT -> fulfilledEvents.add(own.eventId());
-                case REWRITE -> {
-                    if (rewriteOutcome == null) {
-                        rewriteOutcome = own.outcomeId();
-                    }
-                }
+                case REWRITE -> rewriteOutcome = Objects.requireNonNullElse(rewriteOutcome, own.outcomeId());
                 case THREAD -> {
                     threaded = true;
                     threadOutcome = own.outcomeId();
@@ -141,6 +134,13 @@ final class BoardReading {
                     // No other special makes a commitment.
                 }
             }
+        }
+    }
+
+    /** The first Foresight on an event writes its outcome; a later one on the same event writes nothing new. */
+    private void write(Board.OwnSubmission foresight) {
+        if (writtenEvents.add(foresight.eventId())) {
+            written.add(foresight.outcomeId());
         }
     }
 

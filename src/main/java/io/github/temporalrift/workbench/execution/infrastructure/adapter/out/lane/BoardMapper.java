@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.ActionSummary;
@@ -49,7 +50,7 @@ final class BoardMapper {
     static Board board(PlayerGameStateResponse state) {
         return new Board(
                 state.getDeclarations().stream()
-                        .filter(declaration -> declaration.getEraNumber() == state.getEraNumber())
+                        .filter(declaration -> Objects.equals(declaration.getEraNumber(), state.getEraNumber()))
                         .map(BoardMapper::declaration)
                         .toList(),
                 summary(state.getLastRoundSummary()),
@@ -93,7 +94,7 @@ final class BoardMapper {
 
     private static List<Board.OwnSubmission> ownSubmissions(PlayerGameStateResponse state) {
         return state.getMySubmissions().stream()
-                .filter(submission -> submission.getEraNumber() == state.getEraNumber()
+                .filter(submission -> Objects.equals(submission.getEraNumber(), state.getEraNumber())
                         && submission.getStatus() == MySubmission.StatusEnum.ACCEPTED)
                 .map(BoardMapper::ownSubmission)
                 .toList();

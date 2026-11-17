@@ -96,6 +96,9 @@ final class FactionGreedyV2Policy implements BotPolicy {
                 top.add(candidate);
             }
         }
+        if (top.isEmpty()) {
+            return new PolicyDecision.Exhausted();
+        }
         return new PolicyDecision.Chosen(top.get(entropy.nextIndex(top.size())));
     }
 

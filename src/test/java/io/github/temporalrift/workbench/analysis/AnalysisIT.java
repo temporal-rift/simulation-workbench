@@ -457,19 +457,22 @@ class AnalysisIT {
     void theCriterionCatalogServesVersionsOneToThreeReadOnly() throws Exception {
         var catalog = objectMapper.readTree(read(
                 mockMvc.perform(get("/api/v1/balance-criteria").with(read())).andExpect(status().isOk())));
-        var one = objectMapper.readTree(read(
-                mockMvc.perform(get("/api/v1/balance-criteria/1").with(read())).andExpect(status().isOk())));
-
-        var two = objectMapper.readTree(read(
-                mockMvc.perform(get("/api/v1/balance-criteria/2").with(read())).andExpect(status().isOk())));
-
-        var three = objectMapper.readTree(read(
-                mockMvc.perform(get("/api/v1/balance-criteria/3").with(read())).andExpect(status().isOk())));
 
         assertThat(catalog.path("criteria")).hasSize(3);
-        assertThat(catalog.path("criteria").get(0)).isEqualTo(one);
-        assertThat(catalog.path("criteria").get(1)).isEqualTo(two);
-        assertThat(catalog.path("criteria").get(2)).isEqualTo(three);
+        assertThat(catalog.path("criteria").get(0)).isEqualTo(criterion(1));
+        assertThat(catalog.path("criteria").get(1)).isEqualTo(criterion(2));
+        assertThat(catalog.path("criteria").get(2)).isEqualTo(criterion(3));
+        mockMvc.perform(get("/api/v1/balance-criteria/4").with(read()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
+        mockMvc.perform(post("/api/v1/balance-criteria").with(read()).contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().is4xxClientError());
+    }
+
+    @Test
+    void criterionVersionOneServesItsLinesAndEvidence() throws Exception {
+        var one = criterion(1);
+
         assertThat(one.path("version").asInt()).isEqualTo(1);
         assertThat(one.path("aggregation").asString()).isEqualTo("WEIGHTED_SUM_OF_SQUARED_DEVIATIONS");
         assertThat(one.path("lines")).hasSize(15);
@@ -478,6 +481,12 @@ class AnalysisIT {
         assertThat(one.path("evidence").path("confirmationMinimumSeeds").asInt())
                 .isEqualTo(100);
         assertThat(one.path("lines").get(0).path("interval").asString()).isEqualTo("BLOCK_BOOTSTRAP");
+    }
+
+    @Test
+    void criterionVersionTwoServesTheRandomSeatTable() throws Exception {
+        var two = criterion(2);
+
         assertThat(two.path("version").asInt()).isEqualTo(2);
         assertThat(two.path("tables")).hasSize(3);
         assertThat(two.path("tables").get(2).path("id").asString()).isEqualTo("random-seat-vs-faction-greedy-v1");
@@ -493,14 +502,21 @@ class AnalysisIT {
         assertThat(g07.path("band").path("upper").asDouble()).isEqualTo(1.0);
         assertThat(two.path("evidence").path("confirmationMinimumSeeds").asInt())
                 .isEqualTo(104);
+    }
+
+    @Test
+    void criterionVersionThreeServesTheSecondGreedyTables() throws Exception {
+        var three = criterion(3);
+
         assertThat(three.path("version").asInt()).isEqualTo(3);
         assertThat(three.path("tables").get(0).path("id").asString()).isEqualTo("faction-greedy-v2");
         assertThat(three.path("tables").get(2).path("id").asString()).isEqualTo("random-seat-vs-faction-greedy-v2");
-        mockMvc.perform(get("/api/v1/balance-criteria/4").with(read()))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
-        mockMvc.perform(post("/api/v1/balance-criteria").with(read()).contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().is4xxClientError());
+    }
+
+    private JsonNode criterion(int version) throws Exception {
+        return objectMapper.readTree(
+                read(mockMvc.perform(get("/api/v1/balance-criteria/" + version).with(read()))
+                        .andExpect(status().isOk())));
     }
 
     private ScriptedLanes.Script driftingScript() {

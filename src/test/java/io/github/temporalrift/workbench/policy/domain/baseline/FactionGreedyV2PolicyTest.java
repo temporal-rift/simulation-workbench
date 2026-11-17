@@ -7,11 +7,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Test;
 
 import io.github.temporalrift.workbench.policy.PolicyFixtures;
 import io.github.temporalrift.workbench.policy.domain.decision.Candidate;
+import io.github.temporalrift.workbench.policy.domain.decision.CandidateGenerator;
 import io.github.temporalrift.workbench.policy.domain.decision.PolicyDecision;
 import io.github.temporalrift.workbench.policy.domain.decision.PolicyEntropy;
 import io.github.temporalrift.workbench.policy.domain.decision.Target;
@@ -146,14 +148,22 @@ class FactionGreedyV2PolicyTest {
 
     @Test
     void anotherParticipantsDeclarationIsNotFed() {
+        var bands = Map.of(A3, Band.HIGH);
+        var towardA3 = new Candidate.PlayCard(push(1).card().cardInstanceId(), new Target.EventOutcome(EVENT_A, A3));
         var declaration = new Board.PublicDeclaration(DECLARER, DeclarationMode.RALLY, EVENT_A, A3);
-        var board = board(List.of(special(1, SpecialAction.FORESIGHT, EVENT_C, C3)), null, null, List.of(declaration));
 
-        var chosen = choose(observation(Faction.PROPHETS, 2, List.of(), List.of(push(1)), board, bands()));
+        var undeclared = choose(observation(
+                Faction.PROPHETS, 2, List.of(), List.of(push(1)), board(List.of(), null, null, List.of()), bands));
+        var declared = choose(observation(
+                Faction.PROPHETS,
+                2,
+                List.of(),
+                List.of(push(1)),
+                board(List.of(), null, null, List.of(declaration)),
+                bands));
 
-        assertThat(chosen)
-                .isEqualTo(
-                        new Candidate.PlayCard(push(1).card().cardInstanceId(), new Target.EventOutcome(EVENT_C, C3)));
+        assertThat(undeclared).isEqualTo(towardA3);
+        assertThat(declared).isNotEqualTo(towardA3);
     }
 
     @Test
@@ -239,6 +249,23 @@ class FactionGreedyV2PolicyTest {
         assertThat(chosen instanceof Candidate.PlaySpecial(var action, var _) && action == SpecialAction.ANNIHILATE)
                 .as("chose %s", chosen)
                 .isFalse();
+    }
+
+    @Test
+    void onlyWastedCandidatesLeftExhaustTheWindow() {
+        var observation = observation(Faction.ERASERS, 3, specials(Faction.ERASERS), List.of(), Board.EMPTY, bands());
+        var excluded = CandidateGenerator.generate(observation).stream()
+                .filter(candidate -> !FactionGreedyV2Policy.wasted(candidate, BoardReading.of(observation)))
+                .collect(Collectors.toSet());
+
+        var decision = policy.decide(
+                observation,
+                excluded,
+                PolicyEntropy.derive(
+                        7, observation.seatIndex(), observation.window().ref(), excluded.size()));
+
+        assertThat(CandidateGenerator.generate(observation)).hasSizeGreaterThan(excluded.size());
+        assertThat(decision).isInstanceOf(PolicyDecision.Exhausted.class);
     }
 
     private Candidate chooseExcluding(EntitledObservation observation, Set<Candidate> excluded) {

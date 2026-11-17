@@ -58,7 +58,7 @@ class RunConfirmationServiceTest {
     @Test
     void versionThreeNamesTheSecondGreedyMajorAndKeepsRandomAtOne() {
         var three = TestCriteria.v3();
-        var service = new RunConfirmationService(evaluations, new BalanceCriteria() {
+        var versionThree = new RunConfirmationService(evaluations, new BalanceCriteria() {
             @Override
             public List<BalanceCriterion> all() {
                 return List.of(three);
@@ -70,7 +70,7 @@ class RunConfirmationServiceTest {
             }
         });
 
-        assertThat(service.policies(3))
+        assertThat(versionThree.policies(3))
                 .containsExactlyInAnyOrder(
                         new io.github.temporalrift.workbench.analysis.RunConfirmation.PolicyRef("faction-greedy", "2"),
                         new io.github.temporalrift.workbench.analysis.RunConfirmation.PolicyRef("random", "1"));
