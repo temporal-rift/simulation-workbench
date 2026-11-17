@@ -20,6 +20,7 @@ import io.github.temporalrift.workbench.policy.domain.decision.Candidate;
 import io.github.temporalrift.workbench.policy.domain.decision.CandidateGenerator;
 import io.github.temporalrift.workbench.policy.domain.decision.PolicyDecision;
 import io.github.temporalrift.workbench.policy.domain.decision.PolicyEntropy;
+import io.github.temporalrift.workbench.policy.domain.observation.Board;
 import io.github.temporalrift.workbench.policy.domain.observation.DealtCard;
 import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow;
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
@@ -84,7 +85,14 @@ class BaselinePoliciesTest {
                 .map(String::toLowerCase)
                 .toList();
 
-        assertThat(components).containsExactlyInAnyOrder("seatindex", "faction", "events", "otherplayerids", "window");
+        assertThat(components)
+                .containsExactlyInAnyOrder("seatindex", "faction", "events", "otherplayerids", "window", "board");
+        var boardFacts = Stream.of(Board.class.getRecordComponents())
+                .map(RecordComponent::getName)
+                .toList();
+        assertThat(boardFacts)
+                .containsExactlyInAnyOrder(
+                        "declarations", "lastRoundSummary", "ownSubmissions", "chain", "openParadoxes");
         assertThat(components.stream().filter(name -> forbidden.stream().anyMatch(name::equals)))
                 .isEmpty();
     }
@@ -100,6 +108,45 @@ class BaselinePoliciesTest {
                 .isNotEqualTo(BaselinePolicies.FACTION_GREEDY_V1.artifactDigest());
         assertThat(BaselinePolicies.find("random", "1.0.0")).contains(BaselinePolicies.RANDOM_V1);
         assertThat(BaselinePolicies.find("random", "2.0.0")).isEmpty();
+        assertThat(BaselinePolicies.FACTION_GREEDY_V2.version()).isEqualTo("2.0.0");
+        assertThat(BaselinePolicies.FACTION_GREEDY_V2.artifactDigest())
+                .isEqualTo(sha256("faction-greedy|2.0.0|" + FactionGreedyV2Policy.DEFINITION));
+        assertThat(BaselinePolicies.find("faction-greedy", "2.0.0")).contains(BaselinePolicies.FACTION_GREEDY_V2);
+    }
+
+    @Test
+    void theServedDigestsOfTheVersionOneBundlesAreUnchanged() {
+        assertThat(BaselinePolicies.FACTION_GREEDY_V1.artifactDigest())
+                .isEqualTo("7078aebf5a3afa7d06de5e891588a06be85c68f8239393d06fadad827149e2bb");
+        assertThat(BaselinePolicies.RANDOM_V1.artifactDigest())
+                .isEqualTo("b264b46280ba0a4827ab868ea97b9214fa1a8764c116d1f0d3107a5d8a7476dd");
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @org.junit.jupiter.params.provider.EnumSource(Faction.class)
+    void boardFactsDoNotMoveAVersionOneGreedyChoice(Faction faction) {
+        var plain = PolicyFixtures.actionRound(faction);
+        var withBoard = new EntitledObservation(
+                plain.seatIndex(),
+                plain.faction(),
+                plain.events(),
+                plain.otherPlayerIds(),
+                plain.window(),
+                new Board(
+                        List.of(new Board.PublicDeclaration(
+                                PolicyFixtures.id(0x01),
+                                io.github.temporalrift.workbench.policy.domain.observation.DeclarationMode.RALLY,
+                                PolicyFixtures.EVENT_A,
+                                PolicyFixtures.A_LOW)),
+                        null,
+                        List.of(),
+                        new Board.ChainView(Board.ChainStatus.ACTIVE, 2),
+                        List.of()));
+
+        var policy = BaselinePolicies.FACTION_GREEDY_V1.policy();
+
+        assertThat(policy.decide(withBoard, Set.of(), entropy(withBoard)))
+                .isEqualTo(policy.decide(plain, Set.of(), entropy(plain)));
     }
 
     @Test

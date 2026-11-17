@@ -2,6 +2,7 @@ package io.github.temporalrift.workbench.execution.infrastructure.serialization;
 
 import java.util.Map;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import tools.jackson.core.JacksonException;
@@ -9,8 +10,11 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.SerializationFeature;
 import tools.jackson.databind.json.JsonMapper;
 
+import io.github.temporalrift.workbench.policy.domain.observation.Board;
 import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow;
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
+import io.github.temporalrift.workbench.policy.domain.observation.OutcomeView;
+import io.github.temporalrift.workbench.policy.domain.observation.PublicBand;
 
 /**
  * The canonical JSON text of what a seat observed. Keys are sorted, so equal observations have equal text
@@ -24,6 +28,8 @@ public final class ObservationJson {
     private static final JsonMapper MAPPER = JsonMapper.builder()
             .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
             .addMixIn(DecisionWindow.class, WindowKinds.class)
+            .addMixIn(EntitledObservation.class, BoardWhenPresent.class)
+            .addMixIn(OutcomeView.class, BandWhenPublished.class)
             .build();
 
     private ObservationJson() {}
@@ -75,4 +81,32 @@ public final class ObservationJson {
         @JsonSubTypes.Type(value = DecisionWindow.TerminalReadiness.class, name = "TerminalReadiness")
     })
     private interface WindowKinds {}
+
+    /**
+     * An observation without board facts keeps the text it had before board facts existed, so retained texts
+     * compare equal to new ones.
+     */
+    private interface BoardWhenPresent {
+        @JsonInclude(value = JsonInclude.Include.CUSTOM, valueFilter = EmptyBoard.class)
+        Board board();
+    }
+
+    /** An outcome whose band is not published keeps its earlier text. */
+    private interface BandWhenPublished {
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        PublicBand band();
+    }
+
+    /** Excludes the empty board; Jackson calls {@code equals} with the property value. */
+    private static final class EmptyBoard {
+        @Override
+        public boolean equals(Object value) {
+            return Board.EMPTY.equals(value);
+        }
+
+        @Override
+        public int hashCode() {
+            return Board.EMPTY.hashCode();
+        }
+    }
 }
