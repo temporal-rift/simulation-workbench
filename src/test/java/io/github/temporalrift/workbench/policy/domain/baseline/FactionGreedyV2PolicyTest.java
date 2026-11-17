@@ -46,6 +46,7 @@ class FactionGreedyV2PolicyTest {
     private static final UUID SHIFTER = PolicyFixtures.id(0x02);
     private static final UUID QUIET = PolicyFixtures.id(0x03);
     private static final UUID DECLARER = PolicyFixtures.id(0x01);
+    private static final UUID SELF = PolicyFixtures.id(0x09);
 
     private final FactionGreedyV2Policy policy = new FactionGreedyV2Policy();
 
@@ -180,24 +181,18 @@ class FactionGreedyV2PolicyTest {
 
     @Test
     void anActivistBacksItsOwnDeclaredOutcome() {
-        var own = new Board.OwnSubmission(
-                WindowKind.DECLARATION,
-                null,
-                null,
-                null,
-                SpecialAction.RALLY,
-                EVENT_B,
-                PolicyFixtures.id(0xB1),
-                null,
-                List.of(),
-                List.of());
+        // As the projection records it: the own declaration submission carries no mode or target; the public
+        // declaration by the seat (a player that is not among the others) does.
+        var submission = new Board.OwnSubmission(
+                WindowKind.DECLARATION, null, null, null, null, null, null, null, List.of(), List.of());
+        var declaration = new Board.PublicDeclaration(SELF, DeclarationMode.RALLY, EVENT_B, PolicyFixtures.id(0xB1));
 
         var chosen = choose(observation(
                 Faction.ACTIVISTS,
                 3,
                 List.of(),
                 List.of(push(1)),
-                board(List.of(own), null, null, List.of()),
+                board(List.of(submission), null, null, List.of(declaration)),
                 bands()));
 
         assertThat(chosen)
@@ -246,7 +241,7 @@ class FactionGreedyV2PolicyTest {
 
         var chosen = chooseExcluding(observation, refused);
 
-        assertThat(chosen instanceof Candidate.PlaySpecial(var action, var _) && action == SpecialAction.ANNIHILATE)
+        assertThat(chosen instanceof Candidate.PlaySpecial special && special.action() == SpecialAction.ANNIHILATE)
                 .as("chose %s", chosen)
                 .isFalse();
     }

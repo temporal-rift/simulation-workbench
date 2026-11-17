@@ -11,6 +11,7 @@ import io.github.temporalrift.workbench.policy.PolicyFixtures;
 import io.github.temporalrift.workbench.policy.domain.observation.Band;
 import io.github.temporalrift.workbench.policy.domain.observation.Board;
 import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow;
+import io.github.temporalrift.workbench.policy.domain.observation.DeclarationMode;
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
 import io.github.temporalrift.workbench.policy.domain.observation.EventView;
 import io.github.temporalrift.workbench.policy.domain.observation.OutcomeView;
@@ -65,23 +66,37 @@ class BoardReadingTest {
         var rewrite = own(1, SpecialAction.REWRITE, HIGH_BAND);
         var thread = own(1, SpecialAction.THREAD, LOW_PRINTED_HIGH);
         var reweave = own(3, SpecialAction.REWEAVE, HIGH_BAND);
-        var rally = new Board.OwnSubmission(
-                WindowKind.DECLARATION,
-                null,
-                null,
-                null,
-                SpecialAction.RALLY,
-                EVENT,
-                UNBANDED,
-                null,
-                List.of(),
-                List.of());
 
         assertThat(commitment(Faction.PROPHETS, foresight)).isEqualTo(HIGH_BAND);
         assertThat(commitment(Faction.REVISIONISTS, rewrite)).isEqualTo(HIGH_BAND);
         assertThat(commitment(Faction.WEAVERS, thread, reweave)).isEqualTo(HIGH_BAND);
-        assertThat(commitment(Faction.ACTIVISTS, rally)).isEqualTo(UNBANDED);
         assertThat(commitment(Faction.ERASERS, foresight)).isNull();
+    }
+
+    @Test
+    void theSeatsOwnPublicDeclarationIsItsCommitmentAndAnotherIsNot() {
+        var self = PolicyFixtures.id(0x09);
+        var other = PolicyFixtures.players().getFirst();
+        var declarations = List.of(
+                new Board.PublicDeclaration(self, DeclarationMode.RALLY, EVENT, UNBANDED),
+                new Board.PublicDeclaration(other, DeclarationMode.MOMENTUM, EVENT, HIGH_BAND));
+        var reading = BoardReading.of(new EntitledObservation(
+                0,
+                Faction.ACTIVISTS,
+                List.of(new EventView(
+                        EVENT,
+                        List.of(
+                                new OutcomeView(LOW_PRINTED_HIGH, 20, null),
+                                new OutcomeView(HIGH_BAND, 30, null),
+                                new OutcomeView(UNBANDED, 50, null)))),
+                PolicyFixtures.players(),
+                new DecisionWindow.ActionRound(1, 2, List.of(), List.of(), List.of()),
+                new Board(declarations, null, List.of(), null, List.of())));
+
+        assertThat(reading.isCommitment(UNBANDED)).isTrue();
+        assertThat(reading.isDeclaredByOther(UNBANDED)).isFalse();
+        assertThat(reading.isCommitment(HIGH_BAND)).isFalse();
+        assertThat(reading.isDeclaredByOther(HIGH_BAND)).isTrue();
     }
 
     private static UUID commitment(Faction faction, Board.OwnSubmission... own) {

@@ -58,9 +58,13 @@ final class BoardReading {
             commitment.add(threadOutcome);
         }
         var others = Set.copyOf(observation.otherPlayerIds());
+        // The public declarations of the era are the only place the seat's own declared outcome appears: its own
+        // declaration submission records the window, not the mode or target.
         for (var declaration : board.declarations()) {
             if (others.contains(declaration.playerId())) {
                 othersDeclared.add(declaration.outcomeId());
+            } else {
+                commitment.add(declaration.outcomeId());
             }
         }
         var summary = board.lastRoundSummary();
@@ -120,7 +124,6 @@ final class BoardReading {
                 continue;
             }
             switch (special) {
-                case RALLY, MOMENTUM -> commitment.add(own.outcomeId());
                 case FORESIGHT -> write(own);
                 case FULFILLMENT -> fulfilledEvents.add(own.eventId());
                 case REWRITE -> rewriteOutcome = Objects.requireNonNullElse(rewriteOutcome, own.outcomeId());
