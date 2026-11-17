@@ -14,11 +14,15 @@ import io.github.temporalrift.workbench.policy.domain.observation.Board;
  */
 class ParadoxTypeContractTest {
 
+    /** {@code UNKNOWN} is the decoder's fallback for an unrecognized wire value, not a published paradox type. */
     @Test
     void theAnalysisTypesMatchThePublishedTimelineTypes() {
-        assertThat(names(ParadoxType.values()))
-                .containsExactlyInAnyOrder(names(
-                        io.github.temporalrift.asyncapi.timelineevents.GeneratedChannelContract.ParadoxType.values()));
+        var published = Arrays.stream(
+                        io.github.temporalrift.asyncapi.timelineevents.GeneratedChannelContract.ParadoxType.values())
+                .map(Enum::name)
+                .filter(name -> !name.equals("UNKNOWN"))
+                .toArray(String[]::new);
+        assertThat(names(ParadoxType.values())).containsExactlyInAnyOrder(published);
     }
 
     @Test
