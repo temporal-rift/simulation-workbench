@@ -4,5 +4,6 @@ package io.github.temporalrift.workbench.analysis.domain.game;
 public enum ParadoxType {
     DEAD_HEAT,
     IMPOSSIBLE_ERASURE,
-    CHAIN_CONFLICT
+    CHAIN_CONFLICT,
+    FATE_CONTRADICTION
 }
