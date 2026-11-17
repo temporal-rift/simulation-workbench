@@ -454,7 +454,7 @@ class AnalysisIT {
     }
 
     @Test
-    void theCriterionCatalogServesVersionsOneAndTwoReadOnly() throws Exception {
+    void theCriterionCatalogServesVersionsOneToThreeReadOnly() throws Exception {
         var catalog = objectMapper.readTree(read(
                 mockMvc.perform(get("/api/v1/balance-criteria").with(read())).andExpect(status().isOk())));
         var one = objectMapper.readTree(read(
@@ -463,9 +463,13 @@ class AnalysisIT {
         var two = objectMapper.readTree(read(
                 mockMvc.perform(get("/api/v1/balance-criteria/2").with(read())).andExpect(status().isOk())));
 
-        assertThat(catalog.path("criteria")).hasSize(2);
+        var three = objectMapper.readTree(read(
+                mockMvc.perform(get("/api/v1/balance-criteria/3").with(read())).andExpect(status().isOk())));
+
+        assertThat(catalog.path("criteria")).hasSize(3);
         assertThat(catalog.path("criteria").get(0)).isEqualTo(one);
         assertThat(catalog.path("criteria").get(1)).isEqualTo(two);
+        assertThat(catalog.path("criteria").get(2)).isEqualTo(three);
         assertThat(one.path("version").asInt()).isEqualTo(1);
         assertThat(one.path("aggregation").asString()).isEqualTo("WEIGHTED_SUM_OF_SQUARED_DEVIATIONS");
         assertThat(one.path("lines")).hasSize(15);
@@ -489,7 +493,10 @@ class AnalysisIT {
         assertThat(g07.path("band").path("upper").asDouble()).isEqualTo(1.0);
         assertThat(two.path("evidence").path("confirmationMinimumSeeds").asInt())
                 .isEqualTo(104);
-        mockMvc.perform(get("/api/v1/balance-criteria/3").with(read()))
+        assertThat(three.path("version").asInt()).isEqualTo(3);
+        assertThat(three.path("tables").get(0).path("id").asString()).isEqualTo("faction-greedy-v2");
+        assertThat(three.path("tables").get(2).path("id").asString()).isEqualTo("random-seat-vs-faction-greedy-v2");
+        mockMvc.perform(get("/api/v1/balance-criteria/4").with(read()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
         mockMvc.perform(post("/api/v1/balance-criteria").with(read()).contentType(MediaType.APPLICATION_JSON))
