@@ -212,21 +212,42 @@ class FactionGreedyV2PolicyTest {
     }
 
     @Test
-    void aRefusedSpecialIsNotRetriedOnAnotherTargetInTheSameWindow() {
+    void aRefusedSpecialIsNotRetriedOnTheSameEventInTheSameWindow() {
         var observation =
                 observation(Faction.ERASERS, 1, specials(Faction.ERASERS), List.of(push(1)), Board.EMPTY, bands());
         var refused = new Candidate.PlaySpecial(SpecialAction.ANNIHILATE, new Target.EventOutcome(EVENT_A, A3));
 
-        var decision = policy.decide(
-                observation,
-                Set.of(refused),
-                PolicyEntropy.derive(
-                        7, observation.seatIndex(), observation.window().ref(), 1));
+        var chosen = chooseExcluding(observation, Set.of(refused));
 
-        var chosen = ((PolicyDecision.Chosen) decision).candidate();
+        assertThat(chosen).isInstanceOfSatisfying(Candidate.PlaySpecial.class, play -> {
+            assertThat(play.action()).isEqualTo(SpecialAction.ANNIHILATE);
+            assertThat(((Target.EventOutcome) play.target()).eventId()).isNotEqualTo(EVENT_A);
+        });
+    }
+
+    @Test
+    void aSpecialRefusedOnEveryEventIsNotTriedAgain() {
+        var observation =
+                observation(Faction.ERASERS, 1, specials(Faction.ERASERS), List.of(push(1)), Board.EMPTY, bands());
+        var refused = Set.<Candidate>of(
+                new Candidate.PlaySpecial(SpecialAction.ANNIHILATE, new Target.EventOutcome(EVENT_A, A3)),
+                new Candidate.PlaySpecial(SpecialAction.ANNIHILATE, new Target.EventOutcome(EVENT_B, B3)),
+                new Candidate.PlaySpecial(SpecialAction.ANNIHILATE, new Target.EventOutcome(EVENT_C, C3)));
+
+        var chosen = chooseExcluding(observation, refused);
+
         assertThat(chosen instanceof Candidate.PlaySpecial(var action, var _) && action == SpecialAction.ANNIHILATE)
                 .as("chose %s", chosen)
                 .isFalse();
+    }
+
+    private Candidate chooseExcluding(EntitledObservation observation, Set<Candidate> excluded) {
+        var decision = policy.decide(
+                observation,
+                excluded,
+                PolicyEntropy.derive(
+                        7, observation.seatIndex(), observation.window().ref(), excluded.size()));
+        return ((PolicyDecision.Chosen) decision).candidate();
     }
 
     @Test

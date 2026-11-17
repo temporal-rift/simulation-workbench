@@ -1190,7 +1190,8 @@ rank below ordinary cards and are rarely played.
 
 - *Read the board.* Outcomes rank by public band (none counts as `MEDIUM`), then by own Scan value, else printed
   weight; the rank is the share of outcomes strictly below, 0 to 100. No band edge is assumed.
-- *Skip waste.* Once the service refuses a special in a window, it tries no other target of it there. It never plays
+- *Skip waste.* Once the service refuses a special in a window, it does not try it there again on the same event or
+  participant. It never plays
   a Foresight on an event it wrote this era, a second Thread or Rewrite in an era (a Thread again only after its
   Tapestry absorbed an erasure), an Obscure in Round 3, a Reweave unless its Thread outcome fell to `LOW` with no
   Tapestry armed, a Tapestry below two confirmed links, a Fulfillment or Seal off its

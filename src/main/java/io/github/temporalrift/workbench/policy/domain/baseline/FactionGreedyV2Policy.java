@@ -49,7 +49,8 @@ final class FactionGreedyV2Policy implements BotPolicy {
             outcome, Prophet first Foresight outcome per event
             adjustment for Push, Swing destination and Mimic: +200 toward own commitment not LOW; -200 toward another \
             participant's declared outcome that is not own commitment
-            refused special: once the service refuses a special in a window, no other target of it is tried there
+            refused special: once the service refuses a special in a window, it is not tried again there on the same \
+            event or participant
             waste (never chosen): Foresight on an event already written; Thread after an accepted Thread, unless a \
             Tapestry was armed and the Thread outcome fell to LOW; Rewrite after an accepted Rewrite; Obscure in \
             round 3; Reweave without a Thread, after a Tapestry, while the Thread outcome is not LOW, or onto the \
@@ -75,12 +76,11 @@ final class FactionGreedyV2Policy implements BotPolicy {
         }
         var reading = BoardReading.of(observation);
         var cards = cardsById(observation);
-        var refusedSpecials = refusedSpecials(excluded);
+        var refused = refusedSpecials(excluded);
         var survivors = withoutLowWhereAvoidable(
                 available.stream()
                         .filter(candidate -> !wasted(candidate, reading))
-                        .filter(candidate -> !(candidate instanceof Candidate.PlaySpecial(var action, var _))
-                                || !refusedSpecials.contains(action))
+                        .filter(candidate -> !refused.contains(refusalKey(candidate)))
                         .toList(),
                 cards,
                 reading);
@@ -137,15 +137,32 @@ final class FactionGreedyV2Policy implements BotPolicy {
         return reading.tapestryArmed() && reading.isLow(reading.threadOutcome());
     }
 
-    /** Specials the service refused in this window: their refusal is about the special, so no other target is tried. */
-    private static Set<SpecialAction> refusedSpecials(Set<Candidate> excluded) {
-        var refused = new HashSet<SpecialAction>();
+    /**
+     * The specials the service refused in this window, each with the event or participant it named. A refusal is
+     * about the special's timing, budget or that event (a stalled one, say), so another outcome of the same event or
+     * another target of the same participant is not tried, while another event still is.
+     */
+    private static Set<Object> refusedSpecials(Set<Candidate> excluded) {
+        var refused = new HashSet<Object>();
         for (var candidate : excluded) {
-            if (candidate instanceof Candidate.PlaySpecial(var action, var _)) {
-                refused.add(action);
+            var key = refusalKey(candidate);
+            if (key != null) {
+                refused.add(key);
             }
         }
         return refused;
+    }
+
+    /** The special and the event or participant it names, or null for anything but a special. */
+    private static Object refusalKey(Candidate candidate) {
+        if (!(candidate instanceof Candidate.PlaySpecial(var action, var target))) {
+            return null;
+        }
+        return switch (target) {
+            case Target.EventOutcome(var eventId, var _) -> List.of(action, eventId);
+            case Target.Player(var playerId) -> List.of(action, playerId);
+            default -> List.of(action);
+        };
     }
 
     /**
