@@ -179,6 +179,7 @@ final class ObservationMapper {
                     FailureCode.CONFIGURATION_DRIFT, "Seat " + seatIndex + " has no faction in the game state");
         }
         var scanned = scannedWeights(state.getMyRevealedIntel());
+        var bands = BoardMapper.bands(state);
         var events = activeEvents.stream()
                 .map(event -> new EventView(
                         event.getEventId(),
@@ -186,7 +187,8 @@ final class ObservationMapper {
                                 .map(outcome -> new OutcomeView(
                                         outcome.getOutcomeId(),
                                         outcome.getInitialProbability(),
-                                        scanned.get(outcome.getOutcomeId())))
+                                        scanned.get(outcome.getOutcomeId()),
+                                        bands.get(outcome.getOutcomeId())))
                                 .toList()))
                 .toList();
         var others = state.getPlayers().stream()
@@ -194,7 +196,12 @@ final class ObservationMapper {
                 .filter(id -> !id.equals(playerId))
                 .toList();
         return new EntitledObservation(
-                seatIndex, Faction.valueOf(state.getMyFaction().name()), events, others, window);
+                seatIndex,
+                Faction.valueOf(state.getMyFaction().name()),
+                events,
+                others,
+                window,
+                BoardMapper.board(state));
     }
 
     /** The exact weights this participant bought itself; the most recent observation of an outcome wins. */

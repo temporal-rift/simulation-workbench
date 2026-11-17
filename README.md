@@ -1090,8 +1090,11 @@ and declares neither tables nor interval rules in its file, which keeps its dige
 policy and the bootstrap interval on every line. Version 2 adds the confirmation-only table
 `random-seat-vs-faction-greedy-v1` (seat 0 `random-v1`, the other seats `faction-greedy-v1`), measures G-07 on its
 random seat, widens the interval of its share lines with a non-zero limit, and needs 104 confirmation seeds.
-A criterion names a policy as its id with the major version (`faction-greedy-v1` is policy `faction-greedy` at
-`1.0.0`).
+Version 3 is version 2 with `faction-greedy-v2` in place of `faction-greedy-v1` (tables `faction-greedy-v2`,
+`random-v1` and `random-seat-vs-faction-greedy-v2`); every line, band and evidence rule is unchanged. As the newest
+version it is the default criterion of a new campaign, whose default policies are then `faction-greedy` `2.0.0` and
+`random` `1.0.0`. A criterion names a policy as its id with the major version (`faction-greedy-v1` is policy
+`faction-greedy` at `1.0.0`, `faction-greedy-v2` at `2.0.0`).
 
 `GET /api/v1/runs/{runId}/evaluation?variantLabel=&criterionVersion=&mode=` (`simulation:read`) evaluates one variant of
 a run against one criterion version. Nothing is stored: it is derived from the run's current cases on every read, with
@@ -1144,21 +1147,26 @@ divergence.
 
 ## Bot policies
 
-Two baseline policies play every normal decision window. Each decision uses one frozen
+Three baseline policies play every normal decision window. Each decision uses one frozen
 `EntitledObservation` per seat: the seat's own faction and hand (in action rounds every card with its
-playability, and the playable ones as candidates), the visible events (printed weights, plus an exact
-weight only when the seat earned it, for example through Scan), the other participants' identifiers, and
-the open window. Observer evidence, opposing hands or credentials, and execution-control state have no
-field on the type, so they cannot influence a choice.
+playability, and the playable ones as candidates), the visible events (printed weights, the current era's
+public band once published, plus an exact weight only when the seat earned it, for example through Scan), the
+other participants' identifiers, the board, and the open window. The board holds the current era's public
+Activist declarations, the latest public round summary, the seat's own accepted submissions of the era, the
+game's public Weaver chain, and the open paradoxes; every board fact is settled before the window opens, and
+scores, timers and revisions are never read. Observer evidence, opposing hands or credentials, and
+execution-control state have no field on the type, so they cannot influence a choice. An observation without
+board facts keeps the canonical text it had before the board existed, so retained evidence still compares equal.
 
 | Bundle | Id / version | Behavior |
 |---|---|---|
 | `random-v1` | `random` / `1.0.0` | Uniform seeded draw over the canonically ordered candidates, pass or decline included |
-| `faction-greedy-v1` | `faction-greedy` / `1.0.0` | Scores each candidate as `affinity * 1000 + target lean`, then draws among the top scores with seeded entropy |
+| `faction-greedy-v1` | `faction-greedy` / `1.0.0` | Scores each candidate as `affinity * 1000 + target lean`, then draws among the top scores with seeded entropy; ignores the board |
+| `faction-greedy-v2` | `faction-greedy` / `2.0.0` | One recipe for every faction: reads the board, skips wasted actions, backs its own commitment, does not feed another player's declaration, plays its faction's counter on its trigger |
 
 A manifest references a bundle by `id`, `version`, and `artifactDigest`. The digest is the SHA-256 of the
-bundle identity and its canonical definition (for `faction-greedy-v1`, the full preference table), so a
-changed preference needs a new bundle version. The baselines accept no parameters. An unknown id/version
+bundle identity and its canonical definition (for `faction-greedy-v1`, the full preference table; for
+`faction-greedy-v2`, its rules, bonuses and the same table), so a changed preference needs a new bundle version. The baselines accept no parameters. An unknown id/version
 or any parameter yields `INVALID_EXPERIMENT`; a wrong digest yields `MANIFEST_MISMATCH`.
 
 Windows covered: seven-to-five hand selection, declaration or decline, action rounds (every card and
@@ -1174,7 +1182,29 @@ the same choice.
 toward the highest or lowest known outcome weight (suppress-style actions by Erasers and raise-style actions by
 the others aim at the leading outcome). Activists prefer declaring over declining; reactive paradox cards rank
 by faction (for example Stabilize for Prophets and Weavers, Detonate for Erasers). Players are targeted by seeded
-tie-break only, since opponents' factions and hands are hidden.
+tie-break only, since opponents' factions and hands are hidden. Because it sees only printed weights, every seat aims
+at the same printed leader, and counters such as Tapestry, Reweave, Seal, Fulfillment, Expose, Mimic and Corrupt
+rank below ordinary cards and are rarely played.
+
+**`faction-greedy-v2` recipe.** It keeps v1's affinity table and applies the same rules to every faction:
+
+- *Read the board.* Outcomes rank by public band (none counts as `MEDIUM`), then by own Scan value, else printed
+  weight; the rank is the share of outcomes strictly below, 0 to 100. No band edge is assumed.
+- *Skip waste.* Once the service refuses a special in a window, it does not try it there again on the same event or
+  participant. It never plays
+  a Foresight on an event it wrote this era, a second Thread or Rewrite in an era (a Thread again only after its
+  Tapestry absorbed an erasure), an Obscure in Round 3, a Reweave unless its Thread outcome fell to `LOW` with no
+  Tapestry armed, a Tapestry below two confirmed links, a Fulfillment or Seal off its
+  written outcome, a Mimic off its Rewrite outcome, an Expose or Corrupt against a participant the previous round's
+  summary does not show playing a Probability Shifter card, or a raise toward a `LOW` outcome when the same card or
+  special has another target.
+- *Back its own commitment* (the declared, rewritten, threaded or written outcome): `+200` on a Push, Swing or Mimic
+  toward it; *don't feed others*: `-200` toward another participant's declared outcome.
+- *Play the counter on its trigger:* Tapestry, Reweave and Fulfillment (on a `HIGH` written outcome) at affinity 7,
+  Seal at 6, Expose, Mimic and Corrupt at 5, all above ordinary cards.
+
+It has no rule aimed at a faction. A change to any of these rules is a new bundle version, made only for a defect
+(a wasted action, an illegal choice, a counter that never fires), never to move a win ratio.
 
 **Window procedure.** The runner implements `ParticipantGateway` over the generated participant clients and drives
 `DecisionWindowService`: every seat's observation is frozen and every choice computed before any submission, then

@@ -29,6 +29,8 @@ class ConfiguredBalanceCriteriaTest {
     private static final String MIXED = "random-seat-vs-faction-greedy-v1";
     /** The digest version 1 was approved and served with; adding later versions must never change it. */
     private static final String VERSION_ONE_DIGEST = "1e2a1552bc125b4b28b14d5cb09adaf23036f5688fb8b46075965dae04cd8e22";
+    /** The digest version 2 was served and evaluated with; adding later versions must never change it. */
+    private static final String VERSION_TWO_DIGEST = "33f4ebd0113d5c23d5493bb295b01d628599c4fa4fb33b5b82d6c77358f8e30f";
 
     @Test
     void theAggregationAndEvidenceRuleHoldTheVersionOneValues() {
@@ -106,13 +108,31 @@ class ConfiguredBalanceCriteriaTest {
     }
 
     @Test
-    void theConfigurationServesVersionsOneAndTwoSoTheNewestIsTwo() {
+    void theConfigurationServesVersionsOneToThreeSoTheNewestIsThree() {
         var criteria = new ConfiguredBalanceCriteria(MAPPER);
 
-        assertThat(criteria.all()).extracting(BalanceCriterion::version).containsExactly(1, 2);
-        assertThat(criteria.find(2))
+        assertThat(criteria.all()).extracting(BalanceCriterion::version).containsExactly(1, 2, 3);
+        assertThat(criteria.find(2)).map(BalanceCriterion::digest).contains(VERSION_TWO_DIGEST);
+        assertThat(criteria.find(3))
                 .map(BalanceCriterion::digest)
-                .contains(TestCriteria.v2().digest());
+                .contains(TestCriteria.v3().digest());
+    }
+
+    @Test
+    void versionThreeIsVersionTwoMeasuredWithFactionGreedyVersionTwo() {
+        var expected = (ObjectNode) MAPPER.readTree(TestCriteria.v2Source()
+                .replace("faction-greedy-v1", "faction-greedy-v2")
+                .replace("\"title\": \"Balance criterion version 2\"", "\"title\": \"Balance criterion version 3\""));
+        expected.put("version", 3);
+
+        assertThat(MAPPER.readTree(TestCriteria.v3Source())).isEqualTo(expected);
+        var criterion = TestCriteria.v3();
+        assertThat(criterion.tables())
+                .extracting(CriterionTable::id)
+                .containsExactly("faction-greedy-v2", "random-v1", "random-seat-vs-faction-greedy-v2");
+        assertThat(line(criterion.lines(), "G-07").populations())
+                .containsExactly(new CriterionPopulation("random-seat-vs-faction-greedy-v2", "random-v1"));
+        assertThat(criterion.evidence().confirmationMinimumSeeds()).isEqualTo(104);
     }
 
     @Test

@@ -56,6 +56,27 @@ class RunConfirmationServiceTest {
     }
 
     @Test
+    void versionThreeNamesTheSecondGreedyMajorAndKeepsRandomAtOne() {
+        var three = TestCriteria.v3();
+        var versionThree = new RunConfirmationService(evaluations, new BalanceCriteria() {
+            @Override
+            public List<BalanceCriterion> all() {
+                return List.of(three);
+            }
+
+            @Override
+            public Optional<BalanceCriterion> find(int version) {
+                return version == 3 ? Optional.of(three) : Optional.empty();
+            }
+        });
+
+        assertThat(versionThree.policies(3))
+                .containsExactlyInAnyOrder(
+                        new io.github.temporalrift.workbench.analysis.RunConfirmation.PolicyRef("faction-greedy", "2"),
+                        new io.github.temporalrift.workbench.analysis.RunConfirmation.PolicyRef("random", "1"));
+    }
+
+    @Test
     void anUnknownCriterionIsRefused() {
         assertThatThrownBy(() -> service.minimumSeeds(99)).isInstanceOf(IllegalArgumentException.class);
     }

@@ -14,6 +14,7 @@ import io.github.temporalrift.workbench.experiment.application.query.PreviewMatr
 import io.github.temporalrift.workbench.experiment.infrastructure.adapter.out.policy.PolicyReferenceVerifierAdapter;
 import io.github.temporalrift.workbench.fidelity.domain.EdgeVariants;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityEnvironment;
+import io.github.temporalrift.workbench.fidelity.domain.FidelityMatrix;
 import io.github.temporalrift.workbench.fidelity.domain.FidelityVariant;
 import io.github.temporalrift.workbench.fidelity.domain.VariantLabel;
 import io.github.temporalrift.workbench.fidelity.domain.port.out.FidelityEnvironments;
@@ -60,6 +61,7 @@ class FidelityManifestFactoryTest {
     private static List<FidelityExperiments.Policy> policies() {
         var catalog = new BaselinePolicyCatalog();
         return catalog.list().stream()
+                .filter(policy -> policy.version().equals(FidelityMatrix.POLICY_VERSION))
                 .map(policy -> new FidelityExperiments.Policy(policy.id(), policy.version(), policy.artifactDigest()))
                 .toList();
     }

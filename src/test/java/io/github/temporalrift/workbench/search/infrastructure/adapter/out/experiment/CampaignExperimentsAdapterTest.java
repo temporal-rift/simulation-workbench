@@ -63,6 +63,26 @@ class CampaignExperimentsAdapterTest {
     }
 
     @Test
+    void eachPolicyMajorResolvesToItsNewestBaselineBundle() {
+        var served = new CampaignExperimentsAdapter(
+                null,
+                new io.github.temporalrift.workbench.policy.application.query.BaselinePolicyCatalog(),
+                mock(LaneEnvironments.class),
+                MAPPER,
+                new CampaignExperimentsAdapter.Bounds(3600, 10));
+
+        var bundles = served.bundles(List.of(
+                new io.github.temporalrift.workbench.search.domain.campaign.PolicyRef("faction-greedy", "2"),
+                new io.github.temporalrift.workbench.search.domain.campaign.PolicyRef("random", "1"),
+                new io.github.temporalrift.workbench.search.domain.campaign.PolicyRef("faction-greedy", "1")));
+
+        assertThat(bundles)
+                .extracting(node ->
+                        node.path("id").asString() + "@" + node.path("version").asString())
+                .containsExactly("faction-greedy@2.0.0", "random@1.0.0", "faction-greedy@1.0.0");
+    }
+
+    @Test
     void aServedParameterSpaceAndBaselinePassTheCheck() {
         assertThatCode(() -> adapter.check(definition(VariantRulesFixtures.ARTIFACT_DIGEST, 1)))
                 .doesNotThrowAnyException();
