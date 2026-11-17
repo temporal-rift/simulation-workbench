@@ -121,6 +121,7 @@ public record Board(
     public enum ParadoxKind {
         DEAD_HEAT,
         IMPOSSIBLE_ERASURE,
-        CHAIN_CONFLICT
+        CHAIN_CONFLICT,
+        FATE_CONTRADICTION
     }
 }
