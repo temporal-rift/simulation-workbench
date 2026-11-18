@@ -33,7 +33,6 @@ class ParameterSpaceVersion5Test {
     private static final String DISCOUNT = "game.rules.victory.final-era-objective-discount";
     private static final String STABILIZED = "game.rules.scoring.score-deltas.PARADOX_STABILIZED";
     private static final String WEAVER_CHAIN = "game.rules.victory.weaver-chain-length";
-    private static final String PROPHET_GOAL = "game.rules.victory.prophet-written-resolutions";
     private static final String SECRET_WON = "game.rules.scoring.score-deltas.SECRET_OUTCOME_WON";
     private static final String MIMIC_NEVER = "game.rules.scoring.score-deltas.MIMIC_NEVER_TRACED";
     private static final String MIMIC_WIN = "game.rules.scoring.score-deltas.MIMIC_CONTRIBUTED_TO_WIN";
