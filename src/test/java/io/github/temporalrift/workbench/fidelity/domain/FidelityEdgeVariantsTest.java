@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.TreeMap;
 import java.util.regex.Pattern;
@@ -33,6 +34,23 @@ class FidelityEdgeVariantsTest {
     private static final String SECRET_MISSED = "game.rules.scoring.score-deltas.SECRET_OUTCOME_MISSED";
     private static final String EXPOSE_DECLARED = "game.rules.scoring.expose-requires-declared-event";
     private static final String ANNIHILATION_CONSEQUENCE = "game.rules.scoring.annihilation-requires-consequence";
+    private static final String WRITINGS_PER_ERA = "game.rules.foresight.writings-per-era";
+    private static final String FACTION_CLAIMS = "game.rules.stabilization.faction-claims";
+    private static final String TAPESTRY_ABSORBS = "game.rules.tapestry-absorbs-chain-conflict";
+    private static final String FATE_CONTRADICTION = "game.rules.paradox.fate-contradiction";
+    private static final String MISSED_WITH_RALLY =
+            "game.rules.scoring.score-deltas.DECLARED_OUTCOME_MISSED_WITH_RALLY";
+    private static final String DECLARED_MISSED = "game.rules.scoring.score-deltas.DECLARED_OUTCOME_MISSED";
+    private static final String PARADOX_STABILIZED = "game.rules.scoring.score-deltas.PARADOX_STABILIZED";
+    private static final String PROPHET_OBJECTIVE = "game.rules.victory.prophet-written-resolutions";
+    private static final List<String> SPACE_FOUR_SETTINGS = List.of(
+            WRITINGS_PER_ERA,
+            FACTION_CLAIMS,
+            TAPESTRY_ABSORBS,
+            FATE_CONTRADICTION,
+            MISSED_WITH_RALLY,
+            DECLARED_MISSED,
+            PARADOX_STABILIZED);
 
     /** A row of a record's override table: key, baseline, {@code low} and {@code high}, each value maybe marked †. */
     private static final Pattern TABLE_ROW =
@@ -45,19 +63,19 @@ class FidelityEdgeVariantsTest {
     }
 
     @Test
-    void edgeVariantsAreShippedForParameterSpacesOneTwoAndThree() {
+    void edgeVariantsAreShippedForParameterSpacesOneToFour() {
         assertThat(catalog.all())
                 .extracting(EdgeVariants::parameterSpaceVersion)
-                .containsExactly(1, 2, 3);
-        assertThat(catalog.newest().parameterSpaceVersion()).isEqualTo(3);
+                .containsExactly(1, 2, 3, 4);
+        assertThat(catalog.newest().parameterSpaceVersion()).isEqualTo(4);
         assertThat(catalog.forSpace(1).parameterSpaceVersion()).isEqualTo(1);
     }
 
     @Test
     void aSpaceWithoutEdgeVariantsIsRefused() {
-        assertThatThrownBy(() -> catalog.forSpace(4))
+        assertThatThrownBy(() -> catalog.forSpace(5))
                 .isInstanceOf(NoSuchElementException.class)
-                .hasMessageContaining("parameter space 4");
+                .hasMessageContaining("parameter space 5");
     }
 
     @Test
@@ -135,6 +153,59 @@ class FidelityEdgeVariantsTest {
         assertThat(three.high())
                 .containsAllEntriesOf(two.high())
                 .hasSize(two.high().size() + 4);
+    }
+
+    @Test
+    void spaceFourTakesTheSevenNewSettingsAtOppositeExtremes() {
+        var four = catalog.forSpace(4);
+
+        assertThat(four.low())
+                .containsEntry(WRITINGS_PER_ERA, ParameterValue.of(new BigDecimal("1")))
+                .containsEntry(FACTION_CLAIMS, ParameterValue.of(false))
+                .containsEntry(TAPESTRY_ABSORBS, ParameterValue.of(false))
+                .containsEntry(FATE_CONTRADICTION, ParameterValue.of(false))
+                .containsEntry(MISSED_WITH_RALLY, ParameterValue.of(new BigDecimal("-4")))
+                .containsEntry(DECLARED_MISSED, ParameterValue.of(new BigDecimal("-3")))
+                .containsEntry(PARADOX_STABILIZED, ParameterValue.of(new BigDecimal("-3")));
+        assertThat(four.high())
+                .containsEntry(WRITINGS_PER_ERA, ParameterValue.of(new BigDecimal("3")))
+                .containsEntry(FACTION_CLAIMS, ParameterValue.of(true))
+                .containsEntry(TAPESTRY_ABSORBS, ParameterValue.of(true))
+                .containsEntry(FATE_CONTRADICTION, ParameterValue.of(true))
+                .containsEntry(MISSED_WITH_RALLY, ParameterValue.of(new BigDecimal("0")))
+                .containsEntry(DECLARED_MISSED, ParameterValue.of(new BigDecimal("0")))
+                .containsEntry(PARADOX_STABILIZED, ParameterValue.of(new BigDecimal("0")));
+    }
+
+    @Test
+    void spaceFourMovesTheProphetObjectiveToItsNewRangeEdges() {
+        var four = catalog.forSpace(4);
+
+        assertThat(four.low()).containsEntry(PROPHET_OBJECTIVE, ParameterValue.of(new BigDecimal("2")));
+        assertThat(four.high()).containsEntry(PROPHET_OBJECTIVE, ParameterValue.of(new BigDecimal("4")));
+    }
+
+    @Test
+    void spaceFourCarriesEverySpaceThreeValueOverExceptTheProphetObjective() {
+        var three = catalog.forSpace(3);
+        var four = catalog.forSpace(4);
+
+        for (var carried : List.of(Map.entry(three.low(), four.low()), Map.entry(three.high(), four.high()))) {
+            var expected = new TreeMap<>(carried.getKey());
+            expected.remove(PROPHET_OBJECTIVE);
+            assertThat(carried.getValue())
+                    .containsAllEntriesOf(expected)
+                    .hasSize(carried.getKey().size() + SPACE_FOUR_SETTINGS.size());
+        }
+    }
+
+    @Test
+    void spaceThreeNamesNoneOfTheSpaceFourSettings() {
+        var three = catalog.forSpace(3);
+
+        for (var overrides : List.of(three.low(), three.high())) {
+            assertThat(overrides).doesNotContainKeys(SPACE_FOUR_SETTINGS.toArray(String[]::new));
+        }
     }
 
     @Test
