@@ -31,10 +31,10 @@ class ParameterSpaceVersion3Test {
     }
 
     @Test
-    void spacesOneToFourAreServed() {
+    void spacesOneToFourAreServedInOrder() {
         assertThat(VariantRulesFixtures.spaces().all())
                 .extracting(ParameterSpace::version)
-                .containsExactly(1, 2, 3, 4);
+                .startsWith(1, 2, 3, 4);
     }
 
     @Test

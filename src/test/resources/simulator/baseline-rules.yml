@@ -20,7 +20,10 @@ game:
     min-players: 3
     max-players: 5
     max-cascaded-paradoxes: 3
-    events-per-era: 3
+    events-per-era:
+      3: 3
+      4: 4
+      5: 5
     cards-per-hand: 5
     cards-per-deal: 7
     win-score-threshold: 20
@@ -50,6 +53,7 @@ game:
     tapestry-absorbs-chain-conflict: false
     paradox:
       fate-contradiction: true
+      detonate-contests-stabilize: true
     stabilization:
       faction-claims: false
       prophet-written-resolutions: 3
@@ -66,6 +70,7 @@ game:
       written-outcome-shields-annihilation: true
       expose-requires-declared-event: true
       annihilation-requires-consequence: true
+      erased-outcome-voids-bets: true
       score-deltas:
         ANNIHILATED_OUTCOME: 3
         CORRUPTED_OPPONENT_CARD: 2
@@ -85,7 +90,9 @@ game:
         PARADOX_CASCADE_PENALTY: -2
         DECLARED_OUTCOME_MISSED_WITH_RALLY: -2
         DECLARED_OUTCOME_MISSED: -1
-        PARADOX_STABILIZED: -1
+        PARADOX_STABILIZED: 0
+        PARADOX_DETONATED: -1
+        ANNIHILATION_WASTED: 0
     max-eras: 2
     probability:
       floor: 0

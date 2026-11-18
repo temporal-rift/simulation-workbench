@@ -84,7 +84,7 @@ class StartFidelityCheckCommandHandlerTest {
         var view = handler().handle(new StartFidelityCheckUseCase.Command(UUID.randomUUID(), "42"));
 
         var check = view.check();
-        assertThat(check.parameterSpaceVersion()).isEqualTo(4);
+        assertThat(check.parameterSpaceVersion()).isEqualTo(5);
         assertThat(check.variants().get(1).overrides())
                 .containsEntry("game.rules.annihilate-earliest-round", ParameterValue.of(new BigDecimal("1")))
                 .containsEntry("game.rules.scoring.written-outcome-shields-annihilation", ParameterValue.of(false))
@@ -96,14 +96,18 @@ class StartFidelityCheckCommandHandlerTest {
                 .containsEntry("game.rules.foresight.writings-per-era", ParameterValue.of(new BigDecimal("3")))
                 .containsEntry("game.rules.stabilization.faction-claims", ParameterValue.of(true))
                 .containsEntry("game.rules.tapestry-absorbs-chain-conflict", ParameterValue.of(true))
-                .containsEntry("game.rules.paradox.fate-contradiction", ParameterValue.of(true));
+                .containsEntry("game.rules.paradox.fate-contradiction", ParameterValue.of(true))
+                .containsEntry("game.rules.events-per-era.3", ParameterValue.of(new BigDecimal("5")))
+                .containsEntry("game.rules.paradox.detonate-contests-stabilize", ParameterValue.of(true))
+                .containsEntry(
+                        "game.rules.victory.final-era-objective-discount", ParameterValue.of(new BigDecimal("2")));
     }
 
     @Test
     void everyVariantIsResolvedAgainstTheRecordedParameterSpace() {
         handler().handle(new StartFidelityCheckUseCase.Command(UUID.randomUUID(), "42"));
 
-        verify(experiments, times(3)).previewVariant(anyString(), eq(4), any());
+        verify(experiments, times(3)).previewVariant(anyString(), eq(5), any());
     }
 
     @Test

@@ -63,19 +63,62 @@ class FidelityEdgeVariantsTest {
     }
 
     @Test
-    void edgeVariantsAreShippedForParameterSpacesOneToFour() {
+    void edgeVariantsAreShippedForParameterSpacesOneToFive() {
         assertThat(catalog.all())
                 .extracting(EdgeVariants::parameterSpaceVersion)
-                .containsExactly(1, 2, 3, 4);
-        assertThat(catalog.newest().parameterSpaceVersion()).isEqualTo(4);
+                .containsExactly(1, 2, 3, 4, 5);
+        assertThat(catalog.newest().parameterSpaceVersion()).isEqualTo(5);
         assertThat(catalog.forSpace(1).parameterSpaceVersion()).isEqualTo(1);
     }
 
     @Test
+    void spaceFiveTakesTheNineNewSettingsAtOppositeExtremes() {
+        var five = catalog.forSpace(5);
+
+        assertThat(five.low())
+                .containsEntry("game.rules.events-per-era.3", ParameterValue.of(new BigDecimal("3")))
+                .containsEntry("game.rules.events-per-era.4", ParameterValue.of(new BigDecimal("3")))
+                .containsEntry("game.rules.events-per-era.5", ParameterValue.of(new BigDecimal("3")))
+                .containsEntry("game.rules.scoring.erased-outcome-voids-bets", ParameterValue.of(false))
+                .containsEntry("game.rules.paradox.detonate-contests-stabilize", ParameterValue.of(false))
+                .containsEntry("game.rules.scoring.score-deltas.PARADOX_DETONATED", ParameterValue.of(BigDecimal.ZERO))
+                .containsEntry(
+                        "game.rules.scoring.score-deltas.ANNIHILATION_WASTED", ParameterValue.of(BigDecimal.ZERO))
+                .containsEntry("game.rules.victory.score-tiebreak", ParameterValue.of(false))
+                .containsEntry("game.rules.victory.final-era-objective-discount", ParameterValue.of(BigDecimal.ZERO));
+        assertThat(five.high())
+                .containsEntry("game.rules.events-per-era.3", ParameterValue.of(new BigDecimal("5")))
+                .containsEntry("game.rules.events-per-era.4", ParameterValue.of(new BigDecimal("5")))
+                .containsEntry("game.rules.events-per-era.5", ParameterValue.of(new BigDecimal("5")))
+                .containsEntry("game.rules.scoring.erased-outcome-voids-bets", ParameterValue.of(true))
+                .containsEntry("game.rules.paradox.detonate-contests-stabilize", ParameterValue.of(true))
+                .containsEntry(
+                        "game.rules.scoring.score-deltas.PARADOX_DETONATED", ParameterValue.of(new BigDecimal("-3")))
+                .containsEntry(
+                        "game.rules.scoring.score-deltas.ANNIHILATION_WASTED", ParameterValue.of(new BigDecimal("-2")))
+                .containsEntry("game.rules.victory.score-tiebreak", ParameterValue.of(true))
+                .containsEntry(
+                        "game.rules.victory.final-era-objective-discount", ParameterValue.of(new BigDecimal("2")));
+    }
+
+    @Test
+    void spaceFiveCarriesEverySpaceFourValueOver() {
+        var four = catalog.forSpace(4);
+        var five = catalog.forSpace(5);
+
+        assertThat(five.low())
+                .containsAllEntriesOf(four.low())
+                .hasSize(four.low().size() + 9);
+        assertThat(five.high())
+                .containsAllEntriesOf(four.high())
+                .hasSize(four.high().size() + 9);
+    }
+
+    @Test
     void aSpaceWithoutEdgeVariantsIsRefused() {
-        assertThatThrownBy(() -> catalog.forSpace(5))
+        assertThatThrownBy(() -> catalog.forSpace(6))
                 .isInstanceOf(NoSuchElementException.class)
-                .hasMessageContaining("parameter space 5");
+                .hasMessageContaining("parameter space 6");
     }
 
     @Test
