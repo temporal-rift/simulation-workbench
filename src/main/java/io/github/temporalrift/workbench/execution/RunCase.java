@@ -1,6 +1,7 @@
 package io.github.temporalrift.workbench.execution;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.shared.execution.CaseState;
@@ -49,18 +50,35 @@ public record RunCase(
     /** A seat of the case: its faction and the policy that plays it. */
     public record Seat(int seatIndex, Faction faction, String policyId, String policyVersion) {}
 
-    /** The authoritative ending of the case's game. */
+    /**
+     * The authoritative ending of the case's game.
+     *
+     * @param winTypes how each winner met the win condition, by seat; a winner of a special ending has no entry
+     */
     public record Result(
             EndReason endReason,
             List<Integer> winnerSeats,
             List<Score> finalScores,
             int eras,
             int rounds,
-            int decisions) {
+            int decisions,
+            Map<Integer, String> winTypes) {
 
         public Result {
             winnerSeats = List.copyOf(winnerSeats);
             finalScores = List.copyOf(finalScores);
+            winTypes = winTypes == null ? Map.of() : Map.copyOf(winTypes);
+        }
+
+        /** An ending whose winners' win types are not known. */
+        public Result(
+                EndReason endReason,
+                List<Integer> winnerSeats,
+                List<Score> finalScores,
+                int eras,
+                int rounds,
+                int decisions) {
+            this(endReason, winnerSeats, finalScores, eras, rounds, decisions, Map.of());
         }
     }
 

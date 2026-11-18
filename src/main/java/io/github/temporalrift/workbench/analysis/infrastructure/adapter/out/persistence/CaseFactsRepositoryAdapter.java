@@ -15,6 +15,7 @@ import io.github.temporalrift.workbench.analysis.domain.fact.CaseFacts;
 import io.github.temporalrift.workbench.analysis.domain.fact.GameFacts;
 import io.github.temporalrift.workbench.analysis.domain.fact.SeatFacts;
 import io.github.temporalrift.workbench.analysis.domain.game.CardKey;
+import io.github.temporalrift.workbench.analysis.domain.game.WinPath;
 import io.github.temporalrift.workbench.analysis.domain.port.out.CaseFactsRepository;
 import io.github.temporalrift.workbench.shared.game.CardGrade;
 import io.github.temporalrift.workbench.shared.game.CardType;
@@ -115,7 +116,12 @@ public class CaseFactsRepositoryAdapter implements CaseFactsRepository {
             Map<SpecialAction, Integer> specialAccepts,
             Map<SpecialAction, Integer> specialResolutionRejections,
             int declarationOffers,
-            Map<SpecialAction, Integer> declarations) {
+            Map<SpecialAction, Integer> declarations,
+            Map<String, Integer> scoreByReason,
+            WinPath winPath,
+            int winEra,
+            int betWins,
+            int betMisses) {
 
         static SeatDocument of(SeatFacts facts) {
             return new SeatDocument(
@@ -137,7 +143,12 @@ public class CaseFactsRepositoryAdapter implements CaseFactsRepository {
                     facts.specialAccepts(),
                     facts.specialResolutionRejections(),
                     facts.declarationOffers(),
-                    facts.declarations());
+                    facts.declarations(),
+                    facts.scoreByReason(),
+                    facts.winPath(),
+                    facts.winEra(),
+                    facts.betWins(),
+                    facts.betMisses());
         }
 
         SeatFacts facts() {
@@ -160,7 +171,12 @@ public class CaseFactsRepositoryAdapter implements CaseFactsRepository {
                     specialAccepts,
                     specialResolutionRejections,
                     declarationOffers,
-                    declarations);
+                    declarations,
+                    scoreByReason,
+                    winPath,
+                    winEra,
+                    betWins,
+                    betMisses);
         }
 
         private static Map<String, Integer> text(Map<CardKey, Integer> counts) {

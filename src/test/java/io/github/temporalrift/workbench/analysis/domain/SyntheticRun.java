@@ -12,9 +12,11 @@ import io.github.temporalrift.workbench.analysis.domain.fact.FactExtractor;
 import io.github.temporalrift.workbench.analysis.domain.fact.GameFacts;
 import io.github.temporalrift.workbench.analysis.domain.game.AnalyzedCase;
 import io.github.temporalrift.workbench.analysis.domain.game.CaseOutcome;
+import io.github.temporalrift.workbench.analysis.domain.game.GameEvent;
 import io.github.temporalrift.workbench.analysis.domain.game.GameRecord;
 import io.github.temporalrift.workbench.analysis.domain.game.ParadoxType;
 import io.github.temporalrift.workbench.analysis.domain.game.SeatPolicy;
+import io.github.temporalrift.workbench.analysis.domain.game.WinPath;
 import io.github.temporalrift.workbench.shared.execution.CaseState;
 import io.github.temporalrift.workbench.shared.execution.FailureCode;
 import io.github.temporalrift.workbench.shared.game.EndReason;
@@ -91,6 +93,25 @@ public final class SyntheticRun {
         var extracted = FactExtractor.extract(
                 analyzed.caseId(), seats, outcome, new GameRecord(List.of(), List.of(), List.of()));
         facts.put(analyzed.caseId(), paradoxes ? withParadoxes(extracted) : extracted);
+        return this;
+    }
+
+    /** A game with recorded events and the way its winners won, ending in the given era. */
+    public SyntheticRun played(
+            String seed,
+            List<Faction> seats,
+            Set<Integer> winners,
+            Map<Integer, WinPath> winPaths,
+            int eras,
+            List<GameEvent> events) {
+        var scores = new ArrayList<Integer>();
+        seats.forEach(seat -> scores.add(10));
+        var outcome = new CaseOutcome(EndReason.WIN_CONDITION_MET, winners, scores, eras, eras * 3, eras * 9, winPaths);
+        var analyzed = analyzed(seed, seats, CaseState.SUCCEEDED, outcome, null);
+        cases.add(analyzed);
+        facts.put(
+                analyzed.caseId(),
+                FactExtractor.extract(analyzed.caseId(), seats, outcome, new GameRecord(events, List.of(), List.of())));
         return this;
     }
 

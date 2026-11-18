@@ -37,6 +37,7 @@ import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ReportCaseCounts;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.SpecialAction;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.TerminalEndReason;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.WinPath;
 
 /** Maps reports and comparisons onto the published representations. */
 final class AnalysisApiMapper {
@@ -208,6 +209,12 @@ final class AnalysisApiMapper {
         if (dimensions.failureCode() != null) {
             api.failureCode(
                     AttemptFailureCode.fromValue(dimensions.failureCode().name()));
+        }
+        if (dimensions.scoreReason() != null) {
+            api.scoreReason(dimensions.scoreReason());
+        }
+        if (dimensions.winPath() != null) {
+            api.winPath(WinPath.fromValue(dimensions.winPath().name()));
         }
         return api;
     }

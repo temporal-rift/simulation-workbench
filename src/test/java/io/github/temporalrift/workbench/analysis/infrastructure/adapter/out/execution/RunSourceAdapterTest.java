@@ -98,7 +98,12 @@ class RunSourceAdapterTest {
                         ("{\"gameId\":\"%s\",\"eraNumber\":1,\"playerId\":\"%s\",\"specialAction\":\"THREAD\","
                                         + "\"reason\":\"broken\"}")
                                 .formatted(GAME, WEAVER)),
-                event("ScoresUpdated", "{\"anything\":true}"));
+                event(
+                        "ScoresUpdated",
+                        ("{\"gameId\":\"%s\",\"eraNumber\":1,\"updates\":[{\"playerId\":\"%s\","
+                                        + "\"faction\":\"WEAVERS\",\"pointsDelta\":1,"
+                                        + "\"reason\":\"CHAIN_LINK_ADDED\",\"newTotal\":1}]}")
+                                .formatted(GAME, WEAVER)));
         var steps = List.of(
                 step(play(SCAN), StepOutcome.ACCEPTED, actionRound(true)),
                 step(thread(), StepOutcome.REJECTED, actionRound(true)),
@@ -121,7 +126,8 @@ class RunSourceAdapterTest {
                                         new GameEvent.Card(new UUID(0, 104), SCAN_II))),
                         new GameEvent.ActionRoundStarted(1, 1),
                         new GameEvent.CardPlayed(1, 1, 1, SCAN, SCAN_II),
-                        new GameEvent.SpecialRejected(1, 1, SpecialAction.THREAD));
+                        new GameEvent.SpecialRejected(1, 1, SpecialAction.THREAD),
+                        new GameEvent.ScoreRecorded(1, 1, "CHAIN_LINK_ADDED", 1));
         assertThat(gameRecord.observations())
                 .containsExactly(new GameRecord.RoundObservation(
                         1, 1, 1, List.of(new GameRecord.HeldCard(SCAN, SCAN_II, true))));

@@ -57,6 +57,8 @@ public final class FactExtractor {
         detected.values().forEach(type -> findings.merge(type, 1, Integer::sum));
         resolved.retainAll(detected.keySet());
         cascaded.retainAll(detected.keySet());
+        var cascadedByType = new EnumMap<ParadoxType, Integer>(ParadoxType.class);
+        cascaded.forEach(id -> cascadedByType.merge(detected.get(id), 1, Integer::sum));
         return new GameFacts(
                 outcome.endReason(),
                 outcome.winnerSeats().size(),
@@ -66,7 +68,8 @@ public final class FactExtractor {
                 findings,
                 resolved.size(),
                 cascaded.size(),
-                cascadedEvents.size());
+                cascadedEvents.size(),
+                cascadedByType);
     }
 
     private static SeatFacts seat(int seat, Faction faction, CaseOutcome outcome, GameRecord gameRecord) {
@@ -79,6 +82,9 @@ public final class FactExtractor {
         var resolutionRejections = new EnumMap<SpecialAction, Integer>(SpecialAction.class);
         var declarations = new EnumMap<SpecialAction, Integer>(SpecialAction.class);
         var declarationOffers = 0;
+        var scoreByReason = new TreeMap<String, Integer>();
+        var betWins = 0;
+        var betMisses = 0;
         for (var event : gameRecord.events()) {
             switch (event) {
                 case GameEvent.HandDealt dealt
@@ -95,6 +101,12 @@ public final class FactExtractor {
                 case GameEvent.DeclarationOffered offer when offer.seat() == seat -> declarationOffers++;
                 case GameEvent.DeclarationRecorded declared
                 when declared.seat() == seat -> add(declarations, declared.mode());
+                case GameEvent.ScoreRecorded score
+                when score.seat() == seat -> {
+                    scoreByReason.merge(score.reason(), score.delta(), Integer::sum);
+                    betWins += BetReasons.WINS.contains(score.reason()) ? 1 : 0;
+                    betMisses += BetReasons.MISSES.contains(score.reason()) ? 1 : 0;
+                }
                 default -> {
                     // another seat's or a game-level fact
                 }
@@ -131,7 +143,34 @@ public final class FactExtractor {
                 accepts,
                 resolutionRejections,
                 declarationOffers,
-                declarations);
+                declarations,
+                scoreByReason,
+                won ? outcome.winPaths().get(seat) : null,
+                won ? outcome.eras() : 0,
+                betWins,
+                betMisses);
+    }
+
+    /** The score reasons that settle a faction's signature bet, a win being a kept bet and a miss a lost one. */
+    private static final class BetReasons {
+
+        static final Set<String> WINS = Set.of(
+                "ANNIHILATED_OUTCOME",
+                "EVENT_RESOLVED_AS_WRITTEN",
+                "FULFILLMENT_SUCCEEDED",
+                "SECRET_OUTCOME_WON",
+                "CHAIN_LINK_ADDED",
+                "DECLARED_OUTCOME_WON",
+                "DECLARED_OUTCOME_WON_WITH_RALLY");
+        static final Set<String> MISSES = Set.of(
+                "ANNIHILATION_WASTED",
+                "EVENT_RESOLVED_DIFFERENTLY_THAN_WRITTEN",
+                "SECRET_OUTCOME_MISSED",
+                "CHAIN_BROKEN",
+                "DECLARED_OUTCOME_MISSED",
+                "DECLARED_OUTCOME_MISSED_WITH_RALLY");
+
+        private BetReasons() {}
     }
 
     private static <K> void add(Map<K, Integer> counts, K key) {

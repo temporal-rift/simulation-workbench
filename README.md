@@ -974,10 +974,10 @@ workbench:
 `GET /api/v1/runs/{runId}/report` (`simulation:read`) returns a run's report as JSON, or as CSV with
 `Accept: text/csv`. `POST /api/v1/comparisons` (`simulation:write`, `Idempotency-Key`) compares two variants, of one
 run or of two runs, and `GET /api/v1/comparisons/{comparisonId}` reads the comparison as JSON or CSV. Every number
-is computed by analysis version `2` with analysis seed `1` (a comparison keeps the version it was created under); both
+is computed by analysis version `3` with analysis seed `1` (a comparison keeps the version it was created under); both
 are on every report, comparison, and CSV row, and the same version, seed, and case results always produce
-byte-identical documents. Analysis version `2` is version `1` plus the `failure_share` metric: every version `1` metric
-keeps its value and interval.
+byte-identical documents. Analysis version `2` is version `1` plus the `failure_share` metric, and version `3` is
+version `2` plus the balance diagnostics below: every earlier metric keeps its value and interval.
 
 ### Populations
 
@@ -1131,13 +1131,36 @@ line id, table, policy, player count, faction set, and faction.
 
 Bot results say nothing about balance among human players, and an evaluation must not be presented as if they did.
 
+### Balance diagnostics (analysis version 3)
+
+Version `3` measures where a faction's strength comes from, so a balance change can be judged by its cause and not only
+by its win rate. It adds these metrics, each only to the cohorts that pool seats unless it is a seat metric:
+
+- `score_by_reason` (statistic `MEAN`, unit points per seat-game; dimensions `faction` and `scoreReason`): the signed
+  points a faction's seat records for one score reason, such as `ANNIHILATED_OUTCOME` or `PARADOX_CASCADE_PENALTY`.
+  A reason is listed for a faction only when some seat of it recorded that reason in the run.
+- `win_path_rate` (statistic `RATE`, unit wins; dimensions `faction` and `winPath`): the share of a faction's winning
+  seat-games won by each path: `FACTION_OBJECTIVE`, `SCORE_THRESHOLD`, `LAST_PLAYER_STANDING`, or, for the two special
+  endings, `TIMELINE_STABILIZED` and `TIMELINE_COLLAPSED`.
+- `win_era` (statistic `MEAN`, unit eras; dimension `faction`): the era a faction's winners won in.
+- `bet_success_rate` (statistic `RATE`, unit settled bets; dimension `faction`): how often a faction's signature bet was
+  kept, counted from the score reasons that settle it: Annihilate, a written outcome, a secret outcome, a chain link
+  and a declared outcome each settle as kept or lost.
+- `paradoxes_cascaded` by `paradoxType` (statistic `MEAN`, unit findings per game): cascaded findings of each paradox
+  type, beside the existing all-types metric.
+
+Facts for version `3` are stored under facts version `2`; versions `1` and `2` keep reading facts version `1`, so
+reports and comparisons made under an earlier version are unchanged.
+
 ### Exports
 
 CSV exports have a header row and repeat the full attribution on every row: the format version, the run or
 comparison, the analysis version and seed, completeness, the cohort, its counts, the metric with its statistic and
 dimensions, and the values. Empty fields are null values. The report export's `failureCode` column, after `quantile`,
 is empty for every metric not split by failure code, including the all-codes `failure_share`, and holds the failure
-code of a per-code `failure_share` row. Exports carry no credentials or machine-local paths.
+code of a per-code `failure_share` row. The `scoreReason` and `winPath` columns follow it in the report export, and
+follow `quantile` in the comparison export; they are empty for every metric not split by them. Report format version
+`4` and comparison format version `3` carry these columns. Exports carry no credentials or machine-local paths.
 
 ### Limitations
 

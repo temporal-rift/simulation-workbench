@@ -71,7 +71,7 @@ class ReportScaleTest {
 
         var report = ReportCalculator.report(RUN, DIGEST, AnalysisVersion.CURRENT, cases, facts);
 
-        var vocabulary = Vocabulary.of(cases, facts.values());
+        var vocabulary = Vocabulary.of(cases, facts.values(), AnalysisVersion.CURRENT.reportsDiagnostics());
         var failureCodes = ReportCalculator.failureCodes(cases);
         var expected = ReportCalculator.cohortKeys(cases).stream()
                 .map(key -> CohortComputation.of(key, cases, facts, vocabulary, failureCodes, AnalysisVersion.CURRENT)

@@ -17,7 +17,7 @@ public record ComparisonResult(
         List<ExcludedPair> excludedPairs,
         List<ComparisonCohort> cohorts) {
 
-    public static final int FORMAT_VERSION = 2;
+    public static final int FORMAT_VERSION = 3;
 
     public ComparisonResult {
         excludedPairs = List.copyOf(excludedPairs);

@@ -6,6 +6,7 @@ import java.util.Objects;
 import java.util.TreeMap;
 
 import io.github.temporalrift.workbench.analysis.domain.game.CardKey;
+import io.github.temporalrift.workbench.analysis.domain.game.WinPath;
 import io.github.temporalrift.workbench.shared.game.Faction;
 import io.github.temporalrift.workbench.shared.game.SpecialAction;
 
@@ -32,7 +33,12 @@ public record SeatFacts(
         Map<SpecialAction, Integer> specialAccepts,
         Map<SpecialAction, Integer> specialResolutionRejections,
         int declarationOffers,
-        Map<SpecialAction, Integer> declarations) {
+        Map<SpecialAction, Integer> declarations,
+        Map<String, Integer> scoreByReason,
+        WinPath winPath,
+        int winEra,
+        int betWins,
+        int betMisses) {
 
     public SeatFacts {
         Objects.requireNonNull(faction, "faction");
@@ -49,6 +55,66 @@ public record SeatFacts(
         specialAccepts = sorted(specialAccepts);
         specialResolutionRejections = sorted(specialResolutionRejections);
         declarations = sorted(declarations);
+        // Facts stored before the diagnostics existed read them as empty.
+        scoreByReason = scoreByReason == null ? Map.of() : sorted(scoreByReason);
+    }
+
+    /** Seat facts without the balance diagnostics. */
+    public SeatFacts(
+            int seat,
+            Faction faction,
+            boolean won,
+            boolean sharedWin,
+            int score,
+            Map<CardKey, Integer> cardsOffered,
+            Map<CardKey, Integer> cardsKept,
+            Map<CardKey, Integer> cardsPlayed,
+            Map<CardKey, Integer> reactiveCardsOffered,
+            Map<CardKey, Integer> reactiveCardsPlayed,
+            Map<CardKey, Integer> knownCardRounds,
+            Map<CardKey, Integer> playableCardRounds,
+            Map<CardKey, Integer> unknownCardRounds,
+            Map<SpecialAction, Integer> specialAttempts,
+            Map<SpecialAction, Integer> specialSubmissionRejections,
+            Map<SpecialAction, Integer> specialAccepts,
+            Map<SpecialAction, Integer> specialResolutionRejections,
+            int declarationOffers,
+            Map<SpecialAction, Integer> declarations) {
+        this(
+                seat,
+                faction,
+                won,
+                sharedWin,
+                score,
+                cardsOffered,
+                cardsKept,
+                cardsPlayed,
+                reactiveCardsOffered,
+                reactiveCardsPlayed,
+                knownCardRounds,
+                playableCardRounds,
+                unknownCardRounds,
+                specialAttempts,
+                specialSubmissionRejections,
+                specialAccepts,
+                specialResolutionRejections,
+                declarationOffers,
+                declarations,
+                Map.of(),
+                null,
+                0,
+                0,
+                0);
+    }
+
+    /** Signed points a seat recorded for a score reason in the game. */
+    public int points(String reason) {
+        return scoreByReason.getOrDefault(reason, 0);
+    }
+
+    /** Signature bets that resolved: kept plus lost. */
+    public int resolvedBets() {
+        return betWins + betMisses;
     }
 
     private static <K extends Comparable<K>> Map<K, Integer> sorted(Map<K, Integer> counts) {

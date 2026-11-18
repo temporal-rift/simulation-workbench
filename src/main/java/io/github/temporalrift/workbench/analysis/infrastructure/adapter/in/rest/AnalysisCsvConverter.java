@@ -43,6 +43,8 @@ public class AnalysisCsvConverter extends AbstractHttpMessageConverter<Object> {
             "endReason",
             "quantile");
     private static final String FAILURE_CODE = "failureCode";
+    private static final String SCORE_REASON = "scoreReason";
+    private static final String WIN_PATH = "winPath";
     private static final String UNIT = "unit";
     private static final List<String> REPORT_COLUMNS = concat(
             List.of(
@@ -70,6 +72,8 @@ public class AnalysisCsvConverter extends AbstractHttpMessageConverter<Object> {
             ATTRIBUTION,
             List.of(
                     FAILURE_CODE,
+                    SCORE_REASON,
+                    WIN_PATH,
                     UNIT,
                     "value",
                     "numerator",
@@ -98,7 +102,16 @@ public class AnalysisCsvConverter extends AbstractHttpMessageConverter<Object> {
                     "matchedBlocks",
                     "excludedBlocks"),
             ATTRIBUTION,
-            List.of(UNIT, "baselineValue", "candidateValue", "difference", "status", "intervalLower", "intervalUpper"));
+            List.of(
+                    SCORE_REASON,
+                    WIN_PATH,
+                    UNIT,
+                    "baselineValue",
+                    "candidateValue",
+                    "difference",
+                    "status",
+                    "intervalLower",
+                    "intervalUpper"));
 
     public AnalysisCsvConverter() {
         super(TEXT_CSV);
@@ -155,6 +168,8 @@ public class AnalysisCsvConverter extends AbstractHttpMessageConverter<Object> {
                 fields.add(metric.getStatistic());
                 fields.addAll(dimensions(metric.getDimensions()));
                 fields.add(metric.getDimensions().getFailureCode());
+                fields.add(metric.getDimensions().getScoreReason());
+                fields.add(metric.getDimensions().getWinPath());
                 fields.add(metric.getUnit());
                 fields.add(metric.getValue());
                 fields.add(metric.getNumerator());
@@ -192,6 +207,8 @@ public class AnalysisCsvConverter extends AbstractHttpMessageConverter<Object> {
                 fields.add(difference.getName());
                 fields.add(difference.getStatistic());
                 fields.addAll(dimensions(difference.getDimensions()));
+                fields.add(difference.getDimensions().getScoreReason());
+                fields.add(difference.getDimensions().getWinPath());
                 fields.add(difference.getUnit());
                 fields.add(difference.getBaselineValue());
                 fields.add(difference.getCandidateValue());

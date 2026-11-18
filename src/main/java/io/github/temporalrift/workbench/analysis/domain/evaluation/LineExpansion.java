@@ -158,7 +158,7 @@ final class LineExpansion {
             this.cases = cases;
             this.facts = facts;
             this.analysis = analysis;
-            this.vocabulary = Vocabulary.of(cases, facts.values());
+            this.vocabulary = Vocabulary.of(cases, facts.values(), analysis.reportsDiagnostics());
             this.failureCodes = ReportCalculator.failureCodes(cases);
             this.playerCounts =
                     cases.stream().map(AnalyzedCase::playerCount).collect(java.util.stream.Collectors.toSet());

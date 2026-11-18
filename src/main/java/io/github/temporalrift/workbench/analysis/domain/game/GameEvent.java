@@ -63,6 +63,14 @@ public sealed interface GameEvent {
     /** A seat declared in a mode. */
     record DeclarationRecorded(int seat, int era, SpecialAction mode) implements GameEvent {}
 
+    /** A score change the scoring contract published for a seat, with its reason and signed points. */
+    record ScoreRecorded(int seat, int era, String reason, int delta) implements GameEvent {
+
+        public ScoreRecorded {
+            Objects.requireNonNull(reason, "reason");
+        }
+    }
+
     /** Paradox findings detected at once. */
     record ParadoxesDetected(int era, List<Finding> findings) implements GameEvent {
 

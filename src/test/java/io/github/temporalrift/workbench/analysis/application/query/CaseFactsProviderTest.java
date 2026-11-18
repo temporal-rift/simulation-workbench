@@ -72,15 +72,26 @@ class CaseFactsProviderTest {
             });
 
     @Test
-    void factsAreExtractedOnceAndSharedByEverySupportedVersion() {
+    void factsAreExtractedOnceAndSharedByTheVersionsWithoutDiagnostics() {
         var cases = List.of(succeeded(new UUID(1, 1)));
 
-        var first = provider.factsOf(RUN, cases, AnalysisVersion.CURRENT);
+        var first = provider.factsOf(RUN, cases, new AnalysisVersion("2", 1L));
         var again = provider.factsOf(RUN, cases, new AnalysisVersion("1", 1L));
 
-        assertThat(stored).containsOnlyKeys(AnalysisVersion.CURRENT.factsVersion());
+        assertThat(stored).containsOnlyKeys("1");
         assertThat(again).isEqualTo(first);
         assertThat(records).hasValue(1);
+    }
+
+    @Test
+    void aVersionWithDiagnosticsStoresItsOwnFactsBesideTheEarlierOnes() {
+        var cases = List.of(succeeded(new UUID(1, 3)));
+
+        provider.factsOf(RUN, cases, new AnalysisVersion("2", 1L));
+        provider.factsOf(RUN, cases, AnalysisVersion.CURRENT);
+
+        assertThat(stored).containsOnlyKeys("1", AnalysisVersion.CURRENT.factsVersion());
+        assertThat(records).hasValue(2);
     }
 
     @Test
@@ -102,8 +113,8 @@ class CaseFactsProviderTest {
         var cases = List.of(succeeded(new UUID(1, 2)));
 
         assertThatIllegalStateException()
-                .isThrownBy(() -> provider.factsOf(RUN, cases, new AnalysisVersion("3", 1L)))
-                .withMessageContaining("Analysis version 3");
+                .isThrownBy(() -> provider.factsOf(RUN, cases, new AnalysisVersion("4", 1L)))
+                .withMessageContaining("Analysis version 4");
         assertThat(stored).isEmpty();
     }
 
