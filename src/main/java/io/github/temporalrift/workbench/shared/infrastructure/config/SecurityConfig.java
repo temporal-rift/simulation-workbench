@@ -25,7 +25,7 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, ObjectMapper objectMapper, UiProperties ui) {
-        return http.csrf(AbstractHttpConfigurer::disable)
+        return http.csrf(AbstractHttpConfigurer::disable) // NOSONAR S4502 stateless bearer-token API, no cookies
                 .headers(headers ->
                         headers.contentSecurityPolicy(csp -> csp.policyDirectives(contentSecurityPolicy(ui))))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
