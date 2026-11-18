@@ -175,6 +175,11 @@ final class BoardReading {
         return written.contains(outcomeId);
     }
 
+    /** Whether the seat's accepted Foresight of this era already wrote an outcome (one writing per era). */
+    boolean hasWrittenThisEra() {
+        return !writtenEvents.isEmpty();
+    }
+
     boolean isWrittenEvent(UUID eventId) {
         return writtenEvents.contains(eventId);
     }
