@@ -454,15 +454,16 @@ class AnalysisIT {
     }
 
     @Test
-    void theCriterionCatalogServesVersionsOneToThreeReadOnly() throws Exception {
+    void theCriterionCatalogServesVersionsOneToFourReadOnly() throws Exception {
         var catalog = objectMapper.readTree(read(
                 mockMvc.perform(get("/api/v1/balance-criteria").with(read())).andExpect(status().isOk())));
 
-        assertThat(catalog.path("criteria")).hasSize(3);
+        assertThat(catalog.path("criteria")).hasSize(4);
         assertThat(catalog.path("criteria").get(0)).isEqualTo(criterion(1));
         assertThat(catalog.path("criteria").get(1)).isEqualTo(criterion(2));
         assertThat(catalog.path("criteria").get(2)).isEqualTo(criterion(3));
-        mockMvc.perform(get("/api/v1/balance-criteria/4").with(read()))
+        assertThat(catalog.path("criteria").get(3)).isEqualTo(criterion(4));
+        mockMvc.perform(get("/api/v1/balance-criteria/5").with(read()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
         mockMvc.perform(post("/api/v1/balance-criteria").with(read()).contentType(MediaType.APPLICATION_JSON))
