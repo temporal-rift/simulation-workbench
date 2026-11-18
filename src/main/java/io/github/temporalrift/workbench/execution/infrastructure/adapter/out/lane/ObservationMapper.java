@@ -23,6 +23,7 @@ import io.github.temporalrift.workbench.policy.domain.observation.HandCard;
 import io.github.temporalrift.workbench.policy.domain.observation.OutcomeView;
 import io.github.temporalrift.workbench.policy.domain.observation.PlayableCard;
 import io.github.temporalrift.workbench.policy.domain.observation.PlayableSpecial;
+import io.github.temporalrift.workbench.policy.domain.observation.TableRules;
 import io.github.temporalrift.workbench.shared.execution.FailureCode;
 import io.github.temporalrift.workbench.shared.game.CardGrade;
 import io.github.temporalrift.workbench.shared.game.CardType;
@@ -44,6 +45,17 @@ final class ObservationMapper {
 
     /** A decision the seat currently owes, with the coordinates its submission is addressed to. */
     record Owed(EntitledObservation observation, int era, int round) {}
+
+    /** The decision the seat owes in this state, if any, carrying the rules of the table it plays at. */
+    static Optional<Owed> owed(int seatIndex, UUID playerId, PlayerGameStateResponse state, TableRules rules) {
+        return owed(seatIndex, playerId, state)
+                .map(found -> new Owed(found.observation().withRules(rules), found.era(), found.round()));
+    }
+
+    /** The observation of a finished game, carrying the rules of the table it was played at. */
+    static EntitledObservation terminal(int seatIndex, UUID playerId, PlayerGameStateResponse state, TableRules rules) {
+        return terminal(seatIndex, playerId, state).withRules(rules);
+    }
 
     /**
      * The decision the seat owes in this state, if any. At most one window is open for a seat at a time:

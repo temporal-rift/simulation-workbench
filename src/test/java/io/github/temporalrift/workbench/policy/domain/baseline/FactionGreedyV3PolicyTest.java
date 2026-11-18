@@ -34,7 +34,6 @@ import io.github.temporalrift.workbench.shared.window.WindowKind;
 class FactionGreedyV3PolicyTest {
 
     private static final UUID EVENT_A = PolicyFixtures.EVENT_A;
-    private static final UUID EVENT_B = PolicyFixtures.EVENT_B;
     private static final UUID A3 = PolicyFixtures.id(0xA3);
     private static final UUID B3 = PolicyFixtures.id(0xB3);
     private static final UUID C3 = PolicyFixtures.id(0xC3);

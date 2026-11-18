@@ -6,6 +6,7 @@ import java.util.Optional;
 import io.github.temporalrift.workbench.execution.domain.evidence.StepRecord;
 import io.github.temporalrift.workbench.execution.domain.reproduction.Divergence;
 import io.github.temporalrift.workbench.execution.domain.run.CaseResult;
+import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
 
 /**
  * Finds the first place a reproduction differs from the saved case. Only accepted commands take part:
@@ -41,13 +42,21 @@ final class DivergenceFinder {
         if (saved.seatIndex() != again.seatIndex() || !saved.window().equals(again.window())) {
             return Optional.of(new Divergence.Window(saved.step(), summary(saved), summary(again)));
         }
-        if (!saved.observation().equals(again.observation())) {
+        if (!sameObservation(saved.observation(), again.observation())) {
             return Optional.of(new Divergence.Observation(saved.step(), observed(saved), observed(again)));
         }
         if (!saved.decision().equals(again.decision())) {
             return Optional.of(new Divergence.Decision(saved.step(), summary(saved), summary(again)));
         }
         return Optional.empty();
+    }
+
+    /**
+     * Whether two observations are the same input to a policy. Table rules are compared by their effective value, so an
+     * observation recorded before table rules existed matches a reproduction that attaches the served defaults.
+     */
+    private static boolean sameObservation(EntitledObservation saved, EntitledObservation again) {
+        return saved.withRules(saved.tableRules()).equals(again.withRules(again.tableRules()));
     }
 
     private static Optional<Divergence> ending(int step, CaseResult expected, CaseResult actual) {

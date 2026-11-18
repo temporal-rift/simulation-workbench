@@ -54,6 +54,11 @@ class CardRulesTest {
     }
 
     @Test
+    void aGradeThreeScanNamesAtLeastOneEventEvenWhenNoneIsActive() {
+        assertThat(CardRules.targetCount(CardType.SCAN, CardGrade.III, 0)).isEqualTo(1);
+    }
+
+    @Test
     void categoriesFollowTheDealCategories() {
         assertThat(CardRules.category(CardType.AMPLIFY)).isEqualTo(CardCategory.PROBABILITY_SHIFTER);
         assertThat(CardRules.category(CardType.DECOY)).isEqualTo(CardCategory.INFORMATION);

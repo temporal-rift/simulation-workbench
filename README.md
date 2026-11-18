@@ -1152,16 +1152,19 @@ divergence.
 
 ## Bot policies
 
-Three baseline policies play every normal decision window. Each decision uses one frozen
+Four baseline policies play every normal decision window. Each decision uses one frozen
 `EntitledObservation` per seat: the seat's own faction and hand (in action rounds every card with its
 playability, and the playable ones as candidates), the visible events (printed weights, the current era's
 public band once published, plus an exact weight only when the seat earned it, for example through Scan), the
 other participants' identifiers, the board, and the open window. The board holds the current era's public
 Activist declarations, the latest public round summary, the seat's own accepted submissions of the era, the
 game's public Weaver chain, and the open paradoxes; every board fact is settled before the window opens, and
-scores, timers and revisions are never read. Observer evidence, opposing hands or credentials, and
+scores, timers and revisions are never read. The observation also carries the table's rules, the paradox rules every
+player knows before the game starts (whether Detonate contests Stabilize, what Stabilize, Detonate and a cascade
+cost, and whether Tapestry absorbs a chain conflict), read from the case's effective rules. Observer evidence, opposing hands or credentials, and
 execution-control state have no field on the type, so they cannot influence a choice. An observation without
-board facts keeps the canonical text it had before the board existed, so retained evidence still compares equal.
+board facts keeps the canonical text it had before the board existed, so retained evidence still compares equal; an
+observation without table rules reads as the served defaults and compares equal to a reproduction that attaches them.
 
 | Bundle | Id / version | Behavior |
 |---|---|---|

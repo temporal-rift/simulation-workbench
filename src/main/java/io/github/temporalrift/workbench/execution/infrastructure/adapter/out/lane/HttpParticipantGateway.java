@@ -94,12 +94,9 @@ public class HttpParticipantGateway implements ParticipantGateway {
         var state = state(participant);
         if (state.getPhase() == Phase.GAME_ENDED) {
             open.remove(seatIndex);
-            return ObservationMapper.terminal(seatIndex, participant.playerId(), state)
-                    .withRules(tableRules);
+            return ObservationMapper.terminal(seatIndex, participant.playerId(), state, tableRules);
         }
-        var owed = ObservationMapper.owed(seatIndex, participant.playerId(), state)
-                .map(found -> new ObservationMapper.Owed(
-                        found.observation().withRules(tableRules), found.era(), found.round()))
+        var owed = ObservationMapper.owed(seatIndex, participant.playerId(), state, tableRules)
                 .orElseThrow(() -> new WindowClosedException(seatIndex));
         open.put(seatIndex, owed);
         return owed.observation();

@@ -17,6 +17,10 @@ public record TableRules(
         int cascadePenalty,
         boolean tapestryAbsorbsChainConflict) {
 
-    /** The served defaults, used when a case's rules leave a value out. */
+    /**
+     * The values the configuration server serves, used when a case's rules leave a value out. The Stabilize delta is
+     * deliberately 0 here, while the game's own fallback for an unconfigured deployment is -1: a policy plays the rules
+     * the lanes serve, so this is not the place to align the two.
+     */
     public static final TableRules DEFAULTS = new TableRules(true, 0, -1, -2, false);
 }

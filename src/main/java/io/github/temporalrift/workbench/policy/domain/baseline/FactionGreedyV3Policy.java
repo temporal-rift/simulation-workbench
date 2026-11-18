@@ -14,6 +14,7 @@ import io.github.temporalrift.workbench.policy.domain.decision.PolicyEntropy;
 import io.github.temporalrift.workbench.policy.domain.decision.Target;
 import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow;
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
+import io.github.temporalrift.workbench.policy.domain.observation.EventView;
 import io.github.temporalrift.workbench.policy.domain.observation.OutcomeView;
 import io.github.temporalrift.workbench.policy.domain.observation.TableRules;
 import io.github.temporalrift.workbench.shared.game.CardType;
@@ -68,19 +69,14 @@ final class FactionGreedyV3Policy implements BotPolicy {
     private static Optional<Candidate> paradoxChoice(
             EntitledObservation observation, List<Candidate> available, BoardReading reading, TableRules rules) {
         for (var event : observation.events()) {
-            boolean committed =
-                    event.outcomes().stream().map(OutcomeView::outcomeId).anyMatch(reading::isCommitment);
-            int stake = committed ? COMMITMENT_VALUE : 0;
-            int clear = stake + rules.stabilizeDelta();
-            int cascade = -stake
-                    + (rules.detonateContestsStabilize() ? rules.detonateDelta() : Math.abs(rules.cascadePenalty()));
-            if (clear > 0 && clear > cascade) {
+            var worth = Worth.of(event, reading, rules);
+            if (worth.clear() > 0 && worth.clear() > worth.cascade()) {
                 var stabilize = play(available, observation, event.eventId(), CardType.STABILIZE);
                 if (stabilize.isPresent()) {
                     return stabilize;
                 }
             }
-            if (cascade > 0) {
+            if (worth.cascade() > 0) {
                 var detonate = play(available, observation, event.eventId(), CardType.DETONATE);
                 if (detonate.isPresent()) {
                     return detonate;
@@ -88,6 +84,21 @@ final class FactionGreedyV3Policy implements BotPolicy {
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * What clearing and what tearing an event is worth to the seat, in points: its stake in the event, if it backs the
+     * outcome it committed to there, plus the announced costs of each result.
+     */
+    private record Worth(int clear, int cascade) {
+
+        static Worth of(EventView event, BoardReading reading, TableRules rules) {
+            var committed =
+                    event.outcomes().stream().map(OutcomeView::outcomeId).anyMatch(reading::isCommitment);
+            var stake = committed ? COMMITMENT_VALUE : 0;
+            var tear = rules.detonateContestsStabilize() ? rules.detonateDelta() : Math.abs(rules.cascadePenalty());
+            return new Worth(stake + rules.stabilizeDelta(), -stake + tear);
+        }
     }
 
     /** The first available play of the given paradox card against the event, in canonical candidate order. */
