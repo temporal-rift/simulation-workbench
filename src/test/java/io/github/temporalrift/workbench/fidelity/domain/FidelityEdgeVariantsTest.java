@@ -282,8 +282,13 @@ class FidelityEdgeVariantsTest {
                 }
             }
 
+            var space = space(variants.parameterSpaceVersion());
             assertThat(rows.keySet()).isEqualTo(variants.low().keySet());
             rows.forEach((key, cells) -> {
+                space.parameter(key)
+                        .ifPresent(parameter -> assertThat(cells.get(0))
+                                .as("baseline " + key)
+                                .isEqualTo(shown(parameter.baselineValue())));
                 assertThat(cells.get(1))
                         .as("low " + key)
                         .isEqualTo(shown(variants.low().get(key)));

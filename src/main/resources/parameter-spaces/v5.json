@@ -367,7 +367,7 @@
       "services": [
         "game-service"
       ],
-      "baseline": 4,
+      "baseline": 3,
       "min": 3,
       "max": 5,
       "step": 1
@@ -377,7 +377,7 @@
       "services": [
         "game-service"
       ],
-      "baseline": 6,
+      "baseline": 4,
       "min": 4,
       "max": 8,
       "step": 1
@@ -387,7 +387,7 @@
       "services": [
         "game-service"
       ],
-      "baseline": 2,
+      "baseline": 1,
       "min": 1,
       "max": 3,
       "step": 1

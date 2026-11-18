@@ -3,21 +3,23 @@ package io.github.temporalrift.workbench.experiment.domain.rules;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.node.ObjectNode;
 
 import io.github.temporalrift.workbench.experiment.EffectiveRules;
 import io.github.temporalrift.workbench.experiment.VariantRulesFixtures;
+import io.github.temporalrift.workbench.experiment.domain.VariantRulesReason;
 import io.github.temporalrift.workbench.experiment.domain.rules.ParameterSpace.BooleanParameter;
 import io.github.temporalrift.workbench.experiment.domain.rules.ParameterSpace.NumberParameter;
 import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
-/** Parameter space version 5: space 4 plus the 18-nov balance package settings and their new baselines. */
+/** Parameter space version 5: space 4 plus the balance-package settings and their new baselines. */
 class ParameterSpaceVersion5Test {
 
     private static final String EVENTS_3 = "game.rules.events-per-era.3";
@@ -32,31 +34,30 @@ class ParameterSpaceVersion5Test {
     private static final String STABILIZED = "game.rules.scoring.score-deltas.PARADOX_STABILIZED";
     private static final String WEAVER_CHAIN = "game.rules.victory.weaver-chain-length";
     private static final String PROPHET_GOAL = "game.rules.victory.prophet-written-resolutions";
+    private static final String SECRET_WON = "game.rules.scoring.score-deltas.SECRET_OUTCOME_WON";
+    private static final String MIMIC_NEVER = "game.rules.scoring.score-deltas.MIMIC_NEVER_TRACED";
+    private static final String MIMIC_WIN = "game.rules.scoring.score-deltas.MIMIC_CONTRIBUTED_TO_WIN";
+    private static final List<String> REVISIONIST_BASELINES = List.of(SECRET_WON, MIMIC_NEVER, MIMIC_WIN);
     private static final List<String> NEW_KEYS =
             List.of(EVENTS_3, EVENTS_4, EVENTS_5, VOIDS, CONTEST, DETONATED, WASTED, TIEBREAK, DISCOUNT);
 
-    /** The shared test document with the values the lanes serve once the balance package is deployed. */
+    /**
+     * The document the lanes serve: the configuration repository's {@code application.yml} and service files resolved
+     * with {@code scripts/lib/effective_rules.py resolve --config-repo config-server/config-repo --output <file>} in
+     * the infrastructure repository, at the commit that serves the balance package. Space 5's baselines are checked
+     * against it as it is, never against a patched copy of the shared document older spaces still need.
+     */
     private static final EffectiveRules BASELINE = served();
 
     private final ParameterSpace four = VariantRulesFixtures.spaces().find(4).orElseThrow();
     private final ParameterSpace five = VariantRulesFixtures.spaces().find(5).orElseThrow();
 
     private static EffectiveRules served() {
-        var document = (ObjectNode) new ObjectMapper().readTree(VariantRulesFixtures.baselineText());
-        ((ObjectNode) document.get("properties"))
-                .put(PROPHET_GOAL, 3)
-                .put(WEAVER_CHAIN, 3)
-                .put(STABILIZED, 0)
-                .put(EVENTS_3, 3)
-                .put(EVENTS_4, 4)
-                .put(EVENTS_5, 5)
-                .put(VOIDS, true)
-                .put(CONTEST, true)
-                .put(DETONATED, -1)
-                .put(WASTED, 0)
-                .put(TIEBREAK, true)
-                .put(DISCOUNT, 1);
-        return EffectiveRules.parse(document);
+        try (var stream = ParameterSpaceVersion5Test.class.getResourceAsStream("/rules/served-effective-rules.json")) {
+            return EffectiveRules.parse(new ObjectMapper().readTree(stream));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private static BigDecimal n(String value) {
@@ -64,10 +65,8 @@ class ParameterSpaceVersion5Test {
     }
 
     @Test
-    void spaceFiveIsTheNewestSpace() {
-        assertThat(VariantRulesFixtures.spaces().all())
-                .extracting(ParameterSpace::version)
-                .containsExactly(1, 2, 3, 4, 5);
+    void spaceFiveIsServed() {
+        assertThat(VariantRulesFixtures.spaces().find(5)).isPresent();
     }
 
     @Test
@@ -110,6 +109,16 @@ class ParameterSpaceVersion5Test {
     }
 
     @Test
+    void theRevisionistBaselinesAreTheValuesTheServicesNowServeAndKeepTheirRanges() {
+        assertThat(five.parameter(SECRET_WON))
+                .contains(new NumberParameter(SECRET_WON, List.of("game-service"), n("3"), n("3"), n("5"), n("1")));
+        assertThat(five.parameter(MIMIC_NEVER))
+                .contains(new NumberParameter(MIMIC_NEVER, List.of("game-service"), n("4"), n("4"), n("8"), n("1")));
+        assertThat(five.parameter(MIMIC_WIN))
+                .contains(new NumberParameter(MIMIC_WIN, List.of("game-service"), n("1"), n("1"), n("3"), n("1")));
+    }
+
+    @Test
     void spaceFourNamesNoneOfTheNewSettings() {
         NEW_KEYS.forEach(key -> assertThat(four.parameter(key)).as(key).isEmpty());
     }
@@ -119,6 +128,7 @@ class ParameterSpaceVersion5Test {
         var carried = four.parameters().stream()
                 .filter(parameter -> !parameter.key().equals(WEAVER_CHAIN))
                 .filter(parameter -> !parameter.key().equals(STABILIZED))
+                .filter(parameter -> !REVISIONIST_BASELINES.contains(parameter.key()))
                 .toList();
 
         assertThat(five.parameters())
@@ -154,6 +164,8 @@ class ParameterSpaceVersion5Test {
     void sixEventsPerEraIsOutOfRange() {
         assertThatThrownBy(() ->
                         VariantMaterializer.materialize(BASELINE, five, Map.of(EVENTS_5, ParameterValue.of(n("6")))))
-                .isInstanceOf(RuntimeException.class);
+                .isInstanceOfSatisfying(
+                        VariantRulesRefusal.class,
+                        refusal -> assertThat(refusal.reason()).isEqualTo(VariantRulesReason.OUT_OF_RANGE));
     }
 }
