@@ -2,6 +2,7 @@ package io.github.temporalrift.workbench.policy.domain.baseline;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -12,6 +13,7 @@ import io.github.temporalrift.workbench.policy.domain.decision.CandidateGenerato
 import io.github.temporalrift.workbench.policy.domain.decision.PolicyDecision;
 import io.github.temporalrift.workbench.policy.domain.decision.PolicyEntropy;
 import io.github.temporalrift.workbench.policy.domain.decision.Target;
+import io.github.temporalrift.workbench.policy.domain.observation.DealtCard;
 import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow;
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
 import io.github.temporalrift.workbench.policy.domain.observation.EventView;
@@ -53,13 +55,14 @@ final class FactionGreedyV3Policy implements BotPolicy {
             var available = CandidateGenerator.generate(observation).stream()
                     .filter(candidate -> !excluded.contains(candidate))
                     .toList();
-            var chosen = paradoxChoice(observation, available, reading, rules);
+            var cards = FactionGreedyV2Policy.cardsById(observation);
+            var chosen = paradoxChoice(observation, available, cards, reading, rules);
             if (chosen.isPresent()) {
                 return new PolicyDecision.Chosen(chosen.get());
             }
             var withoutParadoxCards = new HashSet<>(excluded);
             available.stream()
-                    .filter(candidate -> isParadoxCard(candidate, observation))
+                    .filter(candidate -> isParadoxCard(candidate, cards))
                     .forEach(withoutParadoxCards::add);
             return recipe.decide(observation, withoutParadoxCards, entropy, FactionGreedyV2Policy::wasted);
         }
@@ -67,17 +70,21 @@ final class FactionGreedyV3Policy implements BotPolicy {
     }
 
     private static Optional<Candidate> paradoxChoice(
-            EntitledObservation observation, List<Candidate> available, BoardReading reading, TableRules rules) {
+            EntitledObservation observation,
+            List<Candidate> available,
+            Map<UUID, DealtCard> cards,
+            BoardReading reading,
+            TableRules rules) {
         for (var event : observation.events()) {
             var worth = Worth.of(event, reading, rules);
             if (worth.clear() > 0 && worth.clear() > worth.cascade()) {
-                var stabilize = play(available, observation, event.eventId(), CardType.STABILIZE);
+                var stabilize = play(available, cards, event.eventId(), CardType.STABILIZE);
                 if (stabilize.isPresent()) {
                     return stabilize;
                 }
             }
             if (worth.cascade() > 0) {
-                var detonate = play(available, observation, event.eventId(), CardType.DETONATE);
+                var detonate = play(available, cards, event.eventId(), CardType.DETONATE);
                 if (detonate.isPresent()) {
                     return detonate;
                 }
@@ -103,21 +110,19 @@ final class FactionGreedyV3Policy implements BotPolicy {
 
     /** The first available play of the given paradox card against the event, in canonical candidate order. */
     private static Optional<Candidate> play(
-            List<Candidate> available, EntitledObservation observation, UUID eventId, CardType type) {
-        var cards = FactionGreedyV2Policy.cardsById(observation);
+            List<Candidate> available, Map<UUID, DealtCard> cards, UUID eventId, CardType type) {
         return available.stream()
                 .filter(candidate -> candidate instanceof Candidate.PlayParadoxCard(var cardId, var target)
                         && cards.get(cardId).type() == type
-                        && target instanceof Target.EventOutcome(var targetEvent, var _)
-                        && targetEvent.equals(eventId))
+                        && target.eventId().equals(eventId))
                 .findFirst();
     }
 
-    private static boolean isParadoxCard(Candidate candidate, EntitledObservation observation) {
-        if (!(candidate instanceof Candidate.PlayParadoxCard(var cardId, var _))) {
+    private static boolean isParadoxCard(Candidate candidate, Map<UUID, DealtCard> cards) {
+        if (!(candidate instanceof Candidate.PlayParadoxCard paradoxCard)) {
             return false;
         }
-        var type = FactionGreedyV2Policy.cardsById(observation).get(cardId).type();
+        var type = cards.get(paradoxCard.cardInstanceId()).type();
         return type == CardType.STABILIZE || type == CardType.DETONATE;
     }
 
@@ -140,6 +145,6 @@ final class FactionGreedyV3Policy implements BotPolicy {
     }
 
     private static UUID outcomeOf(Target target) {
-        return target instanceof Target.EventOutcome(var _, var outcomeId) ? outcomeId : null;
+        return target instanceof Target.EventOutcome eventOutcome ? eventOutcome.outcomeId() : null;
     }
 }
