@@ -45,7 +45,13 @@ game:
       I: 60
       II: 30
       III: 10
+    foresight:
+      writings-per-era: 1
+    tapestry-absorbs-chain-conflict: false
+    paradox:
+      fate-contradiction: true
     stabilization:
+      faction-claims: false
       prophet-written-resolutions: 3
       weaver-active-chain-links: 2
     once-era-budgeted-specials:
@@ -77,6 +83,9 @@ game:
         DECLARED_OUTCOME_WON: 5
         EXPOSE_SIGNATURE_REVEALED: 2
         PARADOX_CASCADE_PENALTY: -2
+        DECLARED_OUTCOME_MISSED_WITH_RALLY: -2
+        DECLARED_OUTCOME_MISSED: -1
+        PARADOX_STABILIZED: -1
     max-eras: 2
     probability:
       floor: 0

@@ -317,7 +317,9 @@ read with `listParameterSpaces` and `getParameterSpace`. Version 2 (`parameter-s
 `docs/parameter-space/v2.md`) is version 1 plus the earliest Annihilate round and two boolean balance switches; a
 campaign search treats a boolean parameter as a two-value axis. Version 3 (`parameter-spaces/v3.json`, described in
 `docs/parameter-space/v3.md`) is version 2 plus the latest Rewrite round, the `SECRET_OUTCOME_MISSED` score value and two
-boolean contested-yield switches. A new campaign defaults to the newest version. Its constraints are expressions in a small notation (comparison
+boolean contested-yield switches. Version 4 (`parameter-spaces/v4.json`, described in `docs/parameter-space/v4.md`) is
+version 3 plus the faction-balance rule switches (one writing per era, faction claims at stabilization, Tapestry and
+Chain Conflict, the Fate Contradiction paradox) and three score values. A new campaign defaults to the newest version. Its constraints are expressions in a small notation (comparison
 chains over `+`, `-`, `*`, `max` and `and`; a subtraction needs spaces around `-` because keys contain it) that the
 workbench both serves and evaluates.
 
