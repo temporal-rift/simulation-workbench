@@ -51,10 +51,10 @@ final class FactionGreedyV2Policy implements BotPolicy {
             participant's declared outcome that is not own commitment
             refused special: once the service refuses a special in a window, it is not tried again there on the same \
             event or participant
-            waste (never chosen): Foresight on an event already written; Thread after an accepted Thread, unless a \
-            Tapestry was armed and the Thread outcome fell to LOW; Rewrite after an accepted Rewrite; Obscure in \
-            round 3; Reweave without a Thread, after a Tapestry, while the Thread outcome is not LOW, or onto the \
-            Thread outcome; Tapestry without a Thread, \
+            waste (never chosen): Foresight after the seat already wrote an outcome this era (one writing per era); \
+            Thread after an accepted Thread, unless a Tapestry was armed and the Thread outcome fell to LOW; \
+            Rewrite after an accepted Rewrite; Obscure in round 3; Reweave without a Thread, after a Tapestry, \
+            while the Thread outcome is not LOW, or onto the Thread outcome; Tapestry without a Thread, \
             below 2 confirmed links, already armed, or off the Thread outcome; Fulfillment off a written outcome or \
             on an event already fulfilled; Seal off a written outcome; Mimic off the Rewrite outcome; Expose outside \
             round 2 or against a participant whose previous-round summary shows no Probability Shifter card; Corrupt \
@@ -108,7 +108,7 @@ final class FactionGreedyV2Policy implements BotPolicy {
             return false;
         }
         return switch (action) {
-            case FORESIGHT -> reading.isWrittenEvent(eventOf(target));
+            case FORESIGHT -> reading.hasWrittenThisEra() || reading.isWrittenEvent(eventOf(target));
             case THREAD -> reading.threaded() && !protectedLinkLost(reading);
             case REWRITE -> reading.rewriteOutcome() != null;
             case OBSCURE -> Integer.valueOf(3).equals(reading.round());

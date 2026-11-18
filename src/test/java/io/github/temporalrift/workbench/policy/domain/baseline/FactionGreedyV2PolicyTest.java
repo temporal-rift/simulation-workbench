@@ -51,15 +51,31 @@ class FactionGreedyV2PolicyTest {
     private final FactionGreedyV2Policy policy = new FactionGreedyV2Policy();
 
     @Test
-    void aProphetWritesADifferentEventEachRound() {
+    void aProphetWritesOneEventPerEra() {
         var board = board(List.of(special(1, SpecialAction.FORESIGHT, EVENT_A, A3)), null, null, List.of());
 
         var chosen = choose(observation(Faction.PROPHETS, 2, specials(Faction.PROPHETS), List.of(), board, bands()));
 
-        assertThat(chosen).isInstanceOfSatisfying(Candidate.PlaySpecial.class, play -> {
-            assertThat(play.action()).isEqualTo(SpecialAction.FORESIGHT);
-            assertThat(((Target.EventOutcome) play.target()).eventId()).isNotEqualTo(EVENT_A);
-        });
+        assertThat(chosen)
+                .satisfies(choice -> assertThat(choice instanceof Candidate.PlaySpecial play
+                                && play.action() == SpecialAction.FORESIGHT)
+                        .isFalse());
+    }
+
+    @Test
+    void aProphetThatHasNotWrittenYetPlaysForesight() {
+        var chosen = choose(observation(
+                Faction.PROPHETS,
+                1,
+                specials(Faction.PROPHETS),
+                List.of(),
+                board(List.of(), null, null, List.of()),
+                bands()));
+
+        assertThat(chosen)
+                .isInstanceOfSatisfying(
+                        Candidate.PlaySpecial.class,
+                        play -> assertThat(play.action()).isEqualTo(SpecialAction.FORESIGHT));
     }
 
     @Test
