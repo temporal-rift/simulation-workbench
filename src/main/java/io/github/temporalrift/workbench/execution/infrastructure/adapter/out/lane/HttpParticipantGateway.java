@@ -35,6 +35,7 @@ import io.github.temporalrift.workbench.policy.domain.decision.Reconciliation;
 import io.github.temporalrift.workbench.policy.domain.decision.SubmissionOutcome;
 import io.github.temporalrift.workbench.policy.domain.decision.Target;
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
+import io.github.temporalrift.workbench.policy.domain.observation.TableRules;
 import io.github.temporalrift.workbench.policy.domain.port.out.ParticipantGateway;
 import io.github.temporalrift.workbench.shared.execution.FailureCode;
 
@@ -46,6 +47,7 @@ import io.github.temporalrift.workbench.shared.execution.FailureCode;
 public class HttpParticipantGateway implements ParticipantGateway {
 
     private final UUID gameId;
+    private final TableRules tableRules;
     private final Map<Integer, Participant> participants;
     private final BooleanSupplier settled;
     private final LaneWaits waits;
@@ -59,6 +61,16 @@ public class HttpParticipantGateway implements ParticipantGateway {
      * @param settled whether the services and projection have settled, so accepted state is current
      */
     public HttpParticipantGateway(UUID gameId, List<Participant> seats, BooleanSupplier settled, LaneWaits waits) {
+        this(gameId, seats, settled, waits, TableRules.DEFAULTS);
+    }
+
+    /**
+     * @param settled whether the services and projection have settled, so accepted state is current
+     * @param tableRules the paradox rules the case plays under, announced to every seat
+     */
+    public HttpParticipantGateway(
+            UUID gameId, List<Participant> seats, BooleanSupplier settled, LaneWaits waits, TableRules tableRules) {
+        this.tableRules = tableRules;
         this.gameId = gameId;
         this.participants = new ConcurrentHashMap<>();
         seats.forEach(seat -> participants.put(seat.seatIndex(), seat));
@@ -82,9 +94,12 @@ public class HttpParticipantGateway implements ParticipantGateway {
         var state = state(participant);
         if (state.getPhase() == Phase.GAME_ENDED) {
             open.remove(seatIndex);
-            return ObservationMapper.terminal(seatIndex, participant.playerId(), state);
+            return ObservationMapper.terminal(seatIndex, participant.playerId(), state)
+                    .withRules(tableRules);
         }
         var owed = ObservationMapper.owed(seatIndex, participant.playerId(), state)
+                .map(found -> new ObservationMapper.Owed(
+                        found.observation().withRules(tableRules), found.era(), found.round()))
                 .orElseThrow(() -> new WindowClosedException(seatIndex));
         open.put(seatIndex, owed);
         return owed.observation();

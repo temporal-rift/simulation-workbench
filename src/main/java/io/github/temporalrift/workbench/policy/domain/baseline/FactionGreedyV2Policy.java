@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -68,6 +69,18 @@ final class FactionGreedyV2Policy implements BotPolicy {
 
     @Override
     public PolicyDecision decide(EntitledObservation observation, Set<Candidate> excluded, PolicyEntropy entropy) {
+        return decide(observation, excluded, entropy, FactionGreedyV2Policy::wasted);
+    }
+
+    /**
+     * The v2 recipe with a given waste rule, so a later bundle can reuse the recipe while correcting what it knows to
+     * be wasted. v2 itself always passes {@link #wasted}.
+     */
+    PolicyDecision decide(
+            EntitledObservation observation,
+            Set<Candidate> excluded,
+            PolicyEntropy entropy,
+            BiPredicate<Candidate, BoardReading> waste) {
         var available = CandidateGenerator.generate(observation).stream()
                 .filter(candidate -> !excluded.contains(candidate))
                 .toList();
@@ -79,7 +92,7 @@ final class FactionGreedyV2Policy implements BotPolicy {
         var refused = refusedSpecials(excluded);
         var survivors = withoutLowWhereAvoidable(
                 available.stream()
-                        .filter(candidate -> !wasted(candidate, reading))
+                        .filter(candidate -> !waste.test(candidate, reading))
                         .filter(candidate -> !refused.contains(refusalKey(candidate)))
                         .toList(),
                 cards,
@@ -313,7 +326,7 @@ final class FactionGreedyV2Policy implements BotPolicy {
         return target instanceof Target.Player(var playerId) ? playerId : null;
     }
 
-    private static Map<UUID, DealtCard> cardsById(EntitledObservation observation) {
+    static Map<UUID, DealtCard> cardsById(EntitledObservation observation) {
         List<DealtCard> cards = switch (observation.window()) {
             case DecisionWindow.HandSelection window -> window.deal();
             case DecisionWindow.ActionRound window ->

@@ -1095,8 +1095,11 @@ random seat, widens the interval of its share lines with a non-zero limit, and n
 Version 3 is version 2 with `faction-greedy-v2` in place of `faction-greedy-v1` (tables `faction-greedy-v2`,
 `random-v1` and `random-seat-vs-faction-greedy-v2`); every line, band and evidence rule is unchanged. As the newest
 version it is the default criterion of a new campaign, whose default policies are then `faction-greedy` `2.0.0` and
-`random` `1.0.0`. A criterion names a policy as its id with the major version (`faction-greedy-v1` is policy
-`faction-greedy` at `1.0.0`, `faction-greedy-v2` at `2.0.0`).
+`random` `1.0.0`. Version 4 is version 3 with `faction-greedy-v3` in place of `faction-greedy-v2` (tables
+`faction-greedy-v3`, `random-v1` and `random-seat-vs-faction-greedy-v3`); as the newest version it is now the default,
+with default policies `faction-greedy` `3.0.0` and `random` `1.0.0`. A criterion names a policy as its id with the
+major version (`faction-greedy-v1` is policy `faction-greedy` at `1.0.0`, `faction-greedy-v2` at `2.0.0`,
+`faction-greedy-v3` at `3.0.0`).
 
 `GET /api/v1/runs/{runId}/evaluation?variantLabel=&criterionVersion=&mode=` (`simulation:read`) evaluates one variant of
 a run against one criterion version. Nothing is stored: it is derived from the run's current cases on every read, with
@@ -1165,6 +1168,7 @@ board facts keeps the canonical text it had before the board existed, so retaine
 | `random-v1` | `random` / `1.0.0` | Uniform seeded draw over the canonically ordered candidates, pass or decline included |
 | `faction-greedy-v1` | `faction-greedy` / `1.0.0` | Scores each candidate as `affinity * 1000 + target lean`, then draws among the top scores with seeded entropy; ignores the board |
 | `faction-greedy-v2` | `faction-greedy` / `2.0.0` | One recipe for every faction: reads the board, skips wasted actions, backs its own commitment, does not feed another player's declaration, plays its faction's counter on its trigger |
+| `faction-greedy-v3` | `faction-greedy` / `3.0.0` | v2, choosing Stabilize or Detonate by its stake and the table's costs, and playing Tapestry under the current rule |
 
 A manifest references a bundle by `id`, `version`, and `artifactDigest`. The digest is the SHA-256 of the
 bundle identity and its canonical definition (for `faction-greedy-v1`, the full preference table; for
@@ -1207,6 +1211,20 @@ rank below ordinary cards and are rarely played.
 
 It has no rule aimed at a faction. A change to any of these rules is a new bundle version, made only for a defect
 (a wasted action, an illegal choice, a counter that never fires), never to move a win ratio.
+
+**`faction-greedy-v3` recipe.** v2 with the two defects the parameter-space-4 run showed fixed:
+
+- *Paradox cards by stake and cost, not habit.* The observation carries the table's announced paradox rules (contest
+  on or off, Stabilize, Detonate and cascade values, the Tapestry rule), read from the case's effective rules. For each
+  affected event the bot values clearing as its stake (3 when an outcome of the event is its own commitment) plus the
+  Stabilize value, and cascading as minus that stake plus the Detonate value while Detonate contests Stabilize, or plus
+  the size of the cascade penalty while it does not. It plays Stabilize when clearing is positive and better, Detonate
+  when cascading is positive, and otherwise v2's choice with Stabilize and Detonate excluded. It does not weigh an
+  imminent collapse: the projection does not say how many events have cascaded.
+- *Tapestry under the current rule.* While Tapestry does not absorb the Annihilate, a second Thread is always wasted
+  and Reweave stays allowed with Tapestry armed.
+
+See `docs/balance-criteria/v4.md`.
 
 **Window procedure.** The runner implements `ParticipantGateway` over the generated participant clients and drives
 `DecisionWindowService`: every seat's observation is frozen and every choice computed before any submission, then

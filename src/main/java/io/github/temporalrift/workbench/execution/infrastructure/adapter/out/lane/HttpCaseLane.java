@@ -124,7 +124,11 @@ public class HttpCaseLane implements CaseLane {
                 ScoringApi.class, lane.gameServiceUrl(), lane.bots().getFirst().token());
         var sessionRef = new AtomicReference<HttpGameSession>();
         var raw = new HttpParticipantGateway(
-                gameId, participants, () -> sessionRef.get().isSettled(), pacing.waits());
+                gameId,
+                participants,
+                () -> sessionRef.get().isSettled(),
+                pacing.waits(),
+                TableRulesMapper.of(context.rules()));
         var recorder = new StepRecorder(
                 evidence,
                 context.caseId(),

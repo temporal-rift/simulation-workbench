@@ -24,6 +24,7 @@ import io.github.temporalrift.workbench.policy.domain.observation.Board;
 import io.github.temporalrift.workbench.policy.domain.observation.DealtCard;
 import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow;
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
+import io.github.temporalrift.workbench.policy.domain.observation.TableRules;
 import io.github.temporalrift.workbench.shared.game.Faction;
 
 class BaselinePoliciesTest {
@@ -86,7 +87,18 @@ class BaselinePoliciesTest {
                 .toList();
 
         assertThat(components)
-                .containsExactlyInAnyOrder("seatindex", "faction", "events", "otherplayerids", "window", "board");
+                .containsExactlyInAnyOrder(
+                        "seatindex", "faction", "events", "otherplayerids", "window", "board", "rules");
+        // The table rules are the announced paradox rules every player knows; nothing hidden.
+        assertThat(Stream.of(TableRules.class.getRecordComponents())
+                        .map(RecordComponent::getName)
+                        .toList())
+                .containsExactlyInAnyOrder(
+                        "detonateContestsStabilize",
+                        "stabilizeDelta",
+                        "detonateDelta",
+                        "cascadePenalty",
+                        "tapestryAbsorbsChainConflict");
         var boardFacts = Stream.of(Board.class.getRecordComponents())
                 .map(RecordComponent::getName)
                 .toList();

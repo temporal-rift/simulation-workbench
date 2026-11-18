@@ -20,6 +20,7 @@ import io.github.temporalrift.workbench.policy.domain.observation.HandCard;
 import io.github.temporalrift.workbench.policy.domain.observation.OutcomeView;
 import io.github.temporalrift.workbench.policy.domain.observation.PlayableCard;
 import io.github.temporalrift.workbench.policy.domain.observation.PublicBand;
+import io.github.temporalrift.workbench.policy.domain.observation.TableRules;
 import io.github.temporalrift.workbench.policy.domain.observation.TargetShape;
 import io.github.temporalrift.workbench.shared.game.CardType;
 import io.github.temporalrift.workbench.shared.game.Faction;
@@ -66,6 +67,19 @@ class ObservationJsonTest {
                 .allSatisfy(outcome -> assertThat(outcome.band()).isNull());
         assertThat(observation).isEqualTo(PolicyFixtures.actionRound(Faction.PROPHETS));
         assertThat(ObservationJson.of(observation)).isEqualTo(recorded);
+        assertThat(observation.rules()).isNull();
+        assertThat(observation.tableRules()).isEqualTo(TableRules.DEFAULTS);
+    }
+
+    @Test
+    void anObservationWithTableRulesReadsBackEqual() {
+        var rules = new TableRules(false, -1, -1, -2, true);
+        var observation = PolicyFixtures.actionRound(Faction.ERASERS).withRules(rules);
+
+        var text = ObservationJson.of(observation);
+
+        assertThat(ObservationJson.parse(text)).isEqualTo(observation);
+        assertThat(text).contains("\"rules\"").doesNotContain("tableRules");
     }
 
     @Test

@@ -2,6 +2,7 @@ package io.github.temporalrift.workbench.execution.infrastructure.serialization;
 
 import java.util.Map;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
@@ -15,6 +16,7 @@ import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
 import io.github.temporalrift.workbench.policy.domain.observation.OutcomeView;
 import io.github.temporalrift.workbench.policy.domain.observation.PublicBand;
+import io.github.temporalrift.workbench.policy.domain.observation.TableRules;
 
 /**
  * The canonical JSON text of what a seat observed. Keys are sorted, so equal observations have equal text
@@ -89,6 +91,14 @@ public final class ObservationJson {
     private interface BoardWhenPresent {
         @JsonInclude(value = JsonInclude.Include.CUSTOM, valueFilter = EmptyBoard.class)
         Board board();
+
+        /** An observation without table rules keeps its earlier text. */
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        TableRules rules();
+
+        /** Derived from {@code rules}; never written. */
+        @JsonIgnore
+        TableRules tableRules();
     }
 
     /** An outcome whose band is not published keeps its earlier text. */
