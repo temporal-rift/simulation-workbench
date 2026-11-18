@@ -124,7 +124,12 @@ final class ObservationMapper {
             hand.add(new HandCard(dealt, playable));
             if (playable) {
                 cards.add(new PlayableCard(
-                        dealt, CardRules.shape(dealt.type()), CardRules.targetCount(dealt.type(), dealt.grade())));
+                        dealt,
+                        CardRules.shape(dealt.type()),
+                        CardRules.targetCount(
+                                dealt.type(),
+                                dealt.grade(),
+                                state.getActiveEvents().size())));
             }
         }
         var window = new DecisionWindow.ActionRound(state.getEraNumber(), round, hand, cards, specials(state, round));

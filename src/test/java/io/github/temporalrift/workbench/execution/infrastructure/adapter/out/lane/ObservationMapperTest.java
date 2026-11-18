@@ -109,7 +109,8 @@ class ObservationMapperTest {
                 .containsExactly(
                         "PUSH:EVENT_OUTCOME:1",
                         "SWING:OUTCOME_PAIR:1",
-                        "SCAN:EVENT_LIST:3",
+                        // A grade III Scan names every active event of the era: one in this fixture.
+                        "SCAN:EVENT_LIST:" + state.getActiveEvents().size(),
                         "NULLIFY:PLAYER_LIST:2",
                         "DECOY:DISGUISE:1",
                         "JAM:PLAYER:1");
