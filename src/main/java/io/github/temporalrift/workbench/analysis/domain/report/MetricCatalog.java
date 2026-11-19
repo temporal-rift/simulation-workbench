@@ -157,11 +157,17 @@ public final class MetricCatalog {
                             var winners = ofFaction(seats, faction).stream()
                                     .filter(SeatFacts::won)
                                     .toList();
-                            return Tally.of(
-                                    winners.stream()
+                            // A winner whose path the case result does not name is left out of the denominator and
+                            // reported as unknown, since it could have won by any path.
+                            var known = winners.stream()
+                                    .filter(seat -> seat.winPath() != null)
+                                    .toList();
+                            return new Tally(
+                                    known.stream()
                                             .filter(seat -> seat.winPath() == path)
                                             .count(),
-                                    winners.size());
+                                    known.size(),
+                                    winners.size() - known.size());
                         }));
             }
             definitions.add(ratio("win_era", MetricStatistic.MEAN, Dimensions.of(faction), "eras", (facts, seats) -> {

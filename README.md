@@ -1160,7 +1160,9 @@ dimensions, and the values. Empty fields are null values. The report export's `f
 is empty for every metric not split by failure code, including the all-codes `failure_share`, and holds the failure
 code of a per-code `failure_share` row. The `scoreReason` and `winPath` columns follow it in the report export, and
 follow `quantile` in the comparison export; they are empty for every metric not split by them. Report format version
-`4` and comparison format version `3` carry these columns. Exports carry no credentials or machine-local paths.
+`4` and comparison format version `3` carry these columns. A format version names the layout of the
+document, not the analysis that computed it, and the API contract allows one layout at a time: a report or comparison
+stored under an earlier analysis version keeps its analysis version and its numbers, and is read in the current layout. Exports carry no credentials or machine-local paths.
 
 ### Limitations
 

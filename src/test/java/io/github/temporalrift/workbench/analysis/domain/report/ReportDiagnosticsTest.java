@@ -64,6 +64,25 @@ class ReportDiagnosticsTest {
     }
 
     @Test
+    void aWinnerWhoseWinPathIsUnknownIsReportedAsUnknownNotAsAMiss() {
+        run.played("1", SyntheticRun.EPW, Set.of(0), Map.of(0, WinPath.FACTION_OBJECTIVE), 3, List.of())
+                .played("2", SyntheticRun.EPW, Set.of(0), Map.of(), 3, List.of());
+
+        var pooled = ReportCalculator.report(RUN, DIGEST, AnalysisVersion.CURRENT, run.cases(), run.facts())
+                .cohorts()
+                .getFirst();
+
+        var rate = pooled.metrics().stream()
+                .filter(metric -> metric.name().equals("win_path_rate"))
+                .filter(metric -> metric.dimensions().equals(Dimensions.of(Faction.ERASERS, WinPath.FACTION_OBJECTIVE)))
+                .findFirst()
+                .orElseThrow();
+        assertThat(rate.value()).isEqualTo(1.0);
+        assertThat(rate.denominator()).isEqualTo(1);
+        assertThat(rate.unknownCount()).isEqualTo(1);
+    }
+
+    @Test
     void version2ReportsNoneOfTheDiagnostics() {
         run.played(
                 "1",
