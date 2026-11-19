@@ -41,8 +41,8 @@ final class FactionGreedyV4Policy implements BotPolicy {
         }
         var withoutUnavailable = new HashSet<>(excluded);
         CandidateGenerator.generate(observation).stream()
-                .filter(candidate -> candidate instanceof Candidate.PlaySpecial(var action, _)
-                        && unavailable.contains(action))
+                .filter(candidate ->
+                        candidate instanceof Candidate.PlaySpecial special && unavailable.contains(special.action()))
                 .forEach(withoutUnavailable::add);
         return recipe.decide(observation, withoutUnavailable, entropy);
     }
