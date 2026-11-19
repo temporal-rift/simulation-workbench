@@ -1,6 +1,6 @@
 # Parameter space version 2
 
-Version 2 is version 1 ([v1.md](v1.md)) plus three parameters for the Eraser and Prophet balance rules. Every
+Version 2 is version 1 ([v1.md](parameter-space-v1.md)) plus three parameters for the Eraser and Prophet balance rules. Every
 version 1 parameter, derived key, constraint and held-fixed entry is carried over unchanged, and version 1 stays
 served exactly as before, so existing experiments and campaigns replay as they ran.
 

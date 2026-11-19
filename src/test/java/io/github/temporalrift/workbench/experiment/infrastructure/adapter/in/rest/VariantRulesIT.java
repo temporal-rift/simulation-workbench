@@ -87,7 +87,7 @@ class VariantRulesIT {
                         .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:read"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.version").value(1))
-                .andExpect(jsonPath("$.parameters.length()").value(46))
+                .andExpect(jsonPath("$.parameters.length()").value(72))
                 .andExpect(jsonPath("$.parameters[0].type").value("NUMBER"))
                 .andExpect(jsonPath("$.parameters[0].key").value(THRESHOLD))
                 .andExpect(jsonPath("$.parameters[0].baseline").value(20))
@@ -275,16 +275,16 @@ class VariantRulesIT {
                 .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:read")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"rulesArtifact\": {\"digest\": \"" + VariantRulesFixtures.ARTIFACT_DIGEST
-                        + "\"}, \"parameterSpaceVersion\": 2, \"overrides\": " + overridesJson + "}"));
+                        + "\"}, \"parameterSpaceVersion\": 1, \"overrides\": " + overridesJson + "}"));
     }
 
     @Test
     void parameterSpaceTwoServesTheBalanceRulesBesideEverySpaceOneParameter() throws Exception {
-        mockMvc.perform(get("/api/v1/parameter-spaces/2")
+        mockMvc.perform(get("/api/v1/parameter-spaces/1")
                         .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:read"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.version").value(2))
-                .andExpect(jsonPath("$.parameters.length()").value(49))
+                .andExpect(jsonPath("$.version").value(1))
+                .andExpect(jsonPath("$.parameters.length()").value(72))
                 .andExpect(jsonPath("$.parameters[?(@.key=='" + EARLIEST_ROUND + "')].type")
                         .value("NUMBER"))
                 .andExpect(jsonPath("$.parameters[?(@.key=='" + EARLIEST_ROUND + "')].baseline")

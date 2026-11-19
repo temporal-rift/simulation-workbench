@@ -3,11 +3,11 @@ package io.github.temporalrift.workbench.fidelity.infrastructure.adapter.out.con
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
-import java.util.Arrays;
+import java.util.List;
 import java.util.TreeMap;
 
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
-import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -15,23 +15,15 @@ import io.github.temporalrift.workbench.fidelity.domain.EdgeVariantCatalog;
 import io.github.temporalrift.workbench.fidelity.domain.EdgeVariants;
 import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 
-/** The edge variants shipped as {@code fidelity/edge-variants-v<n>.json}, one resource per parameter space. */
+/** The edge variants shipped as {@code fidelity/edge-variants.json}, for the one served parameter space. */
 public final class ConfiguredEdgeVariants {
 
-    static final String PATTERN = "classpath*:fidelity/edge-variants-v*.json";
+    static final String LOCATION = "fidelity/edge-variants.json";
 
     private ConfiguredEdgeVariants() {}
 
     public static EdgeVariantCatalog load(ObjectMapper objectMapper) {
-        try {
-            var resources = new PathMatchingResourcePatternResolver().getResources(PATTERN);
-            var variants = Arrays.stream(resources)
-                    .map(resource -> read(objectMapper, resource))
-                    .toList();
-            return new EdgeVariantCatalog(variants);
-        } catch (IOException e) {
-            throw new UncheckedIOException(PATTERN + " could not be listed", e);
-        }
+        return new EdgeVariantCatalog(List.of(read(objectMapper, new ClassPathResource(LOCATION))));
     }
 
     private static EdgeVariants read(ObjectMapper objectMapper, Resource resource) {

@@ -1,12 +1,11 @@
-# Balance criterion version 4
+# Balance criterion
 
-Status: proposed. It becomes approved when the design owner approves the pull request that adds it; any amendment is
-made in that review or in a later version, never by editing an approved version. Versions 1 to 3 stay served and
-unchanged.
-
-Version 4 is version 3 measured with a different primary bot. Every decision of version 3 holds as written, with
-`faction-greedy-v3` read wherever version 3 says `faction-greedy-v2`. Nothing else changes: the lines, bands, roles,
-weights, interval rules, populations, evidence rule and the 104 confirmation seeds are version 3's.
+This is the one balance criterion the workbench serves (`balance-criteria/balance-criterion.json`). It names its
+tables and populations by policy id only (`faction-greedy`, `random`), so it cannot disagree with the bot version a
+run played. It was reached through successive versions; their decision records are kept unchanged in
+[docs/history](../history) (`balance-criterion-v1.md` to `balance-criterion-v3.md`), and every decision there holds
+as written with the policy read as the one `faction-greedy` bundle. The history below says how the current bot differs
+from the one version 3 measured.
 
 ## Changes from version 3
 

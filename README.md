@@ -221,8 +221,8 @@ denominator of 0 shows **No data**; opportunities whose playability is unknown a
 
 #### Evaluate a variant
 
-The **Evaluation** panel on the run page judges one variant against a balance criterion version. Choose the variant, the
-criterion version, and the mode (screening ranks and discards candidates; confirmation may confirm). The panel shows the
+The **Evaluation** panel on the run page judges one variant against the balance criterion. Choose the variant, the
+criterion revision, and the mode (screening ranks and discards candidates; confirmation may confirm). The panel shows the
 verdict, why a run is not valid evidence when it is not, the score, and in confirmation mode how much of the
 confirmation sample the run has. The table lists every evaluated line with its cohort, value, interval, band,
 deviation, and verdict, and can be filtered to failing or inconclusive lines. The panel always states that bot results
@@ -312,20 +312,10 @@ and refuses to start, naming the lane, when a document's effective rules digest 
 `rules-digest`. `overrides` maps parameter keys to numbers, or to booleans for a boolean parameter, and `parameterSpaceVersion` names
 the space they are validated against. A value of the other type is refused with the reason `WRONG_TYPE`.
 
-Parameter space version 1 is configuration (`parameter-spaces/v1.json`, equal to `docs/parameter-space/v1.md`) and is
-read with `listParameterSpaces` and `getParameterSpace`. Version 2 (`parameter-spaces/v2.json`, described in
-`docs/parameter-space/v2.md`) is version 1 plus the earliest Annihilate round and two boolean balance switches; a
-campaign search treats a boolean parameter as a two-value axis. Version 3 (`parameter-spaces/v3.json`, described in
-`docs/parameter-space/v3.md`) is version 2 plus the latest Rewrite round, the `SECRET_OUTCOME_MISSED` score value and two
-boolean contested-yield switches. Version 4 (`parameter-spaces/v4.json`, described in `docs/parameter-space/v4.md`) is
-version 3 plus the faction-balance rule switches (one writing per era, faction claims at stabilization, Tapestry and
-Chain Conflict, the Fate Contradiction paradox) and three score values. Version 5 (`parameter-spaces/v5.json`,
-described in `docs/parameter-space/v5.md`) is version 4 plus the balance-package settings (events per era by player
-count, voided bets on erased outcomes, the Detonate contest and its cost, the wasted-erasure dial, the score tiebreak
-and the final-era objective discount), with a three-link chain and a free Stabilize as baselines. Version 6
-(`parameter-spaces/v6.json`, described in `docs/parameter-space/v6.md`) is version 5 plus the rebalance settings (the
-cost of a missed Thread and the five-player Eraser and Activist objectives), with a four-link chain as baseline. A new
-campaign defaults to the newest version. Its constraints are expressions in a small notation (comparison
+The parameter space is one configuration document (`parameter-spaces/parameter-space.json`, described in
+`docs/parameter-space/current.md`); its `version` is the revision of its content, and it is read with
+`listParameterSpaces` and `getParameterSpace` (any other version is `404`). A campaign search treats a boolean
+parameter as a two-value axis. A new campaign uses the served space. Its constraints are expressions in a small notation (comparison
 chains over `+`, `-`, `*`, `max` and `and`; a subtraction needs spaces around `-` because keys contain it) that the
 workbench both serves and evaluates.
 
@@ -677,12 +667,8 @@ one or is refused without one. It plays on the simulator the full case matrix on
 every faction set and seat rotation, the policies `faction-greedy` and `random` on every seat) for three variants, then
 reproduces every case on one real lane. The variants are the baseline and the two edge variants `low` and `high`, which
 set as many parameters as the constraints allow at the minimum and the maximum of their ranges. A new check resolves
-them against the newest parameter space that has edge variants, which is parameter space 6
-([docs/fidelity/v6.md](docs/fidelity/v6.md); space 5 is in [docs/fidelity/v5.md](docs/fidelity/v5.md), space 4 in
-[docs/fidelity/v4.md](docs/fidelity/v4.md), space 3 in
-[docs/fidelity/v3.md](docs/fidelity/v3.md), space 2 in
-[docs/fidelity/v2.md](docs/fidelity/v2.md) and space 1 in [docs/fidelity/v1.md](docs/fidelity/v1.md)), and
-records that space, so a stored check keeps the variants it was accepted with. That is 55 cases per table and variant,
+them against the one served parameter space
+([docs/fidelity/current.md](docs/fidelity/current.md)), and records its revision on the check. That is 55 cases per table and variant,
 330 in all.
 
 | Operation | Meaning |
@@ -772,7 +758,7 @@ its experiments.
 **Confirming the short list.** Each short-listed candidate is the best of many noisy candidates measured on the same
 search seeds, so its score is optimistically biased. `startConfirmation` therefore confirms on fresh seeds, which remove
 that bias on any lane. It derives the
-criterion's `confirmationMinimumSeeds` (100 for version 1, 104 for version 2) from `confirmationMasterSeed` alone and
+criterion's `confirmationMinimumSeeds` (104) from `confirmationMasterSeed` alone and
 refuses with `409`, having frozen nothing, in this order: `SEED_OVERLAP` when one of them is already in the campaign log,
 `SIMULATOR_NOT_AVAILABLE` when the simulator is not enabled, and `POLICY_NOT_AVAILABLE` when no bundle serves a policy the
 criterion names. Fidelity records are not consulted. Should the simulator still refuse an
@@ -781,10 +767,10 @@ experiment or a run after those checks, for instance after a rebuild on other ba
 exist, play nothing, and are reused by a retry.
 Otherwise it freezes one experiment for each short-listed candidate, in short-list order, each on the simulator over
 those seeds, the full case matrix of the campaign's player counts and the criterion's `CONFIRMATION` tables, each
-seat playing the newest bundle of its policy's major version (the sample is only satisfied when each table was played,
-whatever policies the search used), and starts one run per experiment. No baseline is played: a verdict is judged against
-the criterion's fixed bands and never against the baseline. Under criterion version 2 the tables include the mixed table
-`random-seat-vs-faction-greedy-v1`, so a candidate over player counts 3, 4 and 5 plays 104 seeds × 165 games = 17,160
+seat playing the bundle of its policy (the sample is only satisfied when each table was played, whatever policies
+the search used), and starts one run per experiment. No baseline is played: a verdict is judged against
+the criterion's fixed bands and never against the baseline. The criterion's tables include the mixed table
+`random-seat-vs-faction-greedy`, so a candidate over player counts 3, 4 and 5 plays 104 seeds × 165 games = 17,160
 games: about 3.2 hours at 12 games at once (5,402 games per hour on the simulator) and about 4.3 hours at the default of
 4 (4,003 per hour). The confirmation matrix played at 12 slots at 5,579 games per hour over its last 2.4 hours
 ([docs/capacity/confirmation-matrix-v1.md](docs/capacity/confirmation-matrix-v1.md)). The runs play one after another, each at
@@ -1086,28 +1072,21 @@ from current results on every read.
 
 ### Balance criterion and run evaluation
 
-A balance criterion version is a read-only document served from configuration: its tables (a policy for each seat, and
+The balance criterion is one read-only document served from configuration: its tables (a policy for each seat, and
 the phases, `SCREENING` or `CONFIRMATION`, that play it), its lines (a metric, a dimension, the populations and player
 counts it covers, a band, an interval rule, a role as `GATE` or `SCORED`, a weight), its aggregation, and its evidence
-rule. A population is the seats of one table played by one policy. `GET /api/v1/balance-criteria` lists the served versions and `GET /api/v1/balance-criteria/{version}`
-reads one; its `digest` is the SHA-256 of its canonical serialisation (object keys sorted, no whitespace, numbers by value
+rule. A population is the seats of one table played by one policy. `GET /api/v1/balance-criteria` lists it and `GET /api/v1/balance-criteria/{version}`
+reads it (its `version` is the revision of its content, and any other version is `404`); its `digest` is the SHA-256 of its canonical serialisation (object keys sorted, no whitespace, numbers by value
 without trailing zeros), so any change of any value changes it. A version whose evidence rule the evaluator cannot apply
 (another confidence level, other invalidating causes, another aggregation), a population naming a policy no seat of
-its table plays, or the exact interval on a line that is not a share of games or cases is refused at startup. A new version is added by
-adding `balance-criteria/v<N>.json` to the application's configuration, never through the API; each version follows its
-decision record, `docs/balance-criteria/v<N>.md`. Version 1 has two uniform tables, `faction-greedy-v1` and `random-v1`,
-and declares neither tables nor interval rules in its file, which keeps its digest: it reads as one uniform table per
-policy and the bootstrap interval on every line. Version 2 adds the confirmation-only table
-`random-seat-vs-faction-greedy-v1` (seat 0 `random-v1`, the other seats `faction-greedy-v1`), measures G-07 on its
-random seat, widens the interval of its share lines with a non-zero limit, and needs 104 confirmation seeds.
-Version 3 is version 2 with `faction-greedy-v2` in place of `faction-greedy-v1` (tables `faction-greedy-v2`,
-`random-v1` and `random-seat-vs-faction-greedy-v2`); every line, band and evidence rule is unchanged. As the newest
-version it is the default criterion of a new campaign, whose default policies are then `faction-greedy` `2.0.0` and
-`random` `1.0.0`. Version 4 is version 3 with `faction-greedy-v3` in place of `faction-greedy-v2` (tables
-`faction-greedy-v3`, `random-v1` and `random-seat-vs-faction-greedy-v3`); as the newest version it is now the default,
-with default policies `faction-greedy` `3.0.0` and `random` `1.0.0`. A criterion names a policy as its id with the
-major version (`faction-greedy-v1` is policy `faction-greedy` at `1.0.0`, `faction-greedy-v2` at `2.0.0`,
-`faction-greedy-v3` at `3.0.0`).
+its table plays, or the exact interval on a line that is not a share of games or cases is refused at startup. The criterion is `balance-criteria/balance-criterion.json` in the application's configuration, never edited through
+the API; its decision record is `docs/balance-criteria/current.md`. It has two uniform tables, `faction-greedy` and
+`random`, and the confirmation-only table `random-seat-vs-faction-greedy` (seat 0 `random`, the other seats
+`faction-greedy`), measures G-07 on its random seat, widens the interval of its share lines with a non-zero limit,
+and needs 104 confirmation seeds. A criterion names a policy by its id only (`faction-greedy`, `random`) and resolves
+it to the one bundle of that id, so it cannot disagree with the bot a run played. Evaluating a run whose tables the
+criterion does not list is refused with `422 UNKNOWN_CRITERION_TABLES`, naming them, instead of returning lines with
+no data.
 
 `GET /api/v1/runs/{runId}/evaluation?variantLabel=&criterionVersion=&mode=` (`simulation:read`) evaluates one variant of
 a run against one criterion version. Nothing is stored: it is derived from the run's current cases on every read, with
@@ -1125,7 +1104,7 @@ line id, table, policy, player count, faction set, and faction.
   the 95% two-sided Clopper–Pearson interval on the cohort's pooled numerator and denominator, so a share without
   events is not shown to be below a limit on a few games.
 - A pooled line whose population has no cohort at a player count the variant played is listed as `NO_DATA`, one line
-  per dimension value. A screening evaluation under version 2 therefore lists G-07 without data; it never rejects.
+  per dimension value. A screening evaluation therefore lists G-07 without data; it never rejects.
 - Deviation is 0 inside the band and otherwise the distance to the nearer bound over the band width (or, for a
   one-sided limit, over its scale). A line is `MEETS` when its whole interval lies inside the band, `FAILS` when it lies
   wholly outside, and `INCONCLUSIVE` otherwise, and always `INCONCLUSIVE` without an interval. The score is the sum of
@@ -1201,15 +1180,12 @@ observation without table rules reads as the served defaults and compares equal 
 
 | Bundle | Id / version | Behavior |
 |---|---|---|
-| `random-v1` | `random` / `1.0.0` | Uniform seeded draw over the canonically ordered candidates, pass or decline included |
-| `faction-greedy-v1` | `faction-greedy` / `1.0.0` | Scores each candidate as `affinity * 1000 + target lean`, then draws among the top scores with seeded entropy; ignores the board |
-| `faction-greedy-v2` | `faction-greedy` / `2.0.0` | One recipe for every faction: reads the board, skips wasted actions, backs its own commitment, does not feed another player's declaration, plays its faction's counter on its trigger |
-| `faction-greedy-v3` | `faction-greedy` / `3.0.0` | v2, choosing Stabilize or Detonate by its stake and the table's costs, and playing Tapestry under the current rule |
-| `faction-greedy-v4` | `faction-greedy` / `4.0.0` | v3 that never proposes a special the table reports unavailable this round |
+| `random` | `random` / `1.0.0` | Uniform seeded draw over the canonically ordered candidates, pass or decline included |
+| `faction-greedy` | `faction-greedy` / `1.0.0` | One recipe for every faction: reads the board, skips wasted actions and specials the table reports unavailable, backs its own commitment, does not feed another player's declaration, plays its faction's counter on its trigger, and chooses paradox cards by its stake and the table's costs |
 
 A manifest references a bundle by `id`, `version`, and `artifactDigest`. The digest is the SHA-256 of the
-bundle identity and its canonical definition (for `faction-greedy-v1`, the full preference table; for
-`faction-greedy-v2`, its rules, bonuses and the same table), so a changed preference needs a new bundle version. The baselines accept no parameters. An unknown id/version
+bundle identity and its canonical definition (for `faction-greedy`, its rules, bonuses and the preference table), so a
+changed preference needs a new bundle version. The baselines accept no parameters. An unknown id/version
 or any parameter yields `INVALID_EXPERIMENT`; a wrong digest yields `MANIFEST_MISMATCH`.
 
 Windows covered: seven-to-five hand selection, declaration or decline, action rounds (every card and
@@ -1221,7 +1197,7 @@ state only; the services stay authoritative for legality, resolution, and scorin
 domain-separation label. Service entropy is never an input, so equal observation, version, and seed always give
 the same choice.
 
-**`faction-greedy-v1` preferences.** Each faction has an affinity per card type and special action, and a lean
+**`faction-greedy` preferences.** Each faction has an affinity per card type and special action, and a lean
 toward the highest or lowest known outcome weight (suppress-style actions by Erasers and raise-style actions by
 the others aim at the leading outcome). Activists prefer declaring over declining; reactive paradox cards rank
 by faction (for example Stabilize for Prophets and Weavers, Detonate for Erasers). Players are targeted by seeded
@@ -1229,7 +1205,7 @@ tie-break only, since opponents' factions and hands are hidden. Because it sees 
 at the same printed leader, and counters such as Tapestry, Reweave, Seal, Fulfillment, Expose, Mimic and Corrupt
 rank below ordinary cards and are rarely played.
 
-**`faction-greedy-v2` recipe.** It keeps v1's affinity table and applies the same rules to every faction:
+**`faction-greedy` recipe.** It keeps the affinity table above and applies the same rules to every faction:
 
 - *Read the board.* Outcomes rank by public band (none counts as `MEDIUM`), then by own Scan value, else printed
   weight; the rank is the share of outcomes strictly below, 0 to 100. No band edge is assumed.
@@ -1249,25 +1225,24 @@ rank below ordinary cards and are rarely played.
 It has no rule aimed at a faction. A change to any of these rules is a new bundle version, made only for a defect
 (a wasted action, an illegal choice, a counter that never fires), never to move a win ratio.
 
-**`faction-greedy-v3` recipe.** v2 with the two defects the parameter-space-4 run showed fixed:
+**Paradox choice and Tapestry.** On top of the recipe:
 
 - *Paradox cards by stake and cost, not habit.* The observation carries the table's announced paradox rules (contest
   on or off, Stabilize, Detonate and cascade values, the Tapestry rule), read from the case's effective rules. For each
   affected event the bot values clearing as its stake (3 when an outcome of the event is its own commitment) plus the
   Stabilize value, and cascading as minus that stake plus the Detonate value while Detonate contests Stabilize, or plus
   the size of the cascade penalty while it does not. It plays Stabilize when clearing is positive and better, Detonate
-  when cascading is positive, and otherwise v2's choice with Stabilize and Detonate excluded. It does not weigh an
+  when cascading is positive, and otherwise the recipe's choice with Stabilize and Detonate excluded. It does not weigh an
   imminent collapse: the projection does not say how many events have cascaded.
 - *Tapestry under the current rule.* While Tapestry does not absorb the Annihilate, a second Thread is always wasted
   and Reweave stays allowed with Tapestry armed.
 
-See `docs/balance-criteria/v4.md`.
+See `docs/balance-criteria/current.md`.
 
-**`faction-greedy-v4` recipe.** v3 that never proposes a special the table reports unavailable this round. The
+**Unavailable specials.** The bot never proposes a special the table reports unavailable this round. The
 observation marks each playable special with the reason the projection's per-round special availability gives (not
-eligible this era or round, era or game budget used, jammed); v4 excludes every marked special before v3 decides, so
-it stops spending attempts on specials the game would refuse. v1 to v3 ignore the mark and keep their behavior and
-digests. The report is advisory: a special refused for its target or a prerequisite is still excluded and retried.
+eligible this era or round, era or game budget used, jammed); the bot excludes every marked special before the rest
+of its recipe decides, so it stops spending attempts on specials the game would refuse. The report is advisory: a special refused for its target or a prerequisite is still excluded and retried.
 
 **Window procedure.** The runner implements `ParticipantGateway` over the generated participant clients and drives
 `DecisionWindowService`: every seat's observation is frozen and every choice computed before any submission, then

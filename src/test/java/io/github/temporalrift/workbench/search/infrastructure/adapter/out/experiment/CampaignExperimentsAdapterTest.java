@@ -110,29 +110,31 @@ class CampaignExperimentsAdapterTest {
         var grid = adapter.grid(definition(VariantRulesFixtures.ARTIFACT_DIGEST, 1));
 
         assertThat(grid.axes()).isNotEmpty();
-        assertThat(grid.axes()).allSatisfy(axis -> {
-            var number = (ParameterGrid.NumberAxis) axis;
-            assertThat(number.baseline()).isBetween(number.min(), number.max());
-        });
+        assertThat(grid.axes())
+                .filteredOn(ParameterGrid.NumberAxis.class::isInstance)
+                .allSatisfy(axis -> {
+                    var number = (ParameterGrid.NumberAxis) axis;
+                    assertThat(number.baseline()).isBetween(number.min(), number.max());
+                });
         assertThat(grid.overridesOf(grid.baselinePoint())).isEmpty();
     }
 
     @Test
-    void theGridOfSpaceTwoHoldsTheTwoSwitchesAsBooleanAxes() {
-        var grid = adapter.grid(definition(VariantRulesFixtures.ARTIFACT_DIGEST, 2));
+    void theGridHoldsTheTwoShieldSwitchesAsBooleanAxes() {
+        var grid = adapter.grid(definition(VariantRulesFixtures.ARTIFACT_DIGEST, 1));
 
         assertThat(grid.axes())
                 .filteredOn(ParameterGrid.FlagAxis.class::isInstance)
                 .extracting(ParameterGrid.Axis::key)
-                .containsExactlyInAnyOrder(
+                .contains(
                         "game.rules.scoring.written-outcome-shields-annihilation",
                         "game.rules.probability.erased-weight-to-written-outcome");
         assertThat(grid.overridesOf(grid.baselinePoint())).isEmpty();
     }
 
     @Test
-    void aBooleanOverrideValidatesOnSpaceTwoAndFreezesIntoACandidateRules() {
-        var definition = definition(VariantRulesFixtures.ARTIFACT_DIGEST, 2);
+    void aBooleanOverrideValidatesAndFreezesIntoACandidateRules() {
+        var definition = definition(VariantRulesFixtures.ARTIFACT_DIGEST, 1);
         var key = "game.rules.scoring.written-outcome-shields-annihilation";
 
         var validated = adapter.validation(definition).validate(Map.of(key, ParameterValue.of(false)));

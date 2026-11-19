@@ -27,7 +27,7 @@ class GetSimulatorFidelityQueryHandlerTest {
     private final InMemoryFidelityRepository checks = new InMemoryFidelityRepository();
 
     /** The parameter space new checks use, which the gate answers for. */
-    private static final int NEWEST_SPACE = 6;
+    private static final int NEWEST_SPACE = 1;
 
     private final EdgeVariantCatalog catalog = ConfiguredEdgeVariants.load(new ObjectMapper());
 
@@ -78,16 +78,6 @@ class GetSimulatorFidelityQueryHandlerTest {
         stored("1111111", true);
 
         var answer = handlerFor("2222222").handle();
-
-        assertThat(answer.established()).isFalse();
-        assertThat(answer.passingCheck()).isNull();
-    }
-
-    @Test
-    void aCheckThatPassedOnAnOlderSpaceDoesNotVouchForTheNewestOne() {
-        stored("1111111", true, 1, 1);
-
-        var answer = handlerFor("1111111").handle();
 
         assertThat(answer.established()).isFalse();
         assertThat(answer.passingCheck()).isNull();

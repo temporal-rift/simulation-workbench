@@ -1,6 +1,6 @@
 # Parameter space version 5
 
-Version 5 is version 4 ([v4.md](v4.md)) plus the balance-package rule settings that the game now serves, and the two
+Version 5 is version 4 ([v4.md](parameter-space-v4.md)) plus the balance-package rule settings that the game now serves, and the two
 baselines those rules moved. Versions 1 to 4 stay served exactly as before, so existing experiments, campaigns and
 fidelity checks replay as they ran. The configuration is `parameter-spaces/v5.json`.
 

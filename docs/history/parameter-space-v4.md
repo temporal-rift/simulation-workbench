@@ -1,6 +1,6 @@
 # Parameter space version 4
 
-Version 4 is version 3 ([v3.md](v3.md)) plus the faction-balance rule switches that the game now serves, and the two
+Version 4 is version 3 ([v3.md](parameter-space-v3.md)) plus the faction-balance rule switches that the game now serves, and the two
 baselines those rules moved. Versions 1 to 3 stay served exactly as before, so existing experiments, campaigns and
 fidelity checks replay as they ran. The configuration is `parameter-spaces/v4.json`.
 

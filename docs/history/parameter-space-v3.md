@@ -1,6 +1,6 @@
 # Parameter space version 3
 
-Version 3 is version 2 ([v2.md](v2.md)) plus four settings for the contested-yield rules. Every version 2 parameter,
+Version 3 is version 2 ([v2.md](parameter-space-v2.md)) plus four settings for the contested-yield rules. Every version 2 parameter,
 derived key, constraint (C-01 to C-12) and held-fixed entry is carried over unchanged, and versions 1 and 2 stay served
 exactly as before, so existing experiments, campaigns and fidelity checks replay as they ran.
 

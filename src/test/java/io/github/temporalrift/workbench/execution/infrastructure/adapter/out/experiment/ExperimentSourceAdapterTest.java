@@ -75,7 +75,7 @@ class ExperimentSourceAdapterTest {
 
     @Test
     void theRulesOfASpaceTwoVariantCarryItsNumericAndBooleanOverridesToEveryService() {
-        var space = VariantRulesFixtures.spaces().find(2).orElseThrow();
+        var space = VariantRulesFixtures.spaces().all().getFirst();
         var rules = VariantMaterializer.materialize(
                         VariantRulesFixtures.baseline(),
                         space,
