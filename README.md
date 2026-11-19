@@ -322,8 +322,10 @@ version 3 plus the faction-balance rule switches (one writing per era, faction c
 Chain Conflict, the Fate Contradiction paradox) and three score values. Version 5 (`parameter-spaces/v5.json`,
 described in `docs/parameter-space/v5.md`) is version 4 plus the balance-package settings (events per era by player
 count, voided bets on erased outcomes, the Detonate contest and its cost, the wasted-erasure dial, the score tiebreak
-and the final-era objective discount), with a three-link chain and a free Stabilize as baselines. A new campaign
-defaults to the newest version. Its constraints are expressions in a small notation (comparison
+and the final-era objective discount), with a three-link chain and a free Stabilize as baselines. Version 6
+(`parameter-spaces/v6.json`, described in `docs/parameter-space/v6.md`) is version 5 plus the rebalance settings (the
+cost of a missed Thread and the five-player Eraser and Activist objectives), with a four-link chain as baseline. A new
+campaign defaults to the newest version. Its constraints are expressions in a small notation (comparison
 chains over `+`, `-`, `*`, `max` and `and`; a subtraction needs spaces around `-` because keys contain it) that the
 workbench both serves and evaluates.
 
@@ -675,8 +677,9 @@ one or is refused without one. It plays on the simulator the full case matrix on
 every faction set and seat rotation, the policies `faction-greedy` and `random` on every seat) for three variants, then
 reproduces every case on one real lane. The variants are the baseline and the two edge variants `low` and `high`, which
 set as many parameters as the constraints allow at the minimum and the maximum of their ranges. A new check resolves
-them against the newest parameter space that has edge variants, which is parameter space 5
-([docs/fidelity/v5.md](docs/fidelity/v5.md); space 4 is in [docs/fidelity/v4.md](docs/fidelity/v4.md), space 3 in
+them against the newest parameter space that has edge variants, which is parameter space 6
+([docs/fidelity/v6.md](docs/fidelity/v6.md); space 5 is in [docs/fidelity/v5.md](docs/fidelity/v5.md), space 4 in
+[docs/fidelity/v4.md](docs/fidelity/v4.md), space 3 in
 [docs/fidelity/v3.md](docs/fidelity/v3.md), space 2 in
 [docs/fidelity/v2.md](docs/fidelity/v2.md) and space 1 in [docs/fidelity/v1.md](docs/fidelity/v1.md)), and
 records that space, so a stored check keeps the variants it was accepted with. That is 55 cases per table and variant,

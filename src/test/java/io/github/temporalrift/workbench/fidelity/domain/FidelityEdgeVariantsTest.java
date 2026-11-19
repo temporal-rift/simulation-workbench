@@ -63,11 +63,11 @@ class FidelityEdgeVariantsTest {
     }
 
     @Test
-    void edgeVariantsAreShippedForParameterSpacesOneToFive() {
+    void edgeVariantsAreShippedForParameterSpacesOneToSix() {
         assertThat(catalog.all())
                 .extracting(EdgeVariants::parameterSpaceVersion)
-                .containsExactly(1, 2, 3, 4, 5);
-        assertThat(catalog.newest().parameterSpaceVersion()).isEqualTo(5);
+                .containsExactly(1, 2, 3, 4, 5, 6);
+        assertThat(catalog.newest().parameterSpaceVersion()).isEqualTo(6);
         assertThat(catalog.forSpace(1).parameterSpaceVersion()).isEqualTo(1);
     }
 
@@ -115,10 +115,44 @@ class FidelityEdgeVariantsTest {
     }
 
     @Test
+    void spaceSixTakesTheThreeNewSettingsAtOppositeExtremes() {
+        var six = catalog.forSpace(6);
+
+        assertThat(six.low())
+                .containsEntry(
+                        "game.rules.scoring.score-deltas.CHAIN_LINK_MISSED", ParameterValue.of(new BigDecimal("-2")))
+                .containsEntry(
+                        "game.rules.victory.eraser-annihilations-by-player-count.5",
+                        ParameterValue.of(new BigDecimal("3")))
+                .containsEntry(
+                        "game.rules.victory.activist-consecutive-eras-by-player-count.5", ParameterValue.of(false));
+        assertThat(six.high())
+                .containsEntry("game.rules.scoring.score-deltas.CHAIN_LINK_MISSED", ParameterValue.of(BigDecimal.ZERO))
+                .containsEntry(
+                        "game.rules.victory.eraser-annihilations-by-player-count.5",
+                        ParameterValue.of(new BigDecimal("5")))
+                .containsEntry(
+                        "game.rules.victory.activist-consecutive-eras-by-player-count.5", ParameterValue.of(true));
+    }
+
+    @Test
+    void spaceSixCarriesEverySpaceFiveValueOver() {
+        var five = catalog.forSpace(5);
+        var six = catalog.forSpace(6);
+
+        assertThat(six.low())
+                .containsAllEntriesOf(five.low())
+                .hasSize(five.low().size() + 3);
+        assertThat(six.high())
+                .containsAllEntriesOf(five.high())
+                .hasSize(five.high().size() + 3);
+    }
+
+    @Test
     void aSpaceWithoutEdgeVariantsIsRefused() {
-        assertThatThrownBy(() -> catalog.forSpace(6))
+        assertThatThrownBy(() -> catalog.forSpace(7))
                 .isInstanceOf(NoSuchElementException.class)
-                .hasMessageContaining("parameter space 6");
+                .hasMessageContaining("parameter space 7");
     }
 
     @Test
