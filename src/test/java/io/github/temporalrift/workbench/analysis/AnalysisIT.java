@@ -129,7 +129,7 @@ class AnalysisIT {
         var lines = csv.split("\r\n");
         assertThat(lines[0])
                 .startsWith("formatVersion,runId,manifestDigest,analysisVersion,analysisSeed,complete,")
-                .contains(",endReason,quantile,failureCode,unit,value,")
+                .contains(",endReason,quantile,failureCode,scoreReason,winPath,unit,value,")
                 .endsWith(",value,numerator,denominator,status,intervalLower,intervalUpper,unknownCount");
         var metrics = 0;
         for (var cohort : report.path("cohorts")) {
@@ -137,7 +137,7 @@ class AnalysisIT {
         }
         assertThat(lines).hasSize(1 + metrics);
         assertThat(lines[1])
-                .startsWith("3," + runId + "," + report.path("manifestDigest").asString() + ",2,1,true," + BASELINE
+                .startsWith("4," + runId + "," + report.path("manifestDigest").asString() + ",3,1,true," + BASELINE
                         + ",random,random,");
         assertThat(csv).doesNotContainIgnoringCase("bearer").doesNotContainIgnoringCase("token");
         assertThat(read(report(runId, CSV))).isEqualTo(csv);
@@ -182,6 +182,12 @@ class AnalysisIT {
         assertThat(read(comparison(comparisonId, CSV))).isEqualTo(csv);
     }
 
+    private static List<String> names(JsonNode differences) {
+        var names = new ArrayList<String>();
+        differences.forEach(difference -> names.add(difference.path("name").asString()));
+        return names;
+    }
+
     @Test
     void aComparisonStoredUnderAnalysisVersionOneKeepsItsVersionAndItsDocument() throws Exception {
         lanes.script(this::thresholdDecides);
@@ -195,8 +201,11 @@ class AnalysisIT {
         var stored = objectMapper.readTree(read(comparison(comparisonId, MediaType.APPLICATION_JSON)));
 
         assertThat(stored.path("analysisVersion").asString()).isEqualTo("1");
-        assertThat(stored.path("cohorts").get(0).path("metricDifferences"))
-                .isEqualTo(created.path("cohorts").get(0).path("metricDifferences"));
+        var storedNames = names(stored.path("cohorts").get(0).path("metricDifferences"));
+        var createdNames = names(created.path("cohorts").get(0).path("metricDifferences"));
+        // The earlier version keeps its document: every metric it had, and none of the version 3 diagnostics.
+        assertThat(storedNames).doesNotContain("score_by_reason", "win_path_rate", "win_era", "bet_success_rate");
+        assertThat(createdNames).containsAll(storedNames);
     }
 
     @Test
@@ -369,7 +378,7 @@ class AnalysisIT {
         assertThat(evaluation.path("runId").asString()).isEqualTo(runId.toString());
         assertThat(evaluation.path("criterionVersion").asInt()).isEqualTo(1);
         assertThat(evaluation.path("criterionDigest").asString()).matches("[a-f0-9]{64}");
-        assertThat(evaluation.path("analysisVersion").asString()).isEqualTo("3");
+        assertThat(evaluation.path("analysisVersion").asString()).isEqualTo("2");
         assertThat(evaluation.path("analysisSeed").asString()).isEqualTo("1");
         assertThat(evaluation.path("mode").asString()).isEqualTo("SCREENING");
         assertThat(evaluation.path("verdict").asString()).isEqualTo("INVALID");
