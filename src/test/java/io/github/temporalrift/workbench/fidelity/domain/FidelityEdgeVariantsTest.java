@@ -54,7 +54,7 @@ class FidelityEdgeVariantsTest {
 
     /** A row of a record's override table: key, baseline, {@code low} and {@code high}, each value maybe marked †. */
     private static final Pattern TABLE_ROW =
-            Pattern.compile("\\| `(game\\.rules\\.[^`]+)` \\| (\\S+) \\| (\\S+)(?: †)? \\| (\\S+)(?: †)? \\|");
+            Pattern.compile("\\| `(game\\.rules\\.[^`]+)` \\| (\\S+) \\| (\\S+)( †)? \\| (\\S+)( †)? \\|");
 
     private final EdgeVariantCatalog catalog = ConfiguredEdgeVariants.load(new ObjectMapper());
 
@@ -275,10 +275,12 @@ class FidelityEdgeVariantsTest {
         for (var variants : catalog.all()) {
             var document = Files.readAllLines(Path.of("docs/fidelity/v" + variants.parameterSpaceVersion() + ".md"));
             var rows = new TreeMap<String, List<String>>();
+            var marks = new TreeMap<String, List<Boolean>>();
             for (var line : document) {
                 var row = TABLE_ROW.matcher(line);
                 if (row.matches()) {
-                    rows.put(row.group(1), List.of(row.group(2), row.group(3), row.group(4)));
+                    rows.put(row.group(1), List.of(row.group(2), row.group(3), row.group(5)));
+                    marks.put(row.group(1), List.of(row.group(4) != null, row.group(6) != null));
                 }
             }
 
@@ -289,6 +291,26 @@ class FidelityEdgeVariantsTest {
                         .ifPresent(parameter -> assertThat(cells.get(0))
                                 .as("baseline " + key)
                                 .isEqualTo(shown(parameter.baselineValue())));
+                // † marks a value that is not the range minimum (low) or maximum (high) of a numeric parameter.
+                space.parameter(key)
+                        .filter(ParameterSpace.NumberParameter.class::isInstance)
+                        .map(ParameterSpace.NumberParameter.class::cast)
+                        .ifPresent(parameter -> {
+                            assertThat(marks.get(key).get(0))
+                                    .as("† on low " + key)
+                                    .isEqualTo(new BigDecimal(variants.low()
+                                                            .get(key)
+                                                            .text())
+                                                    .compareTo(parameter.min())
+                                            != 0);
+                            assertThat(marks.get(key).get(1))
+                                    .as("† on high " + key)
+                                    .isEqualTo(new BigDecimal(variants.high()
+                                                            .get(key)
+                                                            .text())
+                                                    .compareTo(parameter.max())
+                                            != 0);
+                        });
                 assertThat(cells.get(1))
                         .as("low " + key)
                         .isEqualTo(shown(variants.low().get(key)));
