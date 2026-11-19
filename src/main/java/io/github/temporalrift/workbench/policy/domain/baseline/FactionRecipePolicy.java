@@ -26,12 +26,12 @@ import io.github.temporalrift.workbench.shared.game.CardType;
 import io.github.temporalrift.workbench.shared.game.SpecialAction;
 
 /**
- * {@code faction-greedy-v2}: one recipe for every faction. It reads the board (public bands, own Scan, printed
- * weights), drops actions it knows are wasted, prefers its own commitment of the era, does not feed another
+ * The base recipe of {@code faction-greedy}: one recipe for every faction. It reads the board (public bands, own Scan,
+ * printed weights), drops actions it knows are wasted, prefers its own commitment of the era, does not feed another
  * participant's declared outcome, and plays a faction's counter when the counter's trigger is present. It never
  * models resolution, scoring or another participant's faction.
  */
-final class FactionGreedyV2Policy implements BotPolicy {
+final class FactionRecipePolicy implements BotPolicy {
 
     static final int AFFINITY_SCALE = 1000;
     static final int DECLARATION_SCORE = 8 * AFFINITY_SCALE;
@@ -43,7 +43,7 @@ final class FactionGreedyV2Policy implements BotPolicy {
     static final int COUNTER_AFFINITY = 5;
 
     static final String DEFINITION = """
-            faction-greedy v2: score = affinity*1000 + board rank (0..100) + commitment adjustment
+            faction-greedy base recipe: score = affinity*1000 + board rank (0..100) + commitment adjustment
             board rank: outcomes ordered by public band (none = MEDIUM), then own Scan value else printed weight; \
             rank = 100 * outcomes strictly below / (outcomes - 1); TRAILING = 100 - rank; pairs average both ends
             commitment: Activist declared outcome, Revisionist first Rewrite outcome, Weaver latest Thread/Reweave \
@@ -69,12 +69,12 @@ final class FactionGreedyV2Policy implements BotPolicy {
 
     @Override
     public PolicyDecision decide(EntitledObservation observation, Set<Candidate> excluded, PolicyEntropy entropy) {
-        return decide(observation, excluded, entropy, FactionGreedyV2Policy::wasted);
+        return decide(observation, excluded, entropy, FactionRecipePolicy::wasted);
     }
 
     /**
-     * The v2 recipe with a given waste rule, so a later bundle can reuse the recipe while correcting what it knows to
-     * be wasted. v2 itself always passes {@link #wasted}.
+     * The base recipe with a given waste rule, so a later bundle can reuse the recipe while correcting what it knows to
+     * be wasted. the base policy always passes {@link #wasted}.
      */
     PolicyDecision decide(
             EntitledObservation observation,

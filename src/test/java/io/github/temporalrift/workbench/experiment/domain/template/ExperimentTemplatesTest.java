@@ -70,8 +70,8 @@ class ExperimentTemplatesTest {
         assertThat(templates.getFirst().defaults().policies())
                 .containsExactly(
                         new ExperimentTemplate.Policy(
-                                "faction-greedy", "1.0.0", BaselinePolicies.FACTION_GREEDY_V1.artifactDigest()),
-                        new ExperimentTemplate.Policy("random", "1.0.0", BaselinePolicies.RANDOM_V1.artifactDigest()));
+                                "faction-greedy", "1.0.0", BaselinePolicies.FACTION_GREEDY.artifactDigest()),
+                        new ExperimentTemplate.Policy("random", "1.0.0", BaselinePolicies.RANDOM.artifactDigest()));
         assertThat(templates.getFirst().defaults().tables())
                 .extracting(ExperimentTemplate.Table::id)
                 .containsExactly("faction-greedy", "random");
@@ -158,7 +158,7 @@ class ExperimentTemplatesTest {
     }
 
     private static Optional<PolicyBundle> baseline(String id, String version) {
-        return Stream.of(BaselinePolicies.RANDOM_V1, BaselinePolicies.FACTION_GREEDY_V1)
+        return Stream.of(BaselinePolicies.RANDOM, BaselinePolicies.FACTION_GREEDY)
                 .filter(bundle -> bundle.id().equals(id) && bundle.version().equals(version))
                 .findFirst();
     }

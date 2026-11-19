@@ -19,7 +19,7 @@ import io.github.temporalrift.workbench.shared.game.Faction;
 import io.github.temporalrift.workbench.shared.window.WindowKind;
 
 /**
- * What {@code faction-greedy-v2} reads from one observation: a threshold-free rank of every visible outcome, the
+ * What {@code faction-greedy} reads from one observation: a threshold-free rank of every visible outcome, the
  * seat's own commitments of the era, other participants' declared outcomes, and who the previous round's public
  * summary shows playing a Probability Shifter card.
  */

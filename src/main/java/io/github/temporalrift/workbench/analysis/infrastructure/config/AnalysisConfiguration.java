@@ -118,8 +118,11 @@ public class AnalysisConfiguration {
     }
 
     @Bean
-    RunConfirmation runConfirmation(GetRunEvaluationUseCase evaluations, BalanceCriteria criteria) {
-        return new RunConfirmationService(evaluations, criteria);
+    RunConfirmation runConfirmation(
+            GetRunEvaluationUseCase evaluations,
+            BalanceCriteria criteria,
+            io.github.temporalrift.workbench.policy.PolicyCatalog policyCatalog) {
+        return new RunConfirmationService(evaluations, criteria, policyCatalog);
     }
 
     @Bean

@@ -3,19 +3,14 @@ package io.github.temporalrift.workbench.analysis.infrastructure.adapter.out.con
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.math.BigDecimal;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
-import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.JsonNodeFactory;
@@ -39,32 +34,20 @@ import io.github.temporalrift.workbench.shared.game.EndReason;
 import io.github.temporalrift.workbench.shared.text.Sha256;
 
 /**
- * The criterion versions found as {@code balance-criteria/v*.json} on the classpath. A version is added by adding a
- * file; nothing creates, edits or deletes one at run time. The digest is the SHA-256 of the file's canonical
- * serialisation: object keys sorted recursively, no whitespace, array order as written.
+ * The one balance criterion, read from {@code balance-criteria/balance-criterion.json} on the classpath. Its integer
+ * {@code version} is the revision of its content; nothing creates, edits or deletes it at run time. The digest is the
+ * SHA-256 of the file's canonical serialisation: object keys sorted recursively, no whitespace, array order as
+ * written.
  */
 public class ConfiguredBalanceCriteria implements BalanceCriteria {
 
     private static final String AGGREGATION = "WEIGHTED_SUM_OF_SQUARED_DEVIATIONS";
-    private static final String LOCATION = "classpath*:balance-criteria/v*.json";
+    private static final String LOCATION = "balance-criteria/balance-criterion.json";
 
     private final List<BalanceCriterion> criteria;
 
     public ConfiguredBalanceCriteria(ObjectMapper objectMapper) {
-        Resource[] resources;
-        try {
-            resources = new PathMatchingResourcePatternResolver().getResources(LOCATION);
-        } catch (IOException e) {
-            throw new UncheckedIOException("Balance criteria could not be listed", e);
-        }
-        var parsed = Arrays.stream(resources)
-                .map(resource -> read(objectMapper, resource))
-                .sorted(Comparator.comparingInt(BalanceCriterion::version))
-                .toList();
-        if (parsed.stream().map(BalanceCriterion::version).distinct().count() != parsed.size()) {
-            throw new IllegalStateException("A balance criterion version is configured twice");
-        }
-        this.criteria = parsed;
+        this.criteria = List.of(read(objectMapper, new ClassPathResource(LOCATION)));
     }
 
     @Override
@@ -113,42 +96,24 @@ public class ConfiguredBalanceCriteria implements BalanceCriteria {
                 evidence(document.get("evidence")));
     }
 
-    /**
-     * The tables a document declares. A document that declares none, as version 1 does, plays one uniform table per
-     * policy its lines name, called by the policy reference and played in both phases.
-     */
+    /** The tables the document declares: each seat names a policy by id. */
     private static List<CriterionTable> tables(JsonNode document) {
-        var declared = document.get("tables");
-        if (declared != null && !declared.isNull()) {
-            return StreamSupport.stream(declared.spliterator(), false)
-                    .map(node -> new CriterionTable(
-                            node.get("id").asString(),
-                            strings(node.get("seats")),
-                            strings(node.get("phases")).stream()
-                                    .map(CriterionPhase::valueOf)
-                                    .collect(Collectors.toSet())))
-                    .toList();
-        }
-        var policies = new LinkedHashSet<String>();
-        document.get("lines").forEach(line -> policies.addAll(strings(line.get("policies"))));
-        return policies.stream()
-                .map(policy ->
-                        new CriterionTable(policy, Collections.nCopies(5, policy), Set.of(CriterionPhase.values())))
+        return StreamSupport.stream(document.get("tables").spliterator(), false)
+                .map(node -> new CriterionTable(
+                        node.get("id").asString(),
+                        strings(node.get("seats")),
+                        strings(node.get("phases")).stream()
+                                .map(CriterionPhase::valueOf)
+                                .collect(Collectors.toSet())))
                 .toList();
     }
 
-    /** The populations a line declares, or one population per policy it names, on the table called by the policy. */
+    /** The populations a line declares: a policy id played on a table. */
     private static List<CriterionPopulation> populations(JsonNode node) {
-        var declared = node.get("populations");
-        if (declared != null && !declared.isNull()) {
-            return StreamSupport.stream(declared.spliterator(), false)
-                    .map(population -> new CriterionPopulation(
-                            population.get("table").asString(),
-                            population.get("policy").asString()))
-                    .toList();
-        }
-        return strings(node.get("policies")).stream()
-                .map(policy -> new CriterionPopulation(policy, policy))
+        return StreamSupport.stream(node.get("populations").spliterator(), false)
+                .map(population -> new CriterionPopulation(
+                        population.get("table").asString(),
+                        population.get("policy").asString()))
                 .toList();
     }
 

@@ -63,7 +63,7 @@ class CampaignExperimentsAdapterTest {
     }
 
     @Test
-    void eachPolicyMajorResolvesToItsNewestBaselineBundle() {
+    void eachPolicyMajorResolvesToItsBaselineBundle() {
         var served = new CampaignExperimentsAdapter(
                 null,
                 new io.github.temporalrift.workbench.policy.application.query.BaselinePolicyCatalog(),
@@ -72,14 +72,13 @@ class CampaignExperimentsAdapterTest {
                 new CampaignExperimentsAdapter.Bounds(3600, 10));
 
         var bundles = served.bundles(List.of(
-                new io.github.temporalrift.workbench.search.domain.campaign.PolicyRef("faction-greedy", "2"),
-                new io.github.temporalrift.workbench.search.domain.campaign.PolicyRef("random", "1"),
-                new io.github.temporalrift.workbench.search.domain.campaign.PolicyRef("faction-greedy", "1")));
+                new io.github.temporalrift.workbench.search.domain.campaign.PolicyRef("faction-greedy", "1"),
+                new io.github.temporalrift.workbench.search.domain.campaign.PolicyRef("random", "1")));
 
         assertThat(bundles)
                 .extracting(node ->
                         node.path("id").asString() + "@" + node.path("version").asString())
-                .containsExactly("faction-greedy@2.0.0", "random@1.0.0", "faction-greedy@1.0.0");
+                .containsExactly("faction-greedy@1.0.0", "random@1.0.0");
     }
 
     @Test
@@ -184,7 +183,7 @@ class CampaignExperimentsAdapterTest {
     @Test
     void aGameIsTheFullMatrixOfTheCampaignsPlayerCountsAndTables() {
         var table =
-                new io.github.temporalrift.workbench.search.domain.campaign.SeatTable("random-v1", java.util.List.of());
+                new io.github.temporalrift.workbench.search.domain.campaign.SeatTable("random", java.util.List.of());
         assertThat(adapter.casesPerGame(definition(VariantRulesFixtures.ARTIFACT_DIGEST, 1), java.util.List.of(table)))
                 .isEqualTo(55);
         assertThat(adapter.casesPerGame(

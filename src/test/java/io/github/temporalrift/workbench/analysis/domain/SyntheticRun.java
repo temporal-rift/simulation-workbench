@@ -61,7 +61,7 @@ public final class SyntheticRun {
 
     /**
      * The table of the cases added from now on: its id, and the criterion reference of the policy each seat plays,
-     * such as {@code random-v1}.
+     * such as {@code random}.
      */
     public SyntheticRun table(String tableId, List<String> seatPolicies) {
         this.table = tableId;
@@ -131,15 +131,14 @@ public final class SyntheticRun {
         return this;
     }
 
-    /** A policy referred to as faction-greedy-v1 has id faction-greedy at version 1.0.0. */
+    /** A policy is referred to by its id, which has version 1.0.0. */
     private String policyId() {
-        return policy.replaceFirst("-v1$", "");
+        return policy;
     }
 
-    /** A criterion reference such as {@code random-v2} as the policy {@code random} at version {@code 2.0.0}. */
+    /** A criterion reference such as {@code random} as the policy {@code random} at version {@code 1.0.0}. */
     private static SeatPolicy seatPolicy(String reference) {
-        var split = reference.lastIndexOf("-v");
-        return new SeatPolicy(reference.substring(0, split), reference.substring(split + 2) + ".0.0");
+        return new SeatPolicy(reference, "1.0.0");
     }
 
     private static CaseFacts withParadoxes(CaseFacts extracted) {

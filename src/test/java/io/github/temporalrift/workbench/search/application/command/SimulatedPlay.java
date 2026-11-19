@@ -312,9 +312,8 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
     @Override
     public List<SeatTable> screeningTables(int criterionVersion) {
         return List.of(
-                new SeatTable(
-                        "faction-greedy-v1", java.util.Collections.nCopies(5, new PolicyRef("faction-greedy", "1"))),
-                new SeatTable("random-v1", java.util.Collections.nCopies(5, new PolicyRef("random", "1"))));
+                new SeatTable("faction-greedy", java.util.Collections.nCopies(5, new PolicyRef("faction-greedy", "1"))),
+                new SeatTable("random", java.util.Collections.nCopies(5, new PolicyRef("random", "1"))));
     }
 
     @Override
@@ -324,10 +323,10 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
 
     /** The screening tables plus a mixed table that only confirmation plays. */
     static final List<SeatTable> CONFIRMATION_TABLES = List.of(
-            new SeatTable("faction-greedy-v1", java.util.Collections.nCopies(5, new PolicyRef("faction-greedy", "1"))),
-            new SeatTable("random-v1", java.util.Collections.nCopies(5, new PolicyRef("random", "1"))),
+            new SeatTable("faction-greedy", java.util.Collections.nCopies(5, new PolicyRef("faction-greedy", "1"))),
+            new SeatTable("random", java.util.Collections.nCopies(5, new PolicyRef("random", "1"))),
             new SeatTable(
-                    "random-seat-vs-faction-greedy-v1",
+                    "random-seat-vs-faction-greedy",
                     List.of(
                             new PolicyRef("random", "1"),
                             new PolicyRef("faction-greedy", "1"),

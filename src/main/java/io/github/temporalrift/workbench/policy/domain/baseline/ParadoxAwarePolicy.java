@@ -22,30 +22,30 @@ import io.github.temporalrift.workbench.policy.domain.observation.TableRules;
 import io.github.temporalrift.workbench.shared.game.CardType;
 
 /**
- * {@code faction-greedy-v3}: the v2 recipe with two instrument fixes. In paradox resolution it plays Stabilize or
- * Detonate only when the table's costs make clearing or cascading better for it, judged by its own commitment on the
- * affected event; otherwise it plays as v2 among the remaining cards, never Stabilize or Detonate by habit. Under the
- * current Tapestry rule it keeps a protected link pending after an Annihilate instead of Threading again, and may
- * Reweave it while Tapestry is armed.
+ * The paradox layer of {@code faction-greedy}: the base recipe with two instrument fixes. In paradox resolution it
+ * plays Stabilize or Detonate only when the table's costs make clearing or cascading better for it, judged by its own
+ * commitment on the affected event; otherwise it plays the base recipe among the remaining cards, never Stabilize or
+ * Detonate by habit. Under the current Tapestry rule it keeps a protected link pending after an Annihilate instead of
+ * Threading again, and may Reweave it while Tapestry is armed.
  */
-final class FactionGreedyV3Policy implements BotPolicy {
+final class ParadoxAwarePolicy implements BotPolicy {
 
     /** What a commitment on an event is worth to the seat: about one win of its signature bet. */
     static final int COMMITMENT_VALUE = 3;
 
     static final String DEFINITION = """
-            faction-greedy v3: faction-greedy v2 with two fixes
+            faction-greedy paradox layer: the base recipe with two fixes
             paradox resolution, per affected event in canonical order: commitment = an outcome of the event is the \
-            seat's own commitment (v2 sense); clear value = commitment ? 3 : 0, plus the table's Stabilize delta when \
-            the seat stabilizes; cascade value = -(commitment ? 3 : 0), plus the table's Detonate delta when Detonate \
-            contests Stabilize, else +|cascade penalty| (the others pay double); play STABILIZE on the first event \
-            whose clear value beats both 0 and its cascade value, else DETONATE on the first event whose cascade \
-            value beats 0, else the v2 choice with every STABILIZE and DETONATE excluded
+            seat's own commitment (base-recipe sense); clear value = commitment ? 3 : 0, plus the table's Stabilize \
+            delta when the seat stabilizes; cascade value = -(commitment ? 3 : 0), plus the table's Detonate delta \
+            when Detonate contests Stabilize, else +|cascade penalty| (the others pay double); play STABILIZE on the \
+            first event whose clear value beats both 0 and its cascade value, else DETONATE on the first event whose \
+            cascade value beats 0, else the base choice with every STABILIZE and DETONATE excluded
             Tapestry, while it does not absorb the Annihilate: a Thread after an accepted Thread is always wasted; \
             Reweave is allowed while Tapestry is armed
-            """ + FactionGreedyV2Policy.DEFINITION;
+            """ + FactionRecipePolicy.DEFINITION;
 
-    private final FactionGreedyV2Policy recipe = new FactionGreedyV2Policy();
+    private final FactionRecipePolicy recipe = new FactionRecipePolicy();
 
     @Override
     public PolicyDecision decide(EntitledObservation observation, Set<Candidate> excluded, PolicyEntropy entropy) {
@@ -55,7 +55,7 @@ final class FactionGreedyV3Policy implements BotPolicy {
             var available = CandidateGenerator.generate(observation).stream()
                     .filter(candidate -> !excluded.contains(candidate))
                     .toList();
-            var cards = FactionGreedyV2Policy.cardsById(observation);
+            var cards = FactionRecipePolicy.cardsById(observation);
             var chosen = paradoxChoice(observation, available, cards, reading, rules);
             if (chosen.isPresent()) {
                 return new PolicyDecision.Chosen(chosen.get());
@@ -64,7 +64,7 @@ final class FactionGreedyV3Policy implements BotPolicy {
             available.stream()
                     .filter(candidate -> isParadoxCard(candidate, cards))
                     .forEach(withoutParadoxCards::add);
-            return recipe.decide(observation, withoutParadoxCards, entropy, FactionGreedyV2Policy::wasted);
+            return recipe.decide(observation, withoutParadoxCards, entropy, FactionRecipePolicy::wasted);
         }
         return recipe.decide(observation, excluded, entropy, (candidate, reading) -> wasted(candidate, reading, rules));
     }
@@ -126,11 +126,11 @@ final class FactionGreedyV3Policy implements BotPolicy {
         return type == CardType.STABILIZE || type == CardType.DETONATE;
     }
 
-    /** v2's waste rule, with the Thread and Reweave cases following the current Tapestry rule. */
+    /** The base recipe waste rule, with the Thread and Reweave cases following the current Tapestry rule. */
     static boolean wasted(Candidate candidate, BoardReading reading, TableRules rules) {
         if (rules.tapestryAbsorbsChainConflict()
                 || !(candidate instanceof Candidate.PlaySpecial(var action, var target))) {
-            return FactionGreedyV2Policy.wasted(candidate, reading);
+            return FactionRecipePolicy.wasted(candidate, reading);
         }
         return switch (action) {
             // The protected link stays pending after an Annihilate, so the service refuses a second Thread.
@@ -140,7 +140,7 @@ final class FactionGreedyV3Policy implements BotPolicy {
                 !reading.threaded()
                         || !reading.isLow(reading.threadOutcome())
                         || outcomeOf(target).equals(reading.threadOutcome());
-            default -> FactionGreedyV2Policy.wasted(candidate, reading);
+            default -> FactionRecipePolicy.wasted(candidate, reading);
         };
     }
 

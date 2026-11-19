@@ -50,9 +50,9 @@ class ConfirmationFreezeTest {
     private static final PolicyRef GREEDY = new PolicyRef("faction-greedy", "1");
     private static final PolicyRef RANDOM = new PolicyRef("random", "1");
     private static final List<SeatTable> CRITERION_TABLES = List.of(
-            new SeatTable("faction-greedy-v1", Collections.nCopies(5, GREEDY)),
-            new SeatTable("random-v1", Collections.nCopies(5, RANDOM)),
-            new SeatTable("random-seat-vs-faction-greedy-v1", List.of(RANDOM, GREEDY, GREEDY, GREEDY, GREEDY)));
+            new SeatTable("faction-greedy", Collections.nCopies(5, GREEDY)),
+            new SeatTable("random", Collections.nCopies(5, RANDOM)),
+            new SeatTable("random-seat-vs-faction-greedy", List.of(RANDOM, GREEDY, GREEDY, GREEDY, GREEDY)));
 
     @BeforeEach
     void theCatalogServesTheCriterionPoliciesAndTheSimulatorIsEnabled() {
@@ -86,7 +86,7 @@ class ConfirmationFreezeTest {
         assertThat(tables.valueStream()
                         .map(table -> table.path("id").asString())
                         .toList())
-                .containsExactly("faction-greedy-v1", "random-v1", "random-seat-vs-faction-greedy-v1");
+                .containsExactly("faction-greedy", "random", "random-seat-vs-faction-greedy");
         var mixed = tables.get(2).path("seats");
         assertThat(mixed.get(0).path("policyId").asString()).isEqualTo("random");
         assertThat(mixed.get(0).path("policyVersion").asString()).isEqualTo("1.10.0");

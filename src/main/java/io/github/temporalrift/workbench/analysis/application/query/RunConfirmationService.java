@@ -9,16 +9,20 @@ import io.github.temporalrift.workbench.analysis.domain.criterion.BalanceCriteri
 import io.github.temporalrift.workbench.analysis.domain.criterion.CriterionPhase;
 import io.github.temporalrift.workbench.analysis.domain.evaluation.EvaluationMode;
 import io.github.temporalrift.workbench.analysis.domain.port.out.BalanceCriteria;
+import io.github.temporalrift.workbench.policy.PolicyCatalog;
 
 /** Confirms a run variant through the same evaluation the evaluation endpoint serves. */
 public class RunConfirmationService implements RunConfirmation {
 
     private final GetRunEvaluationUseCase evaluations;
     private final BalanceCriteria criteria;
+    private final PolicyCatalog policyCatalog;
 
-    public RunConfirmationService(GetRunEvaluationUseCase evaluations, BalanceCriteria criteria) {
+    public RunConfirmationService(
+            GetRunEvaluationUseCase evaluations, BalanceCriteria criteria, PolicyCatalog policyCatalog) {
         this.evaluations = evaluations;
         this.criteria = criteria;
+        this.policyCatalog = policyCatalog;
     }
 
     @Override
@@ -29,7 +33,7 @@ public class RunConfirmationService implements RunConfirmation {
     @Override
     public List<PolicyRef> policies(int criterionVersion) {
         return criterion(criterionVersion).policies().stream()
-                .map(RunConfirmationService::parse)
+                .map(this::resolve)
                 .toList();
     }
 
@@ -46,10 +50,7 @@ public class RunConfirmationService implements RunConfirmation {
     private List<Table> tables(int criterionVersion, CriterionPhase phase) {
         return criterion(criterionVersion).tables(phase).stream()
                 .map(table -> new Table(
-                        table.id(),
-                        table.seats().stream()
-                                .map(RunConfirmationService::parse)
-                                .toList()))
+                        table.id(), table.seats().stream().map(this::resolve).toList()))
                 .toList();
     }
 
@@ -58,10 +59,15 @@ public class RunConfirmationService implements RunConfirmation {
                 .orElseThrow(() -> new IllegalArgumentException("Unknown balance criterion " + criterionVersion));
     }
 
-    /** A criterion names a policy as the id and the major version, as in {@code faction-greedy-v1}. */
-    private static PolicyRef parse(String reference) {
-        var split = reference.lastIndexOf("-v");
-        return new PolicyRef(reference.substring(0, split), reference.substring(split + 2));
+    /** A criterion names a policy by id; the one bundle of that id gives the version. */
+    private PolicyRef resolve(String policyId) {
+        var bundle = policyCatalog.list().stream()
+                .filter(descriptor -> descriptor.id().equals(policyId))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Unknown policy " + policyId));
+        var version = bundle.version();
+        var dot = version.indexOf('.');
+        return new PolicyRef(policyId, dot < 0 ? version : version.substring(0, dot));
     }
 
     @Override

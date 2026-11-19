@@ -392,16 +392,16 @@ class AnalysisIT {
                         .path("code")
                         .asString())
                 .isEqualTo("CONFIGURATION_DRIFT");
-        // The run plays only the random-v1 table, so the faction-greedy-v1 population of G-01 comes first, without
+        // The run plays only the random table, so the faction-greedy population of G-01 comes first, without
         // data.
         var noData = evaluation.path("lines").get(0);
         assertThat(noData.path("lineId").asString()).isEqualTo("G-01");
-        assertThat(noData.path("policyId").asString()).isEqualTo("faction-greedy-v1");
+        assertThat(noData.path("policyId").asString()).isEqualTo("faction-greedy");
         assertThat(noData.path("status").asString()).isEqualTo("NO_DATA");
         assertThat(noData.path("verdict").asString()).isEqualTo("INCONCLUSIVE");
         var line = evaluation.path("lines").get(1);
         assertThat(line.path("lineId").asString()).isEqualTo("G-01");
-        assertThat(line.path("policyId").asString()).isEqualTo("random-v1");
+        assertThat(line.path("policyId").asString()).isEqualTo("random");
         assertThat(line.has("interval")).isTrue();
         assertThat(line.has("factionSet")).isTrue();
         assertThat(line.has("weight")).isTrue();
@@ -499,16 +499,15 @@ class AnalysisIT {
 
         assertThat(two.path("version").asInt()).isEqualTo(2);
         assertThat(two.path("tables")).hasSize(3);
-        assertThat(two.path("tables").get(2).path("id").asString()).isEqualTo("random-seat-vs-faction-greedy-v1");
+        assertThat(two.path("tables").get(2).path("id").asString()).isEqualTo("random-seat-vs-faction-greedy");
         assertThat(two.path("tables").get(2).path("seats").get(0).path("policy").asString())
-                .isEqualTo("random-v1");
+                .isEqualTo("random");
         assertThat(two.path("lines").get(0).path("interval").asString())
                 .isEqualTo("BLOCK_BOOTSTRAP_UNION_CLOPPER_PEARSON");
         var g07 = two.path("lines").get(6);
         assertThat(g07.path("id").asString()).isEqualTo("G-07");
-        assertThat(g07.path("populations").get(0).path("table").asString())
-                .isEqualTo("random-seat-vs-faction-greedy-v1");
-        assertThat(g07.path("populations").get(0).path("policy").asString()).isEqualTo("random-v1");
+        assertThat(g07.path("populations").get(0).path("table").asString()).isEqualTo("random-seat-vs-faction-greedy");
+        assertThat(g07.path("populations").get(0).path("policy").asString()).isEqualTo("random");
         assertThat(g07.path("band").path("upper").asDouble()).isEqualTo(1.0);
         assertThat(two.path("evidence").path("confirmationMinimumSeeds").asInt())
                 .isEqualTo(104);
@@ -519,8 +518,8 @@ class AnalysisIT {
         var three = criterion(3);
 
         assertThat(three.path("version").asInt()).isEqualTo(3);
-        assertThat(three.path("tables").get(0).path("id").asString()).isEqualTo("faction-greedy-v2");
-        assertThat(three.path("tables").get(2).path("id").asString()).isEqualTo("random-seat-vs-faction-greedy-v2");
+        assertThat(three.path("tables").get(0).path("id").asString()).isEqualTo("faction-greedy");
+        assertThat(three.path("tables").get(2).path("id").asString()).isEqualTo("random-seat-vs-faction-greedy");
     }
 
     private JsonNode criterion(int version) throws Exception {

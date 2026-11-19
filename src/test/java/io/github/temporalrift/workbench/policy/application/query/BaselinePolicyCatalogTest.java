@@ -21,7 +21,7 @@ class BaselinePolicyCatalogTest {
 
     @Test
     void everyListedBundleResolvesAsAReference() {
-        assertThat(catalog.list()).hasSize(5).allSatisfy(entry -> {
+        assertThat(catalog.list()).hasSize(2).allSatisfy(entry -> {
             assertThat(entry.description()).isNotBlank();
             assertThat(catalog.verify(entry.id(), entry.version(), entry.artifactDigest(), 0))
                     .isEqualTo(PolicyReferenceVerdict.VALID);
@@ -30,7 +30,7 @@ class BaselinePolicyCatalogTest {
 
     @Test
     void unknownIdOrVersionIsUnknown() {
-        var digest = BaselinePolicies.RANDOM_V1.artifactDigest();
+        var digest = BaselinePolicies.RANDOM.artifactDigest();
 
         assertThat(catalog.verify("heuristic", "1.0.0", digest, 0)).isEqualTo(PolicyReferenceVerdict.UNKNOWN_POLICY);
         assertThat(catalog.verify("random", "2.0.0", digest, 0)).isEqualTo(PolicyReferenceVerdict.UNKNOWN_POLICY);
@@ -44,7 +44,7 @@ class BaselinePolicyCatalogTest {
 
     @Test
     void parametersAreUnsupported() {
-        var bundle = BaselinePolicies.RANDOM_V1;
+        var bundle = BaselinePolicies.RANDOM;
 
         assertThat(catalog.verify(bundle.id(), bundle.version(), bundle.artifactDigest(), 1))
                 .isEqualTo(PolicyReferenceVerdict.UNSUPPORTED_PARAMETERS);

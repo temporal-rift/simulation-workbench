@@ -48,11 +48,11 @@ class CapacityTimersTest {
         var timings = new MicrometerDecisionTimings(registry);
 
         for (var decision = 0; decision < 40; decision++) {
-            timings.time("faction-greedy-v1", PolicyDecision.Exhausted::new);
+            timings.time("faction-greedy", PolicyDecision.Exhausted::new);
         }
 
         assertThat(registry.get("workbench.policy.decision")
-                        .tag("policy", "faction-greedy-v1")
+                        .tag("policy", "faction-greedy")
                         .timer()
                         .count())
                 .isEqualTo(40);
@@ -61,7 +61,7 @@ class CapacityTimersTest {
     @Test
     void noTimerIsTaggedBeyondItsDocumentedKeys() {
         new MicrometerAttemptTimings(registry).ended("lane-1", 3, AttemptState.CANCELLED, null, Duration.ofSeconds(1));
-        new MicrometerDecisionTimings(registry).time("random-v1", PolicyDecision.Exhausted::new);
+        new MicrometerDecisionTimings(registry).time("random", PolicyDecision.Exhausted::new);
         var waits = new LaneWaits(registry);
         for (var kind : LaneWaits.Kind.values()) {
             waits.waited(kind, 1);

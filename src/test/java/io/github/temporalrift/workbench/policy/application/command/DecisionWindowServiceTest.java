@@ -38,7 +38,7 @@ class DecisionWindowServiceTest {
         var decided = new ArrayList<String>();
         BotPolicy recording = (observation, excluded, entropy) -> {
             decided.add("decide" + observation.seatIndex() + ":submissionsSoFar=" + gateway.submissions.size());
-            return BaselinePolicies.RANDOM_V1.policy().decide(observation, excluded, entropy);
+            return BaselinePolicies.RANDOM.policy().decide(observation, excluded, entropy);
         };
 
         new DecisionWindowService(gateway, DecisionTimings.untimed())
@@ -57,7 +57,7 @@ class DecisionWindowServiceTest {
         gateway.observations.put(0, PolicyFixtures.actionRound(Faction.ERASERS));
         gateway.rejectFirst = 1;
 
-        var result = play(gateway, BaselinePolicies.FACTION_GREEDY_V1.policy());
+        var result = play(gateway, BaselinePolicies.FACTION_GREEDY.policy());
 
         var submitted = (DecisionResult.Submitted) result;
         assertThat(submitted.rejectionCodes()).containsExactly("422-03");
@@ -72,7 +72,7 @@ class DecisionWindowServiceTest {
         gateway.observations.put(0, PolicyFixtures.actionRound(Faction.ERASERS));
         gateway.rejectAllExceptFallbacks = true;
 
-        var result = play(gateway, BaselinePolicies.FACTION_GREEDY_V1.policy());
+        var result = play(gateway, BaselinePolicies.FACTION_GREEDY.policy());
 
         var submitted = (DecisionResult.Submitted) result;
         assertThat(submitted.candidate()).isEqualTo(new Candidate.Pass());
@@ -148,7 +148,7 @@ class DecisionWindowServiceTest {
         gateway.observations.put(0, PolicyFixtures.terminal(Faction.ERASERS));
         gateway.rejectFirst = 5;
 
-        var result = play(gateway, BaselinePolicies.RANDOM_V1.policy());
+        var result = play(gateway, BaselinePolicies.RANDOM.policy());
 
         assertThat(result).isInstanceOf(DecisionResult.PolicyExhausted.class);
         assertThat(((DecisionResult.PolicyExhausted) result).rejectionCodes()).hasSize(1);
@@ -160,7 +160,7 @@ class DecisionWindowServiceTest {
         gateway.observations.put(0, PolicyFixtures.paradox(Faction.PROPHETS, true));
         gateway.rejectFirst = 5;
 
-        var result = play(gateway, BaselinePolicies.RANDOM_V1.policy());
+        var result = play(gateway, BaselinePolicies.RANDOM.policy());
 
         assertThat(result).isInstanceOf(DecisionResult.PolicyExhausted.class);
     }
@@ -171,7 +171,7 @@ class DecisionWindowServiceTest {
         gateway.observations.put(0, PolicyFixtures.actionRound(Faction.ERASERS));
         gateway.loseResponse = true;
 
-        var result = play(gateway, BaselinePolicies.RANDOM_V1.policy());
+        var result = play(gateway, BaselinePolicies.RANDOM.policy());
 
         var submitted = (DecisionResult.Submitted) result;
         assertThat(submitted.recovered()).isTrue();
@@ -187,7 +187,7 @@ class DecisionWindowServiceTest {
         gateway.loseResponse = true;
         gateway.lostSubmissionIsNotAccepted = true;
 
-        var result = play(gateway, BaselinePolicies.RANDOM_V1.policy());
+        var result = play(gateway, BaselinePolicies.RANDOM.policy());
 
         assertThat(((DecisionResult.Submitted) result).recovered()).isFalse();
         assertThat(gateway.submitted).hasSize(2).containsOnly(gateway.submitted.getFirst());
@@ -201,7 +201,7 @@ class DecisionWindowServiceTest {
         gateway.loseResponse = true;
         gateway.pendingReconciliation = true;
 
-        var result = play(gateway, BaselinePolicies.RANDOM_V1.policy());
+        var result = play(gateway, BaselinePolicies.RANDOM.policy());
 
         assertThat(result).isInstanceOf(DecisionResult.ReconciliationPending.class);
         assertThat(gateway.submitted).hasSize(1);
@@ -215,7 +215,7 @@ class DecisionWindowServiceTest {
         gateway.loseResponse = true;
         gateway.lostSeat = 1;
         gateway.pendingReconciliation = true;
-        var policy = BaselinePolicies.RANDOM_V1.policy();
+        var policy = BaselinePolicies.RANDOM.policy();
 
         var results = new DecisionWindowService(gateway, DecisionTimings.untimed())
                 .play(List.of(new SeatPolicy(0, "test", policy, 1), new SeatPolicy(1, "test", policy, 1)), BUDGET);
@@ -231,7 +231,7 @@ class DecisionWindowServiceTest {
         gateway.observations.put(0, PolicyFixtures.actionRound(Faction.ERASERS));
         gateway.loseEveryResponse = true;
 
-        var result = play(gateway, BaselinePolicies.RANDOM_V1.policy());
+        var result = play(gateway, BaselinePolicies.RANDOM.policy());
 
         assertThat(result).isInstanceOf(DecisionResult.NotAccepted.class);
         assertThat(gateway.submitted).hasSize(2);

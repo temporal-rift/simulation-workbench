@@ -11,7 +11,6 @@ import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
 
 import io.github.temporalrift.workbench.analysis.domain.TestCriteria;
-import io.github.temporalrift.workbench.analysis.domain.criterion.BalanceCriterion;
 import io.github.temporalrift.workbench.analysis.domain.criterion.Band;
 import io.github.temporalrift.workbench.analysis.domain.criterion.CriterionLine;
 import io.github.temporalrift.workbench.analysis.domain.criterion.CriterionPhase;
@@ -25,33 +24,37 @@ import io.github.temporalrift.workbench.shared.game.EndReason;
 class ConfiguredBalanceCriteriaTest {
 
     private static final JsonMapper MAPPER = JsonMapper.builder().build();
-    private static final String GREEDY = "faction-greedy-v1";
-    private static final String MIXED = "random-seat-vs-faction-greedy-v1";
-    /** The digest version 1 was approved and served with; adding later versions must never change it. */
-    private static final String VERSION_ONE_DIGEST = "1e2a1552bc125b4b28b14d5cb09adaf23036f5688fb8b46075965dae04cd8e22";
-    /** The digest version 2 was served and evaluated with; adding later versions must never change it. */
-    private static final String VERSION_TWO_DIGEST = "33f4ebd0113d5c23d5493bb295b01d628599c4fa4fb33b5b82d6c77358f8e30f";
+    private static final String GREEDY = "faction-greedy";
+    private static final String RANDOM = "random";
+    private static final String MIXED = "random-seat-vs-faction-greedy";
 
     @Test
-    void theAggregationAndEvidenceRuleHoldTheVersionOneValues() {
-        var evidence = TestCriteria.v1().evidence();
+    void theConfigurationServesExactlyOneCriterion() {
+        var criteria = new ConfiguredBalanceCriteria(MAPPER);
+
+        assertThat(criteria.all()).hasSize(1);
+        assertThat(criteria.all().getFirst().digest())
+                .isEqualTo(TestCriteria.current().digest());
+        var version = criteria.all().getFirst().version();
+        assertThat(criteria.find(version)).isPresent();
+        assertThat(criteria.find(version + 1)).isEmpty();
+    }
+
+    @Test
+    void theAggregationAndEvidenceRuleHoldTheConfiguredValues() {
+        var evidence = TestCriteria.current().evidence();
 
         assertThat(evidence.confidenceLevel()).isEqualTo(0.95);
         assertThat(evidence.executionFailedShareLimit()).isEqualTo(0.05);
         assertThat(evidence.invalidatingFailureCodes())
                 .containsExactlyInAnyOrder(FailureCode.CONTRACT_MISMATCH, FailureCode.CONFIGURATION_DRIFT);
         assertThat(evidence.invalidatingEndReasons()).containsExactly(EndReason.ALL_PLAYERS_ABANDONED);
-        assertThat(evidence.confirmationMinimumSeeds()).isEqualTo(100);
-        var weights = TestCriteria.v1().lines().stream()
-                .filter(line -> line.role() == CriterionRole.SCORED)
-                .mapToDouble(line -> line.weight() * line.playerCounts().size() * factionsOf(line))
-                .sum();
-        assertThat(weights).isCloseTo(4 + 2 + 1 + 1 + 1 + 1 + 1, org.assertj.core.data.Offset.offset(1e-9));
+        assertThat(evidence.confirmationMinimumSeeds()).isEqualTo(104);
     }
 
     @Test
     void theDigestIsTheSha256OfTheCanonicalSerialisation() {
-        var criterion = TestCriteria.v1();
+        var criterion = TestCriteria.current();
         var source = TestCriteria.source();
 
         assertThat(criterion.digest()).matches("[a-f0-9]{64}");
@@ -69,13 +72,11 @@ class ConfiguredBalanceCriteriaTest {
 
         for (var change : List.of(
                 new String[] {"\"upper\": 0.02", "\"upper\": 0.03"},
-                new String[] {"\"confirmationMinimumSeeds\": 100", "\"confirmationMinimumSeeds\": 101"},
-                new String[] {"Balance criterion version 1", "Balance criterion version 1 "},
+                new String[] {"\"confirmationMinimumSeeds\": 104", "\"confirmationMinimumSeeds\": 105"},
                 new String[] {"\"GATE\"", "\"SCORED\""})) {
             var changed = source.replaceFirst(Pattern.quote(change[0]), change[1]);
             assertThat(changed).isNotEqualTo(source);
-            var digest = tryDigest(changed);
-            assertThat(digest).as(change[0]).isNotEqualTo(original);
+            assertThat(tryDigest(changed)).as(change[0]).isNotEqualTo(original);
         }
     }
 
@@ -108,113 +109,50 @@ class ConfiguredBalanceCriteriaTest {
     }
 
     @Test
-    void theConfigurationServesVersionsOneToFourSoTheNewestIsFour() {
-        var criteria = new ConfiguredBalanceCriteria(MAPPER);
+    void tablesAndPopulationsNamePoliciesByIdWithoutAVersion() {
+        var criterion = TestCriteria.current();
 
-        assertThat(criteria.all()).extracting(BalanceCriterion::version).containsExactly(1, 2, 3, 4);
-        assertThat(criteria.find(2)).map(BalanceCriterion::digest).contains(VERSION_TWO_DIGEST);
-        assertThat(criteria.find(3))
-                .map(BalanceCriterion::digest)
-                .contains(TestCriteria.v3().digest());
-        assertThat(criteria.find(4))
-                .map(BalanceCriterion::digest)
-                .contains(TestCriteria.v4().digest());
-    }
-
-    @Test
-    void versionFourIsVersionThreeMeasuredWithFactionGreedyVersionThree() {
-        var expected = (ObjectNode) MAPPER.readTree(TestCriteria.v3Source()
-                .replace("faction-greedy-v2", "faction-greedy-v3")
-                .replace("\"title\": \"Balance criterion version 3\"", "\"title\": \"Balance criterion version 4\""));
-        expected.put("version", 4);
-
-        assertThat(MAPPER.readTree(TestCriteria.v4Source())).isEqualTo(expected);
-        var criterion = TestCriteria.v4();
+        assertThat(criterion.tables()).extracting(CriterionTable::id).containsExactly(GREEDY, RANDOM, MIXED);
         assertThat(criterion.tables())
-                .extracting(CriterionTable::id)
-                .containsExactly("faction-greedy-v3", "random-v1", "random-seat-vs-faction-greedy-v3");
-        assertThat(line(criterion.lines(), "G-07").populations())
-                .containsExactly(new CriterionPopulation("random-seat-vs-faction-greedy-v3", "random-v1"));
+                .flatExtracting(CriterionTable::seats)
+                .allSatisfy(seat -> assertThat(seat).doesNotContainPattern("-v[0-9]"));
+        assertThat(criterion.policies()).containsExactlyInAnyOrder(GREEDY, RANDOM);
     }
 
     @Test
-    void versionThreeIsVersionTwoMeasuredWithFactionGreedyVersionTwo() {
-        var expected = (ObjectNode) MAPPER.readTree(TestCriteria.v2Source()
-                .replace("faction-greedy-v1", "faction-greedy-v2")
-                .replace("\"title\": \"Balance criterion version 2\"", "\"title\": \"Balance criterion version 3\""));
-        expected.put("version", 3);
+    void theRandomSeatPlaysAgainstFactionGreedySeatsAtConfirmationOnly() {
+        var criterion = TestCriteria.current();
 
-        assertThat(MAPPER.readTree(TestCriteria.v3Source())).isEqualTo(expected);
-        var criterion = TestCriteria.v3();
-        assertThat(criterion.tables())
-                .extracting(CriterionTable::id)
-                .containsExactly("faction-greedy-v2", "random-v1", "random-seat-vs-faction-greedy-v2");
-        assertThat(line(criterion.lines(), "G-07").populations())
-                .containsExactly(new CriterionPopulation("random-seat-vs-faction-greedy-v2", "random-v1"));
-        assertThat(criterion.evidence().confirmationMinimumSeeds()).isEqualTo(104);
-    }
-
-    @Test
-    void versionOneUsesTheBootstrapOnEveryLineAndKeepsItsDigest() {
-        var criterion = TestCriteria.v1();
-
-        assertThat(criterion.lines())
-                .allSatisfy(line -> assertThat(line.interval()).isEqualTo(IntervalRule.BLOCK_BOOTSTRAP));
-        assertThat(criterion.digest()).isEqualTo(VERSION_ONE_DIGEST);
-    }
-
-    @Test
-    void versionTwoPlaysTheRandomSeatAgainstFactionGreedySeatsAtConfirmationOnly() {
-        var criterion = TestCriteria.v2();
-
-        assertThat(criterion.version()).isEqualTo(2);
-        assertThat(criterion.tables())
-                .extracting(CriterionTable::id)
-                .containsExactly("faction-greedy-v1", "random-v1", MIXED);
         var mixed = criterion.table(MIXED).orElseThrow();
-        assertThat(mixed.seats()).containsExactly("random-v1", GREEDY, GREEDY, GREEDY, GREEDY);
+        assertThat(mixed.seats()).containsExactly(RANDOM, GREEDY, GREEDY, GREEDY, GREEDY);
         assertThat(mixed.phases()).containsExactly(CriterionPhase.CONFIRMATION);
         assertThat(criterion.tables(CriterionPhase.SCREENING))
                 .extracting(CriterionTable::id)
-                .containsExactly("faction-greedy-v1", "random-v1");
-        assertThat(criterion.evidence().confirmationMinimumSeeds()).isEqualTo(104);
+                .containsExactly(GREEDY, RANDOM);
         var g07 = line(criterion.lines(), "G-07");
-        assertThat(g07.populations()).containsExactly(new CriterionPopulation(MIXED, "random-v1"));
+        assertThat(g07.populations()).containsExactly(new CriterionPopulation(MIXED, RANDOM));
         assertThat(g07.band()).isEqualTo(new Band(null, 1.0, 1.0));
         assertThat(g07.role()).isEqualTo(CriterionRole.GATE);
         assertThat(g07.playerCounts()).containsExactly(3, 4, 5);
         for (var id : List.of("G-01", "G-02", "G-03")) {
             assertThat(line(criterion.lines(), id).populations())
                     .extracting(CriterionPopulation::table)
-                    .containsExactly("faction-greedy-v1", "random-v1", MIXED);
+                    .containsExactly(GREEDY, RANDOM, MIXED);
         }
-        assertThat(criterion.lines())
+    }
+
+    @Test
+    void theExactIntervalIsUsedOnlyWhereTheCriterionNamesIt() {
+        assertThat(TestCriteria.current().lines())
                 .filteredOn(line -> line.interval() == IntervalRule.BLOCK_BOOTSTRAP_UNION_CLOPPER_PEARSON)
                 .extracting(CriterionLine::id)
                 .containsExactly("G-01", "G-08", "L-03", "L-04", "L-05");
     }
 
     @Test
-    void versionTwoKeepsEveryOtherLineOfVersionOne() {
-        var one = TestCriteria.v1().lines();
-        var two = TestCriteria.v2().lines();
-
-        for (var id : List.of("G-04", "G-05", "G-06", "G-08", "L-01", "L-02", "L-03", "L-04", "L-05", "L-06", "L-07")) {
-            var before = line(one, id);
-            var after = line(two, id);
-            assertThat(after.populations()).as(id).isEqualTo(before.populations());
-            assertThat(after.band()).as(id).isEqualTo(before.band());
-            assertThat(after.role()).as(id).isEqualTo(before.role());
-            assertThat(after.weight()).as(id).isEqualTo(before.weight());
-            assertThat(after.playerCounts()).as(id).isEqualTo(before.playerCounts());
-            assertThat(after.pooling()).as(id).isEqualTo(before.pooling());
-        }
-    }
-
-    @Test
     void theExactBoundIsRefusedOnARatioAQuantileOrAMeanLine() {
         for (var id : List.of("G-05", "G-04", "L-02", "L-06", "L-07")) {
-            var document = versionTwo();
+            var document = document();
             lineNode(document, id).put("interval", "BLOCK_BOOTSTRAP_UNION_CLOPPER_PEARSON");
             var changed = MAPPER.writeValueAsString(document);
 
@@ -227,17 +165,17 @@ class ConfiguredBalanceCriteriaTest {
 
     @Test
     void aPopulationMustNameAPolicyItsTablePlays() {
-        var document = versionTwo();
+        var document = document();
         ((ObjectNode) lineNode(document, "G-04").get("populations").get(1)).put("policy", GREEDY);
         var changed = MAPPER.writeValueAsString(document);
 
         assertThatThrownBy(() -> ConfiguredBalanceCriteria.parse(MAPPER, changed))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("no seat of table random-v1 plays");
+                .hasMessageContaining("no seat of table random plays");
     }
 
-    private static ObjectNode versionTwo() {
-        return (ObjectNode) MAPPER.readTree(TestCriteria.v2Source());
+    private static ObjectNode document() {
+        return (ObjectNode) MAPPER.readTree(TestCriteria.source());
     }
 
     private static ObjectNode lineNode(ObjectNode document, String id) {
@@ -255,9 +193,5 @@ class ConfiguredBalanceCriteriaTest {
 
     private static String tryDigest(String source) {
         return ConfiguredBalanceCriteria.digestOf(MAPPER.readTree(source));
-    }
-
-    private static int factionsOf(CriterionLine line) {
-        return line.dimension().eachFaction() ? 5 : 1;
     }
 }

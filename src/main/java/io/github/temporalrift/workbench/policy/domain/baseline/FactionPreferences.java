@@ -8,7 +8,7 @@ import io.github.temporalrift.workbench.shared.game.Faction;
 import io.github.temporalrift.workbench.shared.game.SpecialAction;
 
 /**
- * The versioned preference table of {@code faction-greedy-v1}: how strongly a faction favors each
+ * The preference table of {@code faction-greedy}: how strongly a faction favors each
  * card and special, and which outcomes it aims them at. The table is part of the policy bundle's
  * digest, so changing a value requires a new bundle version.
  */

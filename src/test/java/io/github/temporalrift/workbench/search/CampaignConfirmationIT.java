@@ -165,7 +165,7 @@ class CampaignConfirmationIT {
             assertThat(casesOf(run.runId())).isEqualTo(17_160);
             assertThat(seedsOf(run.runId())).hasSize(104);
             assertThat(tablesOf(run.runId()))
-                    .containsExactlyInAnyOrder("faction-greedy-v1", "random-v1", "random-seat-vs-faction-greedy-v1");
+                    .containsExactlyInAnyOrder("faction-greedy", "random", "random-seat-vs-faction-greedy");
         });
     }
 
@@ -179,7 +179,7 @@ class CampaignConfirmationIT {
         var run = started.confirmation().runs().getFirst();
         assertThat(seedsOf(run.runId())).hasSize(100);
         assertThat(casesOf(run.runId())).isEqualTo(11_000);
-        assertThat(tablesOf(run.runId())).containsExactlyInAnyOrder("faction-greedy-v1", "random-v1");
+        assertThat(tablesOf(run.runId())).containsExactlyInAnyOrder("faction-greedy", "random");
     }
 
     @Test
