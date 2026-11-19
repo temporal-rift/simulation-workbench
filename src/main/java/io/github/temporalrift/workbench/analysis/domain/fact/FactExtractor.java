@@ -172,8 +172,11 @@ public final class FactExtractor {
             for (var event : events) {
                 if (event instanceof GameEvent.ScoreRecorded score && score.seat() == seat) {
                     byReason.merge(score.reason(), score.delta(), Integer::sum);
-                    wins += WINS.contains(score.reason()) ? 1 : 0;
-                    misses += MISSES.contains(score.reason()) ? 1 : 0;
+                    // One era's reasons for a seat arrive joined by commas, so every listed reason settles a bet.
+                    for (var reason : score.reason().split(",")) {
+                        wins += WINS.contains(reason) ? 1 : 0;
+                        misses += MISSES.contains(reason) ? 1 : 0;
+                    }
                 }
             }
             return new SeatScores(byReason, wins, misses);

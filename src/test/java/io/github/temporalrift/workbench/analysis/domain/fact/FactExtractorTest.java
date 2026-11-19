@@ -187,6 +187,29 @@ class FactExtractorTest {
     }
 
     @Test
+    void everyReasonJoinedIntoOneScoreFactSettlesItsOwnBet() {
+        var gameRecord = new GameRecord(
+                List.of(
+                        new GameEvent.ScoreRecorded(0, 1, "MIMIC_CONTRIBUTED_TO_WIN,SECRET_OUTCOME_WON", 4),
+                        new GameEvent.ScoreRecorded(0, 2, "SECRET_OUTCOME_MISSED,MIMIC_NEVER_TRACED", 3),
+                        new GameEvent.ScoreRecorded(1, 1, "CHAIN_COMPLETED,CHAIN_LINK_ADDED", 12)),
+                List.of(),
+                List.of());
+
+        var seats = FactExtractor.extract(CASE, SEATS, outcome(Set.of(0)), gameRecord)
+                .seats();
+
+        assertThat(seats.get(0).betWins()).isEqualTo(1);
+        assertThat(seats.get(0).betMisses()).isEqualTo(1);
+        assertThat(seats.get(0).scoreByReason())
+                .isEqualTo(Map.of(
+                        "MIMIC_CONTRIBUTED_TO_WIN,SECRET_OUTCOME_WON", 4,
+                        "SECRET_OUTCOME_MISSED,MIMIC_NEVER_TRACED", 3));
+        assertThat(seats.get(1).betWins()).isEqualTo(1);
+        assertThat(seats.get(1).betMisses()).isZero();
+    }
+
+    @Test
     void aWinnerKeepsItsWinPathAndTheEraTheGameEndedIn() {
         var outcome = new CaseOutcome(
                 EndReason.WIN_CONDITION_MET,
