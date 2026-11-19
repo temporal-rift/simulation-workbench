@@ -1,6 +1,7 @@
 package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -160,14 +161,28 @@ final class ObservationMapper {
                 exhausted.add(SpecialAction.valueOf(budget.getSpecialAction().name()));
             }
         }
+        var reasons = unavailableReasons(state);
         var specials = new ArrayList<PlayableSpecial>();
         for (var special : state.getMySpecialActions()) {
             var action = SpecialAction.valueOf(special.name());
             if (!CardRules.isDeclarationOnly(action) && !exhausted.contains(action)) {
-                specials.add(new PlayableSpecial(action, CardRules.shape(action)));
+                specials.add(new PlayableSpecial(action, CardRules.shape(action), reasons.get(action)));
             }
         }
         return specials;
+    }
+
+    /** The reason the table reports each special unavailable this round; specials reported available have none. */
+    private static Map<SpecialAction, String> unavailableReasons(PlayerGameStateResponse state) {
+        var reasons = new EnumMap<SpecialAction, String>(SpecialAction.class);
+        for (var availability : state.getMySpecialAvailability()) {
+            var reason = availability.getUnavailableReason();
+            if (!Boolean.TRUE.equals(availability.getIsAvailableThisRound()) && reason != null) {
+                reasons.put(
+                        SpecialAction.valueOf(availability.getSpecialAction().name()), reason.name());
+            }
+        }
+        return reasons;
     }
 
     private static Owed paradox(int seatIndex, UUID playerId, PlayerGameStateResponse state) {

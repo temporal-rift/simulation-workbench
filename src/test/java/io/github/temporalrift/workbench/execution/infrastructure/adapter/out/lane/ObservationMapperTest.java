@@ -21,6 +21,8 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.RevealedIntel;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.RevealedProbabilityOutcome;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.SpecialAction;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.SpecialActionAvailability;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.SpecialActionUnavailableReason;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.SpecialBudget;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.SubmissionProgress;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.SubmissionWindow;
@@ -172,6 +174,24 @@ class ObservationMapperTest {
                 .observation()
                 .window();
         assertThat(jammed.specials()).isEmpty();
+    }
+
+    @Test
+    void anUnavailableSpecialStaysListedWithTheReasonTheTableReports() {
+        var state = ProjectionStates.actionRound(1, 1, List.of());
+        state.setMySpecialActions(List.of(SpecialAction.ANNIHILATE, SpecialAction.CORRUPT, SpecialAction.CASCADE));
+        var annihilate = new SpecialActionAvailability(SpecialAction.ANNIHILATE, false);
+        annihilate.setUnavailableReason(SpecialActionUnavailableReason.NOT_ELIGIBLE_THIS_ROUND);
+        state.setMySpecialAvailability(List.of(annihilate, new SpecialActionAvailability(SpecialAction.CORRUPT, true)));
+
+        var window = (DecisionWindow.ActionRound) ObservationMapper.owed(SEAT, ProjectionStates.ME, state)
+                .orElseThrow()
+                .observation()
+                .window();
+
+        assertThat(window.specials())
+                .extracting(special -> special.action().name() + ":" + special.unavailableReason())
+                .containsExactly("ANNIHILATE:NOT_ELIGIBLE_THIS_ROUND", "CORRUPT:null", "CASCADE:null");
     }
 
     @Test
