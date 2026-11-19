@@ -141,7 +141,7 @@ class CampaignConfirmationIT {
         assertThat(completed.confirmation().seedCount()).isEqualTo(CONFIRMATION_SEEDS);
         assertThat(completed.confirmation().runs()).allSatisfy(run -> {
             assertThat(run.evaluation()).isNotNull();
-            var expected = confirmation.confirm(1, run.runId(), run.subject());
+            var expected = confirmation.confirm(CRITERION, run.runId(), run.subject());
             assertThat(run.evaluation().verdict()).isEqualTo(expected.verdict());
             assertThat(run.evaluation().score()).isEqualTo(expected.score());
         });
@@ -250,7 +250,9 @@ class CampaignConfirmationIT {
         assertThat(lanesOf(baseline.runId())).containsExactly("lane-1");
         assertThat(lanesOf(completed.runs().getLast().runId())).containsExactly("lane-0");
         assertThat(baseline.evaluation().verdict())
-                .isEqualTo(confirmation.confirm(1, baseline.runId(), "baseline").verdict());
+                .isEqualTo(confirmation
+                        .confirm(CRITERION, baseline.runId(), "baseline")
+                        .verdict());
     }
 
     @Test
