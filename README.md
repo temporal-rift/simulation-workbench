@@ -1202,6 +1202,7 @@ observation without table rules reads as the served defaults and compares equal 
 | `faction-greedy-v1` | `faction-greedy` / `1.0.0` | Scores each candidate as `affinity * 1000 + target lean`, then draws among the top scores with seeded entropy; ignores the board |
 | `faction-greedy-v2` | `faction-greedy` / `2.0.0` | One recipe for every faction: reads the board, skips wasted actions, backs its own commitment, does not feed another player's declaration, plays its faction's counter on its trigger |
 | `faction-greedy-v3` | `faction-greedy` / `3.0.0` | v2, choosing Stabilize or Detonate by its stake and the table's costs, and playing Tapestry under the current rule |
+| `faction-greedy-v4` | `faction-greedy` / `4.0.0` | v3 that never proposes a special the table reports unavailable this round |
 
 A manifest references a bundle by `id`, `version`, and `artifactDigest`. The digest is the SHA-256 of the
 bundle identity and its canonical definition (for `faction-greedy-v1`, the full preference table; for
@@ -1258,6 +1259,12 @@ It has no rule aimed at a faction. A change to any of these rules is a new bundl
   and Reweave stays allowed with Tapestry armed.
 
 See `docs/balance-criteria/v4.md`.
+
+**`faction-greedy-v4` recipe.** v3 that never proposes a special the table reports unavailable this round. The
+observation marks each playable special with the reason the projection's per-round special availability gives (not
+eligible this era or round, era or game budget used, jammed); v4 excludes every marked special before v3 decides, so
+it stops spending attempts on specials the game would refuse. v1 to v3 ignore the mark and keep their behavior and
+digests. The report is advisory: a special refused for its target or a prerequisite is still excluded and retried.
 
 **Window procedure.** The runner implements `ParticipantGateway` over the generated participant clients and drives
 `DecisionWindowService`: every seat's observation is frozen and every choice computed before any submission, then

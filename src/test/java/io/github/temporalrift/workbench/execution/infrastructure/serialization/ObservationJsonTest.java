@@ -19,6 +19,7 @@ import io.github.temporalrift.workbench.policy.domain.observation.EventView;
 import io.github.temporalrift.workbench.policy.domain.observation.HandCard;
 import io.github.temporalrift.workbench.policy.domain.observation.OutcomeView;
 import io.github.temporalrift.workbench.policy.domain.observation.PlayableCard;
+import io.github.temporalrift.workbench.policy.domain.observation.PlayableSpecial;
 import io.github.temporalrift.workbench.policy.domain.observation.PublicBand;
 import io.github.temporalrift.workbench.policy.domain.observation.TableRules;
 import io.github.temporalrift.workbench.policy.domain.observation.TargetShape;
@@ -69,6 +70,28 @@ class ObservationJsonTest {
         assertThat(ObservationJson.of(observation)).isEqualTo(recorded);
         assertThat(observation.rules()).isNull();
         assertThat(observation.tableRules()).isEqualTo(TableRules.DEFAULTS);
+    }
+
+    @Test
+    void aSpecialMarkedUnavailableReadsBackEqualAndAnUnmarkedOneKeepsItsEarlierText() {
+        var plain = PolicyFixtures.actionRound(Faction.ERASERS);
+        assertThat(ObservationJson.of(plain)).doesNotContain("unavailable");
+
+        var window = (DecisionWindow.ActionRound) plain.window();
+        var marked = new DecisionWindow.ActionRound(
+                window.era(),
+                window.round(),
+                window.hand(),
+                window.cards(),
+                List.of(new PlayableSpecial(
+                        SpecialAction.ANNIHILATE, TargetShape.EVENT_OUTCOME, "NOT_ELIGIBLE_THIS_ROUND")));
+        var observation = new EntitledObservation(
+                0, Faction.ERASERS, plain.events(), plain.otherPlayerIds(), marked, plain.board());
+
+        var text = ObservationJson.of(observation);
+
+        assertThat(text).contains("\"unavailableReason\":\"NOT_ELIGIBLE_THIS_ROUND\"");
+        assertThat(ObservationJson.parse(text)).isEqualTo(observation);
     }
 
     @Test

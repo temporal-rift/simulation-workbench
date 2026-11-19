@@ -15,6 +15,7 @@ import io.github.temporalrift.workbench.policy.domain.observation.Board;
 import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow;
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
 import io.github.temporalrift.workbench.policy.domain.observation.OutcomeView;
+import io.github.temporalrift.workbench.policy.domain.observation.PlayableSpecial;
 import io.github.temporalrift.workbench.policy.domain.observation.PublicBand;
 import io.github.temporalrift.workbench.policy.domain.observation.TableRules;
 
@@ -32,6 +33,7 @@ public final class ObservationJson {
             .addMixIn(DecisionWindow.class, WindowKinds.class)
             .addMixIn(EntitledObservation.class, BoardWhenPresent.class)
             .addMixIn(OutcomeView.class, BandWhenPublished.class)
+            .addMixIn(PlayableSpecial.class, ReasonWhenUnavailable.class)
             .build();
 
     private ObservationJson() {}
@@ -99,6 +101,16 @@ public final class ObservationJson {
         /** Derived from {@code rules}; never written. */
         @JsonIgnore
         TableRules tableRules();
+    }
+
+    /** A special the table does not report unavailable keeps the text it had before the report existed. */
+    private interface ReasonWhenUnavailable {
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        String unavailableReason();
+
+        /** Derived from {@code unavailableReason}; never written. */
+        @JsonIgnore
+        boolean unavailable();
     }
 
     /** An outcome whose band is not published keeps its earlier text. */
