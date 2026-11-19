@@ -3,6 +3,7 @@ package io.github.temporalrift.workbench.execution.application.query;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import io.github.temporalrift.workbench.execution.CaseEvidence;
 import io.github.temporalrift.workbench.execution.RunCase;
@@ -92,6 +93,10 @@ public class RunCatalogQueryHandler implements RunCatalog {
                         .toList(),
                 result.eras(),
                 result.rounds(),
-                result.decisions());
+                result.decisions(),
+                result.winners().stream()
+                        .filter(winner -> winner.winType() != null)
+                        .collect(Collectors.toMap(
+                                Winner::seatIndex, winner -> winner.winType().name())));
     }
 }

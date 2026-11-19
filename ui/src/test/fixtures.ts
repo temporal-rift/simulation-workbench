@@ -260,7 +260,7 @@ export function metric(overrides: Partial<Metric> = {}): Metric {
 
 export function report(overrides: Partial<Report> = {}): Report {
   return {
-    formatVersion: 3,
+    formatVersion: 4,
     runId: IDS.run,
     manifestDigest: digest('7'),
     analysisVersion: '1',
@@ -297,7 +297,7 @@ export const COMPARISON_ID = '4d5e6f70-8192-4a3b-9c4d-5e6f708192a3'
 
 export function comparison(overrides: Partial<Comparison> = {}): Comparison {
   return {
-    formatVersion: 2,
+    formatVersion: 3,
     comparisonId: COMPARISON_ID,
     baseline: { runId: IDS.run, variantLabel: 'baseline' },
     candidate: { runId: IDS.run, variantLabel: 'candidate' },

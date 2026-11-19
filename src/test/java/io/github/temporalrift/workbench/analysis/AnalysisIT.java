@@ -97,9 +97,9 @@ class AnalysisIT {
         var json = read(report(runId, MediaType.APPLICATION_JSON).andExpect(status().isOk()));
         var report = objectMapper.readTree(json);
 
-        assertThat(report.path("formatVersion").asInt()).isEqualTo(3);
+        assertThat(report.path("formatVersion").asInt()).isEqualTo(4);
         assertThat(report.path("complete").asBoolean()).isTrue();
-        assertThat(report.path("analysisVersion").asString()).isEqualTo("2");
+        assertThat(report.path("analysisVersion").asString()).isEqualTo("3");
         assertThat(report.path("caseCounts").path("succeeded").asInt()).isEqualTo(18);
         assertThat(report.path("cohorts")).hasSize(2 * (1 + 3 + 1 + 3));
         var pooled = report.path("cohorts").get(0);
@@ -129,7 +129,7 @@ class AnalysisIT {
         var lines = csv.split("\r\n");
         assertThat(lines[0])
                 .startsWith("formatVersion,runId,manifestDigest,analysisVersion,analysisSeed,complete,")
-                .contains(",endReason,quantile,failureCode,unit,value,")
+                .contains(",endReason,quantile,failureCode,scoreReason,winPath,unit,value,")
                 .endsWith(",value,numerator,denominator,status,intervalLower,intervalUpper,unknownCount");
         var metrics = 0;
         for (var cohort : report.path("cohorts")) {
@@ -137,7 +137,7 @@ class AnalysisIT {
         }
         assertThat(lines).hasSize(1 + metrics);
         assertThat(lines[1])
-                .startsWith("3," + runId + "," + report.path("manifestDigest").asString() + ",2,1,true," + BASELINE
+                .startsWith("4," + runId + "," + report.path("manifestDigest").asString() + ",3,1,true," + BASELINE
                         + ",random,random,");
         assertThat(csv).doesNotContainIgnoringCase("bearer").doesNotContainIgnoringCase("token");
         assertThat(read(report(runId, CSV))).isEqualTo(csv);
@@ -182,6 +182,12 @@ class AnalysisIT {
         assertThat(read(comparison(comparisonId, CSV))).isEqualTo(csv);
     }
 
+    private static List<String> names(JsonNode differences) {
+        var names = new ArrayList<String>();
+        differences.forEach(difference -> names.add(difference.path("name").asString()));
+        return names;
+    }
+
     @Test
     void aComparisonStoredUnderAnalysisVersionOneKeepsItsVersionAndItsDocument() throws Exception {
         lanes.script(this::thresholdDecides);
@@ -189,14 +195,17 @@ class AnalysisIT {
         var created =
                 objectMapper.readTree(read(compare(UUID.randomUUID(), side(runId, BASELINE), side(runId, CANDIDATE))));
         var comparisonId = created.path("comparisonId").asString();
-        assertThat(created.path("analysisVersion").asString()).isEqualTo("2");
+        assertThat(created.path("analysisVersion").asString()).isEqualTo("3");
         jdbc.update("UPDATE analysis_comparison SET analysis_version = '1'");
 
         var stored = objectMapper.readTree(read(comparison(comparisonId, MediaType.APPLICATION_JSON)));
 
         assertThat(stored.path("analysisVersion").asString()).isEqualTo("1");
-        assertThat(stored.path("cohorts").get(0).path("metricDifferences"))
-                .isEqualTo(created.path("cohorts").get(0).path("metricDifferences"));
+        var storedNames = names(stored.path("cohorts").get(0).path("metricDifferences"));
+        var createdNames = names(created.path("cohorts").get(0).path("metricDifferences"));
+        // The earlier version keeps its document: every metric it had, and none of the version 3 diagnostics.
+        assertThat(storedNames).doesNotContain("score_by_reason", "win_path_rate", "win_era", "bet_success_rate");
+        assertThat(createdNames).containsAll(storedNames);
     }
 
     @Test
@@ -228,7 +237,7 @@ class AnalysisIT {
         var summary = listed.path("items").get(1);
         assertThat(summary.path("baseline").path("variantLabel").asString()).isEqualTo(BASELINE);
         assertThat(summary.path("candidate").path("runId").asString()).isEqualTo(runId.toString());
-        assertThat(summary.path("analysisVersion").asString()).isEqualTo("2");
+        assertThat(summary.path("analysisVersion").asString()).isEqualTo("3");
         assertThat(summary.path("createdAt").asString()).isNotBlank();
         assertThat(summary.has("cohorts")).isFalse();
         assertThat(unrelated.path("total").asInt()).isZero();

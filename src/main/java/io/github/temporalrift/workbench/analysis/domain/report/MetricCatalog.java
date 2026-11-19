@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.ToIntFunction;
@@ -18,8 +19,9 @@ import io.github.temporalrift.workbench.shared.game.Faction;
 import io.github.temporalrift.workbench.shared.game.SpecialAction;
 
 /**
- * The metrics of analysis version 1, in report order. Game metrics count each eligible game once and appear only in
- * cohorts that pool seats; seat metrics count the cohort's seat-games.
+ * The metrics of analysis versions 1 to 3, in report order; version 3 adds diagnostics when the vocabulary asks for
+ * them. Game metrics count each eligible game once and appear only in cohorts that pool seats; seat metrics count the
+ * cohort's seat-games.
  */
 public final class MetricCatalog {
 
@@ -48,6 +50,9 @@ public final class MetricCatalog {
             gameMetrics(definitions, vocabulary);
         }
         factionMetrics(definitions, vocabulary.factions(cohort.playerCount()));
+        if (vocabulary.diagnostics()) {
+            diagnosticMetrics(definitions, vocabulary, cohort);
+        }
         cardMetrics(definitions, vocabulary);
         specialMetrics(definitions, vocabulary);
         return List.copyOf(definitions);
@@ -114,6 +119,79 @@ public final class MetricCatalog {
                                 .forEach(seat -> sink.accept(seat.score())))));
             }
         }
+    }
+
+    /**
+     * The balance diagnostics of analysis version 3: points by score reason, how winners won and when, signature-bet
+     * accuracy per faction, and cascades by paradox type.
+     */
+    private static void diagnosticMetrics(List<MetricDefinition> definitions, Vocabulary vocabulary, CohortKey cohort) {
+        if (cohort.seatIndex() == null) {
+            for (var type : vocabulary.paradoxTypes()) {
+                definitions.add(gameMean(
+                        "paradoxes_cascaded",
+                        Dimensions.of(type),
+                        FINDINGS_PER_GAME,
+                        game -> game.cascadedFindingsByType().getOrDefault(type, 0)));
+            }
+        }
+        for (var faction : vocabulary.factions(cohort.playerCount())) {
+            for (var reason : vocabulary.scoreReasons().getOrDefault(faction, new TreeSet<>())) {
+                definitions.add(ratio(
+                        "score_by_reason",
+                        MetricStatistic.MEAN,
+                        Dimensions.of(faction, reason),
+                        "points per seat-game",
+                        (facts, seats) -> {
+                            var of = ofFaction(seats, faction);
+                            return Tally.of(
+                                    of.stream()
+                                            .mapToLong(seat -> seat.points(reason))
+                                            .sum(),
+                                    of.size());
+                        }));
+            }
+            for (var path : vocabulary.winPaths()) {
+                definitions.add(ratio(
+                        "win_path_rate", MetricStatistic.RATE, Dimensions.of(faction, path), "wins", (facts, seats) -> {
+                            var winners = ofFaction(seats, faction).stream()
+                                    .filter(SeatFacts::won)
+                                    .toList();
+                            // A winner whose path the case result does not name is left out of the denominator and
+                            // reported as unknown, since it could have won by any path.
+                            var known = winners.stream()
+                                    .filter(seat -> seat.winPath() != null)
+                                    .toList();
+                            return new Tally(
+                                    known.stream()
+                                            .filter(seat -> seat.winPath() == path)
+                                            .count(),
+                                    known.size(),
+                                    (long) winners.size() - known.size());
+                        }));
+            }
+            definitions.add(ratio("win_era", MetricStatistic.MEAN, Dimensions.of(faction), "eras", (facts, seats) -> {
+                var winners = ofFaction(seats, faction).stream()
+                        .filter(SeatFacts::won)
+                        .toList();
+                return Tally.of(winners.stream().mapToLong(SeatFacts::winEra).sum(), winners.size());
+            }));
+            definitions.add(ratio(
+                    "bet_success_rate",
+                    MetricStatistic.RATE,
+                    Dimensions.of(faction),
+                    "settled bets",
+                    (facts, seats) -> {
+                        var of = ofFaction(seats, faction);
+                        return Tally.of(
+                                of.stream().mapToLong(SeatFacts::betWins).sum(),
+                                of.stream().mapToLong(SeatFacts::resolvedBets).sum());
+                    }));
+        }
+    }
+
+    private static List<SeatFacts> ofFaction(List<SeatFacts> seats, Faction faction) {
+        return seats.stream().filter(seat -> seat.faction() == faction).toList();
     }
 
     private static void cardMetrics(List<MetricDefinition> definitions, Vocabulary vocabulary) {

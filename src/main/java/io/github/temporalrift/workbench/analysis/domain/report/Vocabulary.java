@@ -12,6 +12,7 @@ import io.github.temporalrift.workbench.analysis.domain.fact.CaseFacts;
 import io.github.temporalrift.workbench.analysis.domain.game.AnalyzedCase;
 import io.github.temporalrift.workbench.analysis.domain.game.CardKey;
 import io.github.temporalrift.workbench.analysis.domain.game.ParadoxType;
+import io.github.temporalrift.workbench.analysis.domain.game.WinPath;
 import io.github.temporalrift.workbench.shared.game.Faction;
 import io.github.temporalrift.workbench.shared.game.SpecialAction;
 
@@ -24,9 +25,28 @@ public record Vocabulary(
         SortedSet<CardKey> cards,
         Set<SpecialAction> specials,
         Set<SpecialAction> declarationModes,
-        Set<ParadoxType> paradoxTypes) {
+        Set<ParadoxType> paradoxTypes,
+        Map<Faction, SortedSet<String>> scoreReasons,
+        Set<WinPath> winPaths,
+        boolean diagnostics) {
 
+    /** A vocabulary without the balance diagnostics of analysis version 3. */
+    public Vocabulary(
+            Map<Integer, Set<Faction>> factionsByPlayerCount,
+            SortedSet<CardKey> cards,
+            Set<SpecialAction> specials,
+            Set<SpecialAction> declarationModes,
+            Set<ParadoxType> paradoxTypes) {
+        this(factionsByPlayerCount, cards, specials, declarationModes, paradoxTypes, Map.of(), Set.of(), false);
+    }
+
+    /** The vocabulary of a run analysed without the balance diagnostics. */
     public static Vocabulary of(Collection<AnalyzedCase> cases, Collection<CaseFacts> facts) {
+        return of(cases, facts, false);
+    }
+
+    /** The vocabulary of a run; {@code diagnostics} adds the score reasons and win paths that occur in it. */
+    public static Vocabulary of(Collection<AnalyzedCase> cases, Collection<CaseFacts> facts, boolean diagnostics) {
         var factions = new TreeMap<Integer, Set<Faction>>();
         cases.forEach(analyzedCase -> factions.computeIfAbsent(
                         analyzedCase.playerCount(), ignored -> EnumSet.noneOf(Faction.class))
@@ -35,6 +55,8 @@ public record Vocabulary(
         var specials = EnumSet.noneOf(SpecialAction.class);
         var modes = EnumSet.noneOf(SpecialAction.class);
         var paradoxTypes = EnumSet.noneOf(ParadoxType.class);
+        var reasons = new TreeMap<Faction, SortedSet<String>>();
+        var paths = EnumSet.noneOf(WinPath.class);
         for (var caseFacts : facts) {
             paradoxTypes.addAll(caseFacts.game().findings().keySet());
             for (var seat : caseFacts.seats()) {
@@ -49,9 +71,16 @@ public record Vocabulary(
                 specials.addAll(seat.specialAccepts().keySet());
                 specials.addAll(seat.specialResolutionRejections().keySet());
                 modes.addAll(seat.declarations().keySet());
+                if (diagnostics) {
+                    reasons.computeIfAbsent(seat.faction(), ignored -> new TreeSet<>())
+                            .addAll(seat.scoreByReason().keySet());
+                    if (seat.winPath() != null) {
+                        paths.add(seat.winPath());
+                    }
+                }
             }
         }
-        return new Vocabulary(factions, cards, specials, modes, paradoxTypes);
+        return new Vocabulary(factions, cards, specials, modes, paradoxTypes, reasons, paths, diagnostics);
     }
 
     /** Merges the values of two vocabularies, as a comparison lists both sides' values. */
@@ -74,7 +103,25 @@ public record Vocabulary(
         var mergedParadoxes = EnumSet.noneOf(ParadoxType.class);
         mergedParadoxes.addAll(paradoxTypes);
         mergedParadoxes.addAll(other.paradoxTypes);
-        return new Vocabulary(factions, mergedCards, mergedSpecials, mergedModes, mergedParadoxes);
+        var mergedReasons = new TreeMap<Faction, SortedSet<String>>();
+        scoreReasons.forEach((faction, set) -> mergedReasons
+                .computeIfAbsent(faction, ignored -> new TreeSet<>())
+                .addAll(set));
+        other.scoreReasons.forEach((faction, set) -> mergedReasons
+                .computeIfAbsent(faction, ignored -> new TreeSet<>())
+                .addAll(set));
+        var mergedPaths = EnumSet.noneOf(WinPath.class);
+        mergedPaths.addAll(winPaths);
+        mergedPaths.addAll(other.winPaths);
+        return new Vocabulary(
+                factions,
+                mergedCards,
+                mergedSpecials,
+                mergedModes,
+                mergedParadoxes,
+                mergedReasons,
+                mergedPaths,
+                diagnostics || other.diagnostics);
     }
 
     public Set<Faction> factions(int playerCount) {

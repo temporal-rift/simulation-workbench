@@ -99,7 +99,7 @@ class ReportFailureShareTest {
         run.win("1", EPW, 0).failed("2", EPW, FailureCode.EXECUTION_FAILED);
 
         var one = report(new AnalysisVersion("1", 1L));
-        var two = report(AnalysisVersion.CURRENT);
+        var two = report(new AnalysisVersion("2", 1L));
 
         var pooledOne = one.cohorts().getFirst();
         var pooledTwo = two.cohorts().getFirst();
@@ -124,7 +124,7 @@ class ReportFailureShareTest {
         run.failed("5", EPW, FailureCode.RUNNER_TIMEOUT);
 
         var one = report(new AnalysisVersion("1", 1L));
-        var two = report(AnalysisVersion.CURRENT);
+        var two = report(new AnalysisVersion("2", 1L));
 
         assertThat(one.cohorts()).isNotEmpty();
         assertThat(one.cohorts().stream()

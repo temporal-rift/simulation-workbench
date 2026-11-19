@@ -32,7 +32,7 @@ public final class ReportCalculator {
             AnalysisVersion analysis,
             List<AnalyzedCase> cases,
             Map<UUID, CaseFacts> facts) {
-        var vocabulary = Vocabulary.of(cases, facts.values());
+        var vocabulary = Vocabulary.of(cases, facts.values(), analysis.reportsDiagnostics());
         var failureCodes = failureCodes(cases);
         var members = membersByCohort(cases);
         var cohorts = cohortKeys(cases).parallelStream()

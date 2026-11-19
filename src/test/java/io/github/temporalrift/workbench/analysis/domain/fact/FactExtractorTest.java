@@ -14,6 +14,7 @@ import io.github.temporalrift.workbench.analysis.domain.game.CaseOutcome;
 import io.github.temporalrift.workbench.analysis.domain.game.GameEvent;
 import io.github.temporalrift.workbench.analysis.domain.game.GameRecord;
 import io.github.temporalrift.workbench.analysis.domain.game.ParadoxType;
+import io.github.temporalrift.workbench.analysis.domain.game.WinPath;
 import io.github.temporalrift.workbench.shared.game.CardGrade;
 import io.github.temporalrift.workbench.shared.game.CardType;
 import io.github.temporalrift.workbench.shared.game.EndReason;
@@ -132,6 +133,109 @@ class FactExtractorTest {
 
     private static GameRecord.HeldCard held(UUID id, CardKey key, boolean playable) {
         return new GameRecord.HeldCard(id, key, playable);
+    }
+
+    @Test
+    void cascadesAreCountedPerParadoxType() {
+        var first = id(1);
+        var second = id(2);
+        var third = id(3);
+        var gameRecord = new GameRecord(
+                List.of(
+                        new GameEvent.ParadoxesDetected(
+                                1,
+                                List.of(
+                                        new GameEvent.Finding(first, ParadoxType.DEAD_HEAT),
+                                        new GameEvent.Finding(second, ParadoxType.DEAD_HEAT),
+                                        new GameEvent.Finding(third, ParadoxType.CHAIN_CONFLICT))),
+                        new GameEvent.ParadoxCascaded(List.of(first, third), id(9))),
+                List.of(),
+                List.of());
+
+        var game = FactExtractor.extract(CASE, SEATS, outcome(Set.of(0)), gameRecord)
+                .game();
+
+        assertThat(game.cascadedFindingsByType())
+                .isEqualTo(Map.of(ParadoxType.DEAD_HEAT, 1, ParadoxType.CHAIN_CONFLICT, 1));
+    }
+
+    @Test
+    void pointsAreSummedPerSeatAndReasonAndBetsAreCountedPerSettlement() {
+        var gameRecord = new GameRecord(
+                List.of(
+                        new GameEvent.ScoreRecorded(0, 1, "ANNIHILATED_OUTCOME", 2),
+                        new GameEvent.ScoreRecorded(0, 2, "ANNIHILATED_OUTCOME", 2),
+                        new GameEvent.ScoreRecorded(0, 2, "ANNIHILATION_WASTED", 0),
+                        new GameEvent.ScoreRecorded(0, 2, "PARADOX_CASCADE_PENALTY", -3),
+                        new GameEvent.ScoreRecorded(1, 1, "CHAIN_LINK_ADDED", 1)),
+                List.of(),
+                List.of());
+
+        var seats = FactExtractor.extract(CASE, SEATS, outcome(Set.of(0)), gameRecord)
+                .seats();
+
+        var eraser = seats.get(0);
+        assertThat(eraser.scoreByReason())
+                .isEqualTo(Map.of("ANNIHILATED_OUTCOME", 4, "ANNIHILATION_WASTED", 0, "PARADOX_CASCADE_PENALTY", -3));
+        assertThat(eraser.points("ANNIHILATED_OUTCOME")).isEqualTo(4);
+        assertThat(eraser.points("CORRUPTED_OPPONENT_CARD")).isZero();
+        assertThat(eraser.betWins()).isEqualTo(2);
+        assertThat(eraser.betMisses()).isEqualTo(1);
+        assertThat(eraser.resolvedBets()).isEqualTo(3);
+        assertThat(seats.get(1).betWins()).isEqualTo(1);
+        assertThat(seats.get(2).scoreByReason()).isEmpty();
+    }
+
+    @Test
+    void aWinnerKeepsItsWinPathAndTheEraTheGameEndedIn() {
+        var outcome = new CaseOutcome(
+                EndReason.WIN_CONDITION_MET,
+                Set.of(0, 1),
+                List.of(22, 22, 9),
+                3,
+                9,
+                41,
+                Map.of(0, WinPath.FACTION_OBJECTIVE, 1, WinPath.SCORE_THRESHOLD));
+
+        var seats = FactExtractor.extract(CASE, SEATS, outcome, empty()).seats();
+
+        assertThat(seats)
+                .extracting(SeatFacts::winPath)
+                .containsExactly(WinPath.FACTION_OBJECTIVE, WinPath.SCORE_THRESHOLD, null);
+        assertThat(seats).extracting(SeatFacts::winEra).containsExactly(3, 3, 0);
+    }
+
+    @Test
+    void factsStoredBeforeTheDiagnosticsReadThemAsEmpty() {
+        var seat = new SeatFacts(
+                0,
+                Faction.ERASERS,
+                true,
+                false,
+                5,
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                0,
+                Map.of(),
+                null,
+                null,
+                0,
+                0,
+                0);
+
+        assertThat(seat.scoreByReason()).isEmpty();
+        assertThat(seat.winPath()).isNull();
+        assertThat(seat.resolvedBets()).isZero();
     }
 
     private static CaseOutcome outcome(Set<Integer> winners) {

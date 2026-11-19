@@ -19,6 +19,7 @@ import io.github.temporalrift.asyncapi.actionevents.GeneratedChannelContract.Dec
 import io.github.temporalrift.asyncapi.actionevents.GeneratedChannelContract.ParadoxResolutionCardPlayedPayload;
 import io.github.temporalrift.asyncapi.actionevents.GeneratedChannelContract.ParadoxResolutionCardsOfferedPayload;
 import io.github.temporalrift.asyncapi.actionevents.GeneratedChannelContract.SpecialActionPlayedPayload;
+import io.github.temporalrift.asyncapi.scoringevents.GeneratedChannelContract.ScoresUpdatedPayload;
 import io.github.temporalrift.asyncapi.sessionevents.GeneratedChannelContract.FactionAssignedPayload;
 import io.github.temporalrift.asyncapi.sessionevents.GeneratedChannelContract.HandDealtPayload;
 import io.github.temporalrift.asyncapi.sessionevents.GeneratedChannelContract.HandSelectedPayload;
@@ -33,6 +34,7 @@ import io.github.temporalrift.workbench.analysis.domain.game.GameEvent;
 import io.github.temporalrift.workbench.analysis.domain.game.GameRecord;
 import io.github.temporalrift.workbench.analysis.domain.game.ParadoxType;
 import io.github.temporalrift.workbench.analysis.domain.game.SeatPolicy;
+import io.github.temporalrift.workbench.analysis.domain.game.WinPath;
 import io.github.temporalrift.workbench.analysis.domain.port.out.RunSource;
 import io.github.temporalrift.workbench.execution.CaseEvidence;
 import io.github.temporalrift.workbench.execution.RunCase;
@@ -101,13 +103,22 @@ public class RunSourceAdapter implements RunSource {
         var scores = new ArrayList<Integer>();
         runCase.seats().forEach(seat -> scores.add(0));
         result.finalScores().forEach(score -> scores.set(score.seatIndex(), score.score()));
+        var paths = new HashMap<Integer, WinPath>();
+        result.winnerSeats().forEach(seat -> {
+            var type = result.winTypes().get(seat);
+            var path = type == null ? WinPath.ofSpecialEnding(result.endReason()) : WinPath.valueOf(type);
+            if (path != null) {
+                paths.put(seat, path);
+            }
+        });
         return new CaseOutcome(
                 result.endReason(),
                 Set.copyOf(result.winnerSeats()),
                 scores,
                 result.eras(),
                 result.rounds(),
-                result.decisions());
+                result.decisions(),
+                paths);
     }
 
     private GameRecord gameRecord(AnalyzedCase analyzedCase, CaseEvidence evidence) {
@@ -235,6 +246,15 @@ public class RunSourceAdapter implements RunSource {
                                 declared.eraNumber(),
                                 SpecialAction.valueOf(declared.mode().name())));
             }
+            case ScoringEvents.SCORES_UPDATED_EVENT_TYPE -> {
+                var updated = read(event, ScoresUpdatedPayload.class);
+                yield updated.updates().stream()
+                        .flatMap(update -> seated(
+                                seats,
+                                update.playerId(),
+                                seat -> new GameEvent.ScoreRecorded(
+                                        seat, updated.eraNumber(), update.reason(), update.pointsDelta())));
+            }
             case TimelineEvents.PARADOX_DETECTED_EVENT_TYPE -> {
                 var detected = read(event, ParadoxDetectedPayload.class);
                 yield Stream.of(new GameEvent.ParadoxesDetected(
@@ -334,6 +354,15 @@ public class RunSourceAdapter implements RunSource {
                 io.github.temporalrift.asyncapi.actionevents.GeneratedChannelContract.SPECIAL_ACTION_PLAYED_EVENT_TYPE;
 
         private ActionEvents() {}
+    }
+
+    /** Event types of the scoring events contract, usable as switch labels. */
+    private static final class ScoringEvents {
+
+        static final String SCORES_UPDATED_EVENT_TYPE =
+                io.github.temporalrift.asyncapi.scoringevents.GeneratedChannelContract.SCORES_UPDATED_EVENT_TYPE;
+
+        private ScoringEvents() {}
     }
 
     /** Event types of the timeline events contract, usable as switch labels. */
