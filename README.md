@@ -319,7 +319,11 @@ campaign search treats a boolean parameter as a two-value axis. Version 3 (`para
 `docs/parameter-space/v3.md`) is version 2 plus the latest Rewrite round, the `SECRET_OUTCOME_MISSED` score value and two
 boolean contested-yield switches. Version 4 (`parameter-spaces/v4.json`, described in `docs/parameter-space/v4.md`) is
 version 3 plus the faction-balance rule switches (one writing per era, faction claims at stabilization, Tapestry and
-Chain Conflict, the Fate Contradiction paradox) and three score values. A new campaign defaults to the newest version. Its constraints are expressions in a small notation (comparison
+Chain Conflict, the Fate Contradiction paradox) and three score values. Version 5 (`parameter-spaces/v5.json`,
+described in `docs/parameter-space/v5.md`) is version 4 plus the balance-package settings (events per era by player
+count, voided bets on erased outcomes, the Detonate contest and its cost, the wasted-erasure dial, the score tiebreak
+and the final-era objective discount), with a three-link chain and a free Stabilize as baselines. A new campaign
+defaults to the newest version. Its constraints are expressions in a small notation (comparison
 chains over `+`, `-`, `*`, `max` and `and`; a subtraction needs spaces around `-` because keys contain it) that the
 workbench both serves and evaluates.
 
@@ -671,8 +675,9 @@ one or is refused without one. It plays on the simulator the full case matrix on
 every faction set and seat rotation, the policies `faction-greedy` and `random` on every seat) for three variants, then
 reproduces every case on one real lane. The variants are the baseline and the two edge variants `low` and `high`, which
 set as many parameters as the constraints allow at the minimum and the maximum of their ranges. A new check resolves
-them against the newest parameter space that has edge variants, which is parameter space 4
-([docs/fidelity/v4.md](docs/fidelity/v4.md); parameter space 3 is in [docs/fidelity/v3.md](docs/fidelity/v3.md), space 2 in
+them against the newest parameter space that has edge variants, which is parameter space 5
+([docs/fidelity/v5.md](docs/fidelity/v5.md); space 4 is in [docs/fidelity/v4.md](docs/fidelity/v4.md), space 3 in
+[docs/fidelity/v3.md](docs/fidelity/v3.md), space 2 in
 [docs/fidelity/v2.md](docs/fidelity/v2.md) and space 1 in [docs/fidelity/v1.md](docs/fidelity/v1.md)), and
 records that space, so a stored check keeps the variants it was accepted with. That is 55 cases per table and variant,
 330 in all.

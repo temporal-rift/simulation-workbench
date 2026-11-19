@@ -54,7 +54,7 @@ class FidelityEdgeVariantsTest {
 
     /** A row of a record's override table: key, baseline, {@code low} and {@code high}, each value maybe marked †. */
     private static final Pattern TABLE_ROW =
-            Pattern.compile("\\| `(game\\.rules\\.[^`]+)` \\| (\\S+) \\| (\\S+)(?: †)? \\| (\\S+)(?: †)? \\|");
+            Pattern.compile("\\| `(game\\.rules\\.[^`]+)` \\| (\\S+) \\| (\\S+)( †)? \\| (\\S+)( †)? \\|");
 
     private final EdgeVariantCatalog catalog = ConfiguredEdgeVariants.load(new ObjectMapper());
 
@@ -63,19 +63,62 @@ class FidelityEdgeVariantsTest {
     }
 
     @Test
-    void edgeVariantsAreShippedForParameterSpacesOneToFour() {
+    void edgeVariantsAreShippedForParameterSpacesOneToFive() {
         assertThat(catalog.all())
                 .extracting(EdgeVariants::parameterSpaceVersion)
-                .containsExactly(1, 2, 3, 4);
-        assertThat(catalog.newest().parameterSpaceVersion()).isEqualTo(4);
+                .containsExactly(1, 2, 3, 4, 5);
+        assertThat(catalog.newest().parameterSpaceVersion()).isEqualTo(5);
         assertThat(catalog.forSpace(1).parameterSpaceVersion()).isEqualTo(1);
     }
 
     @Test
+    void spaceFiveTakesTheNineNewSettingsAtOppositeExtremes() {
+        var five = catalog.forSpace(5);
+
+        assertThat(five.low())
+                .containsEntry("game.rules.events-per-era.3", ParameterValue.of(new BigDecimal("3")))
+                .containsEntry("game.rules.events-per-era.4", ParameterValue.of(new BigDecimal("3")))
+                .containsEntry("game.rules.events-per-era.5", ParameterValue.of(new BigDecimal("3")))
+                .containsEntry("game.rules.scoring.erased-outcome-voids-bets", ParameterValue.of(false))
+                .containsEntry("game.rules.paradox.detonate-contests-stabilize", ParameterValue.of(false))
+                .containsEntry("game.rules.scoring.score-deltas.PARADOX_DETONATED", ParameterValue.of(BigDecimal.ZERO))
+                .containsEntry(
+                        "game.rules.scoring.score-deltas.ANNIHILATION_WASTED", ParameterValue.of(BigDecimal.ZERO))
+                .containsEntry("game.rules.victory.score-tiebreak", ParameterValue.of(false))
+                .containsEntry("game.rules.victory.final-era-objective-discount", ParameterValue.of(BigDecimal.ZERO));
+        assertThat(five.high())
+                .containsEntry("game.rules.events-per-era.3", ParameterValue.of(new BigDecimal("5")))
+                .containsEntry("game.rules.events-per-era.4", ParameterValue.of(new BigDecimal("5")))
+                .containsEntry("game.rules.events-per-era.5", ParameterValue.of(new BigDecimal("5")))
+                .containsEntry("game.rules.scoring.erased-outcome-voids-bets", ParameterValue.of(true))
+                .containsEntry("game.rules.paradox.detonate-contests-stabilize", ParameterValue.of(true))
+                .containsEntry(
+                        "game.rules.scoring.score-deltas.PARADOX_DETONATED", ParameterValue.of(new BigDecimal("-3")))
+                .containsEntry(
+                        "game.rules.scoring.score-deltas.ANNIHILATION_WASTED", ParameterValue.of(new BigDecimal("-2")))
+                .containsEntry("game.rules.victory.score-tiebreak", ParameterValue.of(true))
+                .containsEntry(
+                        "game.rules.victory.final-era-objective-discount", ParameterValue.of(new BigDecimal("2")));
+    }
+
+    @Test
+    void spaceFiveCarriesEverySpaceFourValueOver() {
+        var four = catalog.forSpace(4);
+        var five = catalog.forSpace(5);
+
+        assertThat(five.low())
+                .containsAllEntriesOf(four.low())
+                .hasSize(four.low().size() + 9);
+        assertThat(five.high())
+                .containsAllEntriesOf(four.high())
+                .hasSize(four.high().size() + 9);
+    }
+
+    @Test
     void aSpaceWithoutEdgeVariantsIsRefused() {
-        assertThatThrownBy(() -> catalog.forSpace(5))
+        assertThatThrownBy(() -> catalog.forSpace(6))
                 .isInstanceOf(NoSuchElementException.class)
-                .hasMessageContaining("parameter space 5");
+                .hasMessageContaining("parameter space 6");
     }
 
     @Test
@@ -232,15 +275,42 @@ class FidelityEdgeVariantsTest {
         for (var variants : catalog.all()) {
             var document = Files.readAllLines(Path.of("docs/fidelity/v" + variants.parameterSpaceVersion() + ".md"));
             var rows = new TreeMap<String, List<String>>();
+            var marks = new TreeMap<String, List<Boolean>>();
             for (var line : document) {
                 var row = TABLE_ROW.matcher(line);
                 if (row.matches()) {
-                    rows.put(row.group(1), List.of(row.group(2), row.group(3), row.group(4)));
+                    rows.put(row.group(1), List.of(row.group(2), row.group(3), row.group(5)));
+                    marks.put(row.group(1), List.of(row.group(4) != null, row.group(6) != null));
                 }
             }
 
+            var space = space(variants.parameterSpaceVersion());
             assertThat(rows.keySet()).isEqualTo(variants.low().keySet());
             rows.forEach((key, cells) -> {
+                space.parameter(key)
+                        .ifPresent(parameter -> assertThat(cells.get(0))
+                                .as("baseline " + key)
+                                .isEqualTo(shown(parameter.baselineValue())));
+                // † marks a value that is not the range minimum (low) or maximum (high) of a numeric parameter.
+                space.parameter(key)
+                        .filter(ParameterSpace.NumberParameter.class::isInstance)
+                        .map(ParameterSpace.NumberParameter.class::cast)
+                        .ifPresent(parameter -> {
+                            assertThat(marks.get(key).get(0))
+                                    .as("† on low " + key)
+                                    .isEqualTo(new BigDecimal(variants.low()
+                                                            .get(key)
+                                                            .text())
+                                                    .compareTo(parameter.min())
+                                            != 0);
+                            assertThat(marks.get(key).get(1))
+                                    .as("† on high " + key)
+                                    .isEqualTo(new BigDecimal(variants.high()
+                                                            .get(key)
+                                                            .text())
+                                                    .compareTo(parameter.max())
+                                            != 0);
+                        });
                 assertThat(cells.get(1))
                         .as("low " + key)
                         .isEqualTo(shown(variants.low().get(key)));

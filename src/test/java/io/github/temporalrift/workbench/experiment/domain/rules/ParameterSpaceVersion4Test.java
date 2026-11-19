@@ -37,7 +37,11 @@ class ParameterSpaceVersion4Test {
 
     private static EffectiveRules served() {
         var document = (ObjectNode) new ObjectMapper().readTree(VariantRulesFixtures.baselineText());
-        ((ObjectNode) document.get("properties")).put(PROPHET_GOAL, 3).put(WEAVER_CHAIN, 4);
+        // The shared document now serves the balance-package baselines; space 4 still has its own.
+        ((ObjectNode) document.get("properties"))
+                .put(PROPHET_GOAL, 3)
+                .put(WEAVER_CHAIN, 4)
+                .put(STABILIZE, -1);
         return EffectiveRules.parse(document);
     }
 
@@ -46,10 +50,10 @@ class ParameterSpaceVersion4Test {
     }
 
     @Test
-    void spaceFourIsTheNewestSpace() {
+    void spaceFourIsServedAfterSpacesOneToThree() {
         assertThat(VariantRulesFixtures.spaces().all())
                 .extracting(ParameterSpace::version)
-                .containsExactly(1, 2, 3, 4);
+                .startsWith(1, 2, 3, 4);
     }
 
     @Test
