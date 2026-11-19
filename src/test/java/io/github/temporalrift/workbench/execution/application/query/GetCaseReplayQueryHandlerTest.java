@@ -220,9 +220,9 @@ class GetCaseReplayQueryHandlerTest {
                 "1",
                 3,
                 List.of(
-                        new SeatPlan(0, Faction.ERASERS, "random-v1", "1"),
-                        new SeatPlan(1, Faction.PROPHETS, "random-v1", "1"),
-                        new SeatPlan(2, Faction.WEAVERS, "random-v1", "1")),
+                        new SeatPlan(0, Faction.ERASERS, "random", "1"),
+                        new SeatPlan(1, Faction.PROPHETS, "random", "1"),
+                        new SeatPlan(2, Faction.WEAVERS, "random", "1")),
                 CaseState.SUCCEEDED,
                 null);
     }

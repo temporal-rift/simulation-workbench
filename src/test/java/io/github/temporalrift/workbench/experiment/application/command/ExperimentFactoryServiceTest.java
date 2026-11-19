@@ -77,7 +77,7 @@ class ExperimentFactoryServiceTest {
                 new ParameterSpaceQueryHandler(VariantRulesFixtures.spaces()));
         var overrides = Map.of("game.rules.win-score-threshold", ParameterValue.of(BigDecimal.valueOf(22)));
 
-        assertThatThrownBy(() -> withoutTheKey.previewVariant(VariantRulesFixtures.ARTIFACT_DIGEST, 2, overrides))
+        assertThatThrownBy(() -> withoutTheKey.previewVariant(VariantRulesFixtures.ARTIFACT_DIGEST, 1, overrides))
                 .isInstanceOfSatisfying(ExperimentRefusedException.class, e -> {
                     assertThat(e.reason()).isEqualTo("UNKNOWN_BASELINE");
                     assertThat(e).hasMessageContaining("game.rules.annihilate-earliest-round");

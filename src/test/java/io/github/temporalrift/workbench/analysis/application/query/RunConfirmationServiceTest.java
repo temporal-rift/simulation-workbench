@@ -22,24 +22,28 @@ import io.github.temporalrift.workbench.analysis.domain.evaluation.EvaluationVer
 import io.github.temporalrift.workbench.analysis.domain.evaluation.RunEvaluation;
 import io.github.temporalrift.workbench.analysis.domain.evaluation.Validity;
 import io.github.temporalrift.workbench.analysis.domain.port.out.BalanceCriteria;
+import io.github.temporalrift.workbench.policy.application.query.BaselinePolicyCatalog;
 
 class RunConfirmationServiceTest {
 
     private static final UUID RUN = new UUID(1, 1);
 
-    private final BalanceCriterion criterion = TestCriteria.v1();
+    private final BalanceCriterion criterion = TestCriteria.current();
     private final GetRunEvaluationUseCase evaluations = mock(GetRunEvaluationUseCase.class);
-    private final RunConfirmationService service = new RunConfirmationService(evaluations, new BalanceCriteria() {
-        @Override
-        public List<BalanceCriterion> all() {
-            return List.of(criterion);
-        }
+    private final RunConfirmationService service = new RunConfirmationService(
+            evaluations,
+            new BalanceCriteria() {
+                @Override
+                public List<BalanceCriterion> all() {
+                    return List.of(criterion);
+                }
 
-        @Override
-        public Optional<BalanceCriterion> find(int version) {
-            return version == criterion.version() ? Optional.of(criterion) : Optional.empty();
-        }
-    });
+                @Override
+                public Optional<BalanceCriterion> find(int version) {
+                    return version == criterion.version() ? Optional.of(criterion) : Optional.empty();
+                }
+            },
+            new BaselinePolicyCatalog());
 
     @Test
     void theMinimumSeedsAreTheCriterionsConfirmationMinimum() {
@@ -52,27 +56,6 @@ class RunConfirmationServiceTest {
         assertThat(service.policies(criterion.version()))
                 .containsExactlyInAnyOrder(
                         new io.github.temporalrift.workbench.analysis.RunConfirmation.PolicyRef("faction-greedy", "1"),
-                        new io.github.temporalrift.workbench.analysis.RunConfirmation.PolicyRef("random", "1"));
-    }
-
-    @Test
-    void versionThreeNamesTheSecondGreedyMajorAndKeepsRandomAtOne() {
-        var three = TestCriteria.v3();
-        var versionThree = new RunConfirmationService(evaluations, new BalanceCriteria() {
-            @Override
-            public List<BalanceCriterion> all() {
-                return List.of(three);
-            }
-
-            @Override
-            public Optional<BalanceCriterion> find(int version) {
-                return version == 3 ? Optional.of(three) : Optional.empty();
-            }
-        });
-
-        assertThat(versionThree.policies(3))
-                .containsExactlyInAnyOrder(
-                        new io.github.temporalrift.workbench.analysis.RunConfirmation.PolicyRef("faction-greedy", "2"),
                         new io.github.temporalrift.workbench.analysis.RunConfirmation.PolicyRef("random", "1"));
     }
 

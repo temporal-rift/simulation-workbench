@@ -217,27 +217,27 @@ class FidelityRepositoryIT {
         repository.update(running.passed(NOW.plusSeconds(1)), FidelityCheckState.RUNNING);
 
         var revisions = check.simulator().sourceRevisions();
-        assertThat(repository.newestPassed(revisions, 6)).isEmpty();
+        assertThat(repository.newestPassed(revisions, 2)).isEmpty();
         assertThat(repository.newestPassed(revisions, 1)).isPresent();
     }
 
     @Test
     void theParameterSpaceOfACheckRoundTrips() {
         var queued = queued("1111111");
-        var onSpaceSix = FidelityCheck.queued(
+        var onSpaceOne = FidelityCheck.queued(
                 queued.id(),
                 queued.seed(),
-                6,
+                1,
                 queued.simulator(),
                 queued.lane(),
                 queued.laneId(),
                 queued.variants(),
                 queued.createdAt());
-        stored(onSpaceSix);
+        stored(onSpaceOne);
 
-        assertThat(repository.find(onSpaceSix.id()))
+        assertThat(repository.find(onSpaceOne.id()))
                 .map(FidelityCheck::parameterSpaceVersion)
-                .contains(6);
+                .contains(1);
     }
 
     @Test

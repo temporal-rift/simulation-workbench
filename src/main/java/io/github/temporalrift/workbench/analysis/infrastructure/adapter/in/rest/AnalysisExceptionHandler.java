@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import io.github.temporalrift.workbench.analysis.domain.AnalysisResourceNotFoundException;
+import io.github.temporalrift.workbench.analysis.domain.UnknownCriterionTablesException;
 import io.github.temporalrift.workbench.analysis.domain.comparison.ComparisonIdempotencyConflictException;
 import io.github.temporalrift.workbench.analysis.domain.comparison.IncomparableRunsException;
 import io.github.temporalrift.workbench.analysis.domain.comparison.InvalidComparisonException;
@@ -37,6 +38,11 @@ class AnalysisExceptionHandler {
     @ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class})
     ProblemDetail handleMalformed(Exception ex) {
         return ProblemDetails.of(HttpStatus.BAD_REQUEST, "The comparison request is malformed", INVALID_COMPARISON);
+    }
+
+    @ExceptionHandler(UnknownCriterionTablesException.class)
+    ProblemDetail handleUnknownTables(UnknownCriterionTablesException ex) {
+        return ProblemDetails.of(HttpStatus.UNPROCESSABLE_CONTENT, ex.getMessage(), "UNKNOWN_CRITERION_TABLES");
     }
 
     @ExceptionHandler(IncomparableRunsException.class)

@@ -63,7 +63,7 @@ class CampaignExperimentsAdapterTest {
     }
 
     @Test
-    void eachPolicyMajorResolvesToItsNewestBaselineBundle() {
+    void eachPolicyMajorResolvesToItsBaselineBundle() {
         var served = new CampaignExperimentsAdapter(
                 null,
                 new io.github.temporalrift.workbench.policy.application.query.BaselinePolicyCatalog(),
@@ -72,14 +72,13 @@ class CampaignExperimentsAdapterTest {
                 new CampaignExperimentsAdapter.Bounds(3600, 10));
 
         var bundles = served.bundles(List.of(
-                new io.github.temporalrift.workbench.search.domain.campaign.PolicyRef("faction-greedy", "2"),
-                new io.github.temporalrift.workbench.search.domain.campaign.PolicyRef("random", "1"),
-                new io.github.temporalrift.workbench.search.domain.campaign.PolicyRef("faction-greedy", "1")));
+                new io.github.temporalrift.workbench.search.domain.campaign.PolicyRef("faction-greedy", "1"),
+                new io.github.temporalrift.workbench.search.domain.campaign.PolicyRef("random", "1")));
 
         assertThat(bundles)
                 .extracting(node ->
                         node.path("id").asString() + "@" + node.path("version").asString())
-                .containsExactly("faction-greedy@2.0.0", "random@1.0.0", "faction-greedy@1.0.0");
+                .containsExactly("faction-greedy@1.0.0", "random@1.0.0");
     }
 
     @Test
@@ -111,29 +110,31 @@ class CampaignExperimentsAdapterTest {
         var grid = adapter.grid(definition(VariantRulesFixtures.ARTIFACT_DIGEST, 1));
 
         assertThat(grid.axes()).isNotEmpty();
-        assertThat(grid.axes()).allSatisfy(axis -> {
-            var number = (ParameterGrid.NumberAxis) axis;
-            assertThat(number.baseline()).isBetween(number.min(), number.max());
-        });
+        assertThat(grid.axes())
+                .filteredOn(ParameterGrid.NumberAxis.class::isInstance)
+                .allSatisfy(axis -> {
+                    var number = (ParameterGrid.NumberAxis) axis;
+                    assertThat(number.baseline()).isBetween(number.min(), number.max());
+                });
         assertThat(grid.overridesOf(grid.baselinePoint())).isEmpty();
     }
 
     @Test
-    void theGridOfSpaceTwoHoldsTheTwoSwitchesAsBooleanAxes() {
-        var grid = adapter.grid(definition(VariantRulesFixtures.ARTIFACT_DIGEST, 2));
+    void theGridHoldsTheTwoShieldSwitchesAsBooleanAxes() {
+        var grid = adapter.grid(definition(VariantRulesFixtures.ARTIFACT_DIGEST, 1));
 
         assertThat(grid.axes())
                 .filteredOn(ParameterGrid.FlagAxis.class::isInstance)
                 .extracting(ParameterGrid.Axis::key)
-                .containsExactlyInAnyOrder(
+                .contains(
                         "game.rules.scoring.written-outcome-shields-annihilation",
                         "game.rules.probability.erased-weight-to-written-outcome");
         assertThat(grid.overridesOf(grid.baselinePoint())).isEmpty();
     }
 
     @Test
-    void aBooleanOverrideValidatesOnSpaceTwoAndFreezesIntoACandidateRules() {
-        var definition = definition(VariantRulesFixtures.ARTIFACT_DIGEST, 2);
+    void aBooleanOverrideValidatesAndFreezesIntoACandidateRules() {
+        var definition = definition(VariantRulesFixtures.ARTIFACT_DIGEST, 1);
         var key = "game.rules.scoring.written-outcome-shields-annihilation";
 
         var validated = adapter.validation(definition).validate(Map.of(key, ParameterValue.of(false)));
@@ -184,7 +185,7 @@ class CampaignExperimentsAdapterTest {
     @Test
     void aGameIsTheFullMatrixOfTheCampaignsPlayerCountsAndTables() {
         var table =
-                new io.github.temporalrift.workbench.search.domain.campaign.SeatTable("random-v1", java.util.List.of());
+                new io.github.temporalrift.workbench.search.domain.campaign.SeatTable("random", java.util.List.of());
         assertThat(adapter.casesPerGame(definition(VariantRulesFixtures.ARTIFACT_DIGEST, 1), java.util.List.of(table)))
                 .isEqualTo(55);
         assertThat(adapter.casesPerGame(

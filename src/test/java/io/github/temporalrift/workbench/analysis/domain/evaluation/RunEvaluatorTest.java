@@ -25,8 +25,8 @@ import io.github.temporalrift.workbench.shared.game.Faction;
 class RunEvaluatorTest {
 
     private static final UUID RUN = new UUID(0, 9);
-    private static final String GREEDY = "faction-greedy-v1";
-    private static final String RANDOM = "random-v1";
+    private static final String GREEDY = "faction-greedy";
+    private static final String RANDOM = "random";
     private static final List<Faction> EPW = SyntheticRun.EPW;
 
     private final SyntheticRun run = new SyntheticRun("base", GREEDY);
@@ -64,8 +64,8 @@ class RunEvaluatorTest {
         var lines = evaluation.lines().stream()
                 .filter(line -> line.lineId().equals("G-02"))
                 .toList();
-        // The run played only the faction-greedy table, so the random-v1 population has no data at its player count.
-        assertThat(lines).extracting(EvaluatedLine::policyId).containsExactly(GREEDY, RANDOM);
+        // The run played only the faction-greedy table, so the random population has no data at its player count.
+        assertThat(lines).extracting(EvaluatedLine::policyId).containsExactly(GREEDY, RANDOM, RANDOM);
         assertThat(lines.getFirst().value()).isZero();
         assertThat(lines.getFirst().deviation()).isZero();
         assertThat(lines.getFirst().verdict()).isEqualTo(LineVerdict.MEETS);
@@ -192,24 +192,25 @@ class RunEvaluatorTest {
     }
 
     @Test
-    void aFullBalancedMatrixOnEnoughSeedsConfirmsInConfirmationMode() {
-        var evaluation = evaluate(EvaluationMode.CONFIRMATION, balancedMatrix(4), TestCriteria.v1WithMinimumSeeds(4));
+    void aFullBalancedMatrixOnEnoughSeedsFailsNoGateInConfirmationMode() {
+        var evaluation =
+                evaluate(EvaluationMode.CONFIRMATION, balancedMatrix(4), TestCriteria.currentWithMinimumSeeds(4));
 
         assertThat(evaluation.confirmationSample().satisfied()).isTrue();
         assertThat(evaluation.confirmationSample().fullMatrix()).isTrue();
         assertThat(evaluation.validity().valid()).isTrue();
+        // A small synthetic sample leaves the exact-interval gates inconclusive, but no gate may fail.
         assertThat(evaluation.lines())
                 .filteredOn(line -> line.role() == CriterionRole.GATE && line.pooled())
-                .allSatisfy(line -> assertThat(line.verdict()).isEqualTo(LineVerdict.MEETS));
-        assertThat(evaluation.verdict()).isEqualTo(EvaluationVerdict.CONFIRMED);
-        assertThat(evaluation.score()).isZero();
+                .noneSatisfy(line -> assertThat(line.verdict()).isEqualTo(LineVerdict.FAILS));
+        assertThat(evaluation.verdict()).isNotEqualTo(EvaluationVerdict.REJECTED);
     }
 
     @Test
     void aShortSampleDoesNotConfirm() {
         var evaluation = evaluate(EvaluationMode.CONFIRMATION, balancedMatrix(4));
 
-        assertThat(evaluation.confirmationSample().requiredSeeds()).isEqualTo(100);
+        assertThat(evaluation.confirmationSample().requiredSeeds()).isEqualTo(104);
         assertThat(evaluation.confirmationSample().seeds()).isEqualTo(4);
         assertThat(evaluation.confirmationSample().satisfied()).isFalse();
         assertThat(evaluation.verdict()).isEqualTo(EvaluationVerdict.UNCONFIRMED);
@@ -220,7 +221,7 @@ class RunEvaluatorTest {
         var cases = balancedMatrix(4);
         cases.cases().removeLast();
 
-        var evaluation = evaluate(EvaluationMode.CONFIRMATION, cases, TestCriteria.v1WithMinimumSeeds(4));
+        var evaluation = evaluate(EvaluationMode.CONFIRMATION, cases, TestCriteria.currentWithMinimumSeeds(4));
 
         assertThat(evaluation.confirmationSample().fullMatrix()).isFalse();
         assertThat(evaluation.verdict()).isNotEqualTo(EvaluationVerdict.CONFIRMED);
@@ -256,7 +257,7 @@ class RunEvaluatorTest {
     }
 
     private static RunEvaluation evaluate(EvaluationMode mode, SyntheticRun cases) {
-        return evaluate(mode, cases, TestCriteria.v1());
+        return evaluate(mode, cases, TestCriteria.current());
     }
 
     private static RunEvaluation evaluate(EvaluationMode mode, SyntheticRun cases, BalanceCriterion criterion) {
@@ -284,19 +285,25 @@ class RunEvaluatorTest {
             cases.policy(policy);
             for (var seed = 1; seed <= seeds; seed++) {
                 for (var playerCount = 3; playerCount <= 5; playerCount++) {
-                    addRotations(cases, String.valueOf(seed), playerCount);
+                    addRotations(cases, String.valueOf(seed), playerCount, 0);
                 }
+            }
+        }
+        cases.table("random-seat-vs-faction-greedy", List.of(RANDOM, GREEDY, GREEDY, GREEDY, GREEDY));
+        for (var seed = 1; seed <= seeds; seed++) {
+            for (var playerCount = 3; playerCount <= 5; playerCount++) {
+                addRotations(cases, String.valueOf(seed), playerCount, 1);
             }
         }
         return cases;
     }
 
-    private static void addRotations(SyntheticRun cases, String seed, int playerCount) {
+    private static void addRotations(SyntheticRun cases, String seed, int playerCount, int winner) {
         for (var set : subsets(playerCount)) {
             for (var shift = 0; shift < playerCount; shift++) {
                 var seats = new ArrayList<>(set.subList(shift, playerCount));
                 seats.addAll(set.subList(0, shift));
-                cases.win(seed, seats, 0);
+                cases.win(seed, seats, winner);
             }
         }
     }

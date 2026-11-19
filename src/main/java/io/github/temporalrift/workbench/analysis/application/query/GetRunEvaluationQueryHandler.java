@@ -3,8 +3,11 @@ package io.github.temporalrift.workbench.analysis.application.query;
 import io.github.temporalrift.workbench.analysis.application.port.in.GetRunEvaluationUseCase;
 import io.github.temporalrift.workbench.analysis.domain.AnalysisResourceNotFoundException;
 import io.github.temporalrift.workbench.analysis.domain.AnalysisVersion;
+import io.github.temporalrift.workbench.analysis.domain.UnknownCriterionTablesException;
+import io.github.temporalrift.workbench.analysis.domain.criterion.CriterionTable;
 import io.github.temporalrift.workbench.analysis.domain.evaluation.RunEvaluation;
 import io.github.temporalrift.workbench.analysis.domain.evaluation.RunEvaluator;
+import io.github.temporalrift.workbench.analysis.domain.game.AnalyzedCase;
 import io.github.temporalrift.workbench.analysis.domain.port.out.BalanceCriteria;
 import io.github.temporalrift.workbench.analysis.domain.port.out.RunSource;
 
@@ -35,6 +38,16 @@ public class GetRunEvaluationQueryHandler implements GetRunEvaluationUseCase {
                 .toList();
         if (cases.isEmpty()) {
             throw new AnalysisResourceNotFoundException("Variant", query.variantLabel());
+        }
+        var known = criterion.tables().stream().map(CriterionTable::id).toList();
+        var unknown = cases.stream()
+                .map(AnalyzedCase::tableId)
+                .distinct()
+                .filter(table -> !known.contains(table))
+                .sorted()
+                .toList();
+        if (!unknown.isEmpty()) {
+            throw new UnknownCriterionTablesException(unknown, known);
         }
         var analysis = new AnalysisVersion(criterion.analysisVersion(), AnalysisVersion.CURRENT.seed());
         return RunEvaluator.evaluate(

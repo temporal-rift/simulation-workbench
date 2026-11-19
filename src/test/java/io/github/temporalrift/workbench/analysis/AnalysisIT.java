@@ -27,6 +27,7 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 
 import io.github.temporalrift.workbench.WorkbenchIntegrationTest;
+import io.github.temporalrift.workbench.analysis.domain.TestCriteria;
 import io.github.temporalrift.workbench.execution.application.port.in.RunBatchUseCase;
 import io.github.temporalrift.workbench.execution.application.port.in.StartRunUseCase;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
@@ -47,6 +48,9 @@ class AnalysisIT {
 
     private static final String WORKER = "analysis-worker";
     private static final String BASELINE = "threshold-20";
+    /** The revision of the one served balance criterion. */
+    private static final int CRITERION = TestCriteria.current().version();
+
     private static final String CANDIDATE = "threshold-22";
     private static final MediaType CSV = MediaType.parseMediaType("text/csv");
 
@@ -372,11 +376,11 @@ class AnalysisIT {
         lanes.script(driftingScript());
         var runId = finishedRun(experiment(List.of("1", "2", "3")));
 
-        var json = read(evaluation(runId, CANDIDATE, 1, null).andExpect(status().isOk()));
+        var json = read(evaluation(runId, CANDIDATE, CRITERION, null).andExpect(status().isOk()));
         var evaluation = objectMapper.readTree(json);
 
         assertThat(evaluation.path("runId").asString()).isEqualTo(runId.toString());
-        assertThat(evaluation.path("criterionVersion").asInt()).isEqualTo(1);
+        assertThat(evaluation.path("criterionVersion").asInt()).isEqualTo(CRITERION);
         assertThat(evaluation.path("criterionDigest").asString()).matches("[a-f0-9]{64}");
         assertThat(evaluation.path("analysisVersion").asString()).isEqualTo("2");
         assertThat(evaluation.path("analysisSeed").asString()).isEqualTo("1");
@@ -392,21 +396,21 @@ class AnalysisIT {
                         .path("code")
                         .asString())
                 .isEqualTo("CONFIGURATION_DRIFT");
-        // The run plays only the random-v1 table, so the faction-greedy-v1 population of G-01 comes first, without
+        // The run plays only the random table, so the faction-greedy population of G-01 comes first, without
         // data.
         var noData = evaluation.path("lines").get(0);
         assertThat(noData.path("lineId").asString()).isEqualTo("G-01");
-        assertThat(noData.path("policyId").asString()).isEqualTo("faction-greedy-v1");
+        assertThat(noData.path("policyId").asString()).isEqualTo("faction-greedy");
         assertThat(noData.path("status").asString()).isEqualTo("NO_DATA");
         assertThat(noData.path("verdict").asString()).isEqualTo("INCONCLUSIVE");
         var line = evaluation.path("lines").get(1);
         assertThat(line.path("lineId").asString()).isEqualTo("G-01");
-        assertThat(line.path("policyId").asString()).isEqualTo("random-v1");
+        assertThat(line.path("policyId").asString()).isEqualTo("random");
         assertThat(line.has("interval")).isTrue();
         assertThat(line.has("factionSet")).isTrue();
         assertThat(line.has("weight")).isTrue();
         assertThat(line.path("band").has("lower")).isTrue();
-        assertThat(read(evaluation(runId, CANDIDATE, 1, null))).isEqualTo(json);
+        assertThat(read(evaluation(runId, CANDIDATE, CRITERION, null))).isEqualTo(json);
     }
 
     @Test
@@ -415,9 +419,9 @@ class AnalysisIT {
         var runId = finishedRun(experiment(List.of("1", "2", "3")));
 
         var screening = objectMapper.readTree(
-                read(evaluation(runId, BASELINE, 1, "SCREENING").andExpect(status().isOk())));
+                read(evaluation(runId, BASELINE, CRITERION, "SCREENING").andExpect(status().isOk())));
         var confirmation = objectMapper.readTree(
-                read(evaluation(runId, BASELINE, 1, "CONFIRMATION").andExpect(status().isOk())));
+                read(evaluation(runId, BASELINE, CRITERION, "CONFIRMATION").andExpect(status().isOk())));
 
         assertThat(screening.path("validity").path("valid").asBoolean()).isTrue();
         assertThat(screening.path("verdict").asString())
@@ -425,7 +429,7 @@ class AnalysisIT {
                 .isNotEqualTo("INVALID");
         assertThat(confirmation.path("verdict").asString()).isNotEqualTo("CONFIRMED");
         assertThat(confirmation.path("confirmationSample").path("requiredSeeds").asInt())
-                .isEqualTo(100);
+                .isEqualTo(104);
         assertThat(confirmation.path("confirmationSample").path("seeds").asInt())
                 .isEqualTo(3);
         assertThat(confirmation.path("confirmationSample").path("satisfied").asBoolean())
@@ -438,41 +442,38 @@ class AnalysisIT {
         var runId = finishedRun(experiment(List.of("1", "2")));
 
         mockMvc.perform(get("/api/v1/runs/{id}/evaluation", runId)
-                        .param("criterionVersion", "1")
+                        .param("criterionVersion", String.valueOf(CRITERION))
                         .with(read()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
-        evaluation(runId, BASELINE, 1, "NONSENSE")
+        evaluation(runId, BASELINE, CRITERION, "NONSENSE")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
         evaluation(runId, BASELINE, 9999, null)
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
-        evaluation(runId, "no-such-variant", 1, null)
+        evaluation(runId, "no-such-variant", CRITERION, null)
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
-        evaluation(UUID.randomUUID(), BASELINE, 1, null)
+        evaluation(UUID.randomUUID(), BASELINE, CRITERION, null)
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
         mockMvc.perform(get("/api/v1/runs/{id}/evaluation", runId)
                         .param("variantLabel", BASELINE)
-                        .param("criterionVersion", "1")
+                        .param("criterionVersion", String.valueOf(CRITERION))
                         .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:write"))))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("INSUFFICIENT_SCOPE"));
     }
 
     @Test
-    void theCriterionCatalogServesVersionsOneToFourReadOnly() throws Exception {
+    void theCriterionCatalogServesTheOneCriterionReadOnly() throws Exception {
         var catalog = objectMapper.readTree(read(
                 mockMvc.perform(get("/api/v1/balance-criteria").with(read())).andExpect(status().isOk())));
 
-        assertThat(catalog.path("criteria")).hasSize(4);
-        assertThat(catalog.path("criteria").get(0)).isEqualTo(criterion(1));
-        assertThat(catalog.path("criteria").get(1)).isEqualTo(criterion(2));
-        assertThat(catalog.path("criteria").get(2)).isEqualTo(criterion(3));
-        assertThat(catalog.path("criteria").get(3)).isEqualTo(criterion(4));
-        mockMvc.perform(get("/api/v1/balance-criteria/5").with(read()))
+        assertThat(catalog.path("criteria")).hasSize(1);
+        assertThat(catalog.path("criteria").get(0)).isEqualTo(criterion(CRITERION));
+        mockMvc.perform(get("/api/v1/balance-criteria/" + (CRITERION + 1)).with(read()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
         mockMvc.perform(post("/api/v1/balance-criteria").with(read()).contentType(MediaType.APPLICATION_JSON))
@@ -480,47 +481,38 @@ class AnalysisIT {
     }
 
     @Test
-    void criterionVersionOneServesItsLinesAndEvidence() throws Exception {
-        var one = criterion(1);
+    void theCriterionServesItsLinesTablesAndEvidence() throws Exception {
+        var criterion = criterion(CRITERION);
 
-        assertThat(one.path("version").asInt()).isEqualTo(1);
-        assertThat(one.path("aggregation").asString()).isEqualTo("WEIGHTED_SUM_OF_SQUARED_DEVIATIONS");
-        assertThat(one.path("lines")).hasSize(15);
-        assertThat(one.path("lines").get(0).path("id").asString()).isEqualTo("G-01");
-        assertThat(one.path("lines").get(0).path("weight").isNull()).isTrue();
-        assertThat(one.path("evidence").path("confirmationMinimumSeeds").asInt())
-                .isEqualTo(100);
-        assertThat(one.path("lines").get(0).path("interval").asString()).isEqualTo("BLOCK_BOOTSTRAP");
-    }
-
-    @Test
-    void criterionVersionTwoServesTheRandomSeatTable() throws Exception {
-        var two = criterion(2);
-
-        assertThat(two.path("version").asInt()).isEqualTo(2);
-        assertThat(two.path("tables")).hasSize(3);
-        assertThat(two.path("tables").get(2).path("id").asString()).isEqualTo("random-seat-vs-faction-greedy-v1");
-        assertThat(two.path("tables").get(2).path("seats").get(0).path("policy").asString())
-                .isEqualTo("random-v1");
-        assertThat(two.path("lines").get(0).path("interval").asString())
+        assertThat(criterion.path("version").asInt()).isEqualTo(CRITERION);
+        assertThat(criterion.path("aggregation").asString()).isEqualTo("WEIGHTED_SUM_OF_SQUARED_DEVIATIONS");
+        assertThat(criterion.path("lines")).hasSize(15);
+        assertThat(criterion.path("lines").get(0).path("id").asString()).isEqualTo("G-01");
+        assertThat(criterion.path("lines").get(0).path("weight").isNull()).isTrue();
+        assertThat(criterion.path("lines").get(0).path("interval").asString())
                 .isEqualTo("BLOCK_BOOTSTRAP_UNION_CLOPPER_PEARSON");
-        var g07 = two.path("lines").get(6);
+        assertThat(criterion.path("tables")).hasSize(3);
+        assertThat(criterion.path("tables").get(0).path("id").asString()).isEqualTo("faction-greedy");
+        assertThat(criterion.path("tables").get(2).path("id").asString()).isEqualTo("random-seat-vs-faction-greedy");
+        assertThat(criterion
+                        .path("tables")
+                        .get(2)
+                        .path("seats")
+                        .get(0)
+                        .path("policy")
+                        .asString())
+                .isEqualTo("random");
+        var g07 = criterion.path("lines").get(6);
         assertThat(g07.path("id").asString()).isEqualTo("G-07");
-        assertThat(g07.path("populations").get(0).path("table").asString())
-                .isEqualTo("random-seat-vs-faction-greedy-v1");
-        assertThat(g07.path("populations").get(0).path("policy").asString()).isEqualTo("random-v1");
         assertThat(g07.path("band").path("upper").asDouble()).isEqualTo(1.0);
-        assertThat(two.path("evidence").path("confirmationMinimumSeeds").asInt())
+        assertThat(criterion.path("evidence").path("confirmationMinimumSeeds").asInt())
                 .isEqualTo(104);
     }
 
     @Test
-    void criterionVersionThreeServesTheSecondGreedyTables() throws Exception {
-        var three = criterion(3);
-
-        assertThat(three.path("version").asInt()).isEqualTo(3);
-        assertThat(three.path("tables").get(0).path("id").asString()).isEqualTo("faction-greedy-v2");
-        assertThat(three.path("tables").get(2).path("id").asString()).isEqualTo("random-seat-vs-faction-greedy-v2");
+    void anotherCriterionVersionIsNotFound() throws Exception {
+        mockMvc.perform(get("/api/v1/balance-criteria/" + (CRITERION + 1)).with(read()))
+                .andExpect(status().isNotFound());
     }
 
     private JsonNode criterion(int version) throws Exception {

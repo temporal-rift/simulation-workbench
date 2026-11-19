@@ -35,7 +35,7 @@ import io.github.temporalrift.workbench.shared.game.Faction;
 import io.github.temporalrift.workbench.shared.game.SpecialAction;
 import io.github.temporalrift.workbench.shared.window.WindowKind;
 
-class FactionGreedyV2PolicyTest {
+class FactionRecipePolicyTest {
 
     private static final UUID EVENT_A = PolicyFixtures.EVENT_A;
     private static final UUID EVENT_B = PolicyFixtures.EVENT_B;
@@ -48,7 +48,7 @@ class FactionGreedyV2PolicyTest {
     private static final UUID DECLARER = PolicyFixtures.id(0x01);
     private static final UUID SELF = PolicyFixtures.id(0x09);
 
-    private final FactionGreedyV2Policy policy = new FactionGreedyV2Policy();
+    private final FactionRecipePolicy policy = new FactionRecipePolicy();
 
     @Test
     void aProphetWritesOneEventPerEra() {
@@ -266,7 +266,7 @@ class FactionGreedyV2PolicyTest {
     void onlyWastedCandidatesLeftExhaustTheWindow() {
         var observation = observation(Faction.ERASERS, 3, specials(Faction.ERASERS), List.of(), Board.EMPTY, bands());
         var excluded = CandidateGenerator.generate(observation).stream()
-                .filter(candidate -> !FactionGreedyV2Policy.wasted(candidate, BoardReading.of(observation)))
+                .filter(candidate -> !FactionRecipePolicy.wasted(candidate, BoardReading.of(observation)))
                 .collect(Collectors.toSet());
 
         var decision = policy.decide(

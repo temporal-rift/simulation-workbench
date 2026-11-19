@@ -10,7 +10,7 @@ import io.github.temporalrift.workbench.analysis.domain.TestCriteria;
 
 class DeviationProfileTest {
 
-    private static final String GREEDY = "faction-greedy-v1";
+    private static final String GREEDY = "faction-greedy";
     private static final int SEEDS = 12;
 
     @Test
@@ -74,6 +74,6 @@ class DeviationProfileTest {
     }
 
     private static DeviationProfile profileOf(SyntheticRun run) {
-        return DeviationProfile.of(TestCriteria.v1(), run.cases(), run.facts(), AnalysisVersion.CURRENT);
+        return DeviationProfile.of(TestCriteria.current(), run.cases(), run.facts(), AnalysisVersion.CURRENT);
     }
 }

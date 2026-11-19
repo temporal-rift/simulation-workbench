@@ -19,7 +19,7 @@ class CohortSeatSeriesTest {
 
     @Test
     void everySeatGivesThePooledSeriesAndOneSeatOnlyThatSeatsGames() {
-        var run = new SyntheticRun("base", "faction-greedy-v1");
+        var run = new SyntheticRun("base", "faction-greedy");
         for (var seed = 1; seed <= 4; seed++) {
             // Erasers win on seat 0 and lose on seat 2.
             run.win(String.valueOf(seed), EPW, 0).win(String.valueOf(seed), PWE, 0);

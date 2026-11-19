@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import tools.jackson.databind.node.ObjectNode;
 
+import io.github.temporalrift.workbench.analysis.domain.TestCriteria;
 import io.github.temporalrift.workbench.execution.application.port.in.StartRunUseCase;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.port.out.GameSession;
@@ -21,6 +22,7 @@ import io.github.temporalrift.workbench.execution.domain.run.WinType;
 import io.github.temporalrift.workbench.execution.domain.run.Winner;
 import io.github.temporalrift.workbench.experiment.ExperimentManifests;
 import io.github.temporalrift.workbench.experiment.application.port.in.CreateExperimentUseCase;
+import io.github.temporalrift.workbench.policy.domain.baseline.BaselinePolicies;
 import io.github.temporalrift.workbench.shared.game.EndReason;
 
 /** A designer judges a finished run against the balance criterion without calling any endpoint. */
@@ -44,8 +46,9 @@ class EvaluationBrowserIT extends DesignerBrowserTest {
 
         var panel = page.getByRole(AriaRole.HEADING, new Page.GetByRoleOptions().setName("Evaluation"))
                 .locator("xpath=ancestor::section[1]");
-        // The run plays only the random-v1 table: version 1 measures its G-07 there, version 2 on a mixed table.
-        panel.getByLabel("Criterion version").selectOption("1");
+        // The run plays the faction-greedy table, where the criterion measures the faction win shares.
+        panel.getByLabel("Criterion version")
+                .selectOption(String.valueOf(TestCriteria.current().version()));
         assertThat(panel.getByText(Pattern.compile("Verdict: Rejected"))).isVisible();
         assertThat(panel.getByText(HUMAN_BALANCE)).isVisible();
         var lines = panel.getByRole(AriaRole.TABLE, new Locator.GetByRoleOptions().setName("Evaluated lines"));
@@ -65,6 +68,7 @@ class EvaluationBrowserIT extends DesignerBrowserTest {
 
     private UUID finishedRun() {
         var manifest = (ObjectNode) ExperimentManifests.threePlayerTwoVariants().deepCopy();
+        playFactionGreedy(manifest);
         var seeds = manifest.putArray("seeds");
         List.of("1", "2", "3", "4").forEach(seeds::add);
         var experimentId = createExperiment
@@ -75,6 +79,20 @@ class EvaluationBrowserIT extends DesignerBrowserTest {
                 .runId();
         executePendingCases();
         return runId;
+    }
+
+    /** The criterion measures the faction win shares on the faction-greedy table, so the run plays that table. */
+    private static void playFactionGreedy(ObjectNode manifest) {
+        var greedy = BaselinePolicies.FACTION_GREEDY;
+        ((ObjectNode) manifest.get("policies").get(0))
+                .put("id", greedy.id())
+                .put("version", greedy.version())
+                .put("artifactDigest", greedy.artifactDigest());
+        var table = (ObjectNode) manifest.get("tables").get(0);
+        table.put("id", greedy.id());
+        table.get("seats")
+                .forEach(seat ->
+                        ((ObjectNode) seat).put("policyId", greedy.id()).put("policyVersion", greedy.version()));
     }
 
     /** Erasers win every game wherever they sit, so their share of wins is three times an average seat. */

@@ -38,8 +38,8 @@ public final class ExperimentManifests {
         contracts.put("action-api", "7.1.0");
         manifest.set("contracts", contracts);
         var policies = MAPPER.createArrayNode();
-        policies.add(policy(BaselinePolicies.RANDOM_V1));
-        policies.add(policy(BaselinePolicies.FACTION_GREEDY_V1));
+        policies.add(policy(BaselinePolicies.RANDOM));
+        policies.add(policy(BaselinePolicies.FACTION_GREEDY));
         manifest.set("policies", policies);
         manifest.set("tables", tables(policies, 5));
         var seeds = MAPPER.createArrayNode();
@@ -69,7 +69,7 @@ public final class ExperimentManifests {
         variants.add(variant("only", "a".repeat(64), "b".repeat(64)));
         manifest.set("variants", variants);
         var policies = MAPPER.createArrayNode();
-        policies.add(policy(BaselinePolicies.RANDOM_V1));
+        policies.add(policy(BaselinePolicies.RANDOM));
         manifest.set("policies", policies);
         manifest.set("tables", tables(policies, 5));
         return manifest;
@@ -101,8 +101,8 @@ public final class ExperimentManifests {
     public static JsonNode baselineTemplateCases() {
         var manifest = (ObjectNode) singleSeedSinglePolicySingleVariant().deepCopy();
         var policies = MAPPER.createArrayNode();
-        policies.add(policy(BaselinePolicies.RANDOM_V1));
-        policies.add(policy(BaselinePolicies.FACTION_GREEDY_V1));
+        policies.add(policy(BaselinePolicies.RANDOM));
+        policies.add(policy(BaselinePolicies.FACTION_GREEDY));
         manifest.set("policies", policies);
         manifest.set("tables", tables(policies, 5));
         var counts = MAPPER.createArrayNode();

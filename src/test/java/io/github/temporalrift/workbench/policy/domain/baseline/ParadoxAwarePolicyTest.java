@@ -31,7 +31,7 @@ import io.github.temporalrift.workbench.shared.game.Faction;
 import io.github.temporalrift.workbench.shared.game.SpecialAction;
 import io.github.temporalrift.workbench.shared.window.WindowKind;
 
-class FactionGreedyV3PolicyTest {
+class ParadoxAwarePolicyTest {
 
     private static final UUID EVENT_A = PolicyFixtures.EVENT_A;
     private static final UUID A3 = PolicyFixtures.id(0xA3);
@@ -43,7 +43,7 @@ class FactionGreedyV3PolicyTest {
     private static final TableRules CONTESTED = TableRules.DEFAULTS;
     private static final TableRules UNCONTESTED = new TableRules(false, -1, -1, -2, false);
 
-    private final FactionGreedyV3Policy policy = new FactionGreedyV3Policy();
+    private final ParadoxAwarePolicy policy = new ParadoxAwarePolicy();
 
     @Test
     void aSeatStabilizesAParadoxOnItsOwnCommitment() {
@@ -99,14 +99,6 @@ class FactionGreedyV3PolicyTest {
                 .isInstanceOfSatisfying(
                         Candidate.PlaySpecial.class,
                         special -> assertThat(special.action()).isEqualTo(SpecialAction.REWEAVE));
-    }
-
-    @Test
-    void theV2BundleKeepsItsDigestAndTheV3BundleIsServed() {
-        assertThat(BaselinePolicies.find(BaselinePolicies.FACTION_GREEDY_ID, BaselinePolicies.V3))
-                .hasValue(BaselinePolicies.FACTION_GREEDY_V3);
-        assertThat(BaselinePolicies.FACTION_GREEDY_V3.artifactDigest())
-                .isNotEqualTo(BaselinePolicies.FACTION_GREEDY_V2.artifactDigest());
     }
 
     private Candidate choose(EntitledObservation observation) {

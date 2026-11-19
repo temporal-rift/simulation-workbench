@@ -1,16 +1,16 @@
 {
-  "version": 2,
-  "title": "Balance criterion version 2",
+  "version": 4,
+  "title": "Balance criterion version 4",
   "analysisVersion": "2",
   "tables": [
     {
-      "id": "faction-greedy-v1",
+      "id": "faction-greedy",
       "seats": [
-        "faction-greedy-v1",
-        "faction-greedy-v1",
-        "faction-greedy-v1",
-        "faction-greedy-v1",
-        "faction-greedy-v1"
+        "faction-greedy",
+        "faction-greedy",
+        "faction-greedy",
+        "faction-greedy",
+        "faction-greedy"
       ],
       "phases": [
         "SCREENING",
@@ -18,13 +18,13 @@
       ]
     },
     {
-      "id": "random-v1",
+      "id": "random",
       "seats": [
-        "random-v1",
-        "random-v1",
-        "random-v1",
-        "random-v1",
-        "random-v1"
+        "random",
+        "random",
+        "random",
+        "random",
+        "random"
       ],
       "phases": [
         "SCREENING",
@@ -32,13 +32,13 @@
       ]
     },
     {
-      "id": "random-seat-vs-faction-greedy-v1",
+      "id": "random-seat-vs-faction-greedy",
       "seats": [
-        "random-v1",
-        "faction-greedy-v1",
-        "faction-greedy-v1",
-        "faction-greedy-v1",
-        "faction-greedy-v1"
+        "random",
+        "faction-greedy",
+        "faction-greedy",
+        "faction-greedy",
+        "faction-greedy"
       ],
       "phases": [
         "CONFIRMATION"
@@ -61,16 +61,16 @@
       },
       "populations": [
         {
-          "table": "faction-greedy-v1",
-          "policy": "faction-greedy-v1"
+          "table": "faction-greedy",
+          "policy": "faction-greedy"
         },
         {
-          "table": "random-v1",
-          "policy": "random-v1"
+          "table": "random",
+          "policy": "random"
         },
         {
-          "table": "random-seat-vs-faction-greedy-v1",
-          "policy": "random-v1"
+          "table": "random-seat-vs-faction-greedy",
+          "policy": "random"
         }
       ],
       "playerCounts": [
@@ -101,16 +101,16 @@
       },
       "populations": [
         {
-          "table": "faction-greedy-v1",
-          "policy": "faction-greedy-v1"
+          "table": "faction-greedy",
+          "policy": "faction-greedy"
         },
         {
-          "table": "random-v1",
-          "policy": "random-v1"
+          "table": "random",
+          "policy": "random"
         },
         {
-          "table": "random-seat-vs-faction-greedy-v1",
-          "policy": "random-v1"
+          "table": "random-seat-vs-faction-greedy",
+          "policy": "random"
         }
       ],
       "playerCounts": [
@@ -141,16 +141,16 @@
       },
       "populations": [
         {
-          "table": "faction-greedy-v1",
-          "policy": "faction-greedy-v1"
+          "table": "faction-greedy",
+          "policy": "faction-greedy"
         },
         {
-          "table": "random-v1",
-          "policy": "random-v1"
+          "table": "random",
+          "policy": "random"
         },
         {
-          "table": "random-seat-vs-faction-greedy-v1",
-          "policy": "random-v1"
+          "table": "random-seat-vs-faction-greedy",
+          "policy": "random"
         }
       ],
       "playerCounts": [
@@ -181,12 +181,12 @@
       },
       "populations": [
         {
-          "table": "faction-greedy-v1",
-          "policy": "faction-greedy-v1"
+          "table": "faction-greedy",
+          "policy": "faction-greedy"
         },
         {
-          "table": "random-v1",
-          "policy": "random-v1"
+          "table": "random",
+          "policy": "random"
         }
       ],
       "playerCounts": [
@@ -217,8 +217,8 @@
       },
       "populations": [
         {
-          "table": "faction-greedy-v1",
-          "policy": "faction-greedy-v1"
+          "table": "faction-greedy",
+          "policy": "faction-greedy"
         }
       ],
       "playerCounts": [
@@ -249,8 +249,8 @@
       },
       "populations": [
         {
-          "table": "faction-greedy-v1",
-          "policy": "faction-greedy-v1"
+          "table": "faction-greedy",
+          "policy": "faction-greedy"
         }
       ],
       "playerCounts": [
@@ -280,8 +280,8 @@
       },
       "populations": [
         {
-          "table": "random-seat-vs-faction-greedy-v1",
-          "policy": "random-v1"
+          "table": "random-seat-vs-faction-greedy",
+          "policy": "random"
         }
       ],
       "playerCounts": [
@@ -312,8 +312,8 @@
       },
       "populations": [
         {
-          "table": "faction-greedy-v1",
-          "policy": "faction-greedy-v1"
+          "table": "faction-greedy",
+          "policy": "faction-greedy"
         }
       ],
       "playerCounts": [
@@ -344,8 +344,8 @@
       },
       "populations": [
         {
-          "table": "faction-greedy-v1",
-          "policy": "faction-greedy-v1"
+          "table": "faction-greedy",
+          "policy": "faction-greedy"
         }
       ],
       "playerCounts": [
@@ -376,8 +376,8 @@
       },
       "populations": [
         {
-          "table": "faction-greedy-v1",
-          "policy": "faction-greedy-v1"
+          "table": "faction-greedy",
+          "policy": "faction-greedy"
         }
       ],
       "playerCounts": [
@@ -408,8 +408,8 @@
       },
       "populations": [
         {
-          "table": "faction-greedy-v1",
-          "policy": "faction-greedy-v1"
+          "table": "faction-greedy",
+          "policy": "faction-greedy"
         }
       ],
       "playerCounts": [
@@ -440,8 +440,8 @@
       },
       "populations": [
         {
-          "table": "faction-greedy-v1",
-          "policy": "faction-greedy-v1"
+          "table": "faction-greedy",
+          "policy": "faction-greedy"
         }
       ],
       "playerCounts": [
@@ -472,8 +472,8 @@
       },
       "populations": [
         {
-          "table": "faction-greedy-v1",
-          "policy": "faction-greedy-v1"
+          "table": "faction-greedy",
+          "policy": "faction-greedy"
         }
       ],
       "playerCounts": [
@@ -504,8 +504,8 @@
       },
       "populations": [
         {
-          "table": "faction-greedy-v1",
-          "policy": "faction-greedy-v1"
+          "table": "faction-greedy",
+          "policy": "faction-greedy"
         }
       ],
       "playerCounts": [
@@ -536,8 +536,8 @@
       },
       "populations": [
         {
-          "table": "faction-greedy-v1",
-          "policy": "faction-greedy-v1"
+          "table": "faction-greedy",
+          "policy": "faction-greedy"
         }
       ],
       "playerCounts": [

@@ -35,13 +35,13 @@ import io.github.temporalrift.workbench.analysis.domain.port.out.RunSource;
 
 class CandidateScreeningServiceTest {
 
-    private static final String GREEDY = "faction-greedy-v1";
+    private static final String GREEDY = "faction-greedy";
     private static final UUID FIRST_RUN = new UUID(1, 1);
     private static final UUID SECOND_RUN = new UUID(1, 2);
 
     private final Map<UUID, List<AnalyzedCase>> casesByRun = new HashMap<>();
     private final Map<UUID, CaseFacts> storedFacts = new HashMap<>();
-    private final BalanceCriterion criterion = TestCriteria.v1();
+    private final BalanceCriterion criterion = TestCriteria.current();
     private final CandidateScreeningService service = new CandidateScreeningService(
             new RunSource() {
                 @Override
@@ -213,8 +213,8 @@ class CandidateScreeningServiceTest {
                 CriterionRole.GATE,
                 "faction_win_rate",
                 null,
-                "faction-greedy-v1",
-                "faction-greedy-v1",
+                "faction-greedy",
+                "faction-greedy",
                 3,
                 null,
                 null,

@@ -7,54 +7,30 @@ import io.github.temporalrift.workbench.policy.domain.decision.BotPolicy;
 import io.github.temporalrift.workbench.shared.text.Sha256;
 
 /**
- * The baseline bundles: {@code random} at {@code 1.0.0} and {@code faction-greedy} at {@code 1.0.0}, {@code 2.0.0},
- * {@code 3.0.0} and {@code 4.0.0}, referred to as {@code random-v1} and {@code faction-greedy-v1} to {@code -v4}. Each
- * artifact digest hashes the bundle identity together with its canonical definition, so a changed definition needs a
- * new version.
+ * The baseline bundles: {@code random} and {@code faction-greedy}, one of each. Each artifact digest hashes the bundle
+ * identity together with its canonical definition, so a changed definition needs a new version. A criterion names a
+ * policy by its id only and resolves it to the one bundle of that id.
  */
 public final class BaselinePolicies {
 
     public static final String RANDOM_ID = "random";
     public static final String FACTION_GREEDY_ID = "faction-greedy";
-    public static final String V1 = "1.0.0";
-    public static final String V2 = "2.0.0";
-    public static final String V3 = "3.0.0";
-    public static final String V4 = "4.0.0";
+    public static final String VERSION = "1.0.0";
 
-    public static final PolicyBundle RANDOM_V1 = bundle(
+    public static final PolicyBundle RANDOM = bundle(
             RANDOM_ID,
-            V1,
             RandomPolicy.DEFINITION,
             "Uniform seeded draw over the canonically ordered candidates, pass or decline included.",
             new RandomPolicy());
-    public static final PolicyBundle FACTION_GREEDY_V1 = bundle(
+    public static final PolicyBundle FACTION_GREEDY = bundle(
             FACTION_GREEDY_ID,
-            V1,
-            FactionPreferences.canonicalDefinition(),
-            "Scores each candidate by its faction's affinity and target lean, then draws among the top scores.",
+            FactionGreedyPolicy.DEFINITION,
+            "Reads public bands, skips wasted actions and specials the table reports unavailable, backs its own"
+                    + " commitment, plays its faction's counters and chooses paradox cards by its stake and the"
+                    + " table's costs.",
             new FactionGreedyPolicy());
-    public static final PolicyBundle FACTION_GREEDY_V2 = bundle(
-            FACTION_GREEDY_ID,
-            V2,
-            FactionGreedyV2Policy.DEFINITION,
-            "Reads public bands, skips wasted actions, backs its own commitment and plays its faction's counters.",
-            new FactionGreedyV2Policy());
-    public static final PolicyBundle FACTION_GREEDY_V3 = bundle(
-            FACTION_GREEDY_ID,
-            V3,
-            FactionGreedyV3Policy.DEFINITION,
-            "v2, choosing Stabilize or Detonate by the table's costs and its stake, under the current Tapestry rule.",
-            new FactionGreedyV3Policy());
 
-    public static final PolicyBundle FACTION_GREEDY_V4 = bundle(
-            FACTION_GREEDY_ID,
-            V4,
-            FactionGreedyV4Policy.DEFINITION,
-            "v3, never proposing a special the table reports unavailable this round.",
-            new FactionGreedyV4Policy());
-
-    private static final List<PolicyBundle> ALL =
-            List.of(RANDOM_V1, FACTION_GREEDY_V1, FACTION_GREEDY_V2, FACTION_GREEDY_V3, FACTION_GREEDY_V4);
+    private static final List<PolicyBundle> ALL = List.of(RANDOM, FACTION_GREEDY);
 
     private BaselinePolicies() {}
 
@@ -68,9 +44,13 @@ public final class BaselinePolicies {
                 .findFirst();
     }
 
-    private static PolicyBundle bundle(
-            String id, String version, String definition, String description, BotPolicy policy) {
+    /** The one bundle of a policy id. */
+    public static Optional<PolicyBundle> find(String id) {
+        return ALL.stream().filter(bundle -> bundle.id().equals(id)).findFirst();
+    }
+
+    private static PolicyBundle bundle(String id, String definition, String description, BotPolicy policy) {
         return new PolicyBundle(
-                id, version, Sha256.hexUtf8(id + "|" + version + "|" + definition), description, policy);
+                id, VERSION, Sha256.hexUtf8(id + "|" + VERSION + "|" + definition), description, policy);
     }
 }

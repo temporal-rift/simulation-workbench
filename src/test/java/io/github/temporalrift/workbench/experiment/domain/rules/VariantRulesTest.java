@@ -205,11 +205,15 @@ class VariantRulesTest {
     }
 
     @Test
-    void theAxesOfSpaceTwoTypeEachParameterAndCarryTheBaselineValue() {
-        var axes = rules.axes(VariantRulesFixtures.ARTIFACT_DIGEST, 2);
+    void theAxesTypeEachParameterAndCarryTheBaselineValue() {
+        var axes = rules.axes(VariantRulesFixtures.ARTIFACT_DIGEST, 1);
 
         assertThat(axes)
-                .hasSize(49)
+                .hasSize(VariantRulesFixtures.spaces()
+                        .all()
+                        .getFirst()
+                        .parameters()
+                        .size())
                 .contains(
                         new VariantRules.NumberAxis(
                                 "game.rules.annihilate-earliest-round",
@@ -222,7 +226,7 @@ class VariantRulesTest {
     }
 
     @Test
-    void aBaselineThatPredatesSpaceTwoIsNamedByItsSettingAndLacksTheThreeKeys() {
+    void aBaselineThatLacksThreeKeysOfTheSpaceIsNamedByItsSetting() {
         var document = (tools.jackson.databind.node.ObjectNode)
                 new tools.jackson.databind.json.JsonMapper().readTree(VariantRulesFixtures.baselineText());
         var properties = (tools.jackson.databind.node.ObjectNode) document.get("properties");
@@ -232,7 +236,7 @@ class VariantRulesTest {
         var old = new BaselineRulesCatalog.Baseline(document.toString(), EffectiveRules.parse(document));
         var oldRules = new VariantRules(VariantRulesFixtures.spaces(), VariantRulesFixtures.catalogOf(old));
 
-        assertThat(oldRules.baselineGaps(2)).singleElement().satisfies(gap -> {
+        assertThat(oldRules.baselineGaps(1)).singleElement().satisfies(gap -> {
             assertThat(gap.scope()).isEqualTo(VariantRulesFixtures.SCOPE);
             assertThat(gap.missing())
                     .containsExactly(
@@ -240,8 +244,7 @@ class VariantRulesTest {
                             "boolean game.rules.probability.erased-weight-to-written-outcome",
                             "boolean game.rules.scoring.written-outcome-shields-annihilation");
         });
-        assertThat(oldRules.baselineGaps(1)).isEmpty();
-        assertThat(rules.baselineGaps(2)).isEmpty();
+        assertThat(rules.baselineGaps(1)).isEmpty();
         assertThat(rules.baselineGaps(99)).isEmpty();
     }
 
@@ -249,12 +252,12 @@ class VariantRulesTest {
     void aPreviewOfABooleanOverrideAppliesItAndRefusesANumberForIt() {
         var key = "game.rules.scoring.written-outcome-shields-annihilation";
 
-        var preview = rules.preview(VariantRulesFixtures.ARTIFACT_DIGEST, 2, Map.of(key, ParameterValue.of(false)));
+        var preview = rules.preview(VariantRulesFixtures.ARTIFACT_DIGEST, 1, Map.of(key, ParameterValue.of(false)));
         var refused = Map.of(key, ParameterValue.of(BigDecimal.ONE));
 
         assertThat(preview.rules().flag(key)).contains(false);
         assertThat(preview.overrides()).containsExactly(Map.entry(key, ParameterValue.of(false)));
-        assertThatThrownBy(() -> rules.preview(VariantRulesFixtures.ARTIFACT_DIGEST, 2, refused))
+        assertThatThrownBy(() -> rules.preview(VariantRulesFixtures.ARTIFACT_DIGEST, 1, refused))
                 .isInstanceOfSatisfying(ExperimentValidationException.class, e -> {
                     assertThat(e.reason()).contains(VariantRulesReason.WRONG_TYPE);
                     assertThat(e.field()).contains("overrides." + key);

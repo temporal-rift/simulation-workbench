@@ -111,32 +111,28 @@ class BaselinePoliciesTest {
 
     @Test
     void bundlesAreVersionedAndDigestTheirDefinition() {
-        assertThat(BaselinePolicies.RANDOM_V1.version()).isEqualTo("1.0.0");
-        assertThat(BaselinePolicies.RANDOM_V1.artifactDigest())
+        assertThat(BaselinePolicies.RANDOM.version()).isEqualTo("1.0.0");
+        assertThat(BaselinePolicies.RANDOM.artifactDigest())
                 .isEqualTo(sha256("random|1.0.0|" + RandomPolicy.DEFINITION));
-        assertThat(BaselinePolicies.FACTION_GREEDY_V1.artifactDigest())
-                .isEqualTo(sha256("faction-greedy|1.0.0|" + FactionPreferences.canonicalDefinition()));
-        assertThat(BaselinePolicies.RANDOM_V1.artifactDigest())
-                .isNotEqualTo(BaselinePolicies.FACTION_GREEDY_V1.artifactDigest());
-        assertThat(BaselinePolicies.find("random", "1.0.0")).contains(BaselinePolicies.RANDOM_V1);
+        assertThat(BaselinePolicies.FACTION_GREEDY.version()).isEqualTo("1.0.0");
+        assertThat(BaselinePolicies.FACTION_GREEDY.artifactDigest())
+                .isEqualTo(sha256("faction-greedy|1.0.0|" + FactionGreedyPolicy.DEFINITION));
+        assertThat(BaselinePolicies.RANDOM.artifactDigest())
+                .isNotEqualTo(BaselinePolicies.FACTION_GREEDY.artifactDigest());
+        assertThat(BaselinePolicies.find("random", "1.0.0")).contains(BaselinePolicies.RANDOM);
         assertThat(BaselinePolicies.find("random", "2.0.0")).isEmpty();
-        assertThat(BaselinePolicies.FACTION_GREEDY_V2.version()).isEqualTo("2.0.0");
-        assertThat(BaselinePolicies.FACTION_GREEDY_V2.artifactDigest())
-                .isEqualTo(sha256("faction-greedy|2.0.0|" + FactionGreedyV2Policy.DEFINITION));
-        assertThat(BaselinePolicies.find("faction-greedy", "2.0.0")).contains(BaselinePolicies.FACTION_GREEDY_V2);
+        assertThat(BaselinePolicies.find("faction-greedy", "1.0.0")).contains(BaselinePolicies.FACTION_GREEDY);
+        assertThat(BaselinePolicies.find("faction-greedy")).contains(BaselinePolicies.FACTION_GREEDY);
     }
 
     @Test
-    void theServedDigestsOfTheVersionOneBundlesAreUnchanged() {
-        assertThat(BaselinePolicies.FACTION_GREEDY_V1.artifactDigest())
-                .isEqualTo("7078aebf5a3afa7d06de5e891588a06be85c68f8239393d06fadad827149e2bb");
-        assertThat(BaselinePolicies.RANDOM_V1.artifactDigest())
-                .isEqualTo("b264b46280ba0a4827ab868ea97b9214fa1a8764c116d1f0d3107a5d8a7476dd");
+    void onlyRandomAndFactionGreedyAreDefined() {
+        assertThat(BaselinePolicies.all()).extracting(PolicyBundle::id).containsExactly("random", "faction-greedy");
     }
 
     @ParameterizedTest(name = "{0}")
     @org.junit.jupiter.params.provider.EnumSource(Faction.class)
-    void boardFactsDoNotMoveAVersionOneGreedyChoice(Faction faction) {
+    void boardFactsDoNotMoveTheGreedyChoice(Faction faction) {
         var plain = PolicyFixtures.actionRound(faction);
         var withBoard = new EntitledObservation(
                 plain.seatIndex(),
@@ -155,7 +151,7 @@ class BaselinePoliciesTest {
                         new Board.ChainView(Board.ChainStatus.ACTIVE, 2),
                         List.of()));
 
-        var policy = BaselinePolicies.FACTION_GREEDY_V1.policy();
+        var policy = BaselinePolicies.FACTION_GREEDY.policy();
 
         assertThat(policy.decide(withBoard, Set.of(), entropy(withBoard)))
                 .isEqualTo(policy.decide(plain, Set.of(), entropy(plain)));
@@ -166,7 +162,7 @@ class BaselinePoliciesTest {
         var observation = PolicyFixtures.handSelection(Faction.WEAVERS);
         var deal = ((DecisionWindow.HandSelection) observation.window()).deal();
 
-        var decision = BaselinePolicies.RANDOM_V1.policy().decide(observation, Set.of(), entropy(observation));
+        var decision = BaselinePolicies.RANDOM.policy().decide(observation, Set.of(), entropy(observation));
 
         var keep = (Candidate.KeepHand) ((PolicyDecision.Chosen) decision).candidate();
         assertThat(keep.cardInstanceIds()).hasSize(5).doesNotHaveDuplicates();
