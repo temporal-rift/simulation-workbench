@@ -429,7 +429,7 @@ class AnalysisIT {
                 .isNotEqualTo("INVALID");
         assertThat(confirmation.path("verdict").asString()).isNotEqualTo("CONFIRMED");
         assertThat(confirmation.path("confirmationSample").path("requiredSeeds").asInt())
-                .isEqualTo(100);
+                .isEqualTo(104);
         assertThat(confirmation.path("confirmationSample").path("seeds").asInt())
                 .isEqualTo(3);
         assertThat(confirmation.path("confirmationSample").path("satisfied").asBoolean())
@@ -467,16 +467,13 @@ class AnalysisIT {
     }
 
     @Test
-    void theCriterionCatalogServesVersionsOneToFourReadOnly() throws Exception {
+    void theCriterionCatalogServesTheOneCriterionReadOnly() throws Exception {
         var catalog = objectMapper.readTree(read(
                 mockMvc.perform(get("/api/v1/balance-criteria").with(read())).andExpect(status().isOk())));
 
-        assertThat(catalog.path("criteria")).hasSize(4);
-        assertThat(catalog.path("criteria").get(0)).isEqualTo(criterion(1));
-        assertThat(catalog.path("criteria").get(1)).isEqualTo(criterion(2));
-        assertThat(catalog.path("criteria").get(2)).isEqualTo(criterion(3));
-        assertThat(catalog.path("criteria").get(3)).isEqualTo(criterion(4));
-        mockMvc.perform(get("/api/v1/balance-criteria/5").with(read()))
+        assertThat(catalog.path("criteria")).hasSize(1);
+        assertThat(catalog.path("criteria").get(0)).isEqualTo(criterion(CRITERION));
+        mockMvc.perform(get("/api/v1/balance-criteria/" + (CRITERION + 1)).with(read()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
         mockMvc.perform(post("/api/v1/balance-criteria").with(read()).contentType(MediaType.APPLICATION_JSON))

@@ -95,8 +95,8 @@ class VariantRulesIT {
                 .andExpect(jsonPath("$.parameters[0].max").value(26))
                 .andExpect(jsonPath("$.parameters[0].step").value(1))
                 .andExpect(jsonPath("$.derived.length()").value(4))
-                .andExpect(jsonPath("$.constraints.length()").value(14))
-                .andExpect(jsonPath("$.constraints[10].id").value("C-11"))
+                .andExpect(jsonPath("$.constraints.length()").value(12))
+                .andExpect(jsonPath("$.constraints[8].id").value("C-11"))
                 .andExpect(jsonPath("$.heldFixed[0].key").value("game.rules.max-eras"));
     }
 

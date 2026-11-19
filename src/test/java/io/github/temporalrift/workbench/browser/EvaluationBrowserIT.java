@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import tools.jackson.databind.node.ObjectNode;
 
+import io.github.temporalrift.workbench.analysis.domain.TestCriteria;
 import io.github.temporalrift.workbench.execution.application.port.in.StartRunUseCase;
 import io.github.temporalrift.workbench.execution.domain.port.out.CaseLane;
 import io.github.temporalrift.workbench.execution.domain.port.out.GameSession;
@@ -44,8 +45,9 @@ class EvaluationBrowserIT extends DesignerBrowserTest {
 
         var panel = page.getByRole(AriaRole.HEADING, new Page.GetByRoleOptions().setName("Evaluation"))
                 .locator("xpath=ancestor::section[1]");
-        // The run plays only the random table: version 1 measures its G-07 there, version 2 on a mixed table.
-        panel.getByLabel("Criterion version").selectOption("1");
+        // The run plays only the random table; the criterion measures G-07 on its mixed table, so it has no data here.
+        panel.getByLabel("Criterion version")
+                .selectOption(String.valueOf(TestCriteria.current().version()));
         assertThat(panel.getByText(Pattern.compile("Verdict: Rejected"))).isVisible();
         assertThat(panel.getByText(HUMAN_BALANCE)).isVisible();
         var lines = panel.getByRole(AriaRole.TABLE, new Locator.GetByRoleOptions().setName("Evaluated lines"));

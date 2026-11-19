@@ -21,6 +21,7 @@ import tools.jackson.databind.node.ObjectNode;
 
 import io.github.temporalrift.workbench.WorkbenchIntegrationTest;
 import io.github.temporalrift.workbench.analysis.RunConfirmation;
+import io.github.temporalrift.workbench.analysis.domain.TestCriteria;
 import io.github.temporalrift.workbench.execution.LaneEnvironments;
 import io.github.temporalrift.workbench.execution.application.port.in.RunBatchUseCase;
 import io.github.temporalrift.workbench.execution.domain.run.BundleDigests;
@@ -59,6 +60,7 @@ class CampaignConfirmationIT {
 
     private static final String WORKER = "confirmation-it";
     private static final int STEP_LIMIT = 100_000;
+    private static final int CRITERION = TestCriteria.current().version();
     private static final int CONFIRMATION_SEEDS = 2;
     private static final BundleDigests BASELINE =
             new BundleDigests(VariantRulesFixtures.baseline().digest(), "b".repeat(64));
@@ -154,8 +156,8 @@ class CampaignConfirmationIT {
     }
 
     @Test
-    void aCriterionVersionTwoConfirmationOfOneCandidateIs104SeedsAnd17160CasesOverThreeTables() {
-        var id = searchedCampaign(2, List.of(3, 4, 5), "c-0000");
+    void aConfirmationOfOneCandidateIs104SeedsAnd17160CasesOverThreeTables() {
+        var id = searchedCampaign(CRITERION, List.of(3, 4, 5), "c-0000");
 
         var started = handler(realEvaluation).handle(id, UUID.randomUUID());
 
@@ -170,23 +172,10 @@ class CampaignConfirmationIT {
     }
 
     @Test
-    void aCriterionVersionOneConfirmationIs100SeedsOverItsTwoTables() {
-        var id = searchedCampaign(1, List.of(3, 4, 5), "c-0000");
-
-        var started = handler(realEvaluation).handle(id, UUID.randomUUID());
-
-        assertThat(started.confirmation().seedCount()).isEqualTo(100);
-        var run = started.confirmation().runs().getFirst();
-        assertThat(seedsOf(run.runId())).hasSize(100);
-        assertThat(casesOf(run.runId())).isEqualTo(11_000);
-        assertThat(tablesOf(run.runId())).containsExactlyInAnyOrder("faction-greedy", "random");
-    }
-
-    @Test
     void theSecondRunStartsNoCaseBeforeTheFirstHasCompleted() {
         var evaluation = new ScriptedSearch(realEvaluation, uniformTable());
         var progress = progress(evaluation);
-        var id = searchedCampaign(1, List.of(3), "c-0000", "c-0001");
+        var id = searchedCampaign(CRITERION, List.of(3), "c-0000", "c-0001");
         var started =
                 handler(evaluation).handle(id, UUID.randomUUID()).confirmation().runs();
         var first = started.get(0).runId();
@@ -206,7 +195,7 @@ class CampaignConfirmationIT {
     void aRunInterruptedByARestartIsResumedWithoutAClientCallAndPlaysNoFinishedCaseAgain() {
         var evaluation = new ScriptedSearch(realEvaluation, uniformTable());
         var progress = progress(evaluation);
-        var id = searchedCampaign(1, List.of(3), "c-0000");
+        var id = searchedCampaign(CRITERION, List.of(3), "c-0000");
         var runId = handler(evaluation)
                 .handle(id, UUID.randomUUID())
                 .confirmation()
@@ -230,10 +219,10 @@ class CampaignConfirmationIT {
     @Test
     void aStoredConfirmationWithABaselineRunCompletesWithThatRunsEvaluationAfterARestart() {
         var evaluation = new ScriptedSearch(realEvaluation, uniformTable());
-        var id = searchedCampaign(1, List.of(3), "c-0000");
+        var id = searchedCampaign(CRITERION, List.of(3), "c-0000");
         var stored = campaigns.find(id).orElseThrow();
         var seeds = new ConfirmationSeeds("9").seeds(CONFIRMATION_SEEDS);
-        var tables = realEvaluation.confirmationTables(1);
+        var tables = realEvaluation.confirmationTables(CRITERION);
         var recorded = new ArrayList<Confirmation.Run>();
         var onTheDeployedLane = true;
         for (var subject : List.of("baseline", "c-0000")) {
@@ -266,10 +255,10 @@ class CampaignConfirmationIT {
 
     @Test
     void freezingAndStartingAgainWithTheSameKeysReturnsTheSameExperimentAndRun() {
-        var id = searchedCampaign(1, List.of(3), "c-0000");
+        var id = searchedCampaign(CRITERION, List.of(3), "c-0000");
         var definition = campaigns.find(id).orElseThrow().campaign().definition();
         var seeds = new ConfirmationSeeds("9").seeds(CONFIRMATION_SEEDS);
-        var tables = realEvaluation.confirmationTables(1);
+        var tables = realEvaluation.confirmationTables(CRITERION);
         var candidate = candidate(definition, "c-0000", 0);
         var experimentKey = UUID.randomUUID();
         var runKey = UUID.randomUUID();
@@ -353,7 +342,7 @@ class CampaignConfirmationIT {
     }
 
     private UUID start() {
-        var campaign = Campaign.queued(UUID.randomUUID(), definition(1, List.of(3)), 4, clock.instant());
+        var campaign = Campaign.queued(UUID.randomUUID(), definition(CRITERION, List.of(3)), 4, clock.instant());
         campaigns.create(UUID.randomUUID(), "h".repeat(64), campaign, clock.instant());
         return campaign.campaignId();
     }
