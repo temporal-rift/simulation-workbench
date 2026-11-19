@@ -11,6 +11,7 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 import io.github.temporalrift.workbench.experiment.EffectiveRules;
 import io.github.temporalrift.workbench.experiment.VariantRulesFixtures;
@@ -53,7 +54,16 @@ class ParameterSpaceVersion5Test {
 
     private static EffectiveRules served() {
         try (var stream = ParameterSpaceVersion5Test.class.getResourceAsStream("/rules/served-effective-rules.json")) {
-            return EffectiveRules.parse(new ObjectMapper().readTree(stream));
+            var document = (ObjectNode) new ObjectMapper().readTree(stream);
+            // The shared document now serves the rebalance values; space 5 still has its own baselines.
+            ((ObjectNode) document.get("properties"))
+                    .put(WEAVER_CHAIN, 3)
+                    .put(SECRET_WON, 3)
+                    .remove(List.of(
+                            "game.rules.scoring.score-deltas.CHAIN_LINK_MISSED",
+                            "game.rules.victory.eraser-annihilations-by-player-count.5",
+                            "game.rules.victory.activist-consecutive-eras-by-player-count.5"));
+            return EffectiveRules.parse(document);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

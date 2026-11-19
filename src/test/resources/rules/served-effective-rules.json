@@ -68,6 +68,7 @@
     "game.rules.scoring.score-deltas.CHAIN_BROKEN": -3,
     "game.rules.scoring.score-deltas.CHAIN_COMPLETED": 10,
     "game.rules.scoring.score-deltas.CHAIN_LINK_ADDED": 2,
+    "game.rules.scoring.score-deltas.CHAIN_LINK_MISSED": -1,
     "game.rules.scoring.score-deltas.CORRUPTED_OPPONENT_CARD": 2,
     "game.rules.scoring.score-deltas.DECLARED_OUTCOME_MISSED": -1,
     "game.rules.scoring.score-deltas.DECLARED_OUTCOME_MISSED_WITH_RALLY": -2,
@@ -83,7 +84,7 @@
     "game.rules.scoring.score-deltas.PARADOX_DETONATED": -1,
     "game.rules.scoring.score-deltas.PARADOX_STABILIZED": 0,
     "game.rules.scoring.score-deltas.SECRET_OUTCOME_MISSED": -1,
-    "game.rules.scoring.score-deltas.SECRET_OUTCOME_WON": 3,
+    "game.rules.scoring.score-deltas.SECRET_OUTCOME_WON": 4,
     "game.rules.scoring.written-outcome-shields-annihilation": true,
     "game.rules.seal-max-uses-per-game": 2,
     "game.rules.stabilization.faction-claims": false,
@@ -91,12 +92,14 @@
     "game.rules.stabilization.weaver-active-chain-links": 2,
     "game.rules.tapestry-absorbs-chain-conflict": false,
     "game.rules.victory.activist-consecutive-declarations": 3,
+    "game.rules.victory.activist-consecutive-eras-by-player-count.5": false,
     "game.rules.victory.eraser-annihilations": 4,
+    "game.rules.victory.eraser-annihilations-by-player-count.5": 3,
     "game.rules.victory.final-era-objective-discount": 1,
     "game.rules.victory.prophet-written-resolutions": 3,
     "game.rules.victory.revisionist-successful-eras": 3,
     "game.rules.victory.score-tiebreak": true,
-    "game.rules.victory.weaver-chain-length": 3,
+    "game.rules.victory.weaver-chain-length": 4,
     "game.rules.win-score-threshold": 20
   }
 }

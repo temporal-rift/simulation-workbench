@@ -162,6 +162,7 @@ public final class FactExtractor {
                 "EVENT_RESOLVED_DIFFERENTLY_THAN_WRITTEN",
                 "SECRET_OUTCOME_MISSED",
                 "CHAIN_BROKEN",
+                "CHAIN_LINK_MISSED",
                 "DECLARED_OUTCOME_MISSED",
                 "DECLARED_OUTCOME_MISSED_WITH_RALLY");
 

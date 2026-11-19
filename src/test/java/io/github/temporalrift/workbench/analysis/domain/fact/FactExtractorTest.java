@@ -238,6 +238,19 @@ class FactExtractorTest {
         assertThat(seat.resolvedBets()).isZero();
     }
 
+    @Test
+    void aMissedThreadSettlesAMissedBet() {
+        var gameRecord = new GameRecord(
+                List.of(new GameEvent.ScoreRecorded(1, 2, "CHAIN_LINK_MISSED", -1)), List.of(), List.of());
+
+        var weaver = FactExtractor.extract(CASE, SEATS, outcome(Set.of(0)), gameRecord)
+                .seats()
+                .get(1);
+
+        assertThat(weaver.betMisses()).isEqualTo(1);
+        assertThat(weaver.betWins()).isZero();
+    }
+
     private static CaseOutcome outcome(Set<Integer> winners) {
         return new CaseOutcome(EndReason.WIN_CONDITION_MET, winners, List.of(22, 22, 9), 3, 9, 41);
     }

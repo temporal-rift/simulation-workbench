@@ -84,7 +84,7 @@ class StartFidelityCheckCommandHandlerTest {
         var view = handler().handle(new StartFidelityCheckUseCase.Command(UUID.randomUUID(), "42"));
 
         var check = view.check();
-        assertThat(check.parameterSpaceVersion()).isEqualTo(5);
+        assertThat(check.parameterSpaceVersion()).isEqualTo(6);
         assertThat(check.variants().get(1).overrides())
                 .containsEntry("game.rules.annihilate-earliest-round", ParameterValue.of(new BigDecimal("1")))
                 .containsEntry("game.rules.scoring.written-outcome-shields-annihilation", ParameterValue.of(false))
@@ -107,7 +107,7 @@ class StartFidelityCheckCommandHandlerTest {
     void everyVariantIsResolvedAgainstTheRecordedParameterSpace() {
         handler().handle(new StartFidelityCheckUseCase.Command(UUID.randomUUID(), "42"));
 
-        verify(experiments, times(3)).previewVariant(anyString(), eq(5), any());
+        verify(experiments, times(3)).previewVariant(anyString(), eq(6), any());
     }
 
     @Test

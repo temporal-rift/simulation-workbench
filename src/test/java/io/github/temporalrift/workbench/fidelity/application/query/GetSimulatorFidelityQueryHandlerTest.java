@@ -27,7 +27,7 @@ class GetSimulatorFidelityQueryHandlerTest {
     private final InMemoryFidelityRepository checks = new InMemoryFidelityRepository();
 
     /** The parameter space new checks use, which the gate answers for. */
-    private static final int NEWEST_SPACE = 5;
+    private static final int NEWEST_SPACE = 6;
 
     private final EdgeVariantCatalog catalog = ConfiguredEdgeVariants.load(new ObjectMapper());
 
