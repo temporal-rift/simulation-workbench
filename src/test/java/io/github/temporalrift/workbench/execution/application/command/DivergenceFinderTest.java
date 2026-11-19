@@ -19,6 +19,7 @@ import io.github.temporalrift.workbench.execution.domain.run.Winner;
 import io.github.temporalrift.workbench.policy.domain.decision.Candidate;
 import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow;
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
+import io.github.temporalrift.workbench.policy.domain.observation.TableRules;
 import io.github.temporalrift.workbench.shared.game.EndReason;
 import io.github.temporalrift.workbench.shared.game.Faction;
 import io.github.temporalrift.workbench.shared.window.WindowKind;
@@ -58,6 +59,44 @@ class DivergenceFinderTest {
             assertThat(observation.expected().observation().otherPlayerIds()).containsExactly(new UUID(0, 3));
             assertThat(observation.actual().observation().otherPlayerIds()).containsExactly(new UUID(0, 4));
         });
+    }
+
+    @Test
+    void anObservationRecordedBeforeTableRulesMatchesAReproductionThatAttachesTheServedDefaults() {
+        var saved = List.of(step(0, 0, 1, "x"));
+        var attached = step(0, 0, 1, "x");
+        var again = List.of(new StepRecord(
+                attached.step(),
+                attached.seatIndex(),
+                attached.window(),
+                attached.logicalTime(),
+                attached.observation().withRules(TableRules.DEFAULTS),
+                attached.decision(),
+                attached.outcome(),
+                null,
+                null));
+
+        assertThat(DivergenceFinder.first(saved, again, result(), result())).isEmpty();
+    }
+
+    @Test
+    void aReproductionUnderOtherTableRulesIsAnObservationDivergence() {
+        var saved = List.of(step(0, 0, 1, "x"));
+        var attached = step(0, 0, 1, "x");
+        var other = new TableRules(false, 0, -1, -2, false);
+        var again = List.of(new StepRecord(
+                attached.step(),
+                attached.seatIndex(),
+                attached.window(),
+                attached.logicalTime(),
+                attached.observation().withRules(other),
+                attached.decision(),
+                attached.outcome(),
+                null,
+                null));
+
+        assertThat(DivergenceFinder.first(saved, again, result(), result()).orElseThrow())
+                .isInstanceOf(Divergence.Observation.class);
     }
 
     @Test

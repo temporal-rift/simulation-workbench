@@ -26,6 +26,7 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.SubmissionWindow;
 import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow;
 import io.github.temporalrift.workbench.policy.domain.observation.OutcomeView;
+import io.github.temporalrift.workbench.policy.domain.observation.TargetShape;
 import io.github.temporalrift.workbench.shared.execution.FailureCode;
 import io.github.temporalrift.workbench.shared.game.Faction;
 import io.github.temporalrift.workbench.shared.window.WindowKind;
@@ -88,6 +89,30 @@ class ObservationMapperTest {
     }
 
     @Test
+    void aGradeThreeScanNamesEveryEventOfAFiveEventEra() {
+        var state = ProjectionStates.actionRound(
+                1, 1, List.of(ProjectionStates.card(1, CardType.SCAN, CardGrade.III, true)));
+        for (var n = 1; n < 5; n++) {
+            state.getActiveEvents()
+                    .add(new ActiveEvent(
+                            ProjectionStates.id(0xE0 + n),
+                            "Event " + n,
+                            ActiveEvent.CarryOverStateEnum.FRESH,
+                            List.of(
+                                    new EventOutcome(ProjectionStates.id(0xB00 + n), "calm", 40),
+                                    new EventOutcome(ProjectionStates.id(0xC00 + n), "storm", 60))));
+        }
+
+        var owed = ObservationMapper.owed(SEAT, ProjectionStates.ME, state).orElseThrow();
+
+        var window = (DecisionWindow.ActionRound) owed.observation().window();
+        assertThat(window.cards()).singleElement().satisfies(card -> {
+            assertThat(card.shape()).isEqualTo(TargetShape.EVENT_LIST);
+            assertThat(card.targetCount()).isEqualTo(5);
+        });
+    }
+
+    @Test
     void actionRoundOffersOnlyPlayableCardsWithTheShapeEachTypeRequires() {
         var hand = List.of(
                 ProjectionStates.card(1, CardType.PUSH, CardGrade.II, true),
@@ -109,7 +134,8 @@ class ObservationMapperTest {
                 .containsExactly(
                         "PUSH:EVENT_OUTCOME:1",
                         "SWING:OUTCOME_PAIR:1",
-                        "SCAN:EVENT_LIST:3",
+                        // A grade III Scan names every active event of the era: one in this fixture.
+                        "SCAN:EVENT_LIST:1",
                         "NULLIFY:PLAYER_LIST:2",
                         "DECOY:DISGUISE:1",
                         "JAM:PLAYER:1");

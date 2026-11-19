@@ -15,6 +15,7 @@ public final class TestCriteria {
     private static final String RESOURCE = "balance-criteria/v1.json";
     private static final String VERSION_2 = "balance-criteria/v2.json";
     private static final String VERSION_3 = "balance-criteria/v3.json";
+    private static final String VERSION_4 = "balance-criteria/v4.json";
     private static final JsonMapper MAPPER = JsonMapper.builder().build();
 
     private TestCriteria() {}
@@ -48,6 +49,14 @@ public final class TestCriteria {
 
     public static String v3Source() {
         return sourceOf(VERSION_3);
+    }
+
+    public static BalanceCriterion v4() {
+        return ConfiguredBalanceCriteria.parse(MAPPER, v4Source());
+    }
+
+    public static String v4Source() {
+        return sourceOf(VERSION_4);
     }
 
     public static String source() {

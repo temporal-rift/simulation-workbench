@@ -39,12 +39,23 @@ class CardRulesTest {
 
     @Test
     void listShapesNameAsManyTargetsAsTheirGradeAllows() {
-        assertThat(CardRules.targetCount(CardType.SCAN, CardGrade.I)).isEqualTo(1);
-        assertThat(CardRules.targetCount(CardType.SCAN, CardGrade.II)).isEqualTo(2);
-        assertThat(CardRules.targetCount(CardType.SCAN, CardGrade.III)).isEqualTo(3);
-        assertThat(CardRules.targetCount(CardType.NULLIFY, CardGrade.I)).isEqualTo(1);
-        assertThat(CardRules.targetCount(CardType.NULLIFY, CardGrade.II)).isEqualTo(2);
-        assertThat(CardRules.targetCount(CardType.PUSH, CardGrade.III)).isEqualTo(1);
+        assertThat(CardRules.targetCount(CardType.SCAN, CardGrade.I, 3)).isEqualTo(1);
+        assertThat(CardRules.targetCount(CardType.SCAN, CardGrade.II, 3)).isEqualTo(2);
+        assertThat(CardRules.targetCount(CardType.SCAN, CardGrade.III, 3)).isEqualTo(3);
+        assertThat(CardRules.targetCount(CardType.NULLIFY, CardGrade.I, 3)).isEqualTo(1);
+        assertThat(CardRules.targetCount(CardType.NULLIFY, CardGrade.II, 3)).isEqualTo(2);
+        assertThat(CardRules.targetCount(CardType.PUSH, CardGrade.III, 3)).isEqualTo(1);
+    }
+
+    @Test
+    void gradeThreeScanNamesEveryEventOfAFiveEventEra() {
+        assertThat(CardRules.targetCount(CardType.SCAN, CardGrade.III, 5)).isEqualTo(5);
+        assertThat(CardRules.targetCount(CardType.SCAN, CardGrade.II, 5)).isEqualTo(2);
+    }
+
+    @Test
+    void aGradeThreeScanNamesAtLeastOneEventEvenWhenNoneIsActive() {
+        assertThat(CardRules.targetCount(CardType.SCAN, CardGrade.III, 0)).isEqualTo(1);
     }
 
     @Test

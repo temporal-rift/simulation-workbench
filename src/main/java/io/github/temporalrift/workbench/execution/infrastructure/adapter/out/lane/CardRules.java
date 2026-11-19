@@ -45,9 +45,10 @@ final class CardRules {
     }
 
     /** How many events or participants a list-shaped submission names at the grade; 1 for every other shape. */
-    static int targetCount(CardType type, CardGrade grade) {
+    static int targetCount(CardType type, CardGrade grade, int activeEventCount) {
         return switch (type) {
-            case SCAN -> grade.ordinal() + 1;
+            // Grades I and II name one and two events; grade III names every active event, as many as players.
+            case SCAN -> grade == CardGrade.III ? Math.max(1, activeEventCount) : grade.ordinal() + 1;
             case NULLIFY -> grade == CardGrade.I ? 1 : 2;
             default -> 1;
         };

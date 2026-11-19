@@ -108,14 +108,33 @@ class ConfiguredBalanceCriteriaTest {
     }
 
     @Test
-    void theConfigurationServesVersionsOneToThreeSoTheNewestIsThree() {
+    void theConfigurationServesVersionsOneToFourSoTheNewestIsFour() {
         var criteria = new ConfiguredBalanceCriteria(MAPPER);
 
-        assertThat(criteria.all()).extracting(BalanceCriterion::version).containsExactly(1, 2, 3);
+        assertThat(criteria.all()).extracting(BalanceCriterion::version).containsExactly(1, 2, 3, 4);
         assertThat(criteria.find(2)).map(BalanceCriterion::digest).contains(VERSION_TWO_DIGEST);
         assertThat(criteria.find(3))
                 .map(BalanceCriterion::digest)
                 .contains(TestCriteria.v3().digest());
+        assertThat(criteria.find(4))
+                .map(BalanceCriterion::digest)
+                .contains(TestCriteria.v4().digest());
+    }
+
+    @Test
+    void versionFourIsVersionThreeMeasuredWithFactionGreedyVersionThree() {
+        var expected = (ObjectNode) MAPPER.readTree(TestCriteria.v3Source()
+                .replace("faction-greedy-v2", "faction-greedy-v3")
+                .replace("\"title\": \"Balance criterion version 3\"", "\"title\": \"Balance criterion version 4\""));
+        expected.put("version", 4);
+
+        assertThat(MAPPER.readTree(TestCriteria.v4Source())).isEqualTo(expected);
+        var criterion = TestCriteria.v4();
+        assertThat(criterion.tables())
+                .extracting(CriterionTable::id)
+                .containsExactly("faction-greedy-v3", "random-v1", "random-seat-vs-faction-greedy-v3");
+        assertThat(line(criterion.lines(), "G-07").populations())
+                .containsExactly(new CriterionPopulation("random-seat-vs-faction-greedy-v3", "random-v1"));
     }
 
     @Test

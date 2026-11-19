@@ -7,8 +7,8 @@ import io.github.temporalrift.workbench.policy.domain.decision.BotPolicy;
 import io.github.temporalrift.workbench.shared.text.Sha256;
 
 /**
- * The baseline bundles: {@code random} at {@code 1.0.0} and {@code faction-greedy} at {@code 1.0.0} and
- * {@code 2.0.0}, referred to as {@code random-v1}, {@code faction-greedy-v1} and {@code faction-greedy-v2}. Each
+ * The baseline bundles: {@code random} at {@code 1.0.0} and {@code faction-greedy} at {@code 1.0.0}, {@code 2.0.0}
+ * and {@code 3.0.0}, referred to as {@code random-v1} and {@code faction-greedy-v1} to {@code -v3}. Each
  * artifact digest hashes the bundle identity together with its canonical definition, so a changed definition needs a
  * new version.
  */
@@ -18,6 +18,7 @@ public final class BaselinePolicies {
     public static final String FACTION_GREEDY_ID = "faction-greedy";
     public static final String V1 = "1.0.0";
     public static final String V2 = "2.0.0";
+    public static final String V3 = "3.0.0";
 
     public static final PolicyBundle RANDOM_V1 = bundle(
             RANDOM_ID,
@@ -37,8 +38,15 @@ public final class BaselinePolicies {
             FactionGreedyV2Policy.DEFINITION,
             "Reads public bands, skips wasted actions, backs its own commitment and plays its faction's counters.",
             new FactionGreedyV2Policy());
+    public static final PolicyBundle FACTION_GREEDY_V3 = bundle(
+            FACTION_GREEDY_ID,
+            V3,
+            FactionGreedyV3Policy.DEFINITION,
+            "v2, choosing Stabilize or Detonate by the table's costs and its stake, under the current Tapestry rule.",
+            new FactionGreedyV3Policy());
 
-    private static final List<PolicyBundle> ALL = List.of(RANDOM_V1, FACTION_GREEDY_V1, FACTION_GREEDY_V2);
+    private static final List<PolicyBundle> ALL =
+            List.of(RANDOM_V1, FACTION_GREEDY_V1, FACTION_GREEDY_V2, FACTION_GREEDY_V3);
 
     private BaselinePolicies() {}
 
