@@ -82,9 +82,6 @@ public final class FactExtractor {
         var resolutionRejections = new EnumMap<SpecialAction, Integer>(SpecialAction.class);
         var declarations = new EnumMap<SpecialAction, Integer>(SpecialAction.class);
         var declarationOffers = 0;
-        var scoreByReason = new TreeMap<String, Integer>();
-        var betWins = 0;
-        var betMisses = 0;
         for (var event : gameRecord.events()) {
             switch (event) {
                 case GameEvent.HandDealt dealt
@@ -101,12 +98,6 @@ public final class FactExtractor {
                 case GameEvent.DeclarationOffered offer when offer.seat() == seat -> declarationOffers++;
                 case GameEvent.DeclarationRecorded declared
                 when declared.seat() == seat -> add(declarations, declared.mode());
-                case GameEvent.ScoreRecorded score
-                when score.seat() == seat -> {
-                    scoreByReason.merge(score.reason(), score.delta(), Integer::sum);
-                    betWins += BetReasons.WINS.contains(score.reason()) ? 1 : 0;
-                    betMisses += BetReasons.MISSES.contains(score.reason()) ? 1 : 0;
-                }
                 default -> {
                     // another seat's or a game-level fact
                 }
@@ -123,6 +114,7 @@ public final class FactExtractor {
             }
         }
         var cardRounds = CardRounds.of(seat, gameRecord);
+        var scores = SeatScores.of(seat, gameRecord.events());
         var won = outcome.winnerSeats().contains(seat);
         return new SeatFacts(
                 seat,
@@ -144,17 +136,20 @@ public final class FactExtractor {
                 resolutionRejections,
                 declarationOffers,
                 declarations,
-                scoreByReason,
+                scores.byReason(),
                 won ? outcome.winPaths().get(seat) : null,
                 won ? outcome.eras() : 0,
-                betWins,
-                betMisses);
+                scores.betWins(),
+                scores.betMisses());
     }
 
-    /** The score reasons that settle a faction's signature bet, a win being a kept bet and a miss a lost one. */
-    private static final class BetReasons {
+    /**
+     * The points a seat recorded per score reason, and how many of its signature bets settled as kept or lost, counted
+     * from the score reasons that settle each faction's bet.
+     */
+    private record SeatScores(Map<String, Integer> byReason, int betWins, int betMisses) {
 
-        static final Set<String> WINS = Set.of(
+        private static final Set<String> WINS = Set.of(
                 "ANNIHILATED_OUTCOME",
                 "EVENT_RESOLVED_AS_WRITTEN",
                 "FULFILLMENT_SUCCEEDED",
@@ -162,7 +157,7 @@ public final class FactExtractor {
                 "CHAIN_LINK_ADDED",
                 "DECLARED_OUTCOME_WON",
                 "DECLARED_OUTCOME_WON_WITH_RALLY");
-        static final Set<String> MISSES = Set.of(
+        private static final Set<String> MISSES = Set.of(
                 "ANNIHILATION_WASTED",
                 "EVENT_RESOLVED_DIFFERENTLY_THAN_WRITTEN",
                 "SECRET_OUTCOME_MISSED",
@@ -170,7 +165,19 @@ public final class FactExtractor {
                 "DECLARED_OUTCOME_MISSED",
                 "DECLARED_OUTCOME_MISSED_WITH_RALLY");
 
-        private BetReasons() {}
+        static SeatScores of(int seat, List<GameEvent> events) {
+            var byReason = new TreeMap<String, Integer>();
+            var wins = 0;
+            var misses = 0;
+            for (var event : events) {
+                if (event instanceof GameEvent.ScoreRecorded score && score.seat() == seat) {
+                    byReason.merge(score.reason(), score.delta(), Integer::sum);
+                    wins += WINS.contains(score.reason()) ? 1 : 0;
+                    misses += MISSES.contains(score.reason()) ? 1 : 0;
+                }
+            }
+            return new SeatScores(byReason, wins, misses);
+        }
     }
 
     private static <K> void add(Map<K, Integer> counts, K key) {

@@ -98,6 +98,7 @@ class ReportDiagnosticsTest {
 
         assertThat(pooled.metrics())
                 .extracting(Metric::name)
+                .isNotEmpty()
                 .doesNotContain("score_by_reason", "win_path_rate", "win_era", "bet_success_rate");
     }
 

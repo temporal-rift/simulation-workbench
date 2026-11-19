@@ -167,7 +167,7 @@ public final class MetricCatalog {
                                             .filter(seat -> seat.winPath() == path)
                                             .count(),
                                     known.size(),
-                                    winners.size() - known.size());
+                                    (long) winners.size() - known.size());
                         }));
             }
             definitions.add(ratio("win_era", MetricStatistic.MEAN, Dimensions.of(faction), "eras", (facts, seats) -> {

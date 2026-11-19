@@ -16,6 +16,7 @@ class WinPathContractTest {
     @Test
     void everyWinTypeIsAWinPathOfTheSameName() {
         assertThat(Arrays.stream(WinType.values()).map(WinType::name))
+                .isNotEmpty()
                 .allSatisfy(name -> assertThat(WinPath.valueOf(name).name()).isEqualTo(name));
     }
 
