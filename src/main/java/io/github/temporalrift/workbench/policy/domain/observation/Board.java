@@ -22,6 +22,8 @@ public record Board(
         List<OpenParadox> openParadoxes) {
 
     /** No board facts: what an observation recorded before board facts existed reads as. */
+    private static final String EVENT_ID = "eventId";
+
     public static final Board EMPTY = new Board(List.of(), null, List.of(), null, List.of());
 
     public Board {
@@ -36,7 +38,7 @@ public record Board(
         public PublicDeclaration {
             Objects.requireNonNull(playerId, "playerId");
             Objects.requireNonNull(mode, "mode");
-            Objects.requireNonNull(eventId, "eventId");
+            Objects.requireNonNull(eventId, EVENT_ID);
             Objects.requireNonNull(outcomeId, "outcomeId");
         }
     }
@@ -114,7 +116,7 @@ public record Board(
     public record PendingLink(UUID eventId, UUID outcomeId) {
 
         public PendingLink {
-            Objects.requireNonNull(eventId, "eventId");
+            Objects.requireNonNull(eventId, EVENT_ID);
             Objects.requireNonNull(outcomeId, "outcomeId");
         }
     }
@@ -130,7 +132,7 @@ public record Board(
 
         public OpenParadox {
             Objects.requireNonNull(kind, "kind");
-            Objects.requireNonNull(eventId, "eventId");
+            Objects.requireNonNull(eventId, EVENT_ID);
             outcomeIds = outcomeIds == null ? List.of() : List.copyOf(outcomeIds);
         }
     }
