@@ -21,8 +21,11 @@ of every original parameter, range and constraint. The rebalance settings below 
 - `game.rules.scoring.score-deltas.SECRET_OUTCOME_WON`: baseline 3 → 4 (range [3, 5] unchanged).
 - Constraints are unchanged and hold at the new baselines: the Weaver chain at 4 × 2 + 10 = 18 < 20 and the Revisionist
   objective at 3 × 4 = 12 < 20.
-- The Revisionist objective by table size (two winning eras at four and five players) is not a separate parameter:
-  `game.rules.victory.revisionist-successful-eras` already reaches 2, so a campaign explores it for every table size.
+- The five-player Revisionist and Prophet objectives are separate parameters
+  (`game.rules.victory.revisionist-successful-eras-by-player-count.5` and
+  `game.rules.victory.prophet-written-resolutions-by-player-count.5`), so a campaign can set them for five players alone.
+  The other table sizes use the general parameters, `game.rules.victory.revisionist-successful-eras` (which reaches 2)
+  and `game.rules.victory.prophet-written-resolutions`.
 
 ## Reading results
 
