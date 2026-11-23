@@ -24,7 +24,8 @@ truthfully; it says nothing about game balance.
 Run them with the rest of the integration suite (`mvn verify`), or alone:
 
 ```bash
-mvn test-compile failsafe:integration-test -Dit.test='CoverageMatrixIT,MultiSeedReportingIT,ReproductionProofIT,RecoveryProofIT,PerspectiveProofIT,AccessBoundaryIT'
+mvn test-compile failsafe:integration-test failsafe:verify -Dit.test='CoverageMatrixIT,MultiSeedReportingIT,ReproductionProofIT,RecoveryProofIT,PerspectiveProofIT,AccessBoundaryIT'
+mvn test -Dtest='HttpCaseLaneTest,GameplaySeparationTest'
 ```
 
 ### Evidence files

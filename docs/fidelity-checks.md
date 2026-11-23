@@ -9,7 +9,7 @@ every faction set and seat rotation, the policies `faction-greedy` and `random` 
 reproduces every case on one real lane. The variants are the baseline and the two edge variants `low` and `high`, which
 set as many parameters as the constraints allow at the minimum and the maximum of their ranges. A new check resolves
 them against the one served parameter space
-([docs/fidelity/current.md](docs/fidelity/current.md)), and records its revision on the check. That is 55 cases per table and variant,
+([docs/fidelity/current.md](fidelity/current.md)), and records its revision on the check. That is 55 cases per table and variant,
 330 in all.
 
 | Operation | Meaning |
@@ -42,4 +42,4 @@ rules digests and overrides, every case's result with its first divergence or fa
 passing record covers, `established` is `false` until a check passes on the new revisions. The status is information for
 the designer; campaigns and confirmations play whatever it says. The operator page of the designer application
 (**Simulator fidelity**) shows the status, starts a check from a seed and lists a check's cases with their first divergence. A passing check for the revisions current at a release is
-committed as a report under [docs/fidelity](docs/fidelity): the check page offers **Download report**, which renders the served record, with the cases that did not match, as `report-<seed>-<game revision>.md`.
+committed as a report under [docs/fidelity](fidelity): the check page offers **Download report**, which renders the served record, with the cases that did not match, as `report-<seed>-<game revision>.md`.

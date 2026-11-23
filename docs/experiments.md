@@ -43,11 +43,11 @@ parameter as a two-value axis. A new campaign uses the served space. Its constra
 chains over `+`, `-`, `*`, `max` and `and`; a subtraction needs spaces around `-` because keys contain it) that the
 workbench both serves and evaluates.
 
-Search budget record version 4 ([docs/budget/v4.md](docs/budget/v4.md)) names search algorithm version 2 with the
-search parameters of version 3 ([docs/budget/v3.md](docs/budget/v3.md)): a plan of 21,120 games, sized to a target of
+Search budget record version 4 ([docs/budget/v4.md](budget/v4.md)) names search algorithm version 2 with the
+search parameters of version 3 ([docs/budget/v3.md](budget/v3.md)): a plan of 21,120 games, sized to a target of
 about 4 active hours on the simulator. The target sizes the default plan; it never stops a search. Version 3 also
 measured the confirmation, which plays on the simulator with no baseline run
-([docs/capacity/confirmation-matrix-v1.md](docs/capacity/confirmation-matrix-v1.md)). Versions 1 to 3 stay unchanged.
+([docs/capacity/confirmation-matrix-v1.md](capacity/confirmation-matrix-v1.md)). Versions 1 to 3 stay unchanged.
 The newest record's search parameters are configuration (`search-budgets/v4.json`) and the default `SearchAlgorithm`
 values of a new campaign.
 
@@ -64,8 +64,9 @@ normalised overrides. Freezing (and previewing) an experiment normalises each va
 and refuses an `effectiveRulesDigest` that differs from the computed one (`409 MANIFEST_MISMATCH`) whenever the
 baseline is published; a variant with overrides whose baseline no lane publishes is `UNKNOWN_BASELINE`. The baseline
 document of every such variant is retained with the experiment, and `GET /api/v1/experiments/{experimentId}/variants/{label}/rules`
-serves the frozen `EffectiveRules`. A case still runs only on a lane whose served digest equals its variant's, so a
-variant with overrides matches no lane until lanes adopt per-game rules.
+serves the frozen `EffectiveRules`. A case runs only on a lane whose content digest, service provenance and
+contract versions equal its variant's effective content digest and pinned services and contracts; the lane's own
+rules digest takes no part in the match, because every case opens its context with the variant's frozen effective rules.
 
 ## Cohort-matrix preview
 

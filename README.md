@@ -38,8 +38,8 @@ the human player's client.
 - Java 26+
 - Maven 4.0.0-rc-7+
 - Docker (for Testcontainers and local infrastructure)
-- A `github` server in `~/.m2/settings.xml` with a token holding `read:packages` (shared artifacts resolve
-  from GitHub Packages, which needs a token even for public packages)
+- A `github` server in `~/.m2/settings.xml` holding your GitHub username and a token with `read:packages`:
+  shared artifacts resolve from GitHub Packages, which needs both even for public packages
 
 ## Build and test
 

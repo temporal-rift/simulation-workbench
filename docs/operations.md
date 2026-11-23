@@ -25,7 +25,7 @@ timers cover real lanes only, so slots record neither `workbench.lane.context.cl
 ## Measuring capacity
 
 `scripts/measure-capacity.sh` measures what one light simulation lane plays when every case opens and closes its own
-execution context, and writes the report [docs/capacity/per-game-context.md](docs/capacity/per-game-context.md). The
+execution context, and writes the report [docs/capacity/per-game-context.md](capacity/per-game-context.md). The
 procedure is re-runnable on any machine at least as large as the reference spec:
 
 1. **Reference spec.** It is a setting: `CAPACITY_REFERENCE_THREADS` (default `8`, which is 4 cores / 8 threads) and

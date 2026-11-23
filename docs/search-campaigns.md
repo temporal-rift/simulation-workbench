@@ -70,7 +70,7 @@ the criterion's fixed bands and never against the baseline. The criterion's tabl
 `random-seat-vs-faction-greedy`, so a candidate over player counts 3, 4 and 5 plays 104 seeds × 165 games = 17,160
 games: about 3.2 hours at 12 games at once (5,402 games per hour on the simulator) and about 4.3 hours at the default of
 4 (4,003 per hour). The confirmation matrix played at 12 slots at 5,579 games per hour over its last 2.4 hours
-([docs/capacity/confirmation-matrix-v1.md](docs/capacity/confirmation-matrix-v1.md)). The runs play one after another, each at
+([docs/capacity/confirmation-matrix-v1.md](capacity/confirmation-matrix-v1.md)). The runs play one after another, each at
 the campaign's `parallelism`, and a change of it applies from the next case on; the worker releases the next run when the
 one before it is complete and resumes an interrupted run after a restart. A confirmation recorded when it still played on
 the real services keeps its runs, its `baseline` run included, and is evaluated and shown as it was. When every run is complete the worker evaluates each
