@@ -73,6 +73,8 @@
       "game.rules.victory.final-era-objective-discount": 0,
       "game.rules.scoring.score-deltas.CHAIN_LINK_MISSED": -2,
       "game.rules.victory.eraser-annihilations-by-player-count.5": 3,
+      "game.rules.victory.prophet-written-resolutions-by-player-count.5": 2,
+      "game.rules.victory.revisionist-successful-eras-by-player-count.5": 2,
       "game.rules.victory.activist-consecutive-eras-by-player-count.5": false
     },
     "high": {
@@ -147,6 +149,8 @@
       "game.rules.victory.final-era-objective-discount": 2,
       "game.rules.scoring.score-deltas.CHAIN_LINK_MISSED": 0,
       "game.rules.victory.eraser-annihilations-by-player-count.5": 5,
+      "game.rules.victory.prophet-written-resolutions-by-player-count.5": 4,
+      "game.rules.victory.revisionist-successful-eras-by-player-count.5": 4,
       "game.rules.victory.activist-consecutive-eras-by-player-count.5": true
     }
   }

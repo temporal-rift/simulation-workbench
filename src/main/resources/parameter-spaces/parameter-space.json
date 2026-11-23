@@ -695,6 +695,26 @@
       "step": 1
     },
     {
+      "key": "game.rules.victory.prophet-written-resolutions-by-player-count.5",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 3,
+      "min": 2,
+      "max": 4,
+      "step": 1
+    },
+    {
+      "key": "game.rules.victory.revisionist-successful-eras-by-player-count.5",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 3,
+      "min": 2,
+      "max": 4,
+      "step": 1
+    },
+    {
       "key": "game.rules.victory.activist-consecutive-eras-by-player-count.5",
       "type": "BOOLEAN",
       "services": [

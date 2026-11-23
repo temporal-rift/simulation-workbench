@@ -11,6 +11,8 @@ of every original parameter, range and constraint. The rebalance settings below 
 |---|---|---|---|---|---|---|
 | `game.rules.scoring.score-deltas.CHAIN_LINK_MISSED` | NUMBER | game-service | -1 | [-2, 0] | 1 | What a Weaver pays when a Thread's event resolves to another winner; 0 is off |
 | `game.rules.victory.eraser-annihilations-by-player-count.5` | NUMBER | game-service | 3 | [3, 5] | 1 | Annihilations an Eraser needs at five players; the other table sizes use `eraser-annihilations` |
+| `game.rules.victory.prophet-written-resolutions-by-player-count.5` | NUMBER | game-service | 3 | [2, 4] | 1 | Written resolutions a Prophet needs at five players; the other table sizes use `prophet-written-resolutions` |
+| `game.rules.victory.revisionist-successful-eras-by-player-count.5` | NUMBER | game-service | 3 | [2, 4] | 1 | Winning eras a Revisionist needs at five players; the other table sizes use `revisionist-successful-eras` |
 | `game.rules.victory.activist-consecutive-eras-by-player-count.5` | BOOLEAN | game-service | `false` | `false`, `true` | | Whether an Activist's successful eras must be consecutive at five players; `false` counts them in total |
 
 ## Baselines moved by the rebalance

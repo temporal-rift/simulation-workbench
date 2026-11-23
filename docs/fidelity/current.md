@@ -100,6 +100,8 @@ reason. The `suppress-shift` keys and `EXPOSE_CHANGED_PLAYER_BEHAVIOR` are deriv
 | `game.rules.victory.final-era-objective-discount` | 1 | 0 | 2 |
 | `game.rules.scoring.score-deltas.CHAIN_LINK_MISSED` | -1 | -2 | 0 |
 | `game.rules.victory.eraser-annihilations-by-player-count.5` | 3 | 3 | 5 |
+| `game.rules.victory.prophet-written-resolutions-by-player-count.5` | 3 | 2 | 4 |
+| `game.rules.victory.revisionist-successful-eras-by-player-count.5` | 3 | 2 | 4 |
 | `game.rules.victory.activist-consecutive-eras-by-player-count.5` | false | false | true |
 
 ## Validation
