@@ -142,7 +142,12 @@ final class BoardMapper {
         if (chain == null) {
             return null;
         }
-        return new Board.ChainView(Board.ChainStatus.valueOf(chain.getStatus().name()), chain.getLength());
+        var pending = chain.getPendingLink() == null
+                ? null
+                : new Board.PendingLink(
+                        chain.getPendingLink().getEventId(),
+                        chain.getPendingLink().getOutcomeId());
+        return new Board.ChainView(Board.ChainStatus.valueOf(chain.getStatus().name()), chain.getLength(), pending);
     }
 
     private static Board.OpenParadox paradox(OpenParadox paradox) {
