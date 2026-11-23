@@ -97,7 +97,9 @@
     "game.rules.victory.eraser-annihilations-by-player-count.5": 3,
     "game.rules.victory.final-era-objective-discount": 1,
     "game.rules.victory.prophet-written-resolutions": 3,
+    "game.rules.victory.prophet-written-resolutions-by-player-count.5": 3,
     "game.rules.victory.revisionist-successful-eras": 3,
+    "game.rules.victory.revisionist-successful-eras-by-player-count.5": 3,
     "game.rules.victory.score-tiebreak": true,
     "game.rules.victory.weaver-chain-length": 4,
     "game.rules.win-score-threshold": 20
