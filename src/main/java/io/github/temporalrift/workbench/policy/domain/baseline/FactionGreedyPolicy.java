@@ -24,9 +24,10 @@ final class FactionGreedyPolicy implements BotPolicy {
     static final String DEFINITION = """
             faction-greedy: the paradox layer without the specials the table reports unavailable this round: every \
             play of a special that the observation marks unavailable is excluded before the paradox layer decides
-            chain contest, in an action round before anything else: a seat that is not a Weaver, facing an ACTIVE chain \
-            of at least 2 confirmed links with a visible pending link that is not its own commitment, plays ANNIHILATE \
-            on the pending event and outcome when it is available, else its highest-grade SUPPRESS targeting it
+            chain contest, in an action round before anything else: a seat that is not a Weaver, facing an ACTIVE \
+            chain of at least 2 confirmed links with a visible pending link that is not its own commitment, plays \
+            ANNIHILATE on the pending event and outcome when it is available, else its highest-grade SUPPRESS \
+            targeting it
             """ + ParadoxAwarePolicy.DEFINITION;
 
     private final ParadoxAwarePolicy recipe = new ParadoxAwarePolicy();
