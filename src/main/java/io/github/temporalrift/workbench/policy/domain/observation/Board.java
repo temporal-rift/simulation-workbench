@@ -21,6 +21,8 @@ public record Board(
         ChainView chain,
         List<OpenParadox> openParadoxes) {
 
+    private static final String EVENT_ID = "eventId";
+
     /** No board facts: what an observation recorded before board facts existed reads as. */
     public static final Board EMPTY = new Board(List.of(), null, List.of(), null, List.of());
 
@@ -36,7 +38,7 @@ public record Board(
         public PublicDeclaration {
             Objects.requireNonNull(playerId, "playerId");
             Objects.requireNonNull(mode, "mode");
-            Objects.requireNonNull(eventId, "eventId");
+            Objects.requireNonNull(eventId, EVENT_ID);
             Objects.requireNonNull(outcomeId, "outcomeId");
         }
     }
@@ -91,14 +93,31 @@ public record Board(
         }
     }
 
-    /** The game's Weaver chain: public, since Weaver links are public facts. */
-    public record ChainView(ChainStatus status, int confirmedLinks) {
+    /**
+     * The game's Weaver chain: public, since Weaver links are public facts. {@code pendingLink} is the outcome the
+     * Weaver's latest Thread names and the chain has not yet confirmed, null while there is none.
+     */
+    public record ChainView(ChainStatus status, int confirmedLinks, PendingLink pendingLink) {
 
         public ChainView {
             Objects.requireNonNull(status, "status");
             if (confirmedLinks < 0) {
                 throw new IllegalArgumentException("confirmedLinks must not be negative");
             }
+        }
+
+        /** A chain with no visible pending link. */
+        public ChainView(ChainStatus status, int confirmedLinks) {
+            this(status, confirmedLinks, null);
+        }
+    }
+
+    /** The event and outcome a Thread named. */
+    public record PendingLink(UUID eventId, UUID outcomeId) {
+
+        public PendingLink {
+            Objects.requireNonNull(eventId, EVENT_ID);
+            Objects.requireNonNull(outcomeId, "outcomeId");
         }
     }
 
@@ -113,7 +132,7 @@ public record Board(
 
         public OpenParadox {
             Objects.requireNonNull(kind, "kind");
-            Objects.requireNonNull(eventId, "eventId");
+            Objects.requireNonNull(eventId, EVENT_ID);
             outcomeIds = outcomeIds == null ? List.of() : List.copyOf(outcomeIds);
         }
     }
