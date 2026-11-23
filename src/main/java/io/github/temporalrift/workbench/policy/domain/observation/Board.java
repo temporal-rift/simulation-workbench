@@ -21,9 +21,9 @@ public record Board(
         ChainView chain,
         List<OpenParadox> openParadoxes) {
 
-    /** No board facts: what an observation recorded before board facts existed reads as. */
     private static final String EVENT_ID = "eventId";
 
+    /** No board facts: what an observation recorded before board facts existed reads as. */
     public static final Board EMPTY = new Board(List.of(), null, List.of(), null, List.of());
 
     public Board {
