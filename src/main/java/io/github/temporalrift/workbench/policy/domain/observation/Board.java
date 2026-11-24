@@ -12,24 +12,52 @@ import io.github.temporalrift.workbench.shared.window.WindowKind;
 /**
  * The public and own era state a participant sees beside its events and hand. Every fact is settled before the
  * window that observes it opens. {@code lastRoundSummary} is the latest published one, which at Round 1 of an era
- * is still the previous era's Round 3; {@code chain} is the game's public Weaver chain, null when the game has none.
+ * is still the previous era's Round 3; {@code chain} is the game's public Weaver chain, null when the game has none;
+ * {@code cascadedEventIds} are the distinct events that have cascaded in the game, in first-cascade order; {@code
+ * scores} are the public scores, null when the observation does not carry them.
  */
 public record Board(
         List<PublicDeclaration> declarations,
         RoundSummary lastRoundSummary,
         List<OwnSubmission> ownSubmissions,
         ChainView chain,
-        List<OpenParadox> openParadoxes) {
+        List<OpenParadox> openParadoxes,
+        List<UUID> cascadedEventIds,
+        Scores scores) {
 
     private static final String EVENT_ID = "eventId";
 
     /** No board facts: what an observation recorded before board facts existed reads as. */
-    public static final Board EMPTY = new Board(List.of(), null, List.of(), null, List.of());
+    public static final Board EMPTY = new Board(List.of(), null, List.of(), null, List.of(), List.of(), null);
 
     public Board {
         declarations = declarations == null ? List.of() : List.copyOf(declarations);
         ownSubmissions = ownSubmissions == null ? List.of() : List.copyOf(ownSubmissions);
         openParadoxes = openParadoxes == null ? List.of() : List.copyOf(openParadoxes);
+        cascadedEventIds = cascadedEventIds == null ? List.of() : List.copyOf(cascadedEventIds);
+    }
+
+    /** A board without cascaded events or scores. */
+    public Board(
+            List<PublicDeclaration> declarations,
+            RoundSummary lastRoundSummary,
+            List<OwnSubmission> ownSubmissions,
+            ChainView chain,
+            List<OpenParadox> openParadoxes) {
+        this(declarations, lastRoundSummary, ownSubmissions, chain, openParadoxes, List.of(), null);
+    }
+
+    /** The public scores of the game: the seat's own and every other seat's. */
+    public record Scores(int own, List<Integer> others) {
+
+        public Scores {
+            others = List.copyOf(others);
+        }
+
+        /** Whether no other seat scores higher than this one. */
+        public boolean leads() {
+            return others.stream().noneMatch(other -> other > own);
+        }
     }
 
     /** An Activist declaration of the current era. */
@@ -95,20 +123,28 @@ public record Board(
 
     /**
      * The game's Weaver chain: public, since Weaver links are public facts. {@code pendingLink} is the outcome the
-     * Weaver's latest Thread names and the chain has not yet confirmed, null while there is none.
+     * Weaver's latest Thread names and the chain has not yet confirmed, null while there is none; {@code
+     * confirmedEventIds} are the events of the confirmed links, in link order.
      */
-    public record ChainView(ChainStatus status, int confirmedLinks, PendingLink pendingLink) {
+    public record ChainView(
+            ChainStatus status, int confirmedLinks, PendingLink pendingLink, List<UUID> confirmedEventIds) {
 
         public ChainView {
             Objects.requireNonNull(status, "status");
             if (confirmedLinks < 0) {
                 throw new IllegalArgumentException("confirmedLinks must not be negative");
             }
+            confirmedEventIds = confirmedEventIds == null ? List.of() : List.copyOf(confirmedEventIds);
+        }
+
+        /** A chain whose confirmed link events are not known. */
+        public ChainView(ChainStatus status, int confirmedLinks, PendingLink pendingLink) {
+            this(status, confirmedLinks, pendingLink, List.of());
         }
 
         /** A chain with no visible pending link. */
         public ChainView(ChainStatus status, int confirmedLinks) {
-            this(status, confirmedLinks, null);
+            this(status, confirmedLinks, null, List.of());
         }
     }
 

@@ -25,6 +25,7 @@ class ConfiguredBalanceCriteriaTest {
 
     private static final JsonMapper MAPPER = JsonMapper.builder().build();
     private static final String GREEDY = "faction-greedy";
+    private static final String SPREAD = "faction-spread";
     private static final String RANDOM = "random";
     private static final String MIXED = "random-seat-vs-faction-greedy";
 
@@ -112,11 +113,40 @@ class ConfiguredBalanceCriteriaTest {
     void tablesAndPopulationsNamePoliciesByIdWithoutAVersion() {
         var criterion = TestCriteria.current();
 
-        assertThat(criterion.tables()).extracting(CriterionTable::id).containsExactly(GREEDY, RANDOM, MIXED);
+        assertThat(criterion.tables()).extracting(CriterionTable::id).containsExactly(GREEDY, SPREAD, RANDOM, MIXED);
         assertThat(criterion.tables())
                 .flatExtracting(CriterionTable::seats)
                 .allSatisfy(seat -> assertThat(seat).doesNotContainPattern("-v[0-9]"));
-        assertThat(criterion.policies()).containsExactlyInAnyOrder(GREEDY, RANDOM);
+        assertThat(criterion.policies()).containsExactlyInAnyOrder(GREEDY, SPREAD, RANDOM);
+    }
+
+    @Test
+    void theFactionSpreadTableIsFiveFactionSpreadSeatsInTheGreedyPhases() {
+        var criterion = TestCriteria.current();
+
+        var spread = criterion.table(SPREAD).orElseThrow();
+        assertThat(spread.seats()).containsExactly(SPREAD, SPREAD, SPREAD, SPREAD, SPREAD);
+        assertThat(spread.phases())
+                .isEqualTo(criterion.table(GREEDY).orElseThrow().phases());
+    }
+
+    @Test
+    void factionSpreadIsEvaluatedExactlyAsFactionGreedyOnTheLinesThatNameIt() {
+        var criterion = TestCriteria.current();
+        var shared = List.of("G-05", "G-06", "L-01", "L-02", "L-03", "L-04", "L-05", "L-06", "L-07");
+
+        for (var line : criterion.lines()) {
+            var tables =
+                    line.populations().stream().map(CriterionPopulation::table).toList();
+            if (shared.contains(line.id())) {
+                assertThat(line.populations())
+                        .as(line.id())
+                        .containsExactly(
+                                new CriterionPopulation(GREEDY, GREEDY), new CriterionPopulation(SPREAD, SPREAD));
+            } else {
+                assertThat(tables).as(line.id()).doesNotContain(SPREAD);
+            }
+        }
     }
 
     @Test
@@ -128,7 +158,7 @@ class ConfiguredBalanceCriteriaTest {
         assertThat(mixed.phases()).containsExactly(CriterionPhase.CONFIRMATION);
         assertThat(criterion.tables(CriterionPhase.SCREENING))
                 .extracting(CriterionTable::id)
-                .containsExactly(GREEDY, RANDOM);
+                .containsExactly(GREEDY, SPREAD, RANDOM);
         var g07 = line(criterion.lines(), "G-07");
         assertThat(g07.populations()).containsExactly(new CriterionPopulation(MIXED, RANDOM));
         assertThat(g07.band()).isEqualTo(new Band(null, 1.0, 1.0));

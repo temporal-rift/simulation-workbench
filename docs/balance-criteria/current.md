@@ -41,15 +41,23 @@ The table's score values come from the case's announced rules, which every playe
 as table rules. The projection a player reads does not say how many events have cascaded, so the bot does not weigh
 an imminent collapse; that is a known limit, not a rule aimed at a faction.
 
+## Version 5: the `faction-spread` table
+
+Version 5 adds a table of five `faction-spread` seats and the `faction-spread` population to lines G-05, G-06 and L-01
+to L-07, evaluated exactly as for `faction-greedy` (same metric, derivation, dimension, player counts, pooling,
+band, interval, role and weight). `faction-spread` is a second reasonable bot, so a rule change counts only if it moves
+results the same way under both. No other line, table or evidence rule changes.
+
 ## Tables
 
 | Table id | Seats 0 to 4 | Phases |
 |---|---|---|
-| `faction-greedy-v3` | `faction-greedy-v3` on every seat | `SCREENING`, `CONFIRMATION` |
-| `random-v1` | `random-v1` on every seat | `SCREENING`, `CONFIRMATION` |
-| `random-seat-vs-faction-greedy-v3` | seat 0 `random-v1`, seats 1 to 4 `faction-greedy-v3` | `CONFIRMATION` |
+| `faction-greedy` | `faction-greedy` on every seat | `SCREENING`, `CONFIRMATION` |
+| `faction-spread` | `faction-spread` on every seat | `SCREENING`, `CONFIRMATION` |
+| `random` | `random` on every seat | `SCREENING`, `CONFIRMATION` |
+| `random-seat-vs-faction-greedy` | seat 0 `random`, seats 1 to 4 `faction-greedy` | `CONFIRMATION` |
 
-G-07 reads the random seat of `random-seat-vs-faction-greedy-v3`.
+G-07 reads the random seat of `random-seat-vs-faction-greedy`.
 
 ## The bot is frozen for measurement
 

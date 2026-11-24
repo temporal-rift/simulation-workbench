@@ -67,6 +67,21 @@ final class FactionRecipePolicy implements BotPolicy {
             base affinities and leans:
             """ + FactionPreferences.canonicalDefinition();
 
+    private final boolean avoidsPublicLink;
+
+    FactionRecipePolicy() {
+        this(false);
+    }
+
+    /**
+     * @param avoidsPublicLink whether a seat other than the Weaver's treats the public pending link's outcome like
+     *     another participant's declared outcome: a Push or Swing toward it that is not its own commitment scores
+     *     {@link #DECLARED_BY_OTHER_PENALTY} lower
+     */
+    FactionRecipePolicy(boolean avoidsPublicLink) {
+        this.avoidsPublicLink = avoidsPublicLink;
+    }
+
     @Override
     public PolicyDecision decide(EntitledObservation observation, Set<Candidate> excluded, PolicyEntropy entropy) {
         return decide(observation, excluded, entropy, FactionRecipePolicy::wasted);
@@ -158,7 +173,7 @@ final class FactionRecipePolicy implements BotPolicy {
      * about the special's timing, budget or that event (a stalled one, say), so another outcome of the same event or
      * another target of the same participant is not tried, while another event still is.
      */
-    private static Set<Object> refusedSpecials(Set<Candidate> excluded) {
+    static Set<Object> refusedSpecials(Set<Candidate> excluded) {
         var refused = new HashSet<Object>();
         for (var candidate : excluded) {
             var key = refusalKey(candidate);
@@ -170,7 +185,7 @@ final class FactionRecipePolicy implements BotPolicy {
     }
 
     /** The special and the event or participant it names, or null for anything but a special. */
-    private static Object refusalKey(Candidate candidate) {
+    static Object refusalKey(Candidate candidate) {
         if (!(candidate instanceof Candidate.PlaySpecial(var action, var target))) {
             return null;
         }
@@ -204,7 +219,7 @@ final class FactionRecipePolicy implements BotPolicy {
                 .toList();
     }
 
-    private static long score(
+    private long score(
             Candidate candidate, EntitledObservation observation, Map<UUID, DealtCard> cards, BoardReading reading) {
         var faction = observation.faction();
         return switch (candidate) {
@@ -252,14 +267,16 @@ final class FactionRecipePolicy implements BotPolicy {
         };
     }
 
-    private static int adjustment(UUID destination, BoardReading reading) {
+    private int adjustment(UUID destination, BoardReading reading) {
         if (destination == null) {
             return 0;
         }
         if (reading.isCommitment(destination)) {
             return reading.isLow(destination) ? 0 : COMMITMENT_BONUS;
         }
-        return reading.isDeclaredByOther(destination) ? -DECLARED_BY_OTHER_PENALTY : 0;
+        var fedByOthers =
+                reading.isDeclaredByOther(destination) || (avoidsPublicLink && reading.isPublicLink(destination));
+        return fedByOthers ? -DECLARED_BY_OTHER_PENALTY : 0;
     }
 
     private static int lean(Bias bias, Target target, BoardReading reading) {

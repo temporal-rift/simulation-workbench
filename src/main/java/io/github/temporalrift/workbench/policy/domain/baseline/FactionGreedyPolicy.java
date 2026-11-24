@@ -41,18 +41,24 @@ final class FactionGreedyPolicy implements BotPolicy {
         if (contest.isPresent()) {
             return new PolicyDecision.Chosen(contest.get());
         }
+        return recipe.decide(observation, withoutUnavailable(observation, round, excluded), entropy);
+    }
+
+    /** The excluded set with every play of a special the table reports unavailable this round added to it. */
+    static Set<Candidate> withoutUnavailable(
+            EntitledObservation observation, DecisionWindow.ActionRound round, Set<Candidate> excluded) {
         var unavailable = round.specials().stream()
                 .filter(PlayableSpecial::unavailable)
                 .map(PlayableSpecial::action)
                 .collect(Collectors.toSet());
         if (unavailable.isEmpty()) {
-            return recipe.decide(observation, excluded, entropy);
+            return excluded;
         }
         var withoutUnavailable = new HashSet<>(excluded);
         CandidateGenerator.generate(observation).stream()
                 .filter(candidate ->
                         candidate instanceof Candidate.PlaySpecial special && unavailable.contains(special.action()))
                 .forEach(withoutUnavailable::add);
-        return recipe.decide(observation, withoutUnavailable, entropy);
+        return withoutUnavailable;
     }
 }

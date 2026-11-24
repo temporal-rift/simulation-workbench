@@ -21,7 +21,7 @@ class BaselinePolicyCatalogTest {
 
     @Test
     void everyListedBundleResolvesAsAReference() {
-        assertThat(catalog.list()).hasSize(2).allSatisfy(entry -> {
+        assertThat(catalog.list()).hasSize(3).allSatisfy(entry -> {
             assertThat(entry.description()).isNotBlank();
             assertThat(catalog.verify(entry.id(), entry.version(), entry.artifactDigest(), 0))
                     .isEqualTo(PolicyReferenceVerdict.VALID);

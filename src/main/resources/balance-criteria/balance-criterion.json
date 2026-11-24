@@ -1,6 +1,6 @@
 {
-  "version": 4,
-  "title": "Balance criterion version 4",
+  "version": 5,
+  "title": "Balance criterion version 5",
   "analysisVersion": "2",
   "tables": [
     {
@@ -11,6 +11,20 @@
         "faction-greedy",
         "faction-greedy",
         "faction-greedy"
+      ],
+      "phases": [
+        "SCREENING",
+        "CONFIRMATION"
+      ]
+    },
+    {
+      "id": "faction-spread",
+      "seats": [
+        "faction-spread",
+        "faction-spread",
+        "faction-spread",
+        "faction-spread",
+        "faction-spread"
       ],
       "phases": [
         "SCREENING",
@@ -219,6 +233,10 @@
         {
           "table": "faction-greedy",
           "policy": "faction-greedy"
+        },
+        {
+          "table": "faction-spread",
+          "policy": "faction-spread"
         }
       ],
       "playerCounts": [
@@ -251,6 +269,10 @@
         {
           "table": "faction-greedy",
           "policy": "faction-greedy"
+        },
+        {
+          "table": "faction-spread",
+          "policy": "faction-spread"
         }
       ],
       "playerCounts": [
@@ -346,6 +368,10 @@
         {
           "table": "faction-greedy",
           "policy": "faction-greedy"
+        },
+        {
+          "table": "faction-spread",
+          "policy": "faction-spread"
         }
       ],
       "playerCounts": [
@@ -378,6 +404,10 @@
         {
           "table": "faction-greedy",
           "policy": "faction-greedy"
+        },
+        {
+          "table": "faction-spread",
+          "policy": "faction-spread"
         }
       ],
       "playerCounts": [
@@ -410,6 +440,10 @@
         {
           "table": "faction-greedy",
           "policy": "faction-greedy"
+        },
+        {
+          "table": "faction-spread",
+          "policy": "faction-spread"
         }
       ],
       "playerCounts": [
@@ -442,6 +476,10 @@
         {
           "table": "faction-greedy",
           "policy": "faction-greedy"
+        },
+        {
+          "table": "faction-spread",
+          "policy": "faction-spread"
         }
       ],
       "playerCounts": [
@@ -474,6 +512,10 @@
         {
           "table": "faction-greedy",
           "policy": "faction-greedy"
+        },
+        {
+          "table": "faction-spread",
+          "policy": "faction-spread"
         }
       ],
       "playerCounts": [
@@ -506,6 +548,10 @@
         {
           "table": "faction-greedy",
           "policy": "faction-greedy"
+        },
+        {
+          "table": "faction-spread",
+          "policy": "faction-spread"
         }
       ],
       "playerCounts": [
@@ -538,6 +584,10 @@
         {
           "table": "faction-greedy",
           "policy": "faction-greedy"
+        },
+        {
+          "table": "faction-spread",
+          "policy": "faction-spread"
         }
       ],
       "playerCounts": [

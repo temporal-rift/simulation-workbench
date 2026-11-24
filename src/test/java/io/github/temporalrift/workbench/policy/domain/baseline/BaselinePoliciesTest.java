@@ -98,13 +98,21 @@ class BaselinePoliciesTest {
                         "stabilizeDelta",
                         "detonateDelta",
                         "cascadePenalty",
-                        "tapestryAbsorbsChainConflict");
+                        "tapestryAbsorbsChainConflict",
+                        "weaverChainLength",
+                        "maxCascadedParadoxes");
         var boardFacts = Stream.of(Board.class.getRecordComponents())
                 .map(RecordComponent::getName)
                 .toList();
         assertThat(boardFacts)
                 .containsExactlyInAnyOrder(
-                        "declarations", "lastRoundSummary", "ownSubmissions", "chain", "openParadoxes");
+                        "declarations",
+                        "lastRoundSummary",
+                        "ownSubmissions",
+                        "chain",
+                        "openParadoxes",
+                        "cascadedEventIds",
+                        "scores");
         assertThat(components.stream().filter(name -> forbidden.stream().anyMatch(name::equals)))
                 .isEmpty();
     }
@@ -126,8 +134,21 @@ class BaselinePoliciesTest {
     }
 
     @Test
-    void onlyRandomAndFactionGreedyAreDefined() {
-        assertThat(BaselinePolicies.all()).extracting(PolicyBundle::id).containsExactly("random", "faction-greedy");
+    void randomFactionGreedyAndFactionSpreadAreDefined() {
+        assertThat(BaselinePolicies.all())
+                .extracting(PolicyBundle::id)
+                .containsExactly("random", "faction-greedy", "faction-spread");
+    }
+
+    @Test
+    void factionSpreadHasItsOwnVersionAndDigest() {
+        assertThat(BaselinePolicies.FACTION_SPREAD.version()).isEqualTo("1.0.0");
+        assertThat(BaselinePolicies.FACTION_SPREAD.artifactDigest())
+                .isEqualTo(sha256("faction-spread|1.0.0|" + FactionSpreadPolicy.DEFINITION))
+                .isNotEqualTo(BaselinePolicies.FACTION_GREEDY.artifactDigest())
+                .isNotEqualTo(BaselinePolicies.RANDOM.artifactDigest());
+        assertThat(BaselinePolicies.find("faction-spread", "1.0.0")).contains(BaselinePolicies.FACTION_SPREAD);
+        assertThat(BaselinePolicies.find("faction-spread", "2.0.0")).isEmpty();
     }
 
     @ParameterizedTest(name = "{0}")
