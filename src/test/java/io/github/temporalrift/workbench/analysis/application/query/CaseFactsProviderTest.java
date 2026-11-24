@@ -95,6 +95,17 @@ class CaseFactsProviderTest {
     }
 
     @Test
+    void eachVersionThatReportsMoreStoresItsOwnFacts() {
+        var cases = List.of(succeeded(new UUID(1, 4)));
+
+        provider.factsOf(RUN, cases, new AnalysisVersion("3", 1L));
+        provider.factsOf(RUN, cases, new AnalysisVersion("4", 1L));
+
+        assertThat(stored).containsOnlyKeys("2", "3");
+        assertThat(AnalysisVersion.CURRENT.factsVersion()).isEqualTo("3");
+    }
+
+    @Test
     void aLargeBackfillLooksFactsUpInChunksAndStoresThemInOneBatch() {
         var cases = new ArrayList<AnalyzedCase>();
         for (var index = 0; index < 2500; index++) {
@@ -113,8 +124,8 @@ class CaseFactsProviderTest {
         var cases = List.of(succeeded(new UUID(1, 2)));
 
         assertThatIllegalStateException()
-                .isThrownBy(() -> provider.factsOf(RUN, cases, new AnalysisVersion("4", 1L)))
-                .withMessageContaining("Analysis version 4");
+                .isThrownBy(() -> provider.factsOf(RUN, cases, new AnalysisVersion("5", 1L)))
+                .withMessageContaining("Analysis version 5");
         assertThat(stored).isEmpty();
     }
 

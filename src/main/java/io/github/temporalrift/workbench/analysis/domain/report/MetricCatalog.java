@@ -19,9 +19,9 @@ import io.github.temporalrift.workbench.shared.game.Faction;
 import io.github.temporalrift.workbench.shared.game.SpecialAction;
 
 /**
- * The metrics of analysis versions 1 to 3, in report order; version 3 adds diagnostics when the vocabulary asks for
- * them. Game metrics count each eligible game once and appear only in cohorts that pool seats; seat metrics count the
- * cohort's seat-games.
+ * The metrics of analysis versions 1 to 4, in report order; version 3 adds diagnostics and version 4 the bet
+ * survival metrics when the vocabulary asks for them. Game metrics count each eligible game once and appear only in
+ * cohorts that pool seats; seat metrics count the cohort's seat-games.
  */
 public final class MetricCatalog {
 
@@ -52,6 +52,9 @@ public final class MetricCatalog {
         factionMetrics(definitions, vocabulary.factions(cohort.playerCount()));
         if (vocabulary.diagnostics()) {
             diagnosticMetrics(definitions, vocabulary, cohort);
+        }
+        if (vocabulary.betSurvival()) {
+            betSurvivalMetrics(definitions, vocabulary.factions(cohort.playerCount()));
         }
         cardMetrics(definitions, vocabulary);
         specialMetrics(definitions, vocabulary);
@@ -188,6 +191,39 @@ public final class MetricCatalog {
                                 of.stream().mapToLong(SeatFacts::resolvedBets).sum());
                     }));
         }
+    }
+
+    /**
+     * The bet survival metrics of analysis version 4, counted in seat-eras: bets placed and scored per seat-game, the
+     * share of placed bets that reached scoring, and the winning bets per era the faction's seats played.
+     */
+    private static void betSurvivalMetrics(List<MetricDefinition> definitions, Iterable<Faction> factions) {
+        for (var faction : factions) {
+            var dimensions = Dimensions.of(faction);
+            definitions.add(betMean("bets_placed", faction, SeatFacts::betsPlaced));
+            definitions.add(betMean("bets_scored", faction, SeatFacts::betsScored));
+            definitions.add(ratio(
+                    "bet_survival_rate", MetricStatistic.RATE, dimensions, "placed bets", (facts, seats) -> {
+                        var of = ofFaction(seats, faction);
+                        return Tally.of(
+                                of.stream().mapToLong(SeatFacts::betsScored).sum(),
+                                of.stream().mapToLong(SeatFacts::betsPlaced).sum());
+                    }));
+            definitions.add(ratio(
+                    "bet_win_rate_per_era", MetricStatistic.RATE, dimensions, "seat-eras", (facts, seats) -> {
+                        var of = ofFaction(seats, faction);
+                        return Tally.of(
+                                of.stream().mapToLong(SeatFacts::betsWon).sum(),
+                                (long) of.size() * facts.game().eras());
+                    }));
+        }
+    }
+
+    private static MetricDefinition betMean(String name, Faction faction, ToIntFunction<SeatFacts> counted) {
+        return ratio(name, MetricStatistic.MEAN, Dimensions.of(faction), "bets per seat-game", (facts, seats) -> {
+            var of = ofFaction(seats, faction);
+            return Tally.of(of.stream().mapToInt(counted).sum(), of.size());
+        });
     }
 
     private static List<SeatFacts> ofFaction(List<SeatFacts> seats, Faction faction) {

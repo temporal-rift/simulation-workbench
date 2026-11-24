@@ -59,14 +59,8 @@ public final class ComparisonCalculator {
                 .filter(pair -> !pair.succeeded())
                 .map(ComparisonCalculator::excluded)
                 .toList();
-        var vocabulary = Vocabulary.of(
-                        baselineCases,
-                        sideFacts(baselineCases, facts),
-                        definition.analysis().reportsDiagnostics())
-                .and(Vocabulary.of(
-                        candidateCases,
-                        sideFacts(candidateCases, facts),
-                        definition.analysis().reportsDiagnostics()));
+        var vocabulary = Vocabulary.of(baselineCases, sideFacts(baselineCases, facts), definition.analysis())
+                .and(Vocabulary.of(candidateCases, sideFacts(candidateCases, facts), definition.analysis()));
         var cohorts = ReportCalculator.cohortKeys(baselineCases).stream()
                 .map(key -> cohort(definition, key, pairs, facts, vocabulary))
                 .toList();

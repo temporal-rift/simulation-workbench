@@ -12,7 +12,9 @@ import io.github.temporalrift.workbench.shared.game.SpecialAction;
 
 /**
  * What one seat of a succeeded game did and achieved. A card-round is a card the seat held at the start of an
- * action round; its playability is known only when the seat observed that round.
+ * action round; its playability is known only when the seat observed that round. The bet counts are seat-eras:
+ * {@code betsPlaced} where the faction's signature bet was placed, {@code betsScored} of those that recorded a win or
+ * a miss reason, {@code betsWon} of those that recorded a win; facts stored without them read them as zero.
  */
 public record SeatFacts(
         int seat,
@@ -38,7 +40,10 @@ public record SeatFacts(
         WinPath winPath,
         int winEra,
         int betWins,
-        int betMisses) {
+        int betMisses,
+        int betsPlaced,
+        int betsScored,
+        int betsWon) {
 
     public SeatFacts {
         Objects.requireNonNull(faction, "faction");
@@ -102,6 +107,9 @@ public record SeatFacts(
                 declarations,
                 Map.of(),
                 null,
+                0,
+                0,
+                0,
                 0,
                 0,
                 0);
