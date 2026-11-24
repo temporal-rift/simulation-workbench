@@ -28,7 +28,7 @@ game:
     cards-per-deal: 7
     win-score-threshold: 20
     annihilate-earliest-round: 2
-    rewrite-latest-round: 2
+    faction-bet-latest-round: 2
     reconnect-grace-period-seconds: 30
     action-round-timer-seconds:
       3: 180
@@ -118,7 +118,7 @@ game:
       band-medium-max: 60
       momentum-bonus: 10
       rally-multiplier: 1.5
-      thread-shift: 10
+      thread-shift: 0
   catalog:
     events:
       - eventId: 12606191-eafe-4d1c-a014-b676bf094db0

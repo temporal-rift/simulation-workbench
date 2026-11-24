@@ -25,7 +25,7 @@ class VariantMaterializerTest {
     private static final String PARADOX_WEIGHT = "game.rules.card-category-weights.PARADOX";
 
     private final EffectiveRules baseline = VariantRulesFixtures.baseline();
-    private final ParameterSpace space = VariantRulesFixtures.spaces().all().getFirst();
+    private final ParameterSpace space = VariantRulesFixtures.newestSpace();
 
     private static Map<String, ParameterValue> overrides(Object... keysAndValues) {
         var overrides = new LinkedHashMap<String, ParameterValue>();
@@ -44,7 +44,7 @@ class VariantMaterializerTest {
     private static final String SHIELD = "game.rules.scoring.written-outcome-shields-annihilation";
     private static final String ERASED_WEIGHT = "game.rules.probability.erased-weight-to-written-outcome";
 
-    private final ParameterSpace spaceTwo = VariantRulesFixtures.spaces().all().getFirst();
+    private final ParameterSpace spaceTwo = VariantRulesFixtures.newestSpace();
 
     private VariantMaterializer.Materialized materializeInSpaceTwo(Object... keysAndValues) {
         return VariantMaterializer.materialize(baseline, spaceTwo, overrides(keysAndValues));

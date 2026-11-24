@@ -8,8 +8,9 @@ one or is refused without one. It plays on the simulator the full case matrix on
 every faction set and seat rotation, the policies `faction-greedy` and `random` on every seat) for three variants, then
 reproduces every case on one real lane. The variants are the baseline and the two edge variants `low` and `high`, which
 set as many parameters as the constraints allow at the minimum and the maximum of their ranges. A new check resolves
-them against the one served parameter space
-([docs/fidelity/current.md](fidelity/current.md)), and records its revision on the check. That is 55 cases per table and variant,
+them against the newest parameter space with edge variants
+([docs/fidelity/current.md](fidelity/current.md)), and records its version on the check, so a stored check keeps the variants it
+was accepted with. That is 55 cases per table and variant,
 330 in all.
 
 | Operation | Meaning |

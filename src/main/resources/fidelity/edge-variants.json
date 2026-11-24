@@ -1,5 +1,5 @@
 {
-  "parameterSpaceVersion": 1,
+  "parameterSpaceVersion": 2,
   "variants": {
     "low": {
       "game.rules.win-score-threshold": 16,
@@ -32,7 +32,7 @@
       "game.rules.probability.amplify-multiplier.III": 2.5,
       "game.rules.probability.momentum-bonus": 5,
       "game.rules.probability.rally-multiplier": 1.25,
-      "game.rules.probability.thread-shift": 5,
+      "game.rules.probability.thread-shift": 0,
       "game.rules.scoring.score-deltas.ANNIHILATED_OUTCOME": 2,
       "game.rules.scoring.score-deltas.CORRUPTED_OPPONENT_CARD": 1,
       "game.rules.scoring.score-deltas.EVENT_RESOLVED_AS_WRITTEN": 3,
@@ -51,7 +51,7 @@
       "game.rules.annihilate-earliest-round": 1,
       "game.rules.scoring.written-outcome-shields-annihilation": false,
       "game.rules.probability.erased-weight-to-written-outcome": false,
-      "game.rules.rewrite-latest-round": 1,
+      "game.rules.faction-bet-latest-round": 1,
       "game.rules.scoring.score-deltas.SECRET_OUTCOME_MISSED": -3,
       "game.rules.scoring.expose-requires-declared-event": false,
       "game.rules.scoring.annihilation-requires-consequence": false,
@@ -127,7 +127,7 @@
       "game.rules.annihilate-earliest-round": 3,
       "game.rules.scoring.written-outcome-shields-annihilation": true,
       "game.rules.probability.erased-weight-to-written-outcome": true,
-      "game.rules.rewrite-latest-round": 3,
+      "game.rules.faction-bet-latest-round": 3,
       "game.rules.scoring.score-deltas.SECRET_OUTCOME_MISSED": 0,
       "game.rules.scoring.expose-requires-declared-event": true,
       "game.rules.scoring.annihilation-requires-consequence": true,

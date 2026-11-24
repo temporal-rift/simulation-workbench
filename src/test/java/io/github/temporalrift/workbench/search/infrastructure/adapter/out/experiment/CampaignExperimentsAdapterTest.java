@@ -83,7 +83,8 @@ class CampaignExperimentsAdapterTest {
 
     @Test
     void aServedParameterSpaceAndBaselinePassTheCheck() {
-        assertThatCode(() -> adapter.check(definition(VariantRulesFixtures.ARTIFACT_DIGEST, 1)))
+        assertThatCode(() -> adapter.check(
+                        definition(VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.NEWEST_SPACE)))
                 .doesNotThrowAnyException();
     }
 
@@ -107,7 +108,7 @@ class CampaignExperimentsAdapterTest {
 
     @Test
     void theGridHoldsEveryOverridableParameterAtItsBaselineValue() {
-        var grid = adapter.grid(definition(VariantRulesFixtures.ARTIFACT_DIGEST, 1));
+        var grid = adapter.grid(definition(VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.NEWEST_SPACE));
 
         assertThat(grid.axes()).isNotEmpty();
         assertThat(grid.axes())
@@ -121,7 +122,7 @@ class CampaignExperimentsAdapterTest {
 
     @Test
     void theGridHoldsTheTwoShieldSwitchesAsBooleanAxes() {
-        var grid = adapter.grid(definition(VariantRulesFixtures.ARTIFACT_DIGEST, 1));
+        var grid = adapter.grid(definition(VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.NEWEST_SPACE));
 
         assertThat(grid.axes())
                 .filteredOn(ParameterGrid.FlagAxis.class::isInstance)
@@ -134,7 +135,7 @@ class CampaignExperimentsAdapterTest {
 
     @Test
     void aBooleanOverrideValidatesAndFreezesIntoACandidateRules() {
-        var definition = definition(VariantRulesFixtures.ARTIFACT_DIGEST, 1);
+        var definition = definition(VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.NEWEST_SPACE);
         var key = "game.rules.scoring.written-outcome-shields-annihilation";
 
         var validated = adapter.validation(definition).validate(Map.of(key, ParameterValue.of(false)));
@@ -152,7 +153,7 @@ class CampaignExperimentsAdapterTest {
 
     @Test
     void validationAcceptsOverridesOnTheGridAndRejectsOnesOutsideTheRange() {
-        var definition = definition(VariantRulesFixtures.ARTIFACT_DIGEST, 1);
+        var definition = definition(VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.NEWEST_SPACE);
         var validation = adapter.validation(definition);
         var axis = (ParameterGrid.NumberAxis) adapter.grid(definition).axes().getFirst();
 
@@ -169,7 +170,7 @@ class CampaignExperimentsAdapterTest {
 
     @Test
     void roundZeroOfOneHundredCandidatesAllValidatesOnTheShippedSpace() {
-        var definition = definition(VariantRulesFixtures.ARTIFACT_DIGEST, 1);
+        var definition = definition(VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.NEWEST_SPACE);
         var generator = new CandidateGenerator(
                 adapter.grid(definition),
                 adapter.validation(definition),
@@ -186,10 +187,13 @@ class CampaignExperimentsAdapterTest {
     void aGameIsTheFullMatrixOfTheCampaignsPlayerCountsAndTables() {
         var table =
                 new io.github.temporalrift.workbench.search.domain.campaign.SeatTable("random", java.util.List.of());
-        assertThat(adapter.casesPerGame(definition(VariantRulesFixtures.ARTIFACT_DIGEST, 1), java.util.List.of(table)))
+        assertThat(adapter.casesPerGame(
+                        definition(VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.NEWEST_SPACE),
+                        java.util.List.of(table)))
                 .isEqualTo(55);
         assertThat(adapter.casesPerGame(
-                        definition(VariantRulesFixtures.ARTIFACT_DIGEST, 1), java.util.List.of(table, table)))
+                        definition(VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.NEWEST_SPACE),
+                        java.util.List.of(table, table)))
                 .isEqualTo(110);
     }
 }

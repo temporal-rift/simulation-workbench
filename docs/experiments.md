@@ -36,10 +36,10 @@ and refuses to start, naming the lane, when a document's effective rules digest 
 `rules-digest`. `overrides` maps parameter keys to numbers, or to booleans for a boolean parameter, and `parameterSpaceVersion` names
 the space they are validated against. A value of the other type is refused with the reason `WRONG_TYPE`.
 
-The parameter space is one configuration document (`parameter-spaces/parameter-space.json`, described in
-`docs/parameter-space/current.md`); its `version` is the revision of its content, and it is read with
-`listParameterSpaces` and `getParameterSpace` (any other version is `404`). A campaign search treats a boolean
-parameter as a two-value axis. A new campaign uses the served space. Its constraints are expressions in a small notation (comparison
+A parameter space is one configuration document (`parameter-spaces/v<n>.json`, described in
+`docs/parameter-space/v<n>.md`), and every version stays served so a stored experiment or campaign replays exactly. They
+are read with `listParameterSpaces` and `getParameterSpace` (a version that is not served is `404`). A campaign search
+treats a boolean parameter as a two-value axis. A new campaign uses the newest space. Its constraints are expressions in a small notation (comparison
 chains over `+`, `-`, `*`, `max` and `and`; a subtraction needs spaces around `-` because keys contain it) that the
 workbench both serves and evaluates.
 
