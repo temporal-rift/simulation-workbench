@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.ChainState;
 
-/** The confirmed link events and the cascaded events a lane serving {@code projection-api} 10.6.0 reports. */
+/** The confirmed link events and the cascaded events a lane serving {@code projection-api} 10.7.0 reports. */
 class BoardMapperProjectionFactsTest {
 
     private static final int SEAT = 1;
