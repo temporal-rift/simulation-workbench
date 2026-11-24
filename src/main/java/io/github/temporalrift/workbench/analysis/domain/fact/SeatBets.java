@@ -1,5 +1,6 @@
 package io.github.temporalrift.workbench.analysis.domain.fact;
 
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -19,8 +20,14 @@ record SeatBets(int placed, int scored, int won) {
     /** The reasons that settle a faction's bet as kept or as lost. */
     private record Reasons(Set<String> wins, Set<String> misses) {
 
-        boolean settles(String reason) {
-            return wins.contains(reason) || misses.contains(reason);
+        /** One era's reasons for a seat arrive joined by commas, so every listed reason counts. */
+        boolean settledBy(String joinedReasons) {
+            return Arrays.stream(joinedReasons.split(","))
+                    .anyMatch(reason -> wins.contains(reason) || misses.contains(reason));
+        }
+
+        boolean wonBy(String joinedReasons) {
+            return Arrays.stream(joinedReasons.split(",")).anyMatch(wins::contains);
         }
     }
 
@@ -53,14 +60,11 @@ record SeatBets(int placed, int scored, int won) {
                 when declared.seat() == seat && faction == Faction.ACTIVISTS -> placedEras.add(declared.era());
                 case GameEvent.ScoreRecorded score
                 when score.seat() == seat -> {
-                    // One era's reasons for a seat arrive joined by commas, so every listed reason counts.
-                    for (var reason : score.reason().split(",")) {
-                        if (reasons.settles(reason)) {
-                            scoredEras.add(score.era());
-                            if (reasons.wins().contains(reason)) {
-                                wonEras.add(score.era());
-                            }
-                        }
+                    if (reasons.settledBy(score.reason())) {
+                        scoredEras.add(score.era());
+                    }
+                    if (reasons.wonBy(score.reason())) {
+                        wonEras.add(score.era());
                     }
                 }
                 default -> {
