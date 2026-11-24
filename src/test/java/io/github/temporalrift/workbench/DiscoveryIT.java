@@ -225,7 +225,7 @@ class DiscoveryIT {
         var catalog = objectMapper.readTree(
                 read(mockMvc.perform(get("/api/v1/policies").with(read())).andExpect(status().isOk())));
 
-        assertThat(catalog.path("items")).hasSize(2);
+        assertThat(catalog.path("items")).hasSize(3);
         var triples = new ArrayList<String>();
         catalog.path("items").forEach(item -> {
             triples.add(item.path("id").asString() + "|" + item.path("version").asString() + "|"
