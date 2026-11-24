@@ -42,31 +42,6 @@ final class FactionRecipePolicy implements BotPolicy {
     static final int GUARD_AFFINITY = 6;
     static final int COUNTER_AFFINITY = 5;
 
-    static final String DEFINITION = """
-            faction-greedy base recipe: score = affinity*1000 + board rank (0..100) + commitment adjustment
-            board rank: outcomes ordered by public band (none = MEDIUM), then own Scan value else printed weight; \
-            rank = 100 * outcomes strictly below / (outcomes - 1); TRAILING = 100 - rank; pairs average both ends
-            commitment: Activist declared outcome, Revisionist first Rewrite outcome, Weaver latest Thread/Reweave \
-            outcome, Prophet first Foresight outcome per event
-            adjustment for Push, Swing destination and Mimic: +200 toward own commitment not LOW; -200 toward another \
-            participant's declared outcome that is not own commitment
-            refused special: once the service refuses a special in a window, it is not tried again there on the same \
-            event or participant
-            waste (never chosen): Foresight after the seat already wrote an outcome this era (one writing per era); \
-            Thread after an accepted Thread, unless a Tapestry was armed and the Thread outcome fell to LOW; \
-            Rewrite after an accepted Rewrite; Obscure in round 3; Reweave without a Thread, after a Tapestry, \
-            while the Thread outcome is not LOW, or onto the Thread outcome; Tapestry without a Thread, \
-            below 2 confirmed links, already armed, or off the Thread outcome; Fulfillment off a written outcome or \
-            on an event already fulfilled; Seal off a written outcome; Mimic off the Rewrite outcome; Expose outside \
-            round 2 or against a participant whose previous-round summary shows no Probability Shifter card; Corrupt \
-            against such a participant; a Push, Swing, Thread, Rewrite, Foresight, Mimic, Reweave, Seal, Fulfillment \
-            or Tapestry toward a LOW outcome when the same card or special has a non-LOW alternative
-            triggered affinity: Tapestry 7; Reweave 7 (only reached when the Thread outcome is LOW); Fulfillment 7 and \
-            Seal 6 on a HIGH written outcome; Expose 5; Mimic 5 when not LOW; Corrupt 5
-            declaration: 8000 (+50 Momentum) + board rank; hand selection: sum of card affinities * 1000
-            base affinities and leans:
-            """ + FactionPreferences.canonicalDefinition();
-
     private final boolean avoidsPublicLink;
 
     FactionRecipePolicy() {

@@ -118,19 +118,27 @@ class BaselinePoliciesTest {
     }
 
     @Test
-    void bundlesAreVersionedAndDigestTheirDefinition() {
+    void bundlesAreVersionedAndDigestTheirIdentityAndRevision() {
         assertThat(BaselinePolicies.RANDOM.version()).isEqualTo("1.0.0");
-        assertThat(BaselinePolicies.RANDOM.artifactDigest())
-                .isEqualTo(sha256("random|1.0.0|" + RandomPolicy.DEFINITION));
+        assertThat(BaselinePolicies.RANDOM.revision()).isEqualTo("1");
+        assertThat(BaselinePolicies.RANDOM.artifactDigest()).isEqualTo(sha256("random|1.0.0|1"));
         assertThat(BaselinePolicies.FACTION_GREEDY.version()).isEqualTo("1.0.0");
-        assertThat(BaselinePolicies.FACTION_GREEDY.artifactDigest())
-                .isEqualTo(sha256("faction-greedy|1.0.0|" + FactionGreedyPolicy.DEFINITION));
+        assertThat(BaselinePolicies.FACTION_GREEDY.revision()).isEqualTo("1");
+        assertThat(BaselinePolicies.FACTION_GREEDY.artifactDigest()).isEqualTo(sha256("faction-greedy|1.0.0|1"));
         assertThat(BaselinePolicies.RANDOM.artifactDigest())
                 .isNotEqualTo(BaselinePolicies.FACTION_GREEDY.artifactDigest());
         assertThat(BaselinePolicies.find("random", "1.0.0")).contains(BaselinePolicies.RANDOM);
         assertThat(BaselinePolicies.find("random", "2.0.0")).isEmpty();
         assertThat(BaselinePolicies.find("faction-greedy", "1.0.0")).contains(BaselinePolicies.FACTION_GREEDY);
         assertThat(BaselinePolicies.find("faction-greedy")).contains(BaselinePolicies.FACTION_GREEDY);
+    }
+
+    @Test
+    void aNewRevisionGivesANewDigestAndTheSameRevisionTheSameDigest() {
+        var digest = BaselinePolicies.FACTION_GREEDY.artifactDigest();
+
+        assertThat(sha256("faction-greedy|1.0.0|1")).isEqualTo(digest);
+        assertThat(sha256("faction-greedy|1.0.0|2")).isNotEqualTo(digest);
     }
 
     @Test
@@ -144,7 +152,7 @@ class BaselinePoliciesTest {
     void factionSpreadHasItsOwnVersionAndDigest() {
         assertThat(BaselinePolicies.FACTION_SPREAD.version()).isEqualTo("1.0.0");
         assertThat(BaselinePolicies.FACTION_SPREAD.artifactDigest())
-                .isEqualTo(sha256("faction-spread|1.0.0|" + FactionSpreadPolicy.DEFINITION))
+                .isEqualTo(sha256("faction-spread|1.0.0|1"))
                 .isNotEqualTo(BaselinePolicies.FACTION_GREEDY.artifactDigest())
                 .isNotEqualTo(BaselinePolicies.RANDOM.artifactDigest());
         assertThat(BaselinePolicies.find("faction-spread", "1.0.0")).contains(BaselinePolicies.FACTION_SPREAD);

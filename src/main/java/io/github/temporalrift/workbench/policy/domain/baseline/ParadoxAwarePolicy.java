@@ -35,18 +35,6 @@ final class ParadoxAwarePolicy implements BotPolicy {
     /** What a commitment on an event is worth to the seat: about one win of its signature bet. */
     static final int COMMITMENT_VALUE = 3;
 
-    static final String DEFINITION = """
-            faction-greedy paradox layer: the base recipe with two fixes
-            paradox resolution, per affected event in canonical order: commitment = an outcome of the event is the \
-            seat's own commitment (base-recipe sense); clear value = commitment ? 3 : 0, plus the table's Stabilize \
-            delta when the seat stabilizes; cascade value = -(commitment ? 3 : 0), plus the table's Detonate delta \
-            when Detonate contests Stabilize, else +|cascade penalty| (the others pay double); play STABILIZE on the \
-            first event whose clear value beats both 0 and its cascade value, else DETONATE on the first event whose \
-            cascade value beats 0, else the base choice with every STABILIZE and DETONATE excluded
-            Tapestry, while it does not absorb the Annihilate: a Thread after an accepted Thread is always wasted; \
-            Reweave is allowed while Tapestry is armed
-            """ + FactionRecipePolicy.DEFINITION;
-
     private final FactionRecipePolicy recipe;
     private final boolean spread;
 

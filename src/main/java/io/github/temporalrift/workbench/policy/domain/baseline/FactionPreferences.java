@@ -103,30 +103,4 @@ final class FactionPreferences {
     static Preference special(Faction faction, SpecialAction action) {
         return SPECIALS.get(faction).getOrDefault(action, DEFAULT_SPECIAL);
     }
-
-    /** The effective table, rendered in a fixed order; hashed into the bundle's artifact digest. */
-    static String canonicalDefinition() {
-        var text = new StringBuilder("faction-greedy scoring: affinity*1000 + target score (0..100)\n");
-        for (var faction : Faction.values()) {
-            for (var type : CardType.values()) {
-                var preference = card(faction, type);
-                text.append(faction)
-                        .append(" card ")
-                        .append(type)
-                        .append('=')
-                        .append(preference)
-                        .append('\n');
-            }
-            for (var action : SpecialAction.values()) {
-                var preference = special(faction, action);
-                text.append(faction)
-                        .append(" special ")
-                        .append(action)
-                        .append('=')
-                        .append(preference)
-                        .append('\n');
-            }
-        }
-        return text.toString();
-    }
 }
