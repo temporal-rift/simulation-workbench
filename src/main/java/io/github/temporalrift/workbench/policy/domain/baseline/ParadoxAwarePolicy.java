@@ -13,6 +13,7 @@ import io.github.temporalrift.workbench.policy.domain.decision.CandidateGenerato
 import io.github.temporalrift.workbench.policy.domain.decision.PolicyDecision;
 import io.github.temporalrift.workbench.policy.domain.decision.PolicyEntropy;
 import io.github.temporalrift.workbench.policy.domain.decision.Target;
+import io.github.temporalrift.workbench.policy.domain.observation.Board;
 import io.github.temporalrift.workbench.policy.domain.observation.DealtCard;
 import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow;
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
@@ -20,6 +21,7 @@ import io.github.temporalrift.workbench.policy.domain.observation.EventView;
 import io.github.temporalrift.workbench.policy.domain.observation.OutcomeView;
 import io.github.temporalrift.workbench.policy.domain.observation.TableRules;
 import io.github.temporalrift.workbench.shared.game.CardType;
+import io.github.temporalrift.workbench.shared.game.Faction;
 
 /**
  * The paradox layer of {@code faction-greedy}: the base recipe with two instrument fixes. In paradox resolution it
@@ -33,22 +35,33 @@ final class ParadoxAwarePolicy implements BotPolicy {
     /** What a commitment on an event is worth to the seat: about one win of its signature bet. */
     static final int COMMITMENT_VALUE = 3;
 
-    static final String DEFINITION = """
-            faction-greedy paradox layer: the base recipe with two fixes
-            paradox resolution, per affected event in canonical order: commitment = an outcome of the event is the \
-            seat's own commitment (base-recipe sense); clear value = commitment ? 3 : 0, plus the table's Stabilize \
-            delta when the seat stabilizes; cascade value = -(commitment ? 3 : 0), plus the table's Detonate delta \
-            when Detonate contests Stabilize, else +|cascade penalty| (the others pay double); play STABILIZE on the \
-            first event whose clear value beats both 0 and its cascade value, else DETONATE on the first event whose \
-            cascade value beats 0, else the base choice with every STABILIZE and DETONATE excluded
-            Tapestry, while it does not absorb the Annihilate: a Thread after an accepted Thread is always wasted; \
-            Reweave is allowed while Tapestry is armed
-            """ + FactionRecipePolicy.DEFINITION;
+    private final FactionRecipePolicy recipe;
+    private final boolean spread;
 
-    private final FactionRecipePolicy recipe = new FactionRecipePolicy();
+    ParadoxAwarePolicy() {
+        this(false);
+    }
+
+    /**
+     * @param spread whether the layer plays as {@code faction-spread}: the recipe avoids the public pending link and a
+     *     seat breaks a leading chain or finishes a collapse by Detonate before the ordinary paradox rule decides
+     */
+    ParadoxAwarePolicy(boolean spread) {
+        this.spread = spread;
+        this.recipe = new FactionRecipePolicy(spread);
+    }
 
     @Override
     public PolicyDecision decide(EntitledObservation observation, Set<Candidate> excluded, PolicyEntropy entropy) {
+        return decide(observation, excluded, Set.of(), entropy);
+    }
+
+    /**
+     * Decides with candidates the caller has set aside without the service refusing them. They are kept apart from
+     * {@code excluded} because the recipe reads an excluded special as refused on its whole event.
+     */
+    PolicyDecision decide(
+            EntitledObservation observation, Set<Candidate> excluded, Set<Candidate> setAside, PolicyEntropy entropy) {
         var rules = observation.tableRules();
         if (observation.window() instanceof DecisionWindow.ParadoxResolution) {
             var reading = BoardReading.of(observation);
@@ -56,7 +69,10 @@ final class ParadoxAwarePolicy implements BotPolicy {
                     .filter(candidate -> !excluded.contains(candidate))
                     .toList();
             var cards = FactionRecipePolicy.cardsById(observation);
-            var chosen = paradoxChoice(observation, available, cards, reading, rules);
+            var chosen = spread ? detonation(observation, available, cards) : Optional.<Candidate>empty();
+            if (chosen.isEmpty()) {
+                chosen = paradoxChoice(observation, available, cards, reading, rules);
+            }
             if (chosen.isPresent()) {
                 return new PolicyDecision.Chosen(chosen.get());
             }
@@ -66,7 +82,70 @@ final class ParadoxAwarePolicy implements BotPolicy {
                     .forEach(withoutParadoxCards::add);
             return recipe.decide(observation, withoutParadoxCards, entropy, FactionRecipePolicy::wasted);
         }
-        return recipe.decide(observation, excluded, entropy, (candidate, reading) -> wasted(candidate, reading, rules));
+        return recipe.decide(
+                observation,
+                excluded,
+                entropy,
+                (candidate, reading) -> setAside.contains(candidate) || wasted(candidate, reading, rules));
+    }
+
+    /**
+     * The Detonate of {@code faction-spread} that no stake in the event explains: a seat other than the Weaver's tears
+     * a Chain Conflict while the public chain is within two links of completing, and a seat that leads the public
+     * scores detonates an open paradox not yet cascaded when one more cascade would collapse the timeline.
+     */
+    private static Optional<Candidate> detonation(
+            EntitledObservation observation, List<Candidate> available, Map<UUID, DealtCard> cards) {
+        return breaksLeadingChain(observation, available, cards)
+                .or(() -> finishesCollapse(observation, available, cards));
+    }
+
+    /** A seat other than the Weaver's tears a Chain Conflict once the public chain is within two links of done. */
+    private static Optional<Candidate> breaksLeadingChain(
+            EntitledObservation observation, List<Candidate> available, Map<UUID, DealtCard> cards) {
+        var board = observation.board();
+        var chain = board.chain();
+        var leading = observation.faction() != Faction.WEAVERS
+                && chain != null
+                && chain.status() == Board.ChainStatus.ACTIVE
+                && chain.confirmedLinks() >= observation.tableRules().chainLength() - 2;
+        if (!leading) {
+            return Optional.empty();
+        }
+        return firstDetonation(
+                board.openParadoxes().stream()
+                        .filter(paradox -> paradox.kind() == Board.ParadoxKind.CHAIN_CONFLICT)
+                        .toList(),
+                available,
+                cards);
+    }
+
+    /** A seat that leads the public scores detonates an uncascaded paradox when one more cascade collapses it. */
+    private static Optional<Candidate> finishesCollapse(
+            EntitledObservation observation, List<Candidate> available, Map<UUID, DealtCard> cards) {
+        var board = observation.board();
+        var scores = board.scores();
+        var oneCascadeFromCollapse = scores != null
+                && scores.leads()
+                && board.cascadedEventIds().size() == observation.tableRules().collapseLimit() - 1;
+        if (!oneCascadeFromCollapse) {
+            return Optional.empty();
+        }
+        return firstDetonation(
+                board.openParadoxes().stream()
+                        .filter(paradox -> !board.cascadedEventIds().contains(paradox.eventId()))
+                        .toList(),
+                available,
+                cards);
+    }
+
+    /** The first available Detonate against one of the paradoxes' events, in paradox order. */
+    private static Optional<Candidate> firstDetonation(
+            List<Board.OpenParadox> paradoxes, List<Candidate> available, Map<UUID, DealtCard> cards) {
+        return paradoxes.stream()
+                .map(paradox -> play(available, cards, paradox.eventId(), CardType.DETONATE))
+                .flatMap(Optional::stream)
+                .findFirst();
     }
 
     private static Optional<Candidate> paradoxChoice(

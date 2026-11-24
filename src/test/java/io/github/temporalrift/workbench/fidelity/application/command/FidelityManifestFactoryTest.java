@@ -62,6 +62,7 @@ class FidelityManifestFactoryTest {
         var catalog = new BaselinePolicyCatalog();
         return catalog.list().stream()
                 .filter(policy -> policy.version().equals(FidelityMatrix.POLICY_VERSION))
+                .filter(policy -> FidelityMatrix.POLICY_IDS.contains(policy.id()))
                 .map(policy -> new FidelityExperiments.Policy(policy.id(), policy.version(), policy.artifactDigest()))
                 .toList();
     }

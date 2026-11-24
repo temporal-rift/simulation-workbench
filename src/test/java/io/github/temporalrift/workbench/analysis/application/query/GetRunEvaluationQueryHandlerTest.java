@@ -54,7 +54,7 @@ class GetRunEvaluationQueryHandlerTest {
         assertThatThrownBy(() -> handler.handle(query))
                 .isInstanceOf(UnknownCriterionTablesException.class)
                 .hasMessageContaining("faction-greedy-v4")
-                .hasMessageContaining("faction-greedy, random");
+                .hasMessageContaining("faction-greedy, faction-spread, random");
     }
 
     @Test

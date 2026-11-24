@@ -491,12 +491,13 @@ class AnalysisIT {
         assertThat(criterion.path("lines").get(0).path("weight").isNull()).isTrue();
         assertThat(criterion.path("lines").get(0).path("interval").asString())
                 .isEqualTo("BLOCK_BOOTSTRAP_UNION_CLOPPER_PEARSON");
-        assertThat(criterion.path("tables")).hasSize(3);
+        assertThat(criterion.path("tables")).hasSize(4);
         assertThat(criterion.path("tables").get(0).path("id").asString()).isEqualTo("faction-greedy");
-        assertThat(criterion.path("tables").get(2).path("id").asString()).isEqualTo("random-seat-vs-faction-greedy");
+        assertThat(criterion.path("tables").get(1).path("id").asString()).isEqualTo("faction-spread");
+        assertThat(criterion.path("tables").get(3).path("id").asString()).isEqualTo("random-seat-vs-faction-greedy");
         assertThat(criterion
                         .path("tables")
-                        .get(2)
+                        .get(3)
                         .path("seats")
                         .get(0)
                         .path("policy")

@@ -156,7 +156,7 @@ class CampaignConfirmationIT {
     }
 
     @Test
-    void aConfirmationOfOneCandidateIs104SeedsAnd17160CasesOverThreeTables() {
+    void aConfirmationOfOneCandidateIs104SeedsAnd22880CasesOverFourTables() {
         var id = searchedCampaign(CRITERION, List.of(3, 4, 5), "c-0000");
 
         var started = handler(realEvaluation).handle(id, UUID.randomUUID());
@@ -164,10 +164,11 @@ class CampaignConfirmationIT {
         assertThat(started.confirmation().seedCount()).isEqualTo(104);
         assertThat(started.confirmation().runs()).singleElement().satisfies(run -> {
             assertThat(run.subject()).isEqualTo("c-0000");
-            assertThat(casesOf(run.runId())).isEqualTo(17_160);
+            assertThat(casesOf(run.runId())).isEqualTo(22_880);
             assertThat(seedsOf(run.runId())).hasSize(104);
             assertThat(tablesOf(run.runId()))
-                    .containsExactlyInAnyOrder("faction-greedy", "random", "random-seat-vs-faction-greedy");
+                    .containsExactlyInAnyOrder(
+                            "faction-greedy", "faction-spread", "random", "random-seat-vs-faction-greedy");
         });
     }
 
