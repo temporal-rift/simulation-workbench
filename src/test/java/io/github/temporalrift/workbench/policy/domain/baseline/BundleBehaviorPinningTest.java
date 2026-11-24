@@ -13,9 +13,9 @@ import io.github.temporalrift.workbench.policy.domain.decision.BotPolicy;
  */
 class BundleBehaviorPinningTest {
 
-    private static final String RANDOM = "f4c74554f2c46eb16f2579aecf9af297337a8253d4336feba16ae8be803e0a70";
-    private static final String FACTION_GREEDY = "1b559d9c75efe2e83897a6ebc79cfb7dc2814b305822cdbb2cac7ae4a9c06317";
-    private static final String FACTION_SPREAD = "72768546a4e6648ee3262ac4cf1112e4798991f9751c9c8e2202a612d1d31628";
+    private static final String RANDOM = "fb6eaf99e7958a0fa0dc259163e92b7f7833d873a930efc59775bb9e0f412c77";
+    private static final String FACTION_GREEDY = "4571e472c5e5f18349d61eb998a260e4481dfa45b97e906acc000404787c544e";
+    private static final String FACTION_SPREAD = "976df303a90bed7d144d5cfb1ee1c0e305be07a03c41ea46957b029537596cd2";
 
     @Test
     void theCorpusKeepsItsSize() {

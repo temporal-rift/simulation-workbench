@@ -27,7 +27,9 @@ import io.github.temporalrift.workbench.policy.domain.observation.TargetShape;
 import io.github.temporalrift.workbench.shared.game.CardGrade;
 import io.github.temporalrift.workbench.shared.game.CardType;
 import io.github.temporalrift.workbench.shared.game.Faction;
+import io.github.temporalrift.workbench.shared.game.SpecialAction;
 import io.github.temporalrift.workbench.shared.text.Sha256;
+import io.github.temporalrift.workbench.shared.window.WindowKind;
 
 /**
  * The fixed observations and seeds every baseline bundle is played over to pin its behavior. A bundle's decisions over
@@ -42,7 +44,7 @@ import io.github.temporalrift.workbench.shared.text.Sha256;
 final class PinnedDecisions {
 
     /** The number of observations in the corpus, so it cannot change without notice. */
-    static final int OBSERVATIONS = 95;
+    static final int OBSERVATIONS = 110;
 
     static final int SEEDS = 16;
 
@@ -83,6 +85,9 @@ final class PinnedDecisions {
                 corpus.add(actionRound(faction, round, chainBoard()));
                 corpus.add(actionRound(faction, round, declaredBoard()));
             }
+            corpus.add(actionRound(faction, 2, historyBoard(0)));
+            corpus.add(actionRound(faction, 3, historyBoard(0)));
+            corpus.add(actionRound(faction, 3, historyBoard(2)));
             corpus.add(paradox(faction, 2, true));
             corpus.add(paradox(faction, 3, true));
             corpus.add(paradox(faction, 2, false));
@@ -138,6 +143,34 @@ final class PinnedDecisions {
                 new Board.PendingLink(EVENT_2, outcome(EVENT_2, 1)),
                 List.of(EVENT_1, EVENT_3));
         return new Board(List.of(), null, List.of(), chain, List.of(), List.of(), null);
+    }
+
+    /**
+     * A seat with a history: its own Thread (on the outcome at {@code threadIndex} of event 1, which ranks high at 0
+     * and low at 2), Foresight, Rewrite and Annihilate already played in round 1, a confirmed chain of two links, and
+     * a round 1 summary in which another seat showed a Probability Shifter card. This reaches the counters, which
+     * need the seat's own past actions.
+     */
+    private static Board historyBoard(int threadIndex) {
+        var own = List.of(
+                special(SpecialAction.THREAD, EVENT_1, outcome(EVENT_1, threadIndex)),
+                special(SpecialAction.FORESIGHT, EVENT_1, outcome(EVENT_1, 0)),
+                special(SpecialAction.REWRITE, EVENT_2, outcome(EVENT_2, 0)),
+                special(SpecialAction.ANNIHILATE, EVENT_3, outcome(EVENT_3, 1)));
+        var summary = new Board.RoundSummary(
+                1,
+                List.of(
+                        new Board.ActionSummary(
+                                OTHER_PLAYER, CardCategory.PROBABILITY_SHIFTER, Board.ActionFamily.CARD, false),
+                        new Board.ActionSummary(
+                                PolicyFixtures.id(0x03), CardCategory.INFORMATION, Board.ActionFamily.CARD, false)));
+        var chain = new Board.ChainView(Board.ChainStatus.ACTIVE, 2, null, List.of(EVENT_1, EVENT_3));
+        return new Board(List.of(), summary, own, chain, List.of(), List.of(), null);
+    }
+
+    private static Board.OwnSubmission special(SpecialAction action, UUID eventId, UUID outcomeId) {
+        return new Board.OwnSubmission(
+                WindowKind.ACTION_ROUND, 1, null, null, action, eventId, outcomeId, null, List.of(), List.of());
     }
 
     /** Another seat's public declaration and a stalled third event. */
