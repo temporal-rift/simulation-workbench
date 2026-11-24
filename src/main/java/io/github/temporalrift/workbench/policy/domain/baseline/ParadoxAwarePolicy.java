@@ -96,34 +96,56 @@ final class ParadoxAwarePolicy implements BotPolicy {
      */
     private static Optional<Candidate> detonation(
             EntitledObservation observation, List<Candidate> available, Map<UUID, DealtCard> cards) {
+        return breaksLeadingChain(observation, available, cards)
+                .or(() -> finishesCollapse(observation, available, cards));
+    }
+
+    /** A seat other than the Weaver's tears a Chain Conflict once the public chain is within two links of done. */
+    private static Optional<Candidate> breaksLeadingChain(
+            EntitledObservation observation, List<Candidate> available, Map<UUID, DealtCard> cards) {
         var board = observation.board();
-        var rules = observation.tableRules();
         var chain = board.chain();
-        if (observation.faction() != Faction.WEAVERS
+        var leading = observation.faction() != Faction.WEAVERS
                 && chain != null
                 && chain.status() == Board.ChainStatus.ACTIVE
-                && chain.confirmedLinks() >= rules.chainLength() - 2) {
-            for (var paradox : board.openParadoxes()) {
-                if (paradox.kind() == Board.ParadoxKind.CHAIN_CONFLICT) {
-                    var detonate = play(available, cards, paradox.eventId(), CardType.DETONATE);
-                    if (detonate.isPresent()) {
-                        return detonate;
-                    }
-                }
-            }
+                && chain.confirmedLinks() >= observation.tableRules().chainLength() - 2;
+        if (!leading) {
+            return Optional.empty();
         }
+        return firstDetonation(
+                board.openParadoxes().stream()
+                        .filter(paradox -> paradox.kind() == Board.ParadoxKind.CHAIN_CONFLICT)
+                        .toList(),
+                available,
+                cards);
+    }
+
+    /** A seat that leads the public scores detonates an uncascaded paradox when one more cascade collapses it. */
+    private static Optional<Candidate> finishesCollapse(
+            EntitledObservation observation, List<Candidate> available, Map<UUID, DealtCard> cards) {
+        var board = observation.board();
         var scores = board.scores();
-        if (scores != null && scores.leads() && board.cascadedEventIds().size() == rules.collapseLimit() - 1) {
-            for (var paradox : board.openParadoxes()) {
-                if (!board.cascadedEventIds().contains(paradox.eventId())) {
-                    var detonate = play(available, cards, paradox.eventId(), CardType.DETONATE);
-                    if (detonate.isPresent()) {
-                        return detonate;
-                    }
-                }
-            }
+        var oneCascadeFromCollapse = scores != null
+                && scores.leads()
+                && board.cascadedEventIds().size() == observation.tableRules().collapseLimit() - 1;
+        if (!oneCascadeFromCollapse) {
+            return Optional.empty();
         }
-        return Optional.empty();
+        return firstDetonation(
+                board.openParadoxes().stream()
+                        .filter(paradox -> !board.cascadedEventIds().contains(paradox.eventId()))
+                        .toList(),
+                available,
+                cards);
+    }
+
+    /** The first available Detonate against one of the paradoxes' events, in paradox order. */
+    private static Optional<Candidate> firstDetonation(
+            List<Board.OpenParadox> paradoxes, List<Candidate> available, Map<UUID, DealtCard> cards) {
+        return paradoxes.stream()
+                .map(paradox -> play(available, cards, paradox.eventId(), CardType.DETONATE))
+                .flatMap(Optional::stream)
+                .findFirst();
     }
 
     private static Optional<Candidate> paradoxChoice(

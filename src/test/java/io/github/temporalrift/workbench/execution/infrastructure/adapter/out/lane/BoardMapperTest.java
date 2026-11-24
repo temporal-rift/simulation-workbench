@@ -26,6 +26,7 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 import io.github.temporalrift.workbench.policy.domain.observation.Band;
 import io.github.temporalrift.workbench.policy.domain.observation.Board;
 import io.github.temporalrift.workbench.policy.domain.observation.DeclarationMode;
+import io.github.temporalrift.workbench.policy.domain.observation.EventView;
 import io.github.temporalrift.workbench.policy.domain.observation.OutcomeView;
 import io.github.temporalrift.workbench.policy.domain.observation.PublicBand;
 import io.github.temporalrift.workbench.shared.window.WindowKind;
@@ -141,6 +142,6 @@ class BoardMapperTest {
                 .events();
 
         assertThat(events.getFirst().stalled()).isTrue();
-        assertThat(events.stream().skip(1)).noneMatch(event -> event.stalled());
+        assertThat(events.stream().skip(1)).noneMatch(EventView::stalled);
     }
 }
