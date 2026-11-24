@@ -26,10 +26,17 @@ observation without table rules reads as the served defaults and compares equal 
 | `faction-greedy` | `faction-greedy` / `1.0.0` | One recipe for every faction: reads the board, skips wasted actions and specials the table reports unavailable, backs its own commitment, does not feed another player's declaration, plays its faction's counter on its trigger, and chooses paradox cards by its stake and the table's costs |
 | `faction-spread` | `faction-spread` / `1.0.0` | `faction-greedy` with its bets spread over the era's events instead of piled on one outcome, and counterplay against a public chain (see below) |
 
-A manifest references a bundle by `id`, `version`, and `artifactDigest`. The digest is the SHA-256 of the
-bundle identity and its canonical definition (for `faction-greedy`, its rules, bonuses and the preference table), so a
-changed preference needs a new bundle version. The baselines accept no parameters. An unknown id/version
-or any parameter yields `INVALID_EXPERIMENT`; a wrong digest yields `MANIFEST_MISMATCH`.
+A manifest references a bundle by `id`, `version`, and `artifactDigest`. The digest is the SHA-256 of the bundle's
+`id`, `version` and behavior revision, a short constant held in `BaselinePolicies`; it never depends on prose, so the
+descriptions above can change without moving it. The baselines accept no parameters. An unknown id/version
+or any parameter yields `INVALID_EXPERIMENT`; a wrong digest yields `MANIFEST_MISMATCH`. A manifest that pins a digest
+an earlier release served is therefore refused until it names the current one, which the policy catalog lists.
+
+**Changing a bot.** Each bundle's decisions over a fixed set of observations and seeds (every faction, every window,
+and the board situations the bots react to) are hashed and recorded in `BundleBehaviorPinningTest`. Any change of what a
+bundle decides fails its test. The fix is to bump the bundle's revision in `BaselinePolicies` and record the new hash in
+the same commit, which gives the bundle a new digest. `faction-greedy` and `faction-spread` share the recipe and the
+paradox layer, so a change there moves both and both revisions are bumped.
 
 Windows covered: seven-to-five hand selection, declaration or decline, action rounds (every card and
 special target shape, or pass), paradox resolution (card or pass; an empty offer passes), and terminal
@@ -65,7 +72,7 @@ rank below ordinary cards and are rarely played.
 - *Play the counter on its trigger:* Tapestry, Reweave and Fulfillment (on a `HIGH` written outcome) at affinity 7,
   Seal at 6, Expose, Mimic and Corrupt at 5, all above ordinary cards.
 
-It has no rule aimed at a faction. A change to any of these rules is a new bundle version, made only for a defect
+It has no rule aimed at a faction. A change to any of these rules is a new behavior revision, made only for a defect
 (a wasted action, an illegal choice, a counter that never fires), never to move a win ratio.
 
 **Paradox choice and Tapestry.** On top of the recipe:
