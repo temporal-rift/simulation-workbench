@@ -2,7 +2,7 @@ package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.la
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.UUID;
 
@@ -22,9 +22,9 @@ class BoardMapperProjectionFactsTest {
     void theConfirmedLinkEventsAndTheCascadedEventsReachTheBoard() {
         var state = ProjectionStates.actionRound(2, 2, List.of());
         var chain = new ChainState(ChainState.StatusEnum.ACTIVE, 2);
-        chain.setConfirmedEventIds(new ArrayList<>(List.of(LINKED, SECOND)));
+        chain.setConfirmedEventIds(new LinkedHashSet<>(List.of(SECOND, LINKED)));
         state.setChain(chain);
-        state.setCascadedEventIds(new ArrayList<>(List.of(CASCADED)));
+        state.setCascadedEventIds(new LinkedHashSet<>(List.of(CASCADED)));
 
         var board = ObservationMapper.owed(SEAT, ProjectionStates.ME, state)
                 .orElseThrow()

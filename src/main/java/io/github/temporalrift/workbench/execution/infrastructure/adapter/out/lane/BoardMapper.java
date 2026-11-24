@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.ActionSummary;
@@ -62,8 +63,13 @@ final class BoardMapper {
                         : state.getPhaseContext().getParadoxes().stream()
                                 .map(BoardMapper::paradox)
                                 .toList(),
-                state.getCascadedEventIds(),
+                ids(state.getCascadedEventIds()),
                 scores(state, playerId));
+    }
+
+    /** A projected id set as a list in id order, so an observation does not depend on set iteration order. */
+    private static List<UUID> ids(Set<UUID> ids) {
+        return ids == null ? List.of() : ids.stream().sorted().toList();
     }
 
     /** The public scores: the seat's own, and every other participant's. */
@@ -167,7 +173,7 @@ final class BoardMapper {
                 Board.ChainStatus.valueOf(chain.getStatus().name()),
                 chain.getLength(),
                 pending,
-                chain.getConfirmedEventIds());
+                ids(chain.getConfirmedEventIds()));
     }
 
     private static Board.OpenParadox paradox(OpenParadox paradox) {
