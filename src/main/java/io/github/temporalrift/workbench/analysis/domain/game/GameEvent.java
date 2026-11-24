@@ -51,8 +51,17 @@ public sealed interface GameEvent {
     /** A seat played an offered reactive card. */
     record ReactiveCardPlayed(int seat, int era, CardKey key) implements GameEvent {}
 
-    /** A seat's special action was played. */
-    record SpecialPlayed(int seat, int era, SpecialAction action) implements GameEvent {}
+    /**
+     * A seat's special action was played.
+     *
+     * @param namesOutcome whether the play named an outcome, which a Foresight needs to place a bet
+     */
+    record SpecialPlayed(int seat, int era, SpecialAction action, boolean namesOutcome) implements GameEvent {
+
+        public SpecialPlayed(int seat, int era, SpecialAction action) {
+            this(seat, era, action, false);
+        }
+    }
 
     /** A seat's accepted special action was rejected when the timeline resolved it. */
     record SpecialRejected(int seat, int era, SpecialAction action) implements GameEvent {}

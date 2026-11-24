@@ -219,7 +219,8 @@ public class RunSourceAdapter implements RunSource {
                         seat -> new GameEvent.SpecialPlayed(
                                 seat,
                                 special.eraNumber(),
-                                SpecialAction.valueOf(special.specialAction().name())));
+                                SpecialAction.valueOf(special.specialAction().name()),
+                                special.targetOutcomeId() != null));
             }
             case TimelineEvents.SPECIAL_REJECTED_EVENT_TYPE -> {
                 var rejected = read(event, SpecialRejectedPayload.class);

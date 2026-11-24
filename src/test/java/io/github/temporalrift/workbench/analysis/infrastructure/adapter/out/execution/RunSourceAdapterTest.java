@@ -136,6 +136,34 @@ class RunSourceAdapterTest {
     }
 
     @Test
+    void anAcceptedSpecialActionRecordsWhetherItNamedAnOutcome() {
+        var events = List.of(
+                event(
+                        "FactionAssigned",
+                        "{\"gameId\":\"%s\",\"playerId\":\"%s\",\"faction\":\"PROPHETS\"}".formatted(GAME, PROPHET)),
+                event(
+                        "SpecialActionPlayed",
+                        ("{\"gameId\":\"%s\",\"eraNumber\":1,\"roundNumber\":1,\"playerId\":\"%s\","
+                                        + "\"faction\":\"PROPHETS\",\"specialAction\":\"FORESIGHT\","
+                                        + "\"targetEventId\":\"%s\",\"targetOutcomeId\":\"%s\"}")
+                                .formatted(GAME, PROPHET, new UUID(0, 7), new UUID(0, 8))),
+                event(
+                        "SpecialActionPlayed",
+                        ("{\"gameId\":\"%s\",\"eraNumber\":2,\"roundNumber\":1,\"playerId\":\"%s\","
+                                        + "\"faction\":\"PROPHETS\",\"specialAction\":\"FORESIGHT\"}")
+                                .formatted(GAME, PROPHET)));
+
+        var gameRecord = adapter(new CaseEvidence(List.of(), events))
+                .countingGame(RUN, adapter(null).cases(RUN).getFirst())
+                .orElseThrow();
+
+        assertThat(gameRecord.events())
+                .containsExactly(
+                        new GameEvent.SpecialPlayed(2, 1, SpecialAction.FORESIGHT, true),
+                        new GameEvent.SpecialPlayed(2, 2, SpecialAction.FORESIGHT, false));
+    }
+
+    @Test
     void aStepOutsideAnActionRoundObservesNoRound() {
         var gameRecord = adapter(new CaseEvidence(
                         List.of(step(

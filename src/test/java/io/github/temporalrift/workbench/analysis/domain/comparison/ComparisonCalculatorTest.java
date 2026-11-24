@@ -255,6 +255,36 @@ class ComparisonCalculatorTest {
         assertThat(winRate.baselineValue()).isEqualTo(reportWinRate.value());
     }
 
+    @Test
+    void aVersion4ComparisonListsTheBetSurvivalMetricsAndVersion3DoesNot() {
+        pair("1", EPW, Set.of(0), Set.of(0));
+        var experiment = experiment(Map.of("seeds", "[1]"));
+        var added = List.of("bets_placed", "bets_scored", "bet_survival_rate", "bet_win_rate_per_era");
+
+        var current = compareUnder(experiment, AnalysisVersion.CURRENT);
+        var previous = compareUnder(experiment, new AnalysisVersion("3", 1L));
+
+        assertThat(differenceNames(current)).containsAll(added);
+        assertThat(differenceNames(current).stream().filter(name -> !added.contains(name)))
+                .containsExactlyElementsOf(differenceNames(previous));
+        assertThat(differenceNames(previous)).doesNotContainAnyElementsOf(added);
+    }
+
+    private ComparisonResult compareUnder(ExperimentDefinition experiment, AnalysisVersion analysis) {
+        return ComparisonCalculator.compare(
+                ComparisonDefinition.define(COMPARISON, BASELINE, experiment, CANDIDATE, experiment, analysis),
+                baselineCases,
+                candidateCases,
+                facts);
+    }
+
+    private static List<String> differenceNames(ComparisonResult result) {
+        return result.cohorts().getFirst().differences().stream()
+                .map(MetricDifference::name)
+                .distinct()
+                .toList();
+    }
+
     private MetricDifference erasersWinRate(ComparisonResult result) {
         return result.cohorts().getFirst().differences().stream()
                 .filter(difference -> difference.name().equals("faction_win_rate")

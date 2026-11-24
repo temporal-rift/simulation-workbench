@@ -115,6 +115,7 @@ public final class FactExtractor {
         }
         var cardRounds = CardRounds.of(seat, gameRecord);
         var scores = SeatScores.of(seat, gameRecord.events());
+        var bets = SeatBets.of(seat, faction, gameRecord.events());
         var won = outcome.winnerSeats().contains(seat);
         return new SeatFacts(
                 seat,
@@ -140,7 +141,10 @@ public final class FactExtractor {
                 won ? outcome.winPaths().get(seat) : null,
                 won ? outcome.eras() : 0,
                 scores.betWins(),
-                scores.betMisses());
+                scores.betMisses(),
+                bets.placed(),
+                bets.scored(),
+                bets.won());
     }
 
     /**

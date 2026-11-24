@@ -8,14 +8,16 @@ import java.util.Set;
  */
 public record AnalysisVersion(String version, long seed) {
 
-    public static final AnalysisVersion CURRENT = new AnalysisVersion("3", 1L);
+    public static final AnalysisVersion CURRENT = new AnalysisVersion("4", 1L);
 
-    private static final Set<String> SUPPORTED = Set.of("1", "2", "3");
+    private static final Set<String> SUPPORTED = Set.of("1", "2", "3", "4");
     private static final int FAILURE_SHARE_SINCE = 2;
     private static final String RESAMPLING_KEY = "1";
     private static final int DIAGNOSTICS_SINCE = 3;
     private static final String FACTS_VERSION = "1";
     private static final String DIAGNOSTIC_FACTS_VERSION = "2";
+    private static final int BET_SURVIVAL_SINCE = 4;
+    private static final String BET_SURVIVAL_FACTS_VERSION = "3";
 
     /** The seed as a decimal unsigned 64-bit string. */
     public String seedText() {
@@ -41,8 +43,16 @@ public record AnalysisVersion(String version, long seed) {
         return Integer.parseInt(version) >= DIAGNOSTICS_SINCE;
     }
 
-    /** The version under which facts are stored: versions that report diagnostics need the facts they derive from. */
+    /** Whether reports of this version carry the bet survival metrics: bets placed, scored and won per faction. */
+    public boolean reportsBetSurvival() {
+        return Integer.parseInt(version) >= BET_SURVIVAL_SINCE;
+    }
+
+    /** The version under which facts are stored: versions that report more need the facts they derive from. */
     public String factsVersion() {
+        if (reportsBetSurvival()) {
+            return BET_SURVIVAL_FACTS_VERSION;
+        }
         return reportsDiagnostics() ? DIAGNOSTIC_FACTS_VERSION : FACTS_VERSION;
     }
 }
