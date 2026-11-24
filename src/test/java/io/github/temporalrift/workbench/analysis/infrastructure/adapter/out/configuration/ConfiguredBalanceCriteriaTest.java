@@ -144,7 +144,7 @@ class ConfiguredBalanceCriteriaTest {
                         .containsExactly(
                                 new CriterionPopulation(GREEDY, GREEDY), new CriterionPopulation(SPREAD, SPREAD));
             } else {
-                assertThat(tables).as(line.id()).doesNotContain(SPREAD);
+                assertThat(tables.contains(SPREAD)).as(line.id()).isFalse();
             }
         }
     }
