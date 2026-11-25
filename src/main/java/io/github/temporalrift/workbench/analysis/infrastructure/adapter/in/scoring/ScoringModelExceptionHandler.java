@@ -4,6 +4,7 @@ import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -27,7 +28,7 @@ class ScoringModelExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ProblemDetail handleConstraint(MethodArgumentNotValidException ex) {
         var error = ex.getBindingResult().getFieldErrors().stream().findFirst();
-        var field = error.map(item -> item.getField()).orElse("body");
+        var field = error.map(FieldError::getField).orElse("body");
         var message = error.map(item -> item.getDefaultMessage()).orElse("The request is invalid");
         return invalid(message, field);
     }

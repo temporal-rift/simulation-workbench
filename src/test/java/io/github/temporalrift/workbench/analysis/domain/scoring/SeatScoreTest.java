@@ -64,10 +64,10 @@ class SeatScoreTest {
         var tenths = new SeatScore(engine(Set.of(), null, 0));
         var other = new SeatScore(engine(Set.of(), null, 0));
         for (var era = 0; era < 10; era++) {
-            tenths.addExtra(SeatScore.units(0.1));
+            tenths.addExtra(SeatScore.toUnits(0.1));
         }
-        other.addExtra(SeatScore.units(0.3));
-        other.addExtra(SeatScore.units(0.7));
+        other.addExtra(SeatScore.toUnits(0.3));
+        other.addExtra(SeatScore.toUnits(0.7));
 
         assertThat(tenths.total()).isEqualTo(SeatScore.UNITS).isEqualTo(other.total());
     }

@@ -21,6 +21,7 @@ final class ScoringModelValidator {
     private static final int MAX_GAMES = 200_000;
     private static final int MIN_PLAYERS = 3;
     private static final int MAX_PLAYERS = 5;
+    private static final String RATES = "rates";
     private static final int MAX_POINTS = 50;
     private static final int MAX_BONUS = 100;
     private static final int MAX_THRESHOLD = 500;
@@ -39,8 +40,7 @@ final class ScoringModelValidator {
 
     static void checkGames(int games) {
         if (games < MIN_GAMES || games > MAX_GAMES) {
-            throw invalid(
-                    "gamesPerPlayerCount", "gamesPerPlayerCount must be between " + MIN_GAMES + " and " + MAX_GAMES);
+            throw invalid("gamesPerPlayerCount", "gamesPerPlayerCount must be " + between(MIN_GAMES, MAX_GAMES));
         }
     }
 
@@ -71,13 +71,11 @@ final class ScoringModelValidator {
         }
         for (var index = 0; index < winPoints.size(); index++) {
             if (winPoints.get(index) < -MAX_POINTS || winPoints.get(index) > MAX_POINTS) {
-                throw invalid(
-                        path + ".winPoints[" + index + "]",
-                        "a win scores between -" + MAX_POINTS + " and " + MAX_POINTS);
+                throw invalid(path + ".winPoints[" + index + "]", "a win scores " + between(-MAX_POINTS, MAX_POINTS));
             }
         }
         if (faction.missPoints() > 0 || faction.missPoints() < -MAX_POINTS) {
-            throw invalid(path + ".missPoints", "missPoints must be between -" + MAX_POINTS + " and 0");
+            throw invalid(path + ".missPoints", "missPoints must be " + between(-MAX_POINTS, 0));
         }
         if (faction.resetOn().contains(BetOutcome.WON)) {
             throw invalid(path + ".resetOn", "a win cannot reset the win run");
@@ -101,7 +99,7 @@ final class ScoringModelValidator {
             var count = counts.get(index);
             var path = "playerCounts[" + index + "]";
             if (count < MIN_PLAYERS || count > MAX_PLAYERS) {
-                throw invalid(path, "a player count must be between " + MIN_PLAYERS + " and " + MAX_PLAYERS);
+                throw invalid(path, "a player count must be " + between(MIN_PLAYERS, MAX_PLAYERS));
             }
             if (!seen.add(count)) {
                 throw invalid(path, "each player count may appear only once");
@@ -125,16 +123,16 @@ final class ScoringModelValidator {
             checkRateValues(path, item);
             var key = Map.entry(item.playerCount(), item.faction());
             if (!wanted.contains(key)) {
-                throw invalid("rates", "the rates match no requested player count and engine faction");
+                throw invalid(RATES, "the rates match no requested player count and engine faction");
             }
             if (!given.add(key)) {
-                throw invalid("rates", "the rates repeat a player count and faction");
+                throw invalid(RATES, "the rates repeat a player count and faction");
             }
         }
         if (given.size() != wanted.size()) {
             var missing = new ArrayList<>(wanted);
             missing.removeAll(given);
-            throw invalid("rates", "missing rates for " + describe(missing));
+            throw invalid(RATES, "missing rates for " + describe(missing));
         }
     }
 
@@ -145,9 +143,13 @@ final class ScoringModelValidator {
         if (item.winRate() + item.missRate() > 1 + RATE_TOLERANCE) {
             throw invalid(path, "winRate + missRate must not exceed 1");
         }
-        if (!(Math.abs(item.extraPointsPerEra()) <= MAX_POINTS)) {
-            throw invalid(path, "extraPointsPerEra must be between -" + MAX_POINTS + " and " + MAX_POINTS);
+        if (Double.isNaN(item.extraPointsPerEra()) || Math.abs(item.extraPointsPerEra()) > MAX_POINTS) {
+            throw invalid(path, "extraPointsPerEra must be " + between(-MAX_POINTS, MAX_POINTS));
         }
+    }
+
+    private static String between(int low, int high) {
+        return "between " + low + " and " + high;
     }
 
     private static boolean inUnit(double rate) {

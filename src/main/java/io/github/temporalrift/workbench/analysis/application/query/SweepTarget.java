@@ -2,7 +2,9 @@ package io.github.temporalrift.workbench.analysis.application.query;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import io.github.temporalrift.workbench.analysis.domain.scoring.BetRates;
@@ -14,13 +16,14 @@ import io.github.temporalrift.workbench.shared.game.Faction;
 /** One value of a scoring model that a sweep can move, named by the path the request uses. */
 final class SweepTarget {
 
-    private static final String FACTION = "(?<faction>[A-Z_]+)";
+    private static final String FACTION_GROUP = "faction";
+    private static final String FACTION_PATH = "factions\\.(?<" + FACTION_GROUP + ">[A-Z_]+)";
     private static final Pattern WIN_THRESHOLD = Pattern.compile("winThreshold");
-    private static final Pattern WIN_POINTS =
-            Pattern.compile("factions\\." + FACTION + "\\.winPoints\\[(?<index>\\d+)]");
-    private static final Pattern MISS_POINTS = Pattern.compile("factions\\." + FACTION + "\\.missPoints");
-    private static final Pattern OBJECTIVE_BONUS = Pattern.compile("factions\\." + FACTION + "\\.objectiveBonus");
-    private static final Pattern WIN_RATE = Pattern.compile("rates\\.(?<count>\\d)\\." + FACTION + "\\.winRate");
+    private static final Pattern WIN_POINTS = Pattern.compile(FACTION_PATH + "\\.winPoints\\[(?<index>\\d+)]");
+    private static final Pattern MISS_POINTS = Pattern.compile(FACTION_PATH + "\\.missPoints");
+    private static final Pattern OBJECTIVE_BONUS = Pattern.compile(FACTION_PATH + "\\.objectiveBonus");
+    private static final Pattern WIN_RATE =
+            Pattern.compile("rates\\.(?<count>\\d)\\.(?<" + FACTION_GROUP + ">[A-Z_]+)\\.winRate");
 
     private final String path;
     private final boolean whole;
@@ -35,95 +38,108 @@ final class SweepTarget {
     /** Resolves a sweep path, or returns {@code null} when it names no sweepable value of the model. */
     static SweepTarget resolve(String path, ScoringModel model) {
         if (WIN_THRESHOLD.matcher(path).matches()) {
-            return new SweepTarget(
-                    path,
-                    true,
-                    (base, delta) -> withEngine(
-                            base,
-                            new ScoringEngine(
-                                    base.engine().winThreshold() + whole(delta),
-                                    base.engine().maxEras(),
-                                    base.engine().factions())));
+            return winThreshold(path);
         }
         var winPoints = WIN_POINTS.matcher(path);
         if (winPoints.matches()) {
-            var faction = faction(winPoints.group("faction"), model);
-            var index = index(winPoints.group("index"));
-            if (faction == null || index < 0 || index >= faction.winPoints().size()) {
-                return null;
-            }
-            return new SweepTarget(
-                    path,
-                    true,
-                    (base, delta) -> withFaction(base, faction.faction(), current -> {
-                        var points = new ArrayList<>(current.winPoints());
-                        points.set(index, points.get(index) + whole(delta));
-                        return new FactionScoring(
-                                current.faction(),
-                                points,
-                                current.missPoints(),
-                                current.resetOn(),
-                                current.objectiveWins(),
-                                current.objectiveBonus());
-                    }));
+            return winPoints(path, winPoints, model);
         }
         var missPoints = MISS_POINTS.matcher(path);
         if (missPoints.matches()) {
-            var faction = faction(missPoints.group("faction"), model);
-            return faction == null
-                    ? null
-                    : new SweepTarget(
-                            path,
-                            true,
-                            (base, delta) -> withFaction(
-                                    base,
-                                    faction.faction(),
-                                    current -> new FactionScoring(
-                                            current.faction(),
-                                            current.winPoints(),
-                                            current.missPoints() + whole(delta),
-                                            current.resetOn(),
-                                            current.objectiveWins(),
-                                            current.objectiveBonus())));
+            return factionValue(
+                    path,
+                    missPoints,
+                    model,
+                    faction -> true,
+                    (current, delta) -> new FactionScoring(
+                            current.faction(),
+                            current.winPoints(),
+                            current.missPoints() + whole(delta),
+                            current.resetOn(),
+                            current.objectiveWins(),
+                            current.objectiveBonus()));
         }
         var bonus = OBJECTIVE_BONUS.matcher(path);
         if (bonus.matches()) {
-            var faction = faction(bonus.group("faction"), model);
-            return faction == null || faction.objectiveWins() == null
-                    ? null
-                    : new SweepTarget(
-                            path,
-                            true,
-                            (base, delta) -> withFaction(
-                                    base,
-                                    faction.faction(),
-                                    current -> new FactionScoring(
-                                            current.faction(),
-                                            current.winPoints(),
-                                            current.missPoints(),
-                                            current.resetOn(),
-                                            current.objectiveWins(),
-                                            current.objectiveBonus() + whole(delta))));
+            return factionValue(
+                    path,
+                    bonus,
+                    model,
+                    faction -> faction.objectiveWins() != null,
+                    (current, delta) -> new FactionScoring(
+                            current.faction(),
+                            current.winPoints(),
+                            current.missPoints(),
+                            current.resetOn(),
+                            current.objectiveWins(),
+                            current.objectiveBonus() + whole(delta)));
         }
         var rate = WIN_RATE.matcher(path);
-        if (rate.matches()) {
-            var target = factionNamed(rate.group("faction"));
-            var count = index(rate.group("count"));
-            if (target == null || count < 0) {
-                return null;
-            }
-            var exists =
-                    model.rates().stream().anyMatch(item -> item.playerCount() == count && item.faction() == target);
-            return exists ? new SweepTarget(path, false, (base, delta) -> withRate(base, count, target, delta)) : null;
+        return rate.matches() ? winRate(path, rate, model) : null;
+    }
+
+    private static SweepTarget winThreshold(String path) {
+        return new SweepTarget(
+                path,
+                true,
+                (base, delta) -> withEngine(
+                        base,
+                        new ScoringEngine(
+                                base.engine().winThreshold() + whole(delta),
+                                base.engine().maxEras(),
+                                base.engine().factions())));
+    }
+
+    private static SweepTarget winPoints(String path, Matcher matcher, ScoringModel model) {
+        var faction = faction(matcher.group(FACTION_GROUP), model);
+        var index = number(matcher.group("index"));
+        if (faction == null || index < 0 || index >= faction.winPoints().size()) {
+            return null;
         }
-        return null;
+        return new SweepTarget(
+                path,
+                true,
+                (base, delta) -> withFaction(base, faction.faction(), current -> {
+                    var points = new ArrayList<>(current.winPoints());
+                    points.set(index, points.get(index) + whole(delta));
+                    return new FactionScoring(
+                            current.faction(),
+                            points,
+                            current.missPoints(),
+                            current.resetOn(),
+                            current.objectiveWins(),
+                            current.objectiveBonus());
+                }));
+    }
+
+    /** A whole-number value of one faction's engine, when the faction exists and the value applies to it. */
+    private static SweepTarget factionValue(
+            String path, Matcher matcher, ScoringModel model, Predicate<FactionScoring> applies, FactionMove change) {
+        var faction = faction(matcher.group(FACTION_GROUP), model);
+        if (faction == null || !applies.test(faction)) {
+            return null;
+        }
+        return new SweepTarget(
+                path,
+                true,
+                (base, delta) -> withFaction(base, faction.faction(), current -> change.apply(current, delta)));
+    }
+
+    private static SweepTarget winRate(String path, Matcher matcher, ScoringModel model) {
+        var target = factionNamed(matcher.group(FACTION_GROUP));
+        var count = number(matcher.group("count"));
+        if (target == null || count < 0) {
+            return null;
+        }
+        var exists = model.rates().stream().anyMatch(item -> item.playerCount() == count && item.faction() == target);
+        return exists ? new SweepTarget(path, false, (base, delta) -> withRate(base, count, target, delta)) : null;
     }
 
     /** Parses a digit run, answering -1 when it does not fit an int. */
-    private static int index(String digits) {
+    private static int number(String digits) {
         try {
             return Integer.parseInt(digits);
-        } catch (NumberFormatException e) {
+        } catch (NumberFormatException _) {
             return -1;
         }
     }
@@ -131,7 +147,7 @@ final class SweepTarget {
     private static Faction factionNamed(String name) {
         try {
             return Faction.valueOf(name);
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException _) {
             return null;
         }
     }
@@ -190,5 +206,10 @@ final class SweepTarget {
     @FunctionalInterface
     private interface Move {
         ScoringModel apply(ScoringModel base, double delta);
+    }
+
+    @FunctionalInterface
+    private interface FactionMove {
+        FactionScoring apply(FactionScoring current, double delta);
     }
 }

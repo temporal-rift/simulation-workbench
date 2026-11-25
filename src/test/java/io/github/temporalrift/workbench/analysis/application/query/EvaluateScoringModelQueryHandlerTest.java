@@ -15,6 +15,7 @@ import io.github.temporalrift.workbench.analysis.domain.scoring.BetRates;
 import io.github.temporalrift.workbench.analysis.domain.scoring.FactionScoring;
 import io.github.temporalrift.workbench.analysis.domain.scoring.InvalidScoringModelException;
 import io.github.temporalrift.workbench.analysis.domain.scoring.ScoringEngine;
+import io.github.temporalrift.workbench.analysis.domain.scoring.Sensitivity;
 import io.github.temporalrift.workbench.shared.game.Faction;
 
 class EvaluateScoringModelQueryHandlerTest {
@@ -49,7 +50,7 @@ class EvaluateScoringModelQueryHandlerTest {
 
         var cells = result.evaluation().cells().size();
         assertThat(result.sensitivity()).hasSize(2 * cells);
-        assertThat(result.sensitivity().stream().map(item -> item.delta()).distinct())
+        assertThat(result.sensitivity().stream().map(Sensitivity::delta).distinct())
                 .containsExactlyInAnyOrder(2.0, -2.0);
     }
 
@@ -128,13 +129,14 @@ class EvaluateScoringModelQueryHandlerTest {
 
     @Test
     void aStepThatLeavesTheAllowedRangeIsRejected() {
-        assertThatThrownBy(() -> handler.handle(query(rates(), List.of(new SweepParameter("winThreshold", 12)))))
+        var thresholdTooFar = query(rates(), List.of(new SweepParameter("winThreshold", 12)));
+        var rateTooFar = query(rates(), List.of(new SweepParameter("rates.3.ERASERS.winRate", 0.6)));
+
+        assertThatThrownBy(() -> handler.handle(thresholdTooFar))
                 .isInstanceOfSatisfying(
                         InvalidScoringModelException.class,
                         e -> assertThat(e.field()).isEqualTo("sweep[0].step"));
-        assertThatThrownBy(() ->
-                        handler.handle(query(rates(), List.of(new SweepParameter("rates.3.ERASERS.winRate", 0.6)))))
-                .isInstanceOf(InvalidScoringModelException.class);
+        assertThatThrownBy(() -> handler.handle(rateTooFar)).isInstanceOf(InvalidScoringModelException.class);
     }
 
     @Test

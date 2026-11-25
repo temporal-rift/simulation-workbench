@@ -102,7 +102,7 @@ public final class ScoringEvaluator {
                         var index = rates.faction().ordinal();
                         winRate[index] = rates.winRate();
                         winOrMissRate[index] = rates.winRate() + rates.missRate();
-                        extra[index] = SeatScore.units(rates.extraPointsPerEra());
+                        extra[index] = SeatScore.toUnits(rates.extraPointsPerEra());
                     });
             this.factionSets = FactionSets.of(List.of(playerCount)).stream()
                     .filter(set -> set.stream().allMatch(faction -> scoring[faction.ordinal()] != null))
@@ -127,7 +127,7 @@ public final class ScoringEvaluator {
                 }
                 qualified = best(scores) >= engine.winThreshold() * SeatScore.UNITS;
             }
-            record(tally, seats, scores, eras, qualified);
+            tallyGame(tally, seats, scores, eras, qualified);
         }
 
         private BetOutcome outcome(double draw, int faction) {
@@ -149,7 +149,7 @@ public final class ScoringEvaluator {
             return best;
         }
 
-        private static void record(long[] tally, Faction[] seats, SeatScore[] scores, int eras, boolean qualified) {
+        private static void tallyGame(long[] tally, Faction[] seats, SeatScore[] scores, int eras, boolean qualified) {
             var best = best(scores);
             var winners = 0;
             for (var score : scores) {

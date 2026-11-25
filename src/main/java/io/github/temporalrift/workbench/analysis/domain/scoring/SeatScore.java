@@ -39,7 +39,7 @@ public final class SeatScore {
     }
 
     /** Resolves a decimal number of points to millionths. */
-    public static long units(double points) {
+    public static long toUnits(double points) {
         return Math.round(points * UNITS);
     }
 
