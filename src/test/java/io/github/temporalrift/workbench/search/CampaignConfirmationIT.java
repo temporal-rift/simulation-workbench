@@ -404,7 +404,7 @@ class CampaignConfirmationIT {
         return new CampaignDefinition(
                 "it confirmation",
                 baseline,
-                1,
+                VariantRulesFixtures.NEWEST_SPACE,
                 criterionVersion,
                 mapper.createArrayNode().add(node),
                 playerCounts,

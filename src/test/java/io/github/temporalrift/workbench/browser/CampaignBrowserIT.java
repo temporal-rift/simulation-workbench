@@ -18,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import tools.jackson.databind.json.JsonMapper;
 
+import io.github.temporalrift.workbench.experiment.VariantRulesFixtures;
 import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignChange;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
@@ -144,7 +145,7 @@ class CampaignBrowserIT extends DesignerBrowserTest {
         var definition = new CampaignDefinition(
                 "browser-search",
                 baseline,
-                1,
+                VariantRulesFixtures.NEWEST_SPACE,
                 1,
                 mapper.createArrayNode().add(policy),
                 List.of(3),
