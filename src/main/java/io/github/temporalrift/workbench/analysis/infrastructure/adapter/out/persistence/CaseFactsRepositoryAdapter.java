@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -124,7 +125,8 @@ public class CaseFactsRepositoryAdapter implements CaseFactsRepository {
             int betMisses,
             int betsPlaced,
             int betsScored,
-            int betsWon) {
+            int betsWon,
+            Set<WinPath> winConditions) {
 
         static SeatDocument of(SeatFacts facts) {
             return new SeatDocument(
@@ -154,7 +156,8 @@ public class CaseFactsRepositoryAdapter implements CaseFactsRepository {
                     facts.betMisses(),
                     facts.betsPlaced(),
                     facts.betsScored(),
-                    facts.betsWon());
+                    facts.betsWon(),
+                    facts.winConditions());
         }
 
         SeatFacts facts() {
@@ -185,7 +188,8 @@ public class CaseFactsRepositoryAdapter implements CaseFactsRepository {
                     betMisses,
                     betsPlaced,
                     betsScored,
-                    betsWon);
+                    betsWon,
+                    winConditions);
         }
 
         private static Map<String, Integer> text(Map<CardKey, Integer> counts) {

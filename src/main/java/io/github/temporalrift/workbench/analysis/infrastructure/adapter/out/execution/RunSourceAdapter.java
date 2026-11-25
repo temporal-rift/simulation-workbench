@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.IntFunction;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import io.github.temporalrift.asyncapi.actionevents.GeneratedChannelContract.ActionRoundStartedPayload;
@@ -111,6 +112,13 @@ public class RunSourceAdapter implements RunSource {
                 paths.put(seat, path);
             }
         });
+        var conditions = new HashMap<Integer, Set<WinPath>>();
+        result.winnerSeats().forEach(seat -> {
+            var listed = result.winConditions().get(seat);
+            if (listed != null) {
+                conditions.put(seat, listed.stream().map(WinPath::valueOf).collect(Collectors.toSet()));
+            }
+        });
         return new CaseOutcome(
                 result.endReason(),
                 Set.copyOf(result.winnerSeats()),
@@ -118,7 +126,8 @@ public class RunSourceAdapter implements RunSource {
                 result.eras(),
                 result.rounds(),
                 result.decisions(),
-                paths);
+                paths,
+                conditions);
     }
 
     private GameRecord gameRecord(AnalyzedCase analyzedCase, CaseEvidence evidence) {

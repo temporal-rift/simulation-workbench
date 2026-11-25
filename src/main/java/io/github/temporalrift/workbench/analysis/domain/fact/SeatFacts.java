@@ -1,8 +1,10 @@
 package io.github.temporalrift.workbench.analysis.domain.fact;
 
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeMap;
 
 import io.github.temporalrift.workbench.analysis.domain.game.CardKey;
@@ -43,7 +45,8 @@ public record SeatFacts(
         int betMisses,
         int betsPlaced,
         int betsScored,
-        int betsWon) {
+        int betsWon,
+        Set<WinPath> winConditions) {
 
     public SeatFacts {
         Objects.requireNonNull(faction, "faction");
@@ -62,6 +65,10 @@ public record SeatFacts(
         declarations = sorted(declarations);
         // Facts stored before the diagnostics existed read them as empty.
         scoreByReason = scoreByReason == null ? Map.of() : sorted(scoreByReason);
+        // Facts stored before the win conditions existed read them as none.
+        winConditions = winConditions == null || winConditions.isEmpty()
+                ? Set.of()
+                : Collections.unmodifiableSet(EnumSet.copyOf(winConditions));
     }
 
     /** Seat facts without the balance diagnostics. */
@@ -112,7 +119,8 @@ public record SeatFacts(
                 0,
                 0,
                 0,
-                0);
+                0,
+                Set.of());
     }
 
     /** Signed points a seat recorded for a score reason in the game. */

@@ -30,7 +30,8 @@ public record Vocabulary(
         Map<Faction, SortedSet<String>> scoreReasons,
         Set<WinPath> winPaths,
         boolean diagnostics,
-        boolean betSurvival) {
+        boolean betSurvival,
+        boolean winConditions) {
 
     /** A vocabulary without the balance diagnostics of analysis version 3. */
     public Vocabulary(
@@ -39,7 +40,17 @@ public record Vocabulary(
             Set<SpecialAction> specials,
             Set<SpecialAction> declarationModes,
             Set<ParadoxType> paradoxTypes) {
-        this(factionsByPlayerCount, cards, specials, declarationModes, paradoxTypes, Map.of(), Set.of(), false, false);
+        this(
+                factionsByPlayerCount,
+                cards,
+                specials,
+                declarationModes,
+                paradoxTypes,
+                Map.of(),
+                Set.of(),
+                false,
+                false,
+                false);
     }
 
     /** The vocabulary of a run analysed without the balance diagnostics. */
@@ -49,16 +60,25 @@ public record Vocabulary(
 
     /** The vocabulary of a run as the analysis version reports it. */
     public static Vocabulary of(Collection<AnalyzedCase> cases, Collection<CaseFacts> facts, AnalysisVersion analysis) {
-        return of(cases, facts, analysis.reportsDiagnostics(), analysis.reportsBetSurvival());
+        return of(
+                cases,
+                facts,
+                analysis.reportsDiagnostics(),
+                analysis.reportsBetSurvival(),
+                analysis.reportsWinConditions());
     }
 
     /** The vocabulary of a run; {@code diagnostics} adds the score reasons and win paths that occur in it. */
     public static Vocabulary of(Collection<AnalyzedCase> cases, Collection<CaseFacts> facts, boolean diagnostics) {
-        return of(cases, facts, diagnostics, false);
+        return of(cases, facts, diagnostics, false, false);
     }
 
     private static Vocabulary of(
-            Collection<AnalyzedCase> cases, Collection<CaseFacts> facts, boolean diagnostics, boolean betSurvival) {
+            Collection<AnalyzedCase> cases,
+            Collection<CaseFacts> facts,
+            boolean diagnostics,
+            boolean betSurvival,
+            boolean winConditions) {
         var factions = new TreeMap<Integer, Set<Faction>>();
         cases.forEach(analyzedCase -> factions.computeIfAbsent(
                         analyzedCase.playerCount(), ignored -> EnumSet.noneOf(Faction.class))
@@ -92,7 +112,17 @@ public record Vocabulary(
                 }
             }
         }
-        return new Vocabulary(factions, cards, specials, modes, paradoxTypes, reasons, paths, diagnostics, betSurvival);
+        return new Vocabulary(
+                factions,
+                cards,
+                specials,
+                modes,
+                paradoxTypes,
+                reasons,
+                paths,
+                diagnostics,
+                betSurvival,
+                winConditions);
     }
 
     /** Merges the values of two vocabularies, as a comparison lists both sides' values. */
@@ -134,7 +164,8 @@ public record Vocabulary(
                 mergedReasons,
                 mergedPaths,
                 diagnostics || other.diagnostics,
-                betSurvival || other.betSurvival);
+                betSurvival || other.betSurvival,
+                winConditions || other.winConditions);
     }
 
     public Set<Faction> factions(int playerCount) {

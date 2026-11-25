@@ -261,13 +261,27 @@ class ComparisonCalculatorTest {
         var experiment = experiment(Map.of("seeds", "[1]"));
         var added = List.of("bets_placed", "bets_scored", "bet_survival_rate", "bet_win_rate_per_era");
 
-        var current = compareUnder(experiment, AnalysisVersion.CURRENT);
+        var current = compareUnder(experiment, new AnalysisVersion("4", 1L));
         var previous = compareUnder(experiment, new AnalysisVersion("3", 1L));
 
         assertThat(differenceNames(current)).containsAll(added);
         assertThat(differenceNames(current).stream().filter(name -> !added.contains(name)))
                 .containsExactlyElementsOf(differenceNames(previous));
         assertThat(differenceNames(previous)).doesNotContainAnyElementsOf(added);
+    }
+
+    @Test
+    void aVersion5ComparisonAddsOnlyTheWinConditionRate() {
+        pair("1", EPW, Set.of(0), Set.of(0));
+        var experiment = experiment(Map.of("seeds", "[1]"));
+
+        var current = compareUnder(experiment, AnalysisVersion.CURRENT);
+        var previous = compareUnder(experiment, new AnalysisVersion("4", 1L));
+
+        assertThat(differenceNames(current)).contains("win_condition_rate");
+        assertThat(differenceNames(previous)).doesNotContain("win_condition_rate");
+        assertThat(differenceNames(current).stream().filter(name -> !name.equals("win_condition_rate")))
+                .containsExactlyElementsOf(differenceNames(previous));
     }
 
     private ComparisonResult compareUnder(ExperimentDefinition experiment, AnalysisVersion analysis) {

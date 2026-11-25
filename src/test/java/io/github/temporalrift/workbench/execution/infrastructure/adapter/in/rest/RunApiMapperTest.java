@@ -107,6 +107,31 @@ class RunApiMapperTest {
     }
 
     @Test
+    void aWinnerReturnsEveryConditionItMet() {
+        var result = new CaseResult(
+                EndReason.WIN_CONDITION_MET,
+                List.of(new Winner(
+                        0,
+                        Faction.PROPHETS,
+                        WinType.SCORE_THRESHOLD,
+                        List.of(WinType.SCORE_THRESHOLD, WinType.FACTION_OBJECTIVE))),
+                List.of(
+                        new FinalScore(0, Faction.PROPHETS, 24),
+                        new FinalScore(1, Faction.WEAVERS, 9),
+                        new FinalScore(2, Faction.ERASERS, 8)),
+                4,
+                10,
+                25,
+                "c".repeat(64));
+
+        var api = RunApiMapper.toApi(caseView(CaseState.SUCCEEDED, result, successfulAttempt()));
+
+        assertThat(api.getResult().getWinners().getFirst().getWinConditions())
+                .extracting(Enum::name)
+                .containsExactly("SCORE_THRESHOLD", "FACTION_OBJECTIVE");
+    }
+
+    @Test
     void aNormalVictoryKeepsItsWinType() {
         var result = new CaseResult(
                 EndReason.WIN_CONDITION_MET,

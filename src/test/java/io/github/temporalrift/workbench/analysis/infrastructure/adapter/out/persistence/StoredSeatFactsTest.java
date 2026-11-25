@@ -3,6 +3,7 @@ package io.github.temporalrift.workbench.analysis.infrastructure.adapter.out.per
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Map;
+import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
@@ -10,6 +11,7 @@ import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
 
 import io.github.temporalrift.workbench.analysis.domain.fact.SeatFacts;
+import io.github.temporalrift.workbench.analysis.domain.game.WinPath;
 import io.github.temporalrift.workbench.analysis.infrastructure.adapter.out.persistence.CaseFactsRepositoryAdapter.SeatDocument;
 import io.github.temporalrift.workbench.shared.game.Faction;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.out.persistence.StoredJson;
@@ -48,7 +50,8 @@ class StoredSeatFactsTest {
                 0,
                 5,
                 3,
-                2);
+                2,
+                Set.of(WinPath.SCORE_THRESHOLD, WinPath.FACTION_OBJECTIVE));
 
         var read =
                 json.read(json.write(SeatDocument.of(seat)), SeatDocument.class).facts();
@@ -68,6 +71,16 @@ class StoredSeatFactsTest {
         assertThat(read.betsPlaced()).isZero();
         assertThat(read.betsScored()).isZero();
         assertThat(read.betsWon()).isZero();
+    }
+
+    @Test
+    void factsStoredBeforeTheWinConditionsReadThemAsNone() {
+        var stored = (ObjectNode) mapper.valueToTree(SeatDocument.of(empty()));
+        stored.remove("winConditions");
+
+        var read = json.read(stored.toString(), SeatDocument.class).facts();
+
+        assertThat(read.winConditions()).isEmpty();
     }
 
     private static SeatFacts empty() {

@@ -144,7 +144,8 @@ public final class FactExtractor {
                 scores.betMisses(),
                 bets.placed(),
                 bets.scored(),
-                bets.won());
+                bets.won(),
+                won ? outcome.winConditions().getOrDefault(seat, Set.of()) : Set.of());
     }
 
     /**

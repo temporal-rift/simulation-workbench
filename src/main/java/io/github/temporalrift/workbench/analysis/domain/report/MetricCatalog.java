@@ -12,6 +12,7 @@ import java.util.function.ToIntFunction;
 import io.github.temporalrift.workbench.analysis.domain.fact.GameFacts;
 import io.github.temporalrift.workbench.analysis.domain.fact.SeatFacts;
 import io.github.temporalrift.workbench.analysis.domain.game.CardKey;
+import io.github.temporalrift.workbench.analysis.domain.game.WinPath;
 import io.github.temporalrift.workbench.analysis.domain.report.MetricDefinition.Measure;
 import io.github.temporalrift.workbench.analysis.domain.report.MetricDefinition.Tally;
 import io.github.temporalrift.workbench.shared.game.EndReason;
@@ -26,6 +27,7 @@ import io.github.temporalrift.workbench.shared.game.SpecialAction;
 public final class MetricCatalog {
 
     private static final double[] QUANTILES = {0.1, 0.5, 0.9};
+    private static final List<WinPath> WIN_CONDITIONS = List.of(WinPath.SCORE_THRESHOLD, WinPath.FACTION_OBJECTIVE);
     private static final String GAMES = "games";
     private static final String FINDINGS_PER_GAME = "findings per game";
     private static final String CARDS_PER_SEAT_GAME = "cards per seat-game";
@@ -55,6 +57,9 @@ public final class MetricCatalog {
         }
         if (vocabulary.betSurvival()) {
             betSurvivalMetrics(definitions, vocabulary.factions(cohort.playerCount()));
+        }
+        if (vocabulary.winConditions()) {
+            winConditionMetrics(definitions, vocabulary.factions(cohort.playerCount()));
         }
         cardMetrics(definitions, vocabulary);
         specialMetrics(definitions, vocabulary);
@@ -216,6 +221,32 @@ public final class MetricCatalog {
                                 of.stream().mapToLong(SeatFacts::betsWon).sum(),
                                 (long) of.size() * facts.game().eras());
                     }));
+        }
+    }
+
+    /**
+     * The win condition metric of analysis version 5: the share of a faction's wins whose winner lists the condition.
+     * A winner that lists no condition (a special ending) stays in the denominator and counts toward none.
+     */
+    private static void winConditionMetrics(List<MetricDefinition> definitions, Iterable<Faction> factions) {
+        for (var faction : factions) {
+            for (var condition : WIN_CONDITIONS) {
+                definitions.add(ratio(
+                        "win_condition_rate",
+                        MetricStatistic.RATE,
+                        Dimensions.of(faction, condition),
+                        "wins",
+                        (facts, seats) -> {
+                            var winners = ofFaction(seats, faction).stream()
+                                    .filter(SeatFacts::won)
+                                    .toList();
+                            return Tally.of(
+                                    winners.stream()
+                                            .filter(seat -> seat.winConditions().contains(condition))
+                                            .count(),
+                                    winners.size());
+                        }));
+            }
         }
     }
 
