@@ -3,7 +3,9 @@ package io.github.temporalrift.workbench.execution.infrastructure.adapter.in.res
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import io.github.temporalrift.workbench.execution.application.port.in.CaseView;
 import io.github.temporalrift.workbench.execution.application.port.in.RunView;
@@ -22,6 +24,7 @@ import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.RunState;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.SeatAssignment;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.TerminalEndReason;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.WinCondition;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Winner;
 
 /** Maps application views to the published {@code simulation-api} representations. */
@@ -115,7 +118,10 @@ final class RunApiMapper {
                         Faction.fromValue(winner.faction().name()),
                         winner.winType() == null
                                 ? null
-                                : Winner.WinTypeEnum.fromValue(winner.winType().name())))
+                                : Winner.WinTypeEnum.fromValue(winner.winType().name()),
+                        winner.winConditions().stream()
+                                .map(condition -> WinCondition.fromValue(condition.name()))
+                                .collect(Collectors.toCollection(LinkedHashSet::new))))
                 .toList();
         List<FinalScore> scores = result.finalScores().stream()
                 .map(score -> new FinalScore(

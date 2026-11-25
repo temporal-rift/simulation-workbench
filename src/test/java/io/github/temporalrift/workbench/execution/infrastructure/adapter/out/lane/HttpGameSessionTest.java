@@ -60,6 +60,7 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.GameWinner;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.Phase;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.PlayerGameStateResponse;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.WinCondition;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.scoring.ScoringApi;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.scoring.model.PlayerScore;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.scoring.model.ScoresResponse;
@@ -561,6 +562,48 @@ class HttpGameSessionTest {
         assertThat(ending.finalScores())
                 .extracting(score -> score.seatIndex() + ":" + score.faction() + ":" + score.score())
                 .containsExactly("0:ERASERS:30", "1:PROPHETS:20", "2:WEAVERS:10");
+    }
+
+    @Test
+    void aWinnerCarriesEveryConditionTheProjectionLists() {
+        endGame(GameResult.EndReasonEnum.WIN_CONDITION_MET, List.of(0), 3, 30, 20, 10);
+        states.values()
+                .forEach(state -> state.getResult()
+                        .getWinners()
+                        .getFirst()
+                        .setWinConditions(new java.util.LinkedHashSet<>(
+                                List.of(WinCondition.SCORE_THRESHOLD, WinCondition.FACTION_OBJECTIVE))));
+        when(scoring.getScores(GAME)).thenReturn(ResponseEntity.ok(scores(30, 20, 10)));
+
+        var ending = session.ending().orElseThrow();
+
+        assertThat(ending.winners().getFirst().winConditions())
+                .containsExactly(WinType.SCORE_THRESHOLD, WinType.FACTION_OBJECTIVE);
+    }
+
+    @Test
+    void aProjectionWithoutTheListFallsBackToTheWinType() {
+        endGame(GameResult.EndReasonEnum.WIN_CONDITION_MET, List.of(0), 3, 30, 20, 10);
+        states.values()
+                .forEach(state ->
+                        state.getResult().getWinners().getFirst().setWinType(GameWinner.WinTypeEnum.FACTION_OBJECTIVE));
+        when(scoring.getScores(GAME)).thenReturn(ResponseEntity.ok(scores(30, 20, 10)));
+
+        var ending = session.ending().orElseThrow();
+
+        assertThat(ending.winners().getFirst().winConditions()).containsExactly(WinType.FACTION_OBJECTIVE);
+    }
+
+    @Test
+    void aSpecialEndingWinnerHasNoConditions() {
+        endGame(GameResult.EndReasonEnum.TIMELINE_STABILIZED, List.of(0, 1), 3, 30, 20, 10);
+        states.values().forEach(state -> state.getResult().getWinners().forEach(w -> w.setWinType(null)));
+        when(scoring.getScores(GAME)).thenReturn(ResponseEntity.ok(scores(30, 20, 10)));
+
+        var ending = session.ending().orElseThrow();
+
+        assertThat(ending.winners())
+                .allSatisfy(winner -> assertThat(winner.winConditions()).isEmpty());
     }
 
     @Test

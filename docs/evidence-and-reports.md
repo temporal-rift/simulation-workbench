@@ -108,11 +108,11 @@ workbench:
 `GET /api/v1/runs/{runId}/report` (`simulation:read`) returns a run's report as JSON, or as CSV with
 `Accept: text/csv`. `POST /api/v1/comparisons` (`simulation:write`, `Idempotency-Key`) compares two variants, of one
 run or of two runs, and `GET /api/v1/comparisons/{comparisonId}` reads the comparison as JSON or CSV. Every number
-is computed by analysis version `4` with analysis seed `1` (a comparison keeps the version it was created under); both
+is computed by analysis version `5` with analysis seed `1` (a comparison keeps the version it was created under); both
 are on every report, comparison, and CSV row, and the same version, seed, and case results always produce
 byte-identical documents. Analysis version `2` is version `1` plus the `failure_share` metric, version `3` is
-version `2` plus the balance diagnostics below, and version `4` is version `3` plus the bet survival metrics below:
-every earlier metric keeps its value and interval.
+version `2` plus the balance diagnostics below, version `4` is version `3` plus the bet survival metrics below, and
+version `5` is version `4` plus the win condition metric below: every earlier metric keeps its value and interval.
 
 ### Populations
 
@@ -311,6 +311,22 @@ layouts (report format version `4`, comparison format version `3`) and carry the
 
 Facts for version `4` are stored under facts version `3`; versions `1` and `2` keep reading facts version `1` and
 version `3` keeps reading facts version `2`, so reports and comparisons made under an earlier version are unchanged.
+
+### Wins by every condition met (analysis version 5)
+
+`win_path_rate` reads one path per winner, so a winner that reached the score threshold and met its objective at once
+is counted as `SCORE_THRESHOLD` only. Each winner of a case result now lists every condition it met (from the game's
+projection; when the game lists none, `[winType]` for a score or objective win and nothing otherwise). Version `5` adds:
+
+- `win_condition_rate` (statistic `RATE`, unit wins; dimensions `faction` and `win_path`, which carries the
+  condition): the share of the faction's wins whose winner lists `SCORE_THRESHOLD` or `FACTION_OBJECTIVE`. A winner
+  counts once toward each condition it lists, so a faction's two shares may sum to more than 1. A winner that lists no
+  condition (a special ending) stays in the denominator and counts toward neither.
+
+`win_path_rate` keeps its definition. The CSV exports keep their layouts and carry the metric as extra rows. Facts for
+version `5` are stored under facts version `4`; earlier versions keep reading what they read, so reports and
+comparisons made under them are unchanged. A case result stored before winners listed their conditions reads them
+through the same fallback.
 
 ### Exports
 

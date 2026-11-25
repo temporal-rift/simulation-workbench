@@ -30,7 +30,7 @@ class ReportBetSurvivalTest {
     void version4CountsBetsPlacedScoredAndWonPerFaction() {
         run.played("1", SEATS, Set.of(0), Map.of(0, WinPath.FACTION_OBJECTIVE), 5, events());
 
-        var pooled = pooled(AnalysisVersion.CURRENT);
+        var pooled = pooled(new AnalysisVersion("4", 1L));
 
         assertThat(value(pooled, "bets_placed", Faction.REVISIONISTS)).isEqualTo(5.0);
         assertThat(value(pooled, "bets_scored", Faction.REVISIONISTS)).isEqualTo(3.0);
@@ -49,7 +49,7 @@ class ReportBetSurvivalTest {
     void version4KeepsEveryVersion3Metric() {
         run.played("1", SEATS, Set.of(0), Map.of(0, WinPath.FACTION_OBJECTIVE), 5, events());
 
-        var current = pooled(AnalysisVersion.CURRENT);
+        var current = pooled(new AnalysisVersion("4", 1L));
         var previous = pooled(new AnalysisVersion("3", 1L));
 
         var added = List.of("bets_placed", "bets_scored", "bet_survival_rate", "bet_win_rate_per_era");

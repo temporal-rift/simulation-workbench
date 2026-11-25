@@ -115,6 +115,27 @@ public final class SyntheticRun {
         return this;
     }
 
+    /** A game whose winners also list every condition they met, by seat. */
+    public SyntheticRun played(
+            String seed,
+            List<Faction> seats,
+            Set<Integer> winners,
+            Map<Integer, WinPath> winPaths,
+            Map<Integer, Set<WinPath>> winConditions,
+            int eras) {
+        var scores = new ArrayList<Integer>();
+        seats.forEach(seat -> scores.add(10));
+        var outcome = new CaseOutcome(
+                EndReason.WIN_CONDITION_MET, winners, scores, eras, eras * 3, eras * 9, winPaths, winConditions);
+        var analyzed = analyzed(seed, seats, CaseState.SUCCEEDED, outcome, null);
+        cases.add(analyzed);
+        facts.put(
+                analyzed.caseId(),
+                FactExtractor.extract(
+                        analyzed.caseId(), seats, outcome, new GameRecord(List.of(), List.of(), List.of())));
+        return this;
+    }
+
     /** A normal victory in era 4. */
     public SyntheticRun win(String seed, List<Faction> seats, int winnerSeat) {
         return game(seed, seats, EndReason.WIN_CONDITION_MET, Set.of(winnerSeat), 4);

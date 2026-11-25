@@ -31,6 +31,7 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.model.ClockAdvance;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.control.model.ExecutionCheckpoint;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.GameResult;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.GameWinner;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.Phase;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.PlayerGameStateResponse;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.scoring.ScoringApi;
@@ -371,9 +372,23 @@ public class HttpGameSession implements GameSession {
                             planned,
                             winner.getWinType() == null
                                     ? null
-                                    : WinType.valueOf(winner.getWinType().name()));
+                                    : WinType.valueOf(winner.getWinType().name()),
+                            winConditions(winner));
                 })
                 .sorted(Comparator.comparingInt(Winner::seatIndex))
+                .toList();
+    }
+
+    /**
+     * The conditions the projection lists, or null when it lists none and the win type decides. The contract requires
+     * at least one condition when the list is present, so an empty set means the projection did not send it.
+     */
+    private static List<WinType> winConditions(GameWinner winner) {
+        if (winner.getWinConditions() == null || winner.getWinConditions().isEmpty()) {
+            return null;
+        }
+        return winner.getWinConditions().stream()
+                .map(condition -> WinType.valueOf(condition.name()))
                 .toList();
     }
 
@@ -386,7 +401,8 @@ public class HttpGameSession implements GameSession {
     /** Each winner with its revealed faction and win type, so seats must agree on all three. */
     private static Set<String> winnerFacts(GameResult result) {
         return result.getWinners().stream()
-                .map(winner -> winner.getPlayerId() + "|" + winner.getFaction() + "|" + winner.getWinType())
+                .map(winner -> winner.getPlayerId() + "|" + winner.getFaction() + "|" + winner.getWinType() + "|"
+                        + winner.getWinConditions())
                 .collect(Collectors.toSet());
     }
 

@@ -8,9 +8,9 @@ import java.util.Set;
  */
 public record AnalysisVersion(String version, long seed) {
 
-    public static final AnalysisVersion CURRENT = new AnalysisVersion("4", 1L);
+    public static final AnalysisVersion CURRENT = new AnalysisVersion("5", 1L);
 
-    private static final Set<String> SUPPORTED = Set.of("1", "2", "3", "4");
+    private static final Set<String> SUPPORTED = Set.of("1", "2", "3", "4", "5");
     private static final int FAILURE_SHARE_SINCE = 2;
     private static final String RESAMPLING_KEY = "1";
     private static final int DIAGNOSTICS_SINCE = 3;
@@ -18,6 +18,8 @@ public record AnalysisVersion(String version, long seed) {
     private static final String DIAGNOSTIC_FACTS_VERSION = "2";
     private static final int BET_SURVIVAL_SINCE = 4;
     private static final String BET_SURVIVAL_FACTS_VERSION = "3";
+    private static final int WIN_CONDITIONS_SINCE = 5;
+    private static final String WIN_CONDITIONS_FACTS_VERSION = "4";
 
     /** The seed as a decimal unsigned 64-bit string. */
     public String seedText() {
@@ -48,8 +50,16 @@ public record AnalysisVersion(String version, long seed) {
         return Integer.parseInt(version) >= BET_SURVIVAL_SINCE;
     }
 
+    /** Whether reports of this version carry {@code win_condition_rate}: wins by every condition the winner met. */
+    public boolean reportsWinConditions() {
+        return Integer.parseInt(version) >= WIN_CONDITIONS_SINCE;
+    }
+
     /** The version under which facts are stored: versions that report more need the facts they derive from. */
     public String factsVersion() {
+        if (reportsWinConditions()) {
+            return WIN_CONDITIONS_FACTS_VERSION;
+        }
         if (reportsBetSurvival()) {
             return BET_SURVIVAL_FACTS_VERSION;
         }

@@ -257,12 +257,14 @@ class FactExtractorTest {
                 0,
                 0,
                 0,
-                0);
+                0,
+                null);
 
         assertThat(seat.scoreByReason()).isEmpty();
         assertThat(seat.winPath()).isNull();
         assertThat(seat.resolvedBets()).isZero();
         assertThat(seat.betsPlaced()).isZero();
+        assertThat(seat.winConditions()).isEmpty();
     }
 
     @Test
