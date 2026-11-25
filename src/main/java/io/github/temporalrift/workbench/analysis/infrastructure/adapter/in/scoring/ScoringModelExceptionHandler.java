@@ -9,6 +9,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import io.github.temporalrift.workbench.analysis.domain.AnalysisResourceNotFoundException;
 import io.github.temporalrift.workbench.analysis.domain.scoring.InvalidScoringModelException;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.ProblemDetails;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.RestAdviceOrder;
@@ -23,6 +24,11 @@ class ScoringModelExceptionHandler {
     @ExceptionHandler(InvalidScoringModelException.class)
     ProblemDetail handleInvalid(InvalidScoringModelException ex) {
         return invalid(ex.getMessage(), ex.field());
+    }
+
+    @ExceptionHandler(AnalysisResourceNotFoundException.class)
+    ProblemDetail handleNotFound(AnalysisResourceNotFoundException ex) {
+        return ProblemDetails.of(HttpStatus.NOT_FOUND, ex.getMessage(), "RESOURCE_NOT_FOUND");
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

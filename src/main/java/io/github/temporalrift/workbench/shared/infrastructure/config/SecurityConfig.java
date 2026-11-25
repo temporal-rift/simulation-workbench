@@ -44,7 +44,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/api/v1/campaigns/*/parallelism")
                         .hasAuthority(WRITE_SCOPE)
                         .requestMatchers(
-                                HttpMethod.POST, "/api/v1/variant-rules-previews", "/api/v1/scoring-models/evaluations")
+                                HttpMethod.POST,
+                                "/api/v1/variant-rules-previews",
+                                "/api/v1/scoring-models/evaluations",
+                                "/api/v1/runs/*/rescorings")
                         .hasAuthority(READ_SCOPE)
                         .requestMatchers(HttpMethod.POST, "/api/v1/experiments/*/runs")
                         .hasAuthority(WRITE_SCOPE)

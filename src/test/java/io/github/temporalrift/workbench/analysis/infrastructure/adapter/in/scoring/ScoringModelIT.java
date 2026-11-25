@@ -172,4 +172,43 @@ class ScoringModelIT {
     void aCallWithoutTheReadScopeIsForbidden() throws Exception {
         send(request(), "SCOPE_simulation:other").andExpect(status().isForbidden());
     }
+
+    private ResultActions rescore(String runId, ObjectNode body, String scope) throws Exception {
+        return mockMvc.perform(post("/api/v1/runs/" + runId + "/rescorings")
+                .with(jwt().authorities(new SimpleGrantedAuthority(scope)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(body)));
+    }
+
+    private ObjectNode rescoring() {
+        var body = objectMapper.createObjectNode();
+        body.set("engine", request().get("engine"));
+        body.put("variantLabel", "baseline");
+        body.put("tableId", "table-1");
+        return body;
+    }
+
+    @Test
+    void rescoringAnUnknownRunIsNotFound() throws Exception {
+        rescore("00000000-0000-0000-0000-0000000000aa", rescoring(), "SCOPE_simulation:read")
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
+    }
+
+    @Test
+    void rescoringWithoutTheReadScopeIsForbidden() throws Exception {
+        rescore("00000000-0000-0000-0000-0000000000aa", rescoring(), "SCOPE_simulation:other")
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void rescoringWithAnEmptyWinPointsListIsRefusedNamingIt() throws Exception {
+        var body = rescoring();
+        ((ObjectNode) body.get("engine").get("factions").get(1)).putArray("winPoints");
+
+        rescore("00000000-0000-0000-0000-0000000000aa", body, "SCOPE_simulation:read")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.field").value("engine.factions[1].winPoints"));
+    }
 }
