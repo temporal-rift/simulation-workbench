@@ -41,7 +41,7 @@ class VariantRulesIT {
 
     private JsonNode preview(String overridesJson) throws Exception {
         var request = "{\"rulesArtifact\": {\"digest\": \"" + VariantRulesFixtures.ARTIFACT_DIGEST
-                + "\"}, \"parameterSpaceVersion\": 1, \"overrides\": " + overridesJson + "}";
+                + "\"}, \"parameterSpaceVersion\": 2, \"overrides\": " + overridesJson + "}";
         var response = mockMvc.perform(post("/api/v1/variant-rules-previews")
                         .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:read")))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -82,11 +82,11 @@ class VariantRulesIT {
     }
 
     @Test
-    void parameterSpaceOneIsServedWithItsParametersConstraintsAndHeldFixedList() throws Exception {
-        mockMvc.perform(get("/api/v1/parameter-spaces/1")
+    void theParameterSpaceIsServedWithItsParametersConstraintsAndHeldFixedList() throws Exception {
+        mockMvc.perform(get("/api/v1/parameter-spaces/2")
                         .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:read"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.version").value(1))
+                .andExpect(jsonPath("$.version").value(2))
                 .andExpect(jsonPath("$.parameters.length()").value(74))
                 .andExpect(jsonPath("$.parameters[0].type").value("NUMBER"))
                 .andExpect(jsonPath("$.parameters[0].key").value(THRESHOLD))
@@ -105,12 +105,13 @@ class VariantRulesIT {
         mockMvc.perform(get("/api/v1/parameter-spaces")
                         .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:read"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items[0].version").value(1));
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].version").value(2));
     }
 
     @Test
     void anUnservedParameterSpaceIsNotFound() throws Exception {
-        mockMvc.perform(get("/api/v1/parameter-spaces/99")
+        mockMvc.perform(get("/api/v1/parameter-spaces/1")
                         .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:read"))))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
@@ -144,7 +145,7 @@ class VariantRulesIT {
                         .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:read")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"rulesArtifact\": {\"digest\": \"" + VariantRulesFixtures.ARTIFACT_DIGEST
-                                + "\"}, \"parameterSpaceVersion\": 1, \"overrides\": {\"" + THRESHOLD + "\": 27}}"))
+                                + "\"}, \"parameterSpaceVersion\": 2, \"overrides\": {\"" + THRESHOLD + "\": 27}}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
                 .andExpect(jsonPath("$.reason").value("OUT_OF_RANGE"))
@@ -157,7 +158,7 @@ class VariantRulesIT {
                         .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:read")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"rulesArtifact\": {\"digest\": \"" + VariantRulesFixtures.ARTIFACT_DIGEST
-                                + "\"}, \"parameterSpaceVersion\": 1,"
+                                + "\"}, \"parameterSpaceVersion\": 2,"
                                 + " \"overrides\": {\"game.rules.card-category-weights.PARADOX\": 20}}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.reason").value("CONSTRAINT_VIOLATED"))
@@ -244,7 +245,7 @@ class VariantRulesIT {
                         .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:read")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"rulesArtifact\": {\"digest\": \"" + VariantRulesFixtures.ARTIFACT_DIGEST
-                                + "\"}, \"parameterSpaceVersion\": 1, \"overrides\": {\"" + THRESHOLD + "\": true}}"))
+                                + "\"}, \"parameterSpaceVersion\": 2, \"overrides\": {\"" + THRESHOLD + "\": true}}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
                 .andExpect(jsonPath("$.reason").value("WRONG_TYPE"))
@@ -275,15 +276,23 @@ class VariantRulesIT {
                 .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:read")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"rulesArtifact\": {\"digest\": \"" + VariantRulesFixtures.ARTIFACT_DIGEST
-                        + "\"}, \"parameterSpaceVersion\": 1, \"overrides\": " + overridesJson + "}"));
+                        + "\"}, \"parameterSpaceVersion\": 2, \"overrides\": " + overridesJson + "}"));
     }
 
     @Test
-    void parameterSpaceTwoServesTheBalanceRulesBesideEverySpaceOneParameter() throws Exception {
-        mockMvc.perform(get("/api/v1/parameter-spaces/1")
+    void parameterSpaceTwoServesTheBetWindowInPlaceOfTheRewriteWindowAndAThreadShiftFromZero() throws Exception {
+        mockMvc.perform(get("/api/v1/parameter-spaces/2")
                         .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:read"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.version").value(1))
+                .andExpect(jsonPath("$.version").value(2))
+                .andExpect(jsonPath("$.parameters[?(@.key=='game.rules.faction-bet-latest-round')].baseline")
+                        .value(2))
+                .andExpect(jsonPath("$.parameters[?(@.key=='game.rules.rewrite-latest-round')]")
+                        .isEmpty())
+                .andExpect(jsonPath("$.parameters[?(@.key=='game.rules.probability.thread-shift')].min")
+                        .value(0))
+                .andExpect(jsonPath("$.parameters[?(@.key=='game.rules.probability.thread-shift')].baseline")
+                        .value(0))
                 .andExpect(jsonPath("$.parameters.length()").value(74))
                 .andExpect(jsonPath("$.parameters[?(@.key=='" + EARLIEST_ROUND + "')].type")
                         .value("NUMBER"))

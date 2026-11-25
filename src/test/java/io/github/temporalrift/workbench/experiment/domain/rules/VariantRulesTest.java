@@ -45,7 +45,7 @@ class VariantRulesTest {
                 .forEach(e -> overrides.put(e.getKey(), ParameterValue.of(e.getValue())));
         return overrides.isEmpty()
                 ? baseline.digest()
-                : rules.preview(VariantRulesFixtures.ARTIFACT_DIGEST, 1, overrides)
+                : rules.preview(VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.SPACE_VERSION, overrides)
                         .digest();
     }
 
@@ -69,7 +69,8 @@ class VariantRulesTest {
         var overrides = variantAt(frozen, 1).get("overrides");
         assertThat(overrides.propertyNames()).containsExactly(PUSH_II, THRESHOLD);
         assertThat(overrides).hasToString("{\"" + PUSH_II + "\":25,\"" + THRESHOLD + "\":22}");
-        assertThat(variantAt(frozen, 1).get("parameterSpaceVersion").asInt()).isEqualTo(1);
+        assertThat(variantAt(frozen, 1).get("parameterSpaceVersion").asInt())
+                .isEqualTo(VariantRulesFixtures.SPACE_VERSION);
     }
 
     @Test
@@ -197,7 +198,8 @@ class VariantRulesTest {
     void aPreviewIsARefusalOfTheRequestNotOfAnExperiment() {
         var overrides = Map.of(THRESHOLD, ParameterValue.of(new BigDecimal("27")));
 
-        assertThatThrownBy(() -> rules.preview(VariantRulesFixtures.ARTIFACT_DIGEST, 1, overrides))
+        assertThatThrownBy(() -> rules.preview(
+                        VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.SPACE_VERSION, overrides))
                 .isInstanceOfSatisfying(ExperimentValidationException.class, e -> {
                     assertThat(e.code()).isEqualTo(ExperimentErrorCode.INVALID_REQUEST);
                     assertThat(e.field()).contains("overrides." + THRESHOLD);
@@ -206,7 +208,7 @@ class VariantRulesTest {
 
     @Test
     void theAxesTypeEachParameterAndCarryTheBaselineValue() {
-        var axes = rules.axes(VariantRulesFixtures.ARTIFACT_DIGEST, 1);
+        var axes = rules.axes(VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.SPACE_VERSION);
 
         assertThat(axes)
                 .hasSize(VariantRulesFixtures.spaces()
@@ -236,15 +238,17 @@ class VariantRulesTest {
         var old = new BaselineRulesCatalog.Baseline(document.toString(), EffectiveRules.parse(document));
         var oldRules = new VariantRules(VariantRulesFixtures.spaces(), VariantRulesFixtures.catalogOf(old));
 
-        assertThat(oldRules.baselineGaps(1)).singleElement().satisfies(gap -> {
-            assertThat(gap.scope()).isEqualTo(VariantRulesFixtures.SCOPE);
-            assertThat(gap.missing())
-                    .containsExactly(
-                            "number game.rules.annihilate-earliest-round",
-                            "boolean game.rules.probability.erased-weight-to-written-outcome",
-                            "boolean game.rules.scoring.written-outcome-shields-annihilation");
-        });
-        assertThat(rules.baselineGaps(1)).isEmpty();
+        assertThat(oldRules.baselineGaps(VariantRulesFixtures.SPACE_VERSION))
+                .singleElement()
+                .satisfies(gap -> {
+                    assertThat(gap.scope()).isEqualTo(VariantRulesFixtures.SCOPE);
+                    assertThat(gap.missing())
+                            .containsExactly(
+                                    "number game.rules.annihilate-earliest-round",
+                                    "boolean game.rules.probability.erased-weight-to-written-outcome",
+                                    "boolean game.rules.scoring.written-outcome-shields-annihilation");
+                });
+        assertThat(rules.baselineGaps(VariantRulesFixtures.SPACE_VERSION)).isEmpty();
         assertThat(rules.baselineGaps(99)).isEmpty();
     }
 
@@ -252,12 +256,16 @@ class VariantRulesTest {
     void aPreviewOfABooleanOverrideAppliesItAndRefusesANumberForIt() {
         var key = "game.rules.scoring.written-outcome-shields-annihilation";
 
-        var preview = rules.preview(VariantRulesFixtures.ARTIFACT_DIGEST, 1, Map.of(key, ParameterValue.of(false)));
+        var preview = rules.preview(
+                VariantRulesFixtures.ARTIFACT_DIGEST,
+                VariantRulesFixtures.SPACE_VERSION,
+                Map.of(key, ParameterValue.of(false)));
         var refused = Map.of(key, ParameterValue.of(BigDecimal.ONE));
 
         assertThat(preview.rules().flag(key)).contains(false);
         assertThat(preview.overrides()).containsExactly(Map.entry(key, ParameterValue.of(false)));
-        assertThatThrownBy(() -> rules.preview(VariantRulesFixtures.ARTIFACT_DIGEST, 1, refused))
+        assertThatThrownBy(() -> rules.preview(
+                        VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.SPACE_VERSION, refused))
                 .isInstanceOfSatisfying(ExperimentValidationException.class, e -> {
                     assertThat(e.reason()).contains(VariantRulesReason.WRONG_TYPE);
                     assertThat(e.field()).contains("overrides." + key);
@@ -267,7 +275,9 @@ class VariantRulesTest {
     @Test
     void aPreviewOfAnUnknownBaselineNamesTheArtifact() {
         assertThatThrownBy(() -> rules.preview(
-                        UUID.randomUUID().toString().replace("-", "").repeat(2), 1, Map.of()))
+                        UUID.randomUUID().toString().replace("-", "").repeat(2),
+                        VariantRulesFixtures.SPACE_VERSION,
+                        Map.of()))
                 .isInstanceOfSatisfying(ExperimentValidationException.class, e -> {
                     assertThat(e.reason()).contains(VariantRulesReason.UNKNOWN_BASELINE);
                     assertThat(e.field()).contains("rulesArtifact.digest");
@@ -276,9 +286,49 @@ class VariantRulesTest {
 
     @Test
     void aPreviewWithoutOverridesIsTheBaseline() {
-        var preview = rules.preview(VariantRulesFixtures.ARTIFACT_DIGEST, 1, Map.of());
+        var preview = rules.preview(VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.SPACE_VERSION, Map.of());
 
         assertThat(preview.digest()).isEqualTo(baseline.digest());
         assertThat(preview.overrides()).isEmpty();
+    }
+
+    @Test
+    void aFactionBetWindowOfThreeWithAThreadShiftOfTenIsValidOnTheNewestSpace() {
+        var preview = rules.preview(
+                VariantRulesFixtures.ARTIFACT_DIGEST,
+                VariantRulesFixtures.SPACE_VERSION,
+                Map.of(
+                        "game.rules.faction-bet-latest-round", ParameterValue.of(new BigDecimal("3")),
+                        "game.rules.probability.thread-shift", ParameterValue.of(new BigDecimal("10"))));
+
+        assertThat(preview.rules().number("game.rules.faction-bet-latest-round"))
+                .hasValueSatisfying(value -> assertThat(value).isEqualByComparingTo("3"));
+        assertThat(preview.rules().number("game.rules.probability.thread-shift"))
+                .hasValueSatisfying(value -> assertThat(value).isEqualByComparingTo("10"));
+    }
+
+    @Test
+    void theRetiredRewriteWindowIsRefusedOnTheNewestSpaceNamingItsKey() {
+        var overrides = Map.of("game.rules.rewrite-latest-round", ParameterValue.of(new BigDecimal("2")));
+
+        assertThatThrownBy(() -> rules.preview(
+                        VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.SPACE_VERSION, overrides))
+                .isInstanceOfSatisfying(ExperimentValidationException.class, e -> {
+                    assertThat(e.reason()).contains(VariantRulesReason.UNKNOWN_PARAMETER);
+                    assertThat(e.field()).contains("overrides.game.rules.rewrite-latest-round");
+                    assertThat(e.getMessage()).contains("game.rules.rewrite-latest-round");
+                });
+    }
+
+    @Test
+    void aThreadShiftBelowZeroIsRefusedOnTheNewestSpace() {
+        var overrides = Map.of("game.rules.probability.thread-shift", ParameterValue.of(new BigDecimal("-1")));
+
+        assertThatThrownBy(() -> rules.preview(
+                        VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.SPACE_VERSION, overrides))
+                .isInstanceOfSatisfying(ExperimentValidationException.class, e -> {
+                    assertThat(e.reason()).contains(VariantRulesReason.OUT_OF_RANGE);
+                    assertThat(e.field()).contains("overrides.game.rules.probability.thread-shift");
+                });
     }
 }
