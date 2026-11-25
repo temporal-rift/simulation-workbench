@@ -48,7 +48,7 @@ class ScoringEvaluatorTest {
     void theIntervalBracketsTheRatio() {
         var evaluation = ScoringEvaluator.evaluate(symmetric(null, 0.5, 0.5));
 
-        assertThat(evaluation.cells()).allSatisfy(cell -> {
+        assertThat(evaluation.cells()).isNotEmpty().allSatisfy(cell -> {
             assertThat(cell.lower()).isLessThan(cell.ratio());
             assertThat(cell.upper()).isGreaterThan(cell.ratio());
         });
@@ -61,6 +61,29 @@ class ScoringEvaluatorTest {
         assertThat(evaluation.endings()).hasSize(3).allSatisfy(ending -> {
             assertThat(ending.thresholdShare() + ending.finalEraShare()).isEqualTo(1.0);
             assertThat(ending.meanEras()).isBetween(1.0, 5.0);
+        });
+    }
+
+    @Test
+    void seatsReachingTheThresholdTogetherShareTheWinEqually() {
+        var factions = new ArrayList<FactionScoring>();
+        var rates = new ArrayList<BetRates>();
+        for (var faction : Faction.values()) {
+            factions.add(new FactionScoring(faction, List.of(4), 0, Set.of(), null, 0));
+            for (var count : List.of(3, 4, 5)) {
+                rates.add(new BetRates(count, faction, 1.0, 0.0, 0));
+            }
+        }
+        var model = new ScoringModel(new ScoringEngine(8, 5, factions), List.of(3, 4, 5), rates, 500, 3);
+
+        var evaluation = ScoringEvaluator.evaluate(model);
+
+        assertThat(evaluation.cells())
+                .hasSize(15)
+                .allSatisfy(cell -> assertThat(cell.ratio()).isEqualTo(1.0));
+        assertThat(evaluation.endings()).hasSize(3).allSatisfy(ending -> {
+            assertThat(ending.thresholdShare()).isEqualTo(1.0);
+            assertThat(ending.meanEras()).isEqualTo(2.0);
         });
     }
 
