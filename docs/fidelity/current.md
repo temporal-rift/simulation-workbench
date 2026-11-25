@@ -1,15 +1,14 @@
 # Fidelity edge variants
 
 The fidelity check compares the simulator with a real lane on the baseline and two variants at opposite edges of the
-parameter space 2 ([docs/parameter-space/v2.md](../parameter-space/v2.md)). `src/main/resources/fidelity/edge-variants.json` ships the same sets as this record, and a check
+the parameter space ([docs/parameter-space/current.md](../parameter-space/current.md)). `src/main/resources/fidelity/edge-variants.json` ships the same sets as this record, and a check
 records the space revision it ran on. Both sets override every parameter of the space: `low` at the range minimum and
 `high` at the range maximum, except where a value is held off the edge, which † marks (a penalty whose weakest value
 is the "low" edge, or a value a constraint of the space forbids at the edge). Boolean parameters take `false` for `low`
 and `true` for `high`.
 
-These sets are for parameter space 2: parameter space 1 with the faction-bet window and a Thread shift that may be zero,
-so the simulator's handling of both is compared with the real services. A check stored on an earlier space keeps the
-variants it was accepted with.
+These sets are for revision 2 of the parameter space, which adds the faction-bet window and a Thread shift that may be
+zero, so the simulator's handling of both is compared with the real services.
 
 `game.rules.faction-bet-latest-round` replaces `game.rules.rewrite-latest-round`: `low` sets the window to round 1 and
 `high` to round 3. The Thread shift now spans 0 to 15 with baseline 0, so `low` is no push at all and `high` the

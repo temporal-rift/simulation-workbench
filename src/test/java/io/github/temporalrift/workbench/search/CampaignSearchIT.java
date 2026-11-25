@@ -224,7 +224,7 @@ class CampaignSearchIT {
         var definition = new CampaignDefinition(
                 "it search",
                 baseline,
-                VariantRulesFixtures.NEWEST_SPACE,
+                VariantRulesFixtures.SPACE_VERSION,
                 1,
                 mapper.createArrayNode().add(node),
                 List.of(3),

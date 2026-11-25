@@ -11,7 +11,6 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 
 import io.github.temporalrift.workbench.experiment.domain.port.out.ParameterSpaces;
-import io.github.temporalrift.workbench.experiment.domain.rules.ParameterSpace;
 import io.github.temporalrift.workbench.experiment.domain.rules.VariantRules;
 import io.github.temporalrift.workbench.experiment.infrastructure.adapter.out.configuration.ConfiguredParameterSpaces;
 
@@ -23,11 +22,10 @@ public final class VariantRulesFixtures {
 
     public static final String SCOPE = "workbench.execution.lanes[id=lane-1].";
 
-    /** The newest parameter space: the one the baseline document of these tests carries the keys of. */
-    public static final int NEWEST_SPACE = 2;
+    /** The version of the one parameter space. */
+    public static final int SPACE_VERSION = 2;
 
     private static final String RESOURCE = "/rules/baseline-effective-rules.json";
-    private static final String SPACE_ONE_RESOURCE = "/rules/baseline-effective-rules-space-1.json";
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private VariantRulesFixtures() {}
@@ -43,19 +41,6 @@ public final class VariantRulesFixtures {
 
     public static EffectiveRules baseline() {
         return EffectiveRules.parse(MAPPER.readTree(baselineText()));
-    }
-
-    /** The baseline document as it was when parameter space 1 was the newest: it carries that space's keys. */
-    public static EffectiveRules spaceOneBaseline() {
-        try (var in = VariantRulesFixtures.class.getResourceAsStream(SPACE_ONE_RESOURCE)) {
-            return EffectiveRules.parse(MAPPER.readTree(new String(in.readAllBytes(), StandardCharsets.UTF_8)));
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-
-    public static ParameterSpace newestSpace() {
-        return spaces().find(NEWEST_SPACE).orElseThrow();
     }
 
     public static ParameterSpaces spaces() {
@@ -89,7 +74,7 @@ public final class VariantRulesFixtures {
         var overrides = MAPPER.readTree(overridesJson);
         if (!overrides.isEmpty()) {
             variant.set("overrides", overrides);
-            variant.put("parameterSpaceVersion", NEWEST_SPACE);
+            variant.put("parameterSpaceVersion", SPACE_VERSION);
         }
         return variant;
     }

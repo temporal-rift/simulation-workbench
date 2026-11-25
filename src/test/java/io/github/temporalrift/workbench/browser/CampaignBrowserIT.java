@@ -145,7 +145,7 @@ class CampaignBrowserIT extends DesignerBrowserTest {
         var definition = new CampaignDefinition(
                 "browser-search",
                 baseline,
-                VariantRulesFixtures.NEWEST_SPACE,
+                VariantRulesFixtures.SPACE_VERSION,
                 1,
                 mapper.createArrayNode().add(policy),
                 List.of(3),

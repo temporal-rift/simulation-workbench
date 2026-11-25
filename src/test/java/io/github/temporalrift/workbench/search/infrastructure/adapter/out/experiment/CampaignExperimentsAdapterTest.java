@@ -84,7 +84,7 @@ class CampaignExperimentsAdapterTest {
     @Test
     void aServedParameterSpaceAndBaselinePassTheCheck() {
         assertThatCode(() -> adapter.check(
-                        definition(VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.NEWEST_SPACE)))
+                        definition(VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.SPACE_VERSION)))
                 .doesNotThrowAnyException();
     }
 
@@ -99,7 +99,7 @@ class CampaignExperimentsAdapterTest {
 
     @Test
     void aBaselineNoLanePublishesIsRefusedOnItsDigest() {
-        assertThatThrownBy(() -> adapter.check(definition("f".repeat(64), 1)))
+        assertThatThrownBy(() -> adapter.check(definition("f".repeat(64), VariantRulesFixtures.SPACE_VERSION)))
                 .isInstanceOfSatisfying(InvalidCampaignException.class, e -> {
                     assertThat(e.reason()).isEqualTo(InvalidCampaignReason.UNKNOWN_BASELINE);
                     assertThat(e.field()).isEqualTo("baseline.rulesArtifact.digest");
@@ -108,7 +108,7 @@ class CampaignExperimentsAdapterTest {
 
     @Test
     void theGridHoldsEveryOverridableParameterAtItsBaselineValue() {
-        var grid = adapter.grid(definition(VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.NEWEST_SPACE));
+        var grid = adapter.grid(definition(VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.SPACE_VERSION));
 
         assertThat(grid.axes()).isNotEmpty();
         assertThat(grid.axes())
@@ -122,7 +122,7 @@ class CampaignExperimentsAdapterTest {
 
     @Test
     void theGridHoldsTheTwoShieldSwitchesAsBooleanAxes() {
-        var grid = adapter.grid(definition(VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.NEWEST_SPACE));
+        var grid = adapter.grid(definition(VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.SPACE_VERSION));
 
         assertThat(grid.axes())
                 .filteredOn(ParameterGrid.FlagAxis.class::isInstance)
@@ -135,7 +135,7 @@ class CampaignExperimentsAdapterTest {
 
     @Test
     void aBooleanOverrideValidatesAndFreezesIntoACandidateRules() {
-        var definition = definition(VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.NEWEST_SPACE);
+        var definition = definition(VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.SPACE_VERSION);
         var key = "game.rules.scoring.written-outcome-shields-annihilation";
 
         var validated = adapter.validation(definition).validate(Map.of(key, ParameterValue.of(false)));
@@ -146,14 +146,14 @@ class CampaignExperimentsAdapterTest {
 
     @Test
     void aGridThatCannotBeBuiltIsAPlayRefusal() {
-        var unknown = definition("f".repeat(64), 1);
+        var unknown = definition("f".repeat(64), VariantRulesFixtures.SPACE_VERSION);
 
         assertThatThrownBy(() -> adapter.grid(unknown)).isInstanceOf(CampaignPlayRefusedException.class);
     }
 
     @Test
     void validationAcceptsOverridesOnTheGridAndRejectsOnesOutsideTheRange() {
-        var definition = definition(VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.NEWEST_SPACE);
+        var definition = definition(VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.SPACE_VERSION);
         var validation = adapter.validation(definition);
         var axis = (ParameterGrid.NumberAxis) adapter.grid(definition).axes().getFirst();
 
@@ -170,7 +170,7 @@ class CampaignExperimentsAdapterTest {
 
     @Test
     void roundZeroOfOneHundredCandidatesAllValidatesOnTheShippedSpace() {
-        var definition = definition(VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.NEWEST_SPACE);
+        var definition = definition(VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.SPACE_VERSION);
         var generator = new CandidateGenerator(
                 adapter.grid(definition),
                 adapter.validation(definition),
@@ -188,11 +188,11 @@ class CampaignExperimentsAdapterTest {
         var table =
                 new io.github.temporalrift.workbench.search.domain.campaign.SeatTable("random", java.util.List.of());
         assertThat(adapter.casesPerGame(
-                        definition(VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.NEWEST_SPACE),
+                        definition(VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.SPACE_VERSION),
                         java.util.List.of(table)))
                 .isEqualTo(55);
         assertThat(adapter.casesPerGame(
-                        definition(VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.NEWEST_SPACE),
+                        definition(VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.SPACE_VERSION),
                         java.util.List.of(table, table)))
                 .isEqualTo(110);
     }

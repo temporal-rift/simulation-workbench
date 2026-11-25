@@ -82,11 +82,11 @@ class VariantRulesIT {
     }
 
     @Test
-    void parameterSpaceOneIsServedWithItsParametersConstraintsAndHeldFixedList() throws Exception {
-        mockMvc.perform(get("/api/v1/parameter-spaces/1")
+    void theParameterSpaceIsServedWithItsParametersConstraintsAndHeldFixedList() throws Exception {
+        mockMvc.perform(get("/api/v1/parameter-spaces/2")
                         .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:read"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.version").value(1))
+                .andExpect(jsonPath("$.version").value(2))
                 .andExpect(jsonPath("$.parameters.length()").value(74))
                 .andExpect(jsonPath("$.parameters[0].type").value("NUMBER"))
                 .andExpect(jsonPath("$.parameters[0].key").value(THRESHOLD))
@@ -105,14 +105,13 @@ class VariantRulesIT {
         mockMvc.perform(get("/api/v1/parameter-spaces")
                         .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:read"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items.length()").value(2))
-                .andExpect(jsonPath("$.items[0].version").value(1))
-                .andExpect(jsonPath("$.items[1].version").value(2));
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].version").value(2));
     }
 
     @Test
     void anUnservedParameterSpaceIsNotFound() throws Exception {
-        mockMvc.perform(get("/api/v1/parameter-spaces/99")
+        mockMvc.perform(get("/api/v1/parameter-spaces/1")
                         .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:read"))))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));

@@ -2,14 +2,12 @@ package io.github.temporalrift.workbench.experiment.infrastructure.adapter.out.c
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.StreamSupport;
 
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
-import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -23,30 +21,17 @@ import io.github.temporalrift.workbench.experiment.domain.rules.ParameterSpace.N
 import io.github.temporalrift.workbench.experiment.domain.rules.ParameterSpace.Parameter;
 
 /**
- * The parameter space versions found as {@code parameter-spaces/v<n>.json} on the classpath. A version is added by
- * adding a file; nothing creates, edits or deletes one at run time.
+ * The one parameter space, read from {@code parameter-spaces/parameter-space.json} on the classpath. Its integer
+ * {@code version} is the revision of its content; nothing creates, edits or deletes it at run time.
  */
 public class ConfiguredParameterSpaces implements ParameterSpaces {
 
-    private static final String LOCATION = "classpath*:parameter-spaces/v*.json";
+    private static final String LOCATION = "parameter-spaces/parameter-space.json";
 
     private final List<ParameterSpace> spaces;
 
     public ConfiguredParameterSpaces(ObjectMapper objectMapper) {
-        Resource[] resources;
-        try {
-            resources = new PathMatchingResourcePatternResolver().getResources(LOCATION);
-        } catch (IOException e) {
-            throw new UncheckedIOException("Parameter spaces could not be listed", e);
-        }
-        var parsed = Arrays.stream(resources)
-                .map(resource -> read(objectMapper, resource))
-                .sorted(Comparator.comparingInt(ParameterSpace::version))
-                .toList();
-        if (parsed.stream().map(ParameterSpace::version).distinct().count() != parsed.size()) {
-            throw new IllegalStateException("A parameter space version is configured twice");
-        }
-        this.spaces = parsed;
+        this.spaces = List.of(read(objectMapper, new ClassPathResource(LOCATION)));
     }
 
     @Override

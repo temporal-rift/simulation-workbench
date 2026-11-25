@@ -31,7 +31,7 @@ class ParameterSpaceTest {
     /** The document the lanes serve; the space's baselines are checked against it as it is. */
     private static final EffectiveRules BASELINE = served();
 
-    private final ParameterSpace space = VariantRulesFixtures.newestSpace();
+    private final ParameterSpace space = VariantRulesFixtures.spaces().all().getFirst();
 
     private static EffectiveRules served() {
         try (var stream = ParameterSpaceTest.class.getResourceAsStream("/rules/served-effective-rules.json")) {
@@ -46,10 +46,11 @@ class ParameterSpaceTest {
     }
 
     @Test
-    void everyVersionIsServedAndOnlyThose() {
+    void exactlyOneSpaceIsServedAtVersionTwo() {
         var spaces = VariantRulesFixtures.spaces();
 
-        assertThat(spaces.all()).extracting(ParameterSpace::version).containsExactly(1, 2);
+        assertThat(spaces.all()).extracting(ParameterSpace::version).containsExactly(2);
+        assertThat(spaces.find(1)).isEmpty();
         assertThat(spaces.find(space.version())).map(ParameterSpace::version).contains(space.version());
         assertThat(spaces.find(space.version() + 1)).isEmpty();
     }
@@ -80,25 +81,6 @@ class ParameterSpaceTest {
                         THREAD_SHIFT, List.of("timeline-service"), n("0"), n("0"), n("15"), n("5")));
         assertThat(space.parameter(DISCOUNT))
                 .contains(new NumberParameter(DISCOUNT, List.of("game-service"), n("0"), n("0"), n("2"), n("1")));
-    }
-
-    @Test
-    void theFirstSpaceStaysAsItWas() {
-        var first = VariantRulesFixtures.spaces().find(1).orElseThrow();
-
-        assertThat(first.parameter(REWRITE_WINDOW))
-                .contains(new NumberParameter(REWRITE_WINDOW, List.of("game-service"), n("2"), n("1"), n("3"), n("1")));
-        assertThat(first.parameter(BET_WINDOW)).isEmpty();
-        assertThat(first.parameter(THREAD_SHIFT))
-                .contains(new NumberParameter(
-                        THREAD_SHIFT, List.of("timeline-service"), n("10"), n("5"), n("15"), n("5")));
-        assertThat(first.parameter(DISCOUNT))
-                .contains(new NumberParameter(DISCOUNT, List.of("game-service"), n("1"), n("0"), n("2"), n("1")));
-        assertThat(first.parameter(ERASER_5))
-                .contains(new NumberParameter(ERASER_5, List.of("game-service"), n("3"), n("3"), n("5"), n("1")));
-        assertThat(first.parameter(ACTIVIST_5))
-                .contains(new BooleanParameter(ACTIVIST_5, List.of("game-service"), false));
-        assertThat(first.parameters()).hasSize(space.parameters().size());
     }
 
     @Test

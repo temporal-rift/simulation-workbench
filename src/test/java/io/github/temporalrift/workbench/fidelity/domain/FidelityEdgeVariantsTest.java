@@ -38,7 +38,7 @@ class FidelityEdgeVariantsTest {
             Pattern.compile("\\| `(game\\.rules\\.[^`]+)` \\| (\\S+) \\| (\\S+)( †)? \\| (\\S+)( †)? \\|");
 
     private final EdgeVariantCatalog catalog = ConfiguredEdgeVariants.load(new ObjectMapper());
-    private final ParameterSpace space = VariantRulesFixtures.newestSpace();
+    private final ParameterSpace space = VariantRulesFixtures.spaces().all().getFirst();
 
     @Test
     void oneSetIsShippedForTheServedSpace() {

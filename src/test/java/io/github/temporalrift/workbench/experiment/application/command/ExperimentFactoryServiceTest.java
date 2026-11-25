@@ -52,10 +52,10 @@ class ExperimentFactoryServiceTest {
     @Test
     void aVariantPreviewNamesItsDigestAndTheOverridesFreezingWouldStore() {
         var baseline = factory.previewVariant(
-                VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.NEWEST_SPACE, Map.of());
+                VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.SPACE_VERSION, Map.of());
         var changed = factory.previewVariant(
                 VariantRulesFixtures.ARTIFACT_DIGEST,
-                VariantRulesFixtures.NEWEST_SPACE,
+                VariantRulesFixtures.SPACE_VERSION,
                 Map.of("game.rules.win-score-threshold", ParameterValue.of(BigDecimal.valueOf(22))));
 
         assertThat(baseline.overrides()).isEmpty();
@@ -79,7 +79,7 @@ class ExperimentFactoryServiceTest {
         var overrides = Map.of("game.rules.win-score-threshold", ParameterValue.of(BigDecimal.valueOf(22)));
 
         assertThatThrownBy(() -> withoutTheKey.previewVariant(
-                        VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.NEWEST_SPACE, overrides))
+                        VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.SPACE_VERSION, overrides))
                 .isInstanceOfSatisfying(ExperimentRefusedException.class, e -> {
                     assertThat(e.reason()).isEqualTo("UNKNOWN_BASELINE");
                     assertThat(e).hasMessageContaining("game.rules.annihilate-earliest-round");
@@ -88,7 +88,7 @@ class ExperimentFactoryServiceTest {
 
     @Test
     void theParameterAxesAreInKeyOrderWithTheBaselineValues() {
-        var axes = factory.parameterAxes(VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.NEWEST_SPACE);
+        var axes = factory.parameterAxes(VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.SPACE_VERSION);
 
         assertThat(axes).isNotEmpty();
         assertThat(axes).extracting(ExperimentFactory.ParameterAxis::key).isSorted();
@@ -112,7 +112,7 @@ class ExperimentFactoryServiceTest {
     void anOverrideOutsideTheParameterSpaceIsRefused() {
         var outOfRange = Map.of("game.rules.win-score-threshold", ParameterValue.of(BigDecimal.TEN));
         assertThatThrownBy(() -> factory.previewVariant(
-                        VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.NEWEST_SPACE, outOfRange))
+                        VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.SPACE_VERSION, outOfRange))
                 .isInstanceOf(ExperimentRefusedException.class);
     }
 

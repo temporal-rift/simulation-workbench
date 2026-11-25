@@ -27,7 +27,7 @@ class GetSimulatorFidelityQueryHandlerTest {
     private final InMemoryFidelityRepository checks = new InMemoryFidelityRepository();
 
     /** The parameter space new checks use, which the gate answers for. */
-    private static final int NEWEST_SPACE = 2;
+    private static final int SPACE_VERSION = 2;
 
     private final EdgeVariantCatalog catalog = ConfiguredEdgeVariants.load(new ObjectMapper());
 
@@ -40,7 +40,7 @@ class GetSimulatorFidelityQueryHandlerTest {
     }
 
     private FidelityCheck stored(String revision, boolean passes, int finishedAfterSeconds) {
-        return stored(revision, passes, finishedAfterSeconds, NEWEST_SPACE);
+        return stored(revision, passes, finishedAfterSeconds, SPACE_VERSION);
     }
 
     private FidelityCheck stored(String revision, boolean passes, int finishedAfterSeconds, int parameterSpaceVersion) {
@@ -86,13 +86,13 @@ class GetSimulatorFidelityQueryHandlerTest {
     @Test
     void aCheckThatPassedOnTheNewestSpaceEstablishesIt() {
         var older = stored("1111111", true, 1, 3);
-        var newest = stored("1111111", true, 2, NEWEST_SPACE);
+        var newest = stored("1111111", true, 2, SPACE_VERSION);
 
         var answer = handlerFor("1111111").handle();
 
         assertThat(answer.established()).isTrue();
         assertThat(answer.passingCheck().check().id()).isEqualTo(newest.id()).isNotEqualTo(older.id());
-        assertThat(answer.passingCheck().check().parameterSpaceVersion()).isEqualTo(NEWEST_SPACE);
+        assertThat(answer.passingCheck().check().parameterSpaceVersion()).isEqualTo(SPACE_VERSION);
     }
 
     @Test
@@ -114,7 +114,7 @@ class GetSimulatorFidelityQueryHandlerTest {
         var queued = FidelityCheck.queued(
                 UUID.randomUUID(),
                 "42",
-                NEWEST_SPACE,
+                SPACE_VERSION,
                 FidelityFixtures.environment(FidelityFixtures.SIMULATOR_IMAGE, "1111111"),
                 FidelityFixtures.environment(FidelityFixtures.LANE_IMAGE, "1111111"),
                 "lane-1",
@@ -129,7 +129,7 @@ class GetSimulatorFidelityQueryHandlerTest {
     @Test
     void theNewestPassedCheckIsTheRecord() {
         stored("1111111", true);
-        var newest = stored("1111111", true, 2, NEWEST_SPACE);
+        var newest = stored("1111111", true, 2, SPACE_VERSION);
 
         assertThat(handlerFor("1111111").handle().passingCheck().check().id()).isEqualTo(newest.id());
     }
