@@ -31,7 +31,8 @@ of every original parameter, range and constraint. The rebalance settings below 
 
 Compare the package (every new baseline) with one variant per change switched back to its earlier behavior, rather
 than reading absolute win shares: the Weaver chain at 3, `SECRET_OUTCOME_WON` at 3, `CHAIN_LINK_MISSED` at 0, the
-five-player Eraser objective at 4 and the five-player Activist streak as consecutive. The `bet_success_rate` of this
+five-player Eraser objective at 3 and the five-player Activist streak as not consecutive (`false`), which were the
+baselines before revision 2. The `bet_success_rate` of this
 space counts every settled Thread, so a Weaver's miss shows in it.
 
 ## Revision 2

@@ -105,7 +105,8 @@ class ExperimentFactoryServiceTest {
     void parameterAxesOfAnUnknownBaselineAreRefused() {
         var unknown = "f".repeat(64);
 
-        assertThatThrownBy(() -> factory.parameterAxes(unknown, 1)).isInstanceOf(ExperimentRefusedException.class);
+        assertThatThrownBy(() -> factory.parameterAxes(unknown, VariantRulesFixtures.SPACE_VERSION))
+                .isInstanceOf(ExperimentRefusedException.class);
     }
 
     @Test
