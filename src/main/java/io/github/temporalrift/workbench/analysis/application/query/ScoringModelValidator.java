@@ -70,7 +70,7 @@ final class ScoringModelValidator {
             throw invalid(path + ".winPoints", "winPoints must hold between 1 and " + MAX_WIN_POINTS + " items");
         }
         for (var index = 0; index < winPoints.size(); index++) {
-            if (Math.abs(winPoints.get(index)) > MAX_POINTS) {
+            if (winPoints.get(index) < -MAX_POINTS || winPoints.get(index) > MAX_POINTS) {
                 throw invalid(
                         path + ".winPoints[" + index + "]",
                         "a win scores between -" + MAX_POINTS + " and " + MAX_POINTS);

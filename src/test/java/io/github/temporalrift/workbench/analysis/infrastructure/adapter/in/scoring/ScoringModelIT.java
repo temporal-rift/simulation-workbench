@@ -89,8 +89,16 @@ class ScoringModelIT {
                 .put("parameter", "factions.WEAVERS.winPoints[0]")
                 .put("step", 1);
 
-        var first = send(request).andReturn().getResponse().getContentAsString();
-        var second = send(request).andReturn().getResponse().getContentAsString();
+        var first = send(request)
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        var second = send(request)
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
 
         assertThat(second).isEqualTo(first);
     }
@@ -146,6 +154,18 @@ class ScoringModelIT {
         send(request)
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.field").value("engine.factions[0].objectiveBonus"));
+    }
+
+    @Test
+    void anUnparsableSweepPathIsRefusedNamingIt() throws Exception {
+        for (var path : new String[] {"factions.WEAVERS.winPoints[2147483648]", "rates.3.NOBODY.winRate"}) {
+            var request = request();
+            request.putArray("sweep").addObject().put("parameter", path).put("step", 1);
+
+            send(request)
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.field").value("sweep[0].parameter"));
+        }
     }
 
     @Test

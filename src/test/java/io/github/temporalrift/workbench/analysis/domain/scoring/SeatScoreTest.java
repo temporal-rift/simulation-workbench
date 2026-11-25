@@ -18,42 +18,57 @@ class SeatScoreTest {
         return new FactionScoring(Faction.WEAVERS, List.of(2, 4, 6), 0, resetOn, objectiveWins, bonus);
     }
 
-    private static List<Double> totals(FactionScoring engine, BetOutcome... outcomes) {
+    private static List<Long> totals(FactionScoring engine, BetOutcome... outcomes) {
         var score = new SeatScore(engine);
-        return java.util.Arrays.stream(outcomes).map(score::apply).toList();
+        return java.util.Arrays.stream(outcomes)
+                .map(score::apply)
+                .map(units -> units / SeatScore.UNITS)
+                .toList();
     }
 
     @Test
     void aMissResetsTheWinRunWhenItIsListed() {
         assertThat(totals(engine(Set.of(MISSED), null, 0), WON, WON, MISSED, WON))
-                .containsExactly(2.0, 6.0, 6.0, 8.0);
+                .containsExactly(2L, 6L, 6L, 8L);
     }
 
     @Test
     void theWinRunSurvivesAMissWhenNothingResets() {
-        assertThat(totals(engine(Set.of(), null, 0), WON, WON, MISSED, WON)).containsExactly(2.0, 6.0, 6.0, 12.0);
+        assertThat(totals(engine(Set.of(), null, 0), WON, WON, MISSED, WON)).containsExactly(2L, 6L, 6L, 12L);
     }
 
     @Test
     void theLastEntryRepeatsPastTheEndOfTheWinPoints() {
-        assertThat(totals(engine(Set.of(), null, 0), WON, WON, WON, WON, WON))
-                .containsExactly(2.0, 6.0, 12.0, 18.0, 24.0);
+        assertThat(totals(engine(Set.of(), null, 0), WON, WON, WON, WON, WON)).containsExactly(2L, 6L, 12L, 18L, 24L);
     }
 
     @Test
     void aMissScoresItsPointsAndNeverTakesBankedPointsAway() {
         var costly = new FactionScoring(Faction.WEAVERS, List.of(5), -2, Set.of(MISSED), null, 0);
-        assertThat(totals(costly, WON, MISSED, VOIDED)).containsExactly(5.0, 3.0, 3.0);
+        assertThat(totals(costly, WON, MISSED, VOIDED)).containsExactly(5L, 3L, 3L);
     }
 
     @Test
     void theObjectiveBonusIsAddedOnceOnTheConfiguredWin() {
-        assertThat(totals(engine(Set.of(), 2, 10), WON, WON, WON)).containsExactly(2.0, 16.0, 22.0);
+        assertThat(totals(engine(Set.of(), 2, 10), WON, WON, WON)).containsExactly(2L, 16L, 22L);
     }
 
     @Test
     void aVoidedBetResetsOnlyWhenListed() {
-        assertThat(totals(engine(Set.of(VOIDED), null, 0), WON, VOIDED, WON)).containsExactly(2.0, 2.0, 4.0);
-        assertThat(totals(engine(Set.of(), null, 0), WON, VOIDED, WON)).containsExactly(2.0, 2.0, 6.0);
+        assertThat(totals(engine(Set.of(VOIDED), null, 0), WON, VOIDED, WON)).containsExactly(2L, 2L, 4L);
+        assertThat(totals(engine(Set.of(), null, 0), WON, VOIDED, WON)).containsExactly(2L, 2L, 6L);
+    }
+
+    @Test
+    void decimalExtrasAddUpExactlyWhateverTheOrder() {
+        var tenths = new SeatScore(engine(Set.of(), null, 0));
+        var other = new SeatScore(engine(Set.of(), null, 0));
+        for (var era = 0; era < 10; era++) {
+            tenths.addExtra(SeatScore.units(0.1));
+        }
+        other.addExtra(SeatScore.units(0.3));
+        other.addExtra(SeatScore.units(0.7));
+
+        assertThat(tenths.total()).isEqualTo(SeatScore.UNITS).isEqualTo(other.total());
     }
 }

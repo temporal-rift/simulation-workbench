@@ -89,7 +89,7 @@ public final class ScoringEvaluator {
         private final FactionScoring[] scoring = new FactionScoring[FACTIONS];
         private final double[] winRate = new double[FACTIONS];
         private final double[] winOrMissRate = new double[FACTIONS];
-        private final double[] extra = new double[FACTIONS];
+        private final long[] extra = new long[FACTIONS];
 
         Plan(ScoringModel model, int playerCount) {
             this.engine = model.engine();
@@ -102,7 +102,7 @@ public final class ScoringEvaluator {
                         var index = rates.faction().ordinal();
                         winRate[index] = rates.winRate();
                         winOrMissRate[index] = rates.winRate() + rates.missRate();
-                        extra[index] = rates.extraPointsPerEra();
+                        extra[index] = SeatScore.units(rates.extraPointsPerEra());
                     });
             this.factionSets = FactionSets.of(List.of(playerCount)).stream()
                     .filter(set -> set.stream().allMatch(faction -> scoring[faction.ordinal()] != null))
@@ -125,7 +125,7 @@ public final class ScoringEvaluator {
                     scores[seat].apply(outcome(uniform(random), faction));
                     scores[seat].addExtra(extra[faction]);
                 }
-                qualified = best(scores) >= engine.winThreshold();
+                qualified = best(scores) >= engine.winThreshold() * SeatScore.UNITS;
             }
             record(tally, seats, scores, eras, qualified);
         }
@@ -141,8 +141,8 @@ public final class ScoringEvaluator {
             return (random.nextLong() >>> 11) * UNIT;
         }
 
-        private static double best(SeatScore[] scores) {
-            var best = Double.NEGATIVE_INFINITY;
+        private static long best(SeatScore[] scores) {
+            var best = Long.MIN_VALUE;
             for (var score : scores) {
                 best = Math.max(best, score.total());
             }

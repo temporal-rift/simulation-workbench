@@ -48,8 +48,8 @@ final class SweepTarget {
         var winPoints = WIN_POINTS.matcher(path);
         if (winPoints.matches()) {
             var faction = faction(winPoints.group("faction"), model);
-            var index = Integer.parseInt(winPoints.group("index"));
-            if (faction == null || index >= faction.winPoints().size()) {
+            var index = index(winPoints.group("index"));
+            if (faction == null || index < 0 || index >= faction.winPoints().size()) {
                 return null;
             }
             return new SweepTarget(
@@ -107,13 +107,33 @@ final class SweepTarget {
         }
         var rate = WIN_RATE.matcher(path);
         if (rate.matches()) {
-            var target = Faction.valueOf(rate.group("faction"));
-            var count = Integer.parseInt(rate.group("count"));
+            var target = factionNamed(rate.group("faction"));
+            var count = index(rate.group("count"));
+            if (target == null || count < 0) {
+                return null;
+            }
             var exists =
                     model.rates().stream().anyMatch(item -> item.playerCount() == count && item.faction() == target);
             return exists ? new SweepTarget(path, false, (base, delta) -> withRate(base, count, target, delta)) : null;
         }
         return null;
+    }
+
+    /** Parses a digit run, answering -1 when it does not fit an int. */
+    private static int index(String digits) {
+        try {
+            return Integer.parseInt(digits);
+        } catch (NumberFormatException e) {
+            return -1;
+        }
+    }
+
+    private static Faction factionNamed(String name) {
+        try {
+            return Faction.valueOf(name);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     String path() {
