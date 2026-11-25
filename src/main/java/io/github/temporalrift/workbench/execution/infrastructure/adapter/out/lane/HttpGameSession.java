@@ -380,12 +380,12 @@ public class HttpGameSession implements GameSession {
     }
 
     /**
-     * The conditions the projection lists, or null when it lists none and the win type decides. The contract requires
-     * at least one condition when the list is present, so an empty set means the projection did not send it.
+     * The conditions the projection lists, or none when it did not send them and the win type decides. The contract
+     * requires at least one condition when the list is present, so an empty set means it was not sent.
      */
     private static List<WinType> winConditions(GameWinner winner) {
         if (winner.getWinConditions() == null || winner.getWinConditions().isEmpty()) {
-            return null;
+            return List.of();
         }
         return winner.getWinConditions().stream()
                 .map(condition -> WinType.valueOf(condition.name()))

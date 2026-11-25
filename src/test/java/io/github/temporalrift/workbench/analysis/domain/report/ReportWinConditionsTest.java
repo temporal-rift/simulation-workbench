@@ -110,7 +110,7 @@ class ReportWinConditionsTest {
 
         var pooled = pooled(new AnalysisVersion("4", 1L));
 
-        assertThat(pooled.metrics()).extracting(Metric::name).doesNotContain("win_condition_rate");
+        assertThat(pooled.metrics()).isNotEmpty().extracting(Metric::name).doesNotContain("win_condition_rate");
     }
 
     private Cohort pooled(AnalysisVersion analysis) {
