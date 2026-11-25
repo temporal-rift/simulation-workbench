@@ -13,6 +13,7 @@ import io.github.temporalrift.workbench.analysis.CandidateScreening;
 import io.github.temporalrift.workbench.analysis.RunConfirmation;
 import io.github.temporalrift.workbench.analysis.application.command.CreateComparisonCommandHandler;
 import io.github.temporalrift.workbench.analysis.application.port.in.CreateComparisonUseCase;
+import io.github.temporalrift.workbench.analysis.application.port.in.EvaluateScoringModelUseCase;
 import io.github.temporalrift.workbench.analysis.application.port.in.GetComparisonUseCase;
 import io.github.temporalrift.workbench.analysis.application.port.in.GetRunEvaluationUseCase;
 import io.github.temporalrift.workbench.analysis.application.port.in.GetRunReportUseCase;
@@ -21,6 +22,7 @@ import io.github.temporalrift.workbench.analysis.application.query.BalanceCriter
 import io.github.temporalrift.workbench.analysis.application.query.CandidateScreeningService;
 import io.github.temporalrift.workbench.analysis.application.query.CaseFactsProvider;
 import io.github.temporalrift.workbench.analysis.application.query.ComparisonEvaluator;
+import io.github.temporalrift.workbench.analysis.application.query.EvaluateScoringModelQueryHandler;
 import io.github.temporalrift.workbench.analysis.application.query.GetComparisonQueryHandler;
 import io.github.temporalrift.workbench.analysis.application.query.GetRunEvaluationQueryHandler;
 import io.github.temporalrift.workbench.analysis.application.query.GetRunReportQueryHandler;
@@ -95,6 +97,11 @@ public class AnalysisConfiguration {
     @Bean
     ListComparisonsUseCase listComparisonsUseCase(ComparisonRepository comparisons) {
         return new ListComparisonsQueryHandler(comparisons);
+    }
+
+    @Bean
+    EvaluateScoringModelUseCase evaluateScoringModelUseCase() {
+        return new EvaluateScoringModelQueryHandler();
     }
 
     @Bean
