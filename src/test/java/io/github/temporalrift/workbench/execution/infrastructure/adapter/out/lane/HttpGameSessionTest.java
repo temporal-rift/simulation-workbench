@@ -603,6 +603,7 @@ class HttpGameSessionTest {
         var ending = session.ending().orElseThrow();
 
         assertThat(ending.winners())
+                .isNotEmpty()
                 .allSatisfy(winner -> assertThat(winner.winConditions()).isEmpty());
     }
 
