@@ -22,6 +22,7 @@ class ParameterSpaceTest {
     private static final String ERASER_5 = "game.rules.victory.eraser-annihilations-by-player-count.5";
     private static final String ACTIVIST_5 = "game.rules.victory.activist-consecutive-eras-by-player-count.5";
     private static final String BET_WINDOW = "game.rules.faction-bet-latest-round";
+    private static final String NORMAL_VICTORY = "game.rules.victory.normal-victory";
     private static final String REWRITE_WINDOW = "game.rules.rewrite-latest-round";
     private static final String THREAD_SHIFT = "game.rules.probability.thread-shift";
     private static final String DISCOUNT = "game.rules.victory.final-era-objective-discount";
@@ -46,10 +47,10 @@ class ParameterSpaceTest {
     }
 
     @Test
-    void exactlyOneSpaceIsServedAtVersionTwo() {
+    void exactlyOneSpaceIsServedAtVersionThree() {
         var spaces = VariantRulesFixtures.spaces();
 
-        assertThat(spaces.all()).extracting(ParameterSpace::version).containsExactly(2);
+        assertThat(spaces.all()).extracting(ParameterSpace::version).containsExactly(3);
         assertThat(spaces.find(1)).isEmpty();
         assertThat(spaces.find(space.version())).map(ParameterSpace::version).contains(space.version());
         assertThat(spaces.find(space.version() + 1)).isEmpty();
@@ -81,6 +82,15 @@ class ParameterSpaceTest {
                         THREAD_SHIFT, List.of("timeline-service"), n("0"), n("0"), n("15"), n("5")));
         assertThat(space.parameter(DISCOUNT))
                 .contains(new NumberParameter(DISCOUNT, List.of("game-service"), n("0"), n("0"), n("2"), n("1")));
+    }
+
+    @Test
+    void theNewestSpaceDeclaresTheNormalVictorySwitchAsABooleanWithBaselineTrue() {
+        assertThat(space.parameter(NORMAL_VICTORY))
+                .contains(new BooleanParameter(NORMAL_VICTORY, List.of("game-service"), true));
+        assertThat(space.parameter("game.rules.win-score-threshold"))
+                .contains(new NumberParameter(
+                        "game.rules.win-score-threshold", List.of("game-service"), n("20"), n("16"), n("26"), n("1")));
     }
 
     @Test

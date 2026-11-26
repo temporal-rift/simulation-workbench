@@ -96,6 +96,7 @@
     "game.rules.victory.eraser-annihilations": 4,
     "game.rules.victory.eraser-annihilations-by-player-count.5": 4,
     "game.rules.victory.final-era-objective-discount": 0,
+    "game.rules.victory.normal-victory": true,
     "game.rules.victory.prophet-written-resolutions": 4,
     "game.rules.victory.prophet-written-resolutions-by-player-count.5": 3,
     "game.rules.victory.revisionist-successful-eras": 3,

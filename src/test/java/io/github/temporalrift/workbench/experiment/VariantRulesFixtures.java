@@ -23,7 +23,7 @@ public final class VariantRulesFixtures {
     public static final String SCOPE = "workbench.execution.lanes[id=lane-1].";
 
     /** The version of the one parameter space. */
-    public static final int SPACE_VERSION = 2;
+    public static final int SPACE_VERSION = 3;
 
     private static final String RESOURCE = "/rules/baseline-effective-rules.json";
     private static final ObjectMapper MAPPER = new ObjectMapper();
