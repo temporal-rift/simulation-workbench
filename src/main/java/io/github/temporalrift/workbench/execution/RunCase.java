@@ -54,6 +54,7 @@ public record RunCase(
      * The authoritative ending of the case's game.
      *
      * @param winTypes how each winner met the win condition, by seat; a winner of a special ending has no entry
+     * @param winConditions every condition each winner met, by seat; a seat without an entry has none known
      */
     public record Result(
             EndReason endReason,
@@ -62,12 +63,26 @@ public record RunCase(
             int eras,
             int rounds,
             int decisions,
-            Map<Integer, String> winTypes) {
+            Map<Integer, String> winTypes,
+            Map<Integer, List<String>> winConditions) {
 
         public Result {
             winnerSeats = List.copyOf(winnerSeats);
             finalScores = List.copyOf(finalScores);
             winTypes = winTypes == null ? Map.of() : Map.copyOf(winTypes);
+            winConditions = winConditions == null ? Map.of() : Map.copyOf(winConditions);
+        }
+
+        /** An ending whose winners' conditions are known only through their win types. */
+        public Result(
+                EndReason endReason,
+                List<Integer> winnerSeats,
+                List<Score> finalScores,
+                int eras,
+                int rounds,
+                int decisions,
+                Map<Integer, String> winTypes) {
+            this(endReason, winnerSeats, finalScores, eras, rounds, decisions, winTypes, Map.of());
         }
 
         /** An ending whose winners' win types are not known. */
@@ -78,7 +93,7 @@ public record RunCase(
                 int eras,
                 int rounds,
                 int decisions) {
-            this(endReason, winnerSeats, finalScores, eras, rounds, decisions, Map.of());
+            this(endReason, winnerSeats, finalScores, eras, rounds, decisions, Map.of(), Map.of());
         }
     }
 

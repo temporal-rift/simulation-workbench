@@ -42,30 +42,20 @@ final class FactionRecipePolicy implements BotPolicy {
     static final int GUARD_AFFINITY = 6;
     static final int COUNTER_AFFINITY = 5;
 
-    static final String DEFINITION = """
-            faction-greedy base recipe: score = affinity*1000 + board rank (0..100) + commitment adjustment
-            board rank: outcomes ordered by public band (none = MEDIUM), then own Scan value else printed weight; \
-            rank = 100 * outcomes strictly below / (outcomes - 1); TRAILING = 100 - rank; pairs average both ends
-            commitment: Activist declared outcome, Revisionist first Rewrite outcome, Weaver latest Thread/Reweave \
-            outcome, Prophet first Foresight outcome per event
-            adjustment for Push, Swing destination and Mimic: +200 toward own commitment not LOW; -200 toward another \
-            participant's declared outcome that is not own commitment
-            refused special: once the service refuses a special in a window, it is not tried again there on the same \
-            event or participant
-            waste (never chosen): Foresight after the seat already wrote an outcome this era (one writing per era); \
-            Thread after an accepted Thread, unless a Tapestry was armed and the Thread outcome fell to LOW; \
-            Rewrite after an accepted Rewrite; Obscure in round 3; Reweave without a Thread, after a Tapestry, \
-            while the Thread outcome is not LOW, or onto the Thread outcome; Tapestry without a Thread, \
-            below 2 confirmed links, already armed, or off the Thread outcome; Fulfillment off a written outcome or \
-            on an event already fulfilled; Seal off a written outcome; Mimic off the Rewrite outcome; Expose outside \
-            round 2 or against a participant whose previous-round summary shows no Probability Shifter card; Corrupt \
-            against such a participant; a Push, Swing, Thread, Rewrite, Foresight, Mimic, Reweave, Seal, Fulfillment \
-            or Tapestry toward a LOW outcome when the same card or special has a non-LOW alternative
-            triggered affinity: Tapestry 7; Reweave 7 (only reached when the Thread outcome is LOW); Fulfillment 7 and \
-            Seal 6 on a HIGH written outcome; Expose 5; Mimic 5 when not LOW; Corrupt 5
-            declaration: 8000 (+50 Momentum) + board rank; hand selection: sum of card affinities * 1000
-            base affinities and leans:
-            """ + FactionPreferences.canonicalDefinition();
+    private final boolean avoidsPublicLink;
+
+    FactionRecipePolicy() {
+        this(false);
+    }
+
+    /**
+     * @param avoidsPublicLink whether a seat other than the Weaver's treats the public pending link's outcome like
+     *     another participant's declared outcome: a Push or Swing toward it that is not its own commitment scores
+     *     {@link #DECLARED_BY_OTHER_PENALTY} lower
+     */
+    FactionRecipePolicy(boolean avoidsPublicLink) {
+        this.avoidsPublicLink = avoidsPublicLink;
+    }
 
     @Override
     public PolicyDecision decide(EntitledObservation observation, Set<Candidate> excluded, PolicyEntropy entropy) {
@@ -158,7 +148,7 @@ final class FactionRecipePolicy implements BotPolicy {
      * about the special's timing, budget or that event (a stalled one, say), so another outcome of the same event or
      * another target of the same participant is not tried, while another event still is.
      */
-    private static Set<Object> refusedSpecials(Set<Candidate> excluded) {
+    static Set<Object> refusedSpecials(Set<Candidate> excluded) {
         var refused = new HashSet<Object>();
         for (var candidate : excluded) {
             var key = refusalKey(candidate);
@@ -170,7 +160,7 @@ final class FactionRecipePolicy implements BotPolicy {
     }
 
     /** The special and the event or participant it names, or null for anything but a special. */
-    private static Object refusalKey(Candidate candidate) {
+    static Object refusalKey(Candidate candidate) {
         if (!(candidate instanceof Candidate.PlaySpecial(var action, var target))) {
             return null;
         }
@@ -204,7 +194,7 @@ final class FactionRecipePolicy implements BotPolicy {
                 .toList();
     }
 
-    private static long score(
+    private long score(
             Candidate candidate, EntitledObservation observation, Map<UUID, DealtCard> cards, BoardReading reading) {
         var faction = observation.faction();
         return switch (candidate) {
@@ -252,14 +242,16 @@ final class FactionRecipePolicy implements BotPolicy {
         };
     }
 
-    private static int adjustment(UUID destination, BoardReading reading) {
+    private int adjustment(UUID destination, BoardReading reading) {
         if (destination == null) {
             return 0;
         }
         if (reading.isCommitment(destination)) {
             return reading.isLow(destination) ? 0 : COMMITMENT_BONUS;
         }
-        return reading.isDeclaredByOther(destination) ? -DECLARED_BY_OTHER_PENALTY : 0;
+        var fedByOthers =
+                reading.isDeclaredByOther(destination) || (avoidsPublicLink && reading.isPublicLink(destination));
+        return fedByOthers ? -DECLARED_BY_OTHER_PENALTY : 0;
     }
 
     private static int lean(Bias bias, Target target, BoardReading reading) {

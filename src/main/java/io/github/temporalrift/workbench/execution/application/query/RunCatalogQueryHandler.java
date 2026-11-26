@@ -15,6 +15,7 @@ import io.github.temporalrift.workbench.execution.domain.run.CaseResult;
 import io.github.temporalrift.workbench.execution.domain.run.CountingGame;
 import io.github.temporalrift.workbench.execution.domain.run.LogicalCase;
 import io.github.temporalrift.workbench.execution.domain.run.RunState;
+import io.github.temporalrift.workbench.execution.domain.run.WinType;
 import io.github.temporalrift.workbench.execution.domain.run.Winner;
 import io.github.temporalrift.workbench.shared.execution.CaseState;
 import io.github.temporalrift.workbench.shared.execution.FailureCode;
@@ -97,6 +98,12 @@ public class RunCatalogQueryHandler implements RunCatalog {
                 result.winners().stream()
                         .filter(winner -> winner.winType() != null)
                         .collect(Collectors.toMap(
-                                Winner::seatIndex, winner -> winner.winType().name())));
+                                Winner::seatIndex, winner -> winner.winType().name())),
+                result.winners().stream()
+                        .collect(Collectors.toMap(
+                                Winner::seatIndex,
+                                winner -> winner.winConditions().stream()
+                                        .map(WinType::name)
+                                        .toList())));
     }
 }

@@ -108,10 +108,11 @@ workbench:
 `GET /api/v1/runs/{runId}/report` (`simulation:read`) returns a run's report as JSON, or as CSV with
 `Accept: text/csv`. `POST /api/v1/comparisons` (`simulation:write`, `Idempotency-Key`) compares two variants, of one
 run or of two runs, and `GET /api/v1/comparisons/{comparisonId}` reads the comparison as JSON or CSV. Every number
-is computed by analysis version `3` with analysis seed `1` (a comparison keeps the version it was created under); both
+is computed by analysis version `5` with analysis seed `1` (a comparison keeps the version it was created under); both
 are on every report, comparison, and CSV row, and the same version, seed, and case results always produce
-byte-identical documents. Analysis version `2` is version `1` plus the `failure_share` metric, and version `3` is
-version `2` plus the balance diagnostics below: every earlier metric keeps its value and interval.
+byte-identical documents. Analysis version `2` is version `1` plus the `failure_share` metric, version `3` is
+version `2` plus the balance diagnostics below, version `4` is version `3` plus the bet survival metrics below, and
+version `5` is version `4` plus the win condition metric below: every earlier metric keeps its value and interval.
 
 ### Populations
 
@@ -281,6 +282,51 @@ by its win rate. It adds these metrics, each only to the cohorts that pool seats
 
 Facts for version `3` are stored under facts version `2`; versions `1` and `2` keep reading facts version `1`, so
 reports and comparisons made under an earlier version are unchanged.
+
+### Bet survival (analysis version 4)
+
+`bet_success_rate` counts only bets that reached scoring, so it can look alike for every faction while most bets were
+voided or expired before scoring. Version `4` counts the bets directly, per faction and per seat-era (one era of one
+seat is one unit, however many times the faction acted in it):
+
+- A bet is **placed** when a Weaver's `THREAD` was accepted, a Revisionist's `REWRITE` was accepted, a Prophet's
+  `FORESIGHT` that named an outcome was accepted, an Activist's Rally or Momentum declaration was recorded, or an
+  Eraser's `ANNIHILATE` was accepted.
+- A placed bet is **scored** when the seat's score record of that era lists a win or a miss reason of that bet:
+  `CHAIN_LINK_ADDED` or `CHAIN_LINK_MISSED`; `SECRET_OUTCOME_WON` or `SECRET_OUTCOME_MISSED`;
+  `EVENT_RESOLVED_AS_WRITTEN`, `FULFILLMENT_SUCCEEDED` or `EVENT_RESOLVED_DIFFERENTLY_THAN_WRITTEN`;
+  `DECLARED_OUTCOME_WON[_WITH_RALLY]` or `DECLARED_OUTCOME_MISSED[_WITH_RALLY]`; `ANNIHILATED_OUTCOME`, or
+  `ANNIHILATION_WASTED` (a wasted Annihilate is a lost bet, counted whenever it is listed, whatever its points). Every reason of a joined record counts. It is **won** when the
+  reason is a win.
+- `bets_placed` and `bets_scored` (statistic `MEAN`, unit bets per seat-game; dimension `faction`): the faction's
+  placed and scored bets per seat-game.
+- `bet_survival_rate` (statistic `RATE`, unit placed bets; dimension `faction`): scored over placed.
+- `bet_win_rate_per_era` (statistic `RATE`, unit seat-eras; dimension `faction`): won bets over the eras the faction's
+  seat-games played.
+
+A scored bet needs a placed bet in the same era, so survival never exceeds 1. The scoring contract lists
+`ANNIHILATION_WASTED` whenever a creditable Annihilate did not change the winner, so the points setting never changes
+the count; an Annihilate with neither Eraser reason listed (protected by a writing) is placed and not scored. The metrics use only the `faction` dimension, so the CSV exports keep their
+layouts (report format version `4`, comparison format version `3`) and carry them as extra rows.
+
+Facts for version `4` are stored under facts version `3`; versions `1` and `2` keep reading facts version `1` and
+version `3` keeps reading facts version `2`, so reports and comparisons made under an earlier version are unchanged.
+
+### Wins by every condition met (analysis version 5)
+
+`win_path_rate` reads one path per winner, so a winner that reached the score threshold and met its objective at once
+is counted as `SCORE_THRESHOLD` only. Each winner of a case result now lists every condition it met (from the game's
+projection; when the game lists none, `[winType]` for a score or objective win and nothing otherwise). Version `5` adds:
+
+- `win_condition_rate` (statistic `RATE`, unit wins; dimensions `faction` and `win_path`, which carries the
+  condition): the share of the faction's wins whose winner lists `SCORE_THRESHOLD` or `FACTION_OBJECTIVE`. A winner
+  counts once toward each condition it lists, so a faction's two shares may sum to more than 1. A winner that lists no
+  condition (a special ending) stays in the denominator and counts toward neither.
+
+`win_path_rate` keeps its definition. The CSV exports keep their layouts and carry the metric as extra rows. Facts for
+version `5` are stored under facts version `4`; earlier versions keep reading what they read, so reports and
+comparisons made under them are unchanged. A case result stored before winners listed their conditions reads them
+through the same fallback.
 
 ### Exports
 

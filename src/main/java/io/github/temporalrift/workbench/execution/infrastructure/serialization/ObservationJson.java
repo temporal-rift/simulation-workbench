@@ -1,6 +1,8 @@
 package io.github.temporalrift.workbench.execution.infrastructure.serialization;
 
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -14,6 +16,7 @@ import tools.jackson.databind.json.JsonMapper;
 import io.github.temporalrift.workbench.policy.domain.observation.Board;
 import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow;
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
+import io.github.temporalrift.workbench.policy.domain.observation.EventView;
 import io.github.temporalrift.workbench.policy.domain.observation.OutcomeView;
 import io.github.temporalrift.workbench.policy.domain.observation.PlayableSpecial;
 import io.github.temporalrift.workbench.policy.domain.observation.PublicBand;
@@ -34,6 +37,11 @@ public final class ObservationJson {
             .addMixIn(EntitledObservation.class, BoardWhenPresent.class)
             .addMixIn(OutcomeView.class, BandWhenPublished.class)
             .addMixIn(PlayableSpecial.class, ReasonWhenUnavailable.class)
+            .addMixIn(EventView.class, StalledWhenTrue.class)
+            .addMixIn(Board.class, FactsWhenKnown.class)
+            .addMixIn(Board.ChainView.class, ConfirmedEventsWhenKnown.class)
+            .addMixIn(Board.Scores.class, DerivedScores.class)
+            .addMixIn(TableRules.class, ChainRulesWhenKnown.class)
             .build();
 
     private ObservationJson() {}
@@ -111,6 +119,50 @@ public final class ObservationJson {
         /** Derived from {@code unavailableReason}; never written. */
         @JsonIgnore
         boolean unavailable();
+    }
+
+    /** An event that is not stalled keeps the text it had before the flag existed. */
+    private interface StalledWhenTrue {
+        @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+        boolean stalled();
+    }
+
+    /** A board without cascaded events or scores keeps the text it had before they existed. */
+    private interface FactsWhenKnown {
+        @JsonInclude(JsonInclude.Include.NON_EMPTY)
+        List<UUID> cascadedEventIds();
+
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        Board.Scores scores();
+    }
+
+    /** A chain whose confirmed link events are unknown keeps its earlier text. */
+    private interface ConfirmedEventsWhenKnown {
+        @JsonInclude(JsonInclude.Include.NON_EMPTY)
+        List<UUID> confirmedEventIds();
+    }
+
+    /** Derived from {@code own} and {@code others}; never written. */
+    private interface DerivedScores {
+        @JsonIgnore
+        boolean leads();
+    }
+
+    /** Rules that do not say the chain length or the collapse limit keep their earlier text. */
+    private interface ChainRulesWhenKnown {
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        Integer weaverChainLength();
+
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        Integer maxCascadedParadoxes();
+
+        /** Derived from {@code weaverChainLength}; never written. */
+        @JsonIgnore
+        int chainLength();
+
+        /** Derived from {@code maxCascadedParadoxes}; never written. */
+        @JsonIgnore
+        int collapseLimit();
     }
 
     /** An outcome whose band is not published keeps its earlier text. */

@@ -41,7 +41,7 @@ describe('a run in progress', () => {
     service.cases.set(IDS.run, [
       caseDetail({ caseId: '00000000-0000-4000-8000-00000000000a', state: 'SUCCEEDED', attempts: [], result: {
         endReason: 'WIN_CONDITION_MET',
-        winners: [{ seatIndex: 0, faction: 'ERASERS', winType: 'SCORE_THRESHOLD' }],
+        winners: [{ seatIndex: 0, faction: 'ERASERS', winType: 'SCORE_THRESHOLD', winConditions: ['SCORE_THRESHOLD'] }],
         finalScores: [{ seatIndex: 0, faction: 'ERASERS', score: 12 }],
         eras: 2,
         rounds: 6,

@@ -15,8 +15,6 @@ import io.github.temporalrift.workbench.policy.domain.observation.EntitledObserv
  */
 final class RandomPolicy implements BotPolicy {
 
-    static final String DEFINITION = "uniform draw over canonically ordered candidates, pass and decline included";
-
     @Override
     public PolicyDecision decide(EntitledObservation observation, Set<Candidate> excluded, PolicyEntropy entropy) {
         var available = CandidateGenerator.generate(observation).stream()

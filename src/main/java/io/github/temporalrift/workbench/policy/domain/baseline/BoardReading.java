@@ -37,6 +37,7 @@ final class BoardReading {
     private final Set<UUID> previousRoundShifters = new HashSet<>();
     private final Integer round;
     private final int confirmedLinks;
+    private final UUID publicLinkOutcome;
     private UUID rewriteOutcome;
     private UUID threadOutcome;
     private boolean threaded;
@@ -46,6 +47,11 @@ final class BoardReading {
         round = observation.window() instanceof DecisionWindow.ActionRound window ? window.round() : null;
         var board = observation.board();
         confirmedLinks = board.chain() == null ? 0 : board.chain().confirmedLinks();
+        // The pending link is the Weaver's own bet, so it is a public link only to the other factions.
+        publicLinkOutcome =
+                board.chain() == null || board.chain().pendingLink() == null || observation.faction() == Faction.WEAVERS
+                        ? null
+                        : board.chain().pendingLink().outcomeId();
         rankOutcomes(observation.events());
         readOwnSubmissions(board.ownSubmissions());
         if (observation.faction() == Faction.PROPHETS) {
@@ -108,11 +114,6 @@ final class BoardReading {
         }
     }
 
-    private static int key(OutcomeView outcome) {
-        var band = outcome.band() == null ? Band.MEDIUM : outcome.band().band();
-        return band.ordinal() * 1000 + outcome.knownWeight();
-    }
-
     private void readOwnSubmissions(List<Board.OwnSubmission> submissions) {
         var actions = submissions.stream()
                 .filter(own -> own.window() == WindowKind.ACTION_ROUND || own.window() == WindowKind.DECLARATION)
@@ -169,6 +170,17 @@ final class BoardReading {
 
     boolean isDeclaredByOther(UUID outcomeId) {
         return othersDeclared.contains(outcomeId);
+    }
+
+    /** Whether the outcome is the Weaver's public pending link, as seen by a seat of another faction. */
+    boolean isPublicLink(UUID outcomeId) {
+        return outcomeId != null && outcomeId.equals(publicLinkOutcome);
+    }
+
+    /** The comparison key of an outcome: its public band first (none counts as MEDIUM), then its known weight. */
+    static int key(OutcomeView outcome) {
+        var band = outcome.band() == null ? Band.MEDIUM : outcome.band().band();
+        return band.ordinal() * 1000 + outcome.knownWeight();
     }
 
     boolean isWritten(UUID outcomeId) {

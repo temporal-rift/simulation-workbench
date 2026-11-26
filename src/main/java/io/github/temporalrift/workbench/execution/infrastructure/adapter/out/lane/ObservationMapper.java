@@ -221,7 +221,8 @@ final class ObservationMapper {
                                         outcome.getInitialProbability(),
                                         scanned.get(outcome.getOutcomeId()),
                                         bands.get(outcome.getOutcomeId())))
-                                .toList()))
+                                .toList(),
+                        event.getCarryOverState() == ActiveEvent.CarryOverStateEnum.STALLED))
                 .toList();
         var others = state.getPlayers().stream()
                 .map(PlayerInGame::getPlayerId)
@@ -233,7 +234,7 @@ final class ObservationMapper {
                 events,
                 others,
                 window,
-                BoardMapper.board(state));
+                BoardMapper.board(state, playerId));
     }
 
     /** The exact weights this participant bought itself; the most recent observation of an outcome wins. */

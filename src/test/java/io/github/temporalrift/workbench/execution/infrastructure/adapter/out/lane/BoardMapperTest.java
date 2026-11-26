@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.ActionFamily;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.ActionSummary;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.ActiveEvent;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.CardCategory;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.CardGrade;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.CardType;
@@ -25,6 +26,7 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 import io.github.temporalrift.workbench.policy.domain.observation.Band;
 import io.github.temporalrift.workbench.policy.domain.observation.Board;
 import io.github.temporalrift.workbench.policy.domain.observation.DeclarationMode;
+import io.github.temporalrift.workbench.policy.domain.observation.EventView;
 import io.github.temporalrift.workbench.policy.domain.observation.OutcomeView;
 import io.github.temporalrift.workbench.policy.domain.observation.PublicBand;
 import io.github.temporalrift.workbench.shared.window.WindowKind;
@@ -112,18 +114,34 @@ class BoardMapperTest {
     }
 
     @Test
-    void scoresDoNotReachTheObservation() {
-        var low = ProjectionStates.actionRound(2, 2, List.of());
-        var high = ProjectionStates.actionRound(2, 2, List.of());
-        high.setMyScore(17);
-        high.getPlayers().forEach(player -> player.setScore(9));
+    void thePublicScoresReachTheBoardAsTheSeatsOwnAndTheOthers() {
+        var state = ProjectionStates.actionRound(2, 2, List.of());
+        state.setMyScore(17);
+        state.getPlayers().forEach(player -> player.setScore(9));
 
-        assertThat(ObservationMapper.owed(SEAT, ProjectionStates.ME, high)
-                        .orElseThrow()
-                        .observation())
-                .isEqualTo(ObservationMapper.owed(SEAT, ProjectionStates.ME, low)
-                        .orElseThrow()
-                        .observation());
-        assertThat(high.getPlayers()).extracting(PlayerInGame::getScore).containsOnly(9);
+        var scores = ObservationMapper.owed(SEAT, ProjectionStates.ME, state)
+                .orElseThrow()
+                .observation()
+                .board()
+                .scores();
+
+        assertThat(scores.own()).isEqualTo(17);
+        assertThat(scores.others()).isNotEmpty().containsOnly(9);
+        assertThat(scores.leads()).isTrue();
+        assertThat(state.getPlayers()).extracting(PlayerInGame::getScore).containsOnly(9);
+    }
+
+    @Test
+    void aStalledEventIsMarkedStalledInTheObservation() {
+        var state = ProjectionStates.actionRound(2, 2, List.of());
+        state.getActiveEvents().getFirst().setCarryOverState(ActiveEvent.CarryOverStateEnum.STALLED);
+
+        var events = ObservationMapper.owed(SEAT, ProjectionStates.ME, state)
+                .orElseThrow()
+                .observation()
+                .events();
+
+        assertThat(events.getFirst().stalled()).isTrue();
+        assertThat(events.stream().skip(1)).noneMatch(EventView::stalled);
     }
 }

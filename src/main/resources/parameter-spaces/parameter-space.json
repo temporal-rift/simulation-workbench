@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 3,
   "parameters": [
     {
       "key": "game.rules.win-score-threshold",
@@ -307,8 +307,8 @@
       "services": [
         "timeline-service"
       ],
-      "baseline": 10,
-      "min": 5,
+      "baseline": 0,
+      "min": 0,
       "max": 15,
       "step": 5
     },
@@ -489,9 +489,10 @@
       "baseline": true
     },
     {
-      "key": "game.rules.rewrite-latest-round",
+      "key": "game.rules.faction-bet-latest-round",
       "services": [
-        "game-service"
+        "game-service",
+        "timeline-service"
       ],
       "baseline": 2,
       "min": 1,
@@ -657,6 +658,14 @@
       "step": 1
     },
     {
+      "key": "game.rules.victory.normal-victory",
+      "type": "BOOLEAN",
+      "services": [
+        "game-service"
+      ],
+      "baseline": true
+    },
+    {
       "key": "game.rules.victory.score-tiebreak",
       "type": "BOOLEAN",
       "services": [
@@ -669,7 +678,7 @@
       "services": [
         "game-service"
       ],
-      "baseline": 1,
+      "baseline": 0,
       "min": 0,
       "max": 2,
       "step": 1
@@ -689,9 +698,29 @@
       "services": [
         "game-service"
       ],
-      "baseline": 3,
+      "baseline": 4,
       "min": 3,
       "max": 5,
+      "step": 1
+    },
+    {
+      "key": "game.rules.victory.prophet-written-resolutions-by-player-count.5",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 3,
+      "min": 2,
+      "max": 4,
+      "step": 1
+    },
+    {
+      "key": "game.rules.victory.revisionist-successful-eras-by-player-count.5",
+      "services": [
+        "game-service"
+      ],
+      "baseline": 3,
+      "min": 2,
+      "max": 4,
       "step": 1
     },
     {
@@ -700,7 +729,7 @@
       "services": [
         "game-service"
       ],
-      "baseline": false
+      "baseline": true
     }
   ],
   "derived": [

@@ -57,6 +57,11 @@ public final class PolicyFixtures {
 
     private PolicyFixtures() {}
 
+    /** The specials a faction plays in an action round. */
+    public static List<PlayableSpecial> specialsOf(Faction faction) {
+        return SPECIALS.get(faction);
+    }
+
     public static UUID id(int n) {
         return new UUID(0L, n);
     }

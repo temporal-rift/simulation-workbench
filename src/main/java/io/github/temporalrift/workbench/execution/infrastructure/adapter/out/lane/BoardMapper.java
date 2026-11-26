@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.ActionSummary;
@@ -12,6 +13,7 @@ import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lan
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.MySubmission;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.OpenParadox;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.PlayerGameStateResponse;
+import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.PlayerInGame;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.PublicDeclaration;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.RoundSummary;
 import io.github.temporalrift.workbench.execution.infrastructure.adapter.out.lane.projection.model.SubmissionTargets;
@@ -47,7 +49,7 @@ final class BoardMapper {
         return bands;
     }
 
-    static Board board(PlayerGameStateResponse state) {
+    static Board board(PlayerGameStateResponse state, UUID playerId) {
         return new Board(
                 state.getDeclarations().stream()
                         .filter(declaration -> Objects.equals(declaration.getEraNumber(), state.getEraNumber()))
@@ -60,7 +62,27 @@ final class BoardMapper {
                         ? List.of()
                         : state.getPhaseContext().getParadoxes().stream()
                                 .map(BoardMapper::paradox)
-                                .toList());
+                                .toList(),
+                ids(state.getCascadedEventIds()),
+                scores(state, playerId));
+    }
+
+    /** A projected id set as a list in id order, so an observation does not depend on set iteration order. */
+    private static List<UUID> ids(Set<UUID> ids) {
+        return ids == null ? List.of() : ids.stream().sorted().toList();
+    }
+
+    /** The public scores: the seat's own, and every other participant's. */
+    private static Board.Scores scores(PlayerGameStateResponse state, UUID playerId) {
+        if (state.getMyScore() == null) {
+            return null;
+        }
+        return new Board.Scores(
+                state.getMyScore(),
+                state.getPlayers().stream()
+                        .filter(player -> !player.getPlayerId().equals(playerId))
+                        .map(PlayerInGame::getScore)
+                        .toList());
     }
 
     private static Board.PublicDeclaration declaration(PublicDeclaration declaration) {
@@ -147,7 +169,11 @@ final class BoardMapper {
                 : new Board.PendingLink(
                         chain.getPendingLink().getEventId(),
                         chain.getPendingLink().getOutcomeId());
-        return new Board.ChainView(Board.ChainStatus.valueOf(chain.getStatus().name()), chain.getLength(), pending);
+        return new Board.ChainView(
+                Board.ChainStatus.valueOf(chain.getStatus().name()),
+                chain.getLength(),
+                pending,
+                ids(chain.getConfirmedEventIds()));
     }
 
     private static Board.OpenParadox paradox(OpenParadox paradox) {

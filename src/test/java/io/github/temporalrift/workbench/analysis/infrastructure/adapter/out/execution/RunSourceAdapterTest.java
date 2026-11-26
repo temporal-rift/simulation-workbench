@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -13,6 +14,7 @@ import tools.jackson.databind.json.JsonMapper;
 import io.github.temporalrift.workbench.analysis.domain.game.CardKey;
 import io.github.temporalrift.workbench.analysis.domain.game.GameEvent;
 import io.github.temporalrift.workbench.analysis.domain.game.GameRecord;
+import io.github.temporalrift.workbench.analysis.domain.game.WinPath;
 import io.github.temporalrift.workbench.execution.CaseEvidence;
 import io.github.temporalrift.workbench.execution.RunCase;
 import io.github.temporalrift.workbench.execution.RunCatalog;
@@ -136,6 +138,34 @@ class RunSourceAdapterTest {
     }
 
     @Test
+    void anAcceptedSpecialActionRecordsWhetherItNamedAnOutcome() {
+        var events = List.of(
+                event(
+                        "FactionAssigned",
+                        "{\"gameId\":\"%s\",\"playerId\":\"%s\",\"faction\":\"PROPHETS\"}".formatted(GAME, PROPHET)),
+                event(
+                        "SpecialActionPlayed",
+                        ("{\"gameId\":\"%s\",\"eraNumber\":1,\"roundNumber\":1,\"playerId\":\"%s\","
+                                        + "\"faction\":\"PROPHETS\",\"specialAction\":\"FORESIGHT\","
+                                        + "\"targetEventId\":\"%s\",\"targetOutcomeId\":\"%s\"}")
+                                .formatted(GAME, PROPHET, new UUID(0, 7), new UUID(0, 8))),
+                event(
+                        "SpecialActionPlayed",
+                        ("{\"gameId\":\"%s\",\"eraNumber\":2,\"roundNumber\":1,\"playerId\":\"%s\","
+                                        + "\"faction\":\"PROPHETS\",\"specialAction\":\"FORESIGHT\"}")
+                                .formatted(GAME, PROPHET)));
+
+        var gameRecord = adapter(new CaseEvidence(List.of(), events))
+                .countingGame(RUN, adapter(null).cases(RUN).getFirst())
+                .orElseThrow();
+
+        assertThat(gameRecord.events())
+                .containsExactly(
+                        new GameEvent.SpecialPlayed(2, 1, SpecialAction.FORESIGHT, true),
+                        new GameEvent.SpecialPlayed(2, 2, SpecialAction.FORESIGHT, false));
+    }
+
+    @Test
     void aStepOutsideAnActionRoundObservesNoRound() {
         var gameRecord = adapter(new CaseEvidence(
                         List.of(step(
@@ -161,7 +191,42 @@ class RunSourceAdapterTest {
         assertThat(analyzed.outcome().winnerSeats()).containsExactly(1);
     }
 
+    @Test
+    void aWinnerCarriesTheConditionsTheResultListsAndNoneWhenItListsNone() {
+        var seats = runCase.seats();
+        var listed = new RunCase(
+                CASE,
+                runCase.caseKey(),
+                "base",
+                "random",
+                "42",
+                3,
+                seats,
+                CaseState.SUCCEEDED,
+                new RunCase.Result(
+                        EndReason.WIN_CONDITION_MET,
+                        List.of(1),
+                        List.of(new RunCase.Score(0, 10), new RunCase.Score(1, 24), new RunCase.Score(2, 7)),
+                        3,
+                        9,
+                        30,
+                        Map.of(1, "SCORE_THRESHOLD"),
+                        Map.of(1, List.of("SCORE_THRESHOLD", "FACTION_OBJECTIVE"))));
+
+        var outcome = adapter(listed, null).cases(RUN).getFirst().outcome();
+
+        assertThat(outcome.winConditions().get(1))
+                .containsExactlyInAnyOrder(WinPath.SCORE_THRESHOLD, WinPath.FACTION_OBJECTIVE);
+        assertThat(outcome.winPaths()).containsEntry(1, WinPath.SCORE_THRESHOLD);
+        assertThat(adapter(null).cases(RUN).getFirst().outcome().winConditions())
+                .isEmpty();
+    }
+
     private RunSourceAdapter adapter(CaseEvidence evidence) {
+        return adapter(runCase, evidence);
+    }
+
+    private RunSourceAdapter adapter(RunCase runCase, CaseEvidence evidence) {
         return new RunSourceAdapter(
                 new RunCatalog() {
                     @Override

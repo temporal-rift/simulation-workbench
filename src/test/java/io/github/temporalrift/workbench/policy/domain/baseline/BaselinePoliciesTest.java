@@ -98,25 +98,33 @@ class BaselinePoliciesTest {
                         "stabilizeDelta",
                         "detonateDelta",
                         "cascadePenalty",
-                        "tapestryAbsorbsChainConflict");
+                        "tapestryAbsorbsChainConflict",
+                        "weaverChainLength",
+                        "maxCascadedParadoxes");
         var boardFacts = Stream.of(Board.class.getRecordComponents())
                 .map(RecordComponent::getName)
                 .toList();
         assertThat(boardFacts)
                 .containsExactlyInAnyOrder(
-                        "declarations", "lastRoundSummary", "ownSubmissions", "chain", "openParadoxes");
+                        "declarations",
+                        "lastRoundSummary",
+                        "ownSubmissions",
+                        "chain",
+                        "openParadoxes",
+                        "cascadedEventIds",
+                        "scores");
         assertThat(components.stream().filter(name -> forbidden.stream().anyMatch(name::equals)))
                 .isEmpty();
     }
 
     @Test
-    void bundlesAreVersionedAndDigestTheirDefinition() {
+    void bundlesAreVersionedAndDigestTheirIdentityAndRevision() {
         assertThat(BaselinePolicies.RANDOM.version()).isEqualTo("1.0.0");
-        assertThat(BaselinePolicies.RANDOM.artifactDigest())
-                .isEqualTo(sha256("random|1.0.0|" + RandomPolicy.DEFINITION));
+        assertThat(BaselinePolicies.RANDOM.revision()).isEqualTo("1");
+        assertThat(BaselinePolicies.RANDOM.artifactDigest()).isEqualTo(sha256("random|1.0.0|1"));
         assertThat(BaselinePolicies.FACTION_GREEDY.version()).isEqualTo("1.0.0");
-        assertThat(BaselinePolicies.FACTION_GREEDY.artifactDigest())
-                .isEqualTo(sha256("faction-greedy|1.0.0|" + FactionGreedyPolicy.DEFINITION));
+        assertThat(BaselinePolicies.FACTION_GREEDY.revision()).isEqualTo("1");
+        assertThat(BaselinePolicies.FACTION_GREEDY.artifactDigest()).isEqualTo(sha256("faction-greedy|1.0.0|1"));
         assertThat(BaselinePolicies.RANDOM.artifactDigest())
                 .isNotEqualTo(BaselinePolicies.FACTION_GREEDY.artifactDigest());
         assertThat(BaselinePolicies.find("random", "1.0.0")).contains(BaselinePolicies.RANDOM);
@@ -126,8 +134,29 @@ class BaselinePoliciesTest {
     }
 
     @Test
-    void onlyRandomAndFactionGreedyAreDefined() {
-        assertThat(BaselinePolicies.all()).extracting(PolicyBundle::id).containsExactly("random", "faction-greedy");
+    void aNewRevisionGivesANewDigestAndTheSameRevisionTheSameDigest() {
+        var digest = BaselinePolicies.FACTION_GREEDY.artifactDigest();
+
+        assertThat(sha256("faction-greedy|1.0.0|1")).isEqualTo(digest);
+        assertThat(sha256("faction-greedy|1.0.0|2")).isNotEqualTo(digest);
+    }
+
+    @Test
+    void randomFactionGreedyAndFactionSpreadAreDefined() {
+        assertThat(BaselinePolicies.all())
+                .extracting(PolicyBundle::id)
+                .containsExactly("random", "faction-greedy", "faction-spread");
+    }
+
+    @Test
+    void factionSpreadHasItsOwnVersionAndDigest() {
+        assertThat(BaselinePolicies.FACTION_SPREAD.version()).isEqualTo("1.0.0");
+        assertThat(BaselinePolicies.FACTION_SPREAD.artifactDigest())
+                .isEqualTo(sha256("faction-spread|1.0.0|1"))
+                .isNotEqualTo(BaselinePolicies.FACTION_GREEDY.artifactDigest())
+                .isNotEqualTo(BaselinePolicies.RANDOM.artifactDigest());
+        assertThat(BaselinePolicies.find("faction-spread", "1.0.0")).contains(BaselinePolicies.FACTION_SPREAD);
+        assertThat(BaselinePolicies.find("faction-spread", "2.0.0")).isEmpty();
     }
 
     @ParameterizedTest(name = "{0}")

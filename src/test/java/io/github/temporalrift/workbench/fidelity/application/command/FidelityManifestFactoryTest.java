@@ -28,7 +28,7 @@ class FidelityManifestFactoryTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final String IMAGE = "sha256:" + "1".repeat(64);
 
-    private final EdgeVariants edge = ConfiguredEdgeVariants.load(MAPPER).forSpace(1);
+    private final EdgeVariants edge = ConfiguredEdgeVariants.load(MAPPER).forSpace(VariantRulesFixtures.SPACE_VERSION);
     private final FidelityManifestFactory factory =
             new FidelityManifestFactory(MAPPER, new FidelitySettings(3600, 10, 20, 64));
 
@@ -47,7 +47,8 @@ class FidelityManifestFactoryTest {
     }
 
     private static FidelityVariant variant(VariantLabel label, Map<String, ParameterValue> overrides) {
-        var preview = VariantRulesFixtures.variantRules().preview(VariantRulesFixtures.ARTIFACT_DIGEST, 1, overrides);
+        var preview = VariantRulesFixtures.variantRules()
+                .preview(VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.SPACE_VERSION, overrides);
         return new FidelityVariant(label, preview.digest(), preview.overrides());
     }
 
@@ -62,13 +63,14 @@ class FidelityManifestFactoryTest {
         var catalog = new BaselinePolicyCatalog();
         return catalog.list().stream()
                 .filter(policy -> policy.version().equals(FidelityMatrix.POLICY_VERSION))
+                .filter(policy -> FidelityMatrix.POLICY_IDS.contains(policy.id()))
                 .map(policy -> new FidelityExperiments.Policy(policy.id(), policy.version(), policy.artifactDigest()))
                 .toList();
     }
 
     @Test
     void theExperimentPlaysTheFullMatrixOfThreeVariantsAndTwoPolicies() {
-        var manifest = factory.build("42", 1, simulator(4), variants(), policies());
+        var manifest = factory.build("42", VariantRulesFixtures.SPACE_VERSION, simulator(4), variants(), policies());
 
         var cases = new PreviewMatrixQueryHandler(new PolicyReferenceVerifierAdapter(new BaselinePolicyCatalog()))
                 .handle(manifest);
@@ -83,7 +85,7 @@ class FidelityManifestFactoryTest {
 
     @Test
     void theManifestFreezesWithTheDigestsTheVariantsMean() {
-        var manifest = factory.build("42", 1, simulator(4), variants(), policies());
+        var manifest = factory.build("42", VariantRulesFixtures.SPACE_VERSION, simulator(4), variants(), policies());
 
         var frozen = VariantRulesFixtures.variantRules().freeze(manifest);
 
@@ -92,18 +94,19 @@ class FidelityManifestFactoryTest {
 
     @Test
     void theBaselineVariantHasNoOverridesAndTheEdgesHaveOnlyTheirNormalisedOnes() {
-        var manifest = factory.build("42", 1, simulator(4), variants(), policies());
+        var manifest = factory.build("42", VariantRulesFixtures.SPACE_VERSION, simulator(4), variants(), policies());
 
         var variantNodes = manifest.get("variants");
         assertThat(variantNodes.get(0).has("overrides")).isFalse();
         assertThat(variantNodes.get(1).get("overrides").size())
                 .isEqualTo(variants().get(1).overrides().size());
-        assertThat(variantNodes.get(1).get("parameterSpaceVersion").asInt()).isEqualTo(1);
+        assertThat(variantNodes.get(1).get("parameterSpaceVersion").asInt())
+                .isEqualTo(VariantRulesFixtures.SPACE_VERSION);
     }
 
     @Test
     void theManifestPinsTheSimulatorsBuildsAndContracts() {
-        var manifest = factory.build("42", 1, simulator(4), variants(), policies());
+        var manifest = factory.build("42", VariantRulesFixtures.SPACE_VERSION, simulator(4), variants(), policies());
 
         assertThat(manifest.get("services")
                         .get("gameService")
@@ -120,11 +123,11 @@ class FidelityManifestFactoryTest {
 
     @Test
     void concurrencyFollowsTheSimulatorsSlotsWithinTheBound() {
-        assertThat(factory.build("42", 1, simulator(4), variants(), policies())
+        assertThat(factory.build("42", VariantRulesFixtures.SPACE_VERSION, simulator(4), variants(), policies())
                         .get("concurrency")
                         .asInt())
                 .isEqualTo(4);
-        assertThat(factory.build("42", 1, simulator(500), variants(), policies())
+        assertThat(factory.build("42", VariantRulesFixtures.SPACE_VERSION, simulator(500), variants(), policies())
                         .get("concurrency")
                         .asInt())
                 .isEqualTo(64);

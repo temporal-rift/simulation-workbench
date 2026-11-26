@@ -2,8 +2,6 @@ package io.github.temporalrift.workbench.experiment.domain.rules;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.stream.IntStream;
-
 import org.junit.jupiter.api.Test;
 
 import io.github.temporalrift.workbench.experiment.VariantRulesFixtures;
@@ -12,12 +10,11 @@ import io.github.temporalrift.workbench.experiment.VariantRulesFixtures;
 class ParameterSpaceCatalogTest {
 
     @Test
-    void everySpaceFromOneToTheNewestIsServedInOrder() {
+    void theOneSpaceIsServed() {
         var versions = VariantRulesFixtures.spaces().all().stream()
                 .map(ParameterSpace::version)
                 .toList();
 
-        assertThat(versions)
-                .isEqualTo(IntStream.rangeClosed(1, versions.getLast()).boxed().toList());
+        assertThat(versions).hasSize(1);
     }
 }

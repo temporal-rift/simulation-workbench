@@ -26,6 +26,7 @@ class RunEvaluatorTest {
 
     private static final UUID RUN = new UUID(0, 9);
     private static final String GREEDY = "faction-greedy";
+    private static final String SPREAD = "faction-spread";
     private static final String RANDOM = "random";
     private static final List<Faction> EPW = SyntheticRun.EPW;
 
@@ -128,7 +129,8 @@ class RunEvaluatorTest {
         var evaluation = evaluate(EvaluationMode.SCREENING);
 
         var ratios = evaluation.lines().stream()
-                .filter(line -> line.lineId().equals("L-01") || line.lineId().equals("G-05"))
+                .filter(line -> (line.lineId().equals("L-01") || line.lineId().equals("G-05"))
+                        && line.policyId().equals(GREEDY))
                 .toList();
         assertThat(ratios).hasSize(6).allSatisfy(line -> {
             assertThat(line.status()).isEqualTo(MetricStatus.NO_DATA);
@@ -246,7 +248,7 @@ class RunEvaluatorTest {
                 .toList();
         assertThat(order).isSorted();
         var g05 = first.lines().stream()
-                .filter(line -> line.lineId().equals("G-05"))
+                .filter(line -> line.lineId().equals("G-05") && line.policyId().equals(GREEDY))
                 .map(line -> line.dimensions().faction())
                 .toList();
         assertThat(g05).isSortedAccordingTo(java.util.Comparator.comparing(Faction::name));
@@ -281,7 +283,7 @@ class RunEvaluatorTest {
      */
     private static SyntheticRun balancedMatrix(int seeds) {
         var cases = new SyntheticRun("base", GREEDY).withParadoxes();
-        for (var policy : List.of(GREEDY, RANDOM)) {
+        for (var policy : List.of(GREEDY, SPREAD, RANDOM)) {
             cases.policy(policy);
             for (var seed = 1; seed <= seeds; seed++) {
                 for (var playerCount = 3; playerCount <= 5; playerCount++) {

@@ -1,25 +1,27 @@
 # Fidelity edge variants
 
 The fidelity check compares the simulator with a real lane on the baseline and two variants at opposite edges of the
-parameter space. `src/main/resources/fidelity/edge-variants.json` ships the same sets as this record, and a check
+the parameter space ([docs/parameter-space/current.md](../parameter-space/current.md)). `src/main/resources/fidelity/edge-variants.json` ships the same sets as this record, and a check
 records the space revision it ran on. Both sets override every parameter of the space: `low` at the range minimum and
 `high` at the range maximum, except where a value is held off the edge, which † marks (a penalty whose weakest value
 is the "low" edge, or a value a constraint of the space forbids at the edge). Boolean parameters take `false` for `low`
 and `true` for `high`.
 
-The three new settings are the cost of a missed Thread (`CHAIN_LINK_MISSED`), the Eraser objective at five players and
-whether the Activist's successful eras must be consecutive at five players. `low` sets the Thread miss to -2, the
-five-player Eraser objective to 3 and the Activist's eras as not consecutive; `high` sets the miss to 0 (no penalty),
-the Eraser objective to 5 and the Activist's eras as consecutive. The Thread miss is a penalty, so its "low" edge is
-the strongest penalty and its "high" edge the weakest, the same way as the other penalties of the space. None of the
-three is tied to a constraint, so none is held off the edge. A check on this space is refused with the reason
-`UNKNOWN_BASELINE` when the simulator's baseline rules lack one of the three keys, which is the case until the services
-that serve them are deployed to the simulator.
+These sets are for revision 3 of the parameter space. Revision 2 added the faction-bet window and a Thread shift that
+may be zero, so the simulator's handling of both is compared with the real services; revision 3 adds
+`game.rules.victory.normal-victory`, which is `false` for `low` (a game never ends by normal victory) and `true` for
+`high`.
 
-The carried-over the earlier set settings keep their edges (three or five events per era, the three switches off or on, the
-Detonate cost and wasted-erasure value at 0 or at their strongest penalty, and no final-era discount or two steps).
-The Weaver chain baseline is four links and `SECRET_OUTCOME_WON` is 4; both stay inside their ranges, so their edges are
-the range minimum (`low`) and maximum (`high`).
+`game.rules.faction-bet-latest-round` replaces `game.rules.rewrite-latest-round`: `low` sets the window to round 1 and
+`high` to round 3. The Thread shift now spans 0 to 15 with baseline 0, so `low` is no push at all and `high` the
+strongest. Three baselines moved to mean "no five-player exception" and "no final-era discount": the final-era discount
+is 0, the five-player Eraser objective is 4 and the five-player Activist streak is consecutive. Each stays inside its
+range, so every edge is the range minimum (`low`) or maximum (`high`). None of these settings is tied to a constraint,
+so none is held off the edge. A check on this space is refused with the reason `UNKNOWN_BASELINE` when the simulator's
+baseline rules lack the window key, which is the case until the services that serve it are deployed to the simulator.
+
+The carried-over settings keep their edges (three or five events per era, the three switches off or on, the Detonate
+cost and wasted-erasure value at 0 or at their strongest penalty, and no final-era discount or two steps).
 
 ## Overrides
 
@@ -59,7 +61,7 @@ reason. The `suppress-shift` keys and `EXPOSE_CHANGED_PLAYER_BEHAVIOR` are deriv
 | `game.rules.probability.amplify-multiplier.III` | 3 | 2.5 | 3.5 |
 | `game.rules.probability.momentum-bonus` | 10 | 5 | 15 |
 | `game.rules.probability.rally-multiplier` | 1.5 | 1.25 | 2 |
-| `game.rules.probability.thread-shift` | 10 | 5 | 15 |
+| `game.rules.probability.thread-shift` | 0 | 0 | 15 |
 | `game.rules.scoring.score-deltas.ANNIHILATED_OUTCOME` | 3 | 2 | 4 |
 | `game.rules.scoring.score-deltas.CORRUPTED_OPPONENT_CARD` | 2 | 1 | 3 |
 | `game.rules.scoring.score-deltas.EVENT_RESOLVED_AS_WRITTEN` | 4 | 3 | 5 |
@@ -78,7 +80,7 @@ reason. The `suppress-shift` keys and `EXPOSE_CHANGED_PLAYER_BEHAVIOR` are deriv
 | `game.rules.annihilate-earliest-round` | 2 | 1 | 3 |
 | `game.rules.scoring.written-outcome-shields-annihilation` | true | false | true |
 | `game.rules.probability.erased-weight-to-written-outcome` | true | false | true |
-| `game.rules.rewrite-latest-round` | 2 | 1 | 3 |
+| `game.rules.faction-bet-latest-round` | 2 | 1 | 3 |
 | `game.rules.scoring.score-deltas.SECRET_OUTCOME_MISSED` | -1 | -3 | 0 |
 | `game.rules.scoring.expose-requires-declared-event` | true | false | true |
 | `game.rules.scoring.annihilation-requires-consequence` | true | false | true |
@@ -97,10 +99,13 @@ reason. The `suppress-shift` keys and `EXPOSE_CHANGED_PLAYER_BEHAVIOR` are deriv
 | `game.rules.scoring.score-deltas.PARADOX_DETONATED` | -1 | 0 † | -3 † |
 | `game.rules.scoring.score-deltas.ANNIHILATION_WASTED` | 0 | 0 † | -2 † |
 | `game.rules.victory.score-tiebreak` | true | false | true |
-| `game.rules.victory.final-era-objective-discount` | 1 | 0 | 2 |
+| `game.rules.victory.normal-victory` | true | false | true |
+| `game.rules.victory.final-era-objective-discount` | 0 | 0 | 2 |
 | `game.rules.scoring.score-deltas.CHAIN_LINK_MISSED` | -1 | -2 | 0 |
-| `game.rules.victory.eraser-annihilations-by-player-count.5` | 3 | 3 | 5 |
-| `game.rules.victory.activist-consecutive-eras-by-player-count.5` | false | false | true |
+| `game.rules.victory.eraser-annihilations-by-player-count.5` | 4 | 3 | 5 |
+| `game.rules.victory.prophet-written-resolutions-by-player-count.5` | 3 | 2 | 4 |
+| `game.rules.victory.revisionist-successful-eras-by-player-count.5` | 3 | 2 | 4 |
+| `game.rules.victory.activist-consecutive-eras-by-player-count.5` | true | false | true |
 
 ## Validation
 

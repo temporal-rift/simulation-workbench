@@ -56,6 +56,7 @@ class RunConfirmationServiceTest {
         assertThat(service.policies(criterion.version()))
                 .containsExactlyInAnyOrder(
                         new io.github.temporalrift.workbench.analysis.RunConfirmation.PolicyRef("faction-greedy", "1"),
+                        new io.github.temporalrift.workbench.analysis.RunConfirmation.PolicyRef("faction-spread", "1"),
                         new io.github.temporalrift.workbench.analysis.RunConfirmation.PolicyRef("random", "1"));
     }
 

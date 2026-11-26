@@ -8,6 +8,7 @@ import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
+import io.github.temporalrift.workbench.analysis.domain.AnalysisVersion;
 import io.github.temporalrift.workbench.analysis.domain.fact.CaseFacts;
 import io.github.temporalrift.workbench.analysis.domain.game.AnalyzedCase;
 import io.github.temporalrift.workbench.analysis.domain.game.CardKey;
@@ -28,7 +29,9 @@ public record Vocabulary(
         Set<ParadoxType> paradoxTypes,
         Map<Faction, SortedSet<String>> scoreReasons,
         Set<WinPath> winPaths,
-        boolean diagnostics) {
+        boolean diagnostics,
+        boolean betSurvival,
+        boolean winConditions) {
 
     /** A vocabulary without the balance diagnostics of analysis version 3. */
     public Vocabulary(
@@ -37,7 +40,17 @@ public record Vocabulary(
             Set<SpecialAction> specials,
             Set<SpecialAction> declarationModes,
             Set<ParadoxType> paradoxTypes) {
-        this(factionsByPlayerCount, cards, specials, declarationModes, paradoxTypes, Map.of(), Set.of(), false);
+        this(
+                factionsByPlayerCount,
+                cards,
+                specials,
+                declarationModes,
+                paradoxTypes,
+                Map.of(),
+                Set.of(),
+                false,
+                false,
+                false);
     }
 
     /** The vocabulary of a run analysed without the balance diagnostics. */
@@ -45,8 +58,27 @@ public record Vocabulary(
         return of(cases, facts, false);
     }
 
+    /** The vocabulary of a run as the analysis version reports it. */
+    public static Vocabulary of(Collection<AnalyzedCase> cases, Collection<CaseFacts> facts, AnalysisVersion analysis) {
+        return of(
+                cases,
+                facts,
+                analysis.reportsDiagnostics(),
+                analysis.reportsBetSurvival(),
+                analysis.reportsWinConditions());
+    }
+
     /** The vocabulary of a run; {@code diagnostics} adds the score reasons and win paths that occur in it. */
     public static Vocabulary of(Collection<AnalyzedCase> cases, Collection<CaseFacts> facts, boolean diagnostics) {
+        return of(cases, facts, diagnostics, false, false);
+    }
+
+    private static Vocabulary of(
+            Collection<AnalyzedCase> cases,
+            Collection<CaseFacts> facts,
+            boolean diagnostics,
+            boolean betSurvival,
+            boolean winConditions) {
         var factions = new TreeMap<Integer, Set<Faction>>();
         cases.forEach(analyzedCase -> factions.computeIfAbsent(
                         analyzedCase.playerCount(), ignored -> EnumSet.noneOf(Faction.class))
@@ -80,7 +112,17 @@ public record Vocabulary(
                 }
             }
         }
-        return new Vocabulary(factions, cards, specials, modes, paradoxTypes, reasons, paths, diagnostics);
+        return new Vocabulary(
+                factions,
+                cards,
+                specials,
+                modes,
+                paradoxTypes,
+                reasons,
+                paths,
+                diagnostics,
+                betSurvival,
+                winConditions);
     }
 
     /** Merges the values of two vocabularies, as a comparison lists both sides' values. */
@@ -121,7 +163,9 @@ public record Vocabulary(
                 mergedParadoxes,
                 mergedReasons,
                 mergedPaths,
-                diagnostics || other.diagnostics);
+                diagnostics || other.diagnostics,
+                betSurvival || other.betSurvival,
+                winConditions || other.winConditions);
     }
 
     public Set<Faction> factions(int playerCount) {

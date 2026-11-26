@@ -106,6 +106,45 @@ class ObservationJsonTest {
     }
 
     @Test
+    void theFactsOfTheSpreadBotReadBackEqualAndAreWrittenOnlyWhenKnown() {
+        var plain = PolicyFixtures.actionRound(Faction.ERASERS);
+        assertThat(ObservationJson.of(plain))
+                .doesNotContain("stalled")
+                .doesNotContain("confirmedEventIds")
+                .doesNotContain("cascadedEventIds")
+                .doesNotContain("scores")
+                .doesNotContain("weaverChainLength");
+
+        var stalled =
+                new EventView(PolicyFixtures.EVENT_A, plain.events().getFirst().outcomes(), true);
+        var board = new Board(
+                List.of(),
+                null,
+                List.of(),
+                new Board.ChainView(Board.ChainStatus.ACTIVE, 2, null, List.of(PolicyFixtures.EVENT_B)),
+                List.of(),
+                List.of(PolicyFixtures.EVENT_C),
+                new Board.Scores(7, List.of(3, 9)));
+        var observation = new EntitledObservation(
+                        0, Faction.ERASERS, List.of(stalled), plain.otherPlayerIds(), plain.window(), board)
+                .withRules(new TableRules(true, 0, -1, -2, false, 5, 4));
+
+        var text = ObservationJson.of(observation);
+
+        assertThat(text)
+                .contains("\"stalled\":true")
+                .contains("confirmedEventIds")
+                .contains("cascadedEventIds")
+                .contains("\"scores\"")
+                .contains("\"weaverChainLength\":5")
+                .contains("\"maxCascadedParadoxes\":4")
+                .doesNotContain("leads")
+                .doesNotContain("chainLength\"")
+                .doesNotContain("collapseLimit");
+        assertThat(ObservationJson.parse(text)).isEqualTo(observation);
+    }
+
+    @Test
     void anObservationWithBoardFactsReadsBackEqual() {
         var base = PolicyFixtures.actionRound(Faction.WEAVERS);
         var banded = new EventView(

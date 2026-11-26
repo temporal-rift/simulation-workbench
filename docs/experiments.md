@@ -68,6 +68,24 @@ serves the frozen `EffectiveRules`. A case runs only on a lane whose content dig
 contract versions equal its variant's effective content digest and pinned services and contracts; the lane's own
 rules digest takes no part in the match, because every case opens its context with the variant's frozen effective rules.
 
+
+## The recording variant
+
+Re-scoring a finished run under another scoring engine is unbiased only on games that play every era: a game that ended
+by normal victory stops early, and an engine whose race lasts longer cannot judge it. To record games that play
+every era, add one variant to the experiment whose only override is `game.rules.victory.normal-victory: false` and play
+it under the priority bots:
+
+```json
+{ "label": "recording", "rulesArtifact": "<baseline>", "parameterSpaceVersion": 3,
+  "overrides": { "game.rules.victory.normal-victory": false } }
+```
+
+Every game of that variant reaches the final era unless the timeline collapses. Games that ended by normal victory under
+any other variant truncate whenever the engine's race is longer than the recorded game, so judge an engine on the
+recording variant. Playing it needs game-service and the lane bundles to serve the key; a baseline that lacks it is named at
+startup and variants on revision 3 are refused until it is served.
+
 ## Cohort-matrix preview
 
 `MatrixPreviewService` deterministically enumerates every case coordinate (seed, faction set, seat

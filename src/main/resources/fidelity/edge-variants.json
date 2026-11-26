@@ -1,5 +1,5 @@
 {
-  "parameterSpaceVersion": 1,
+  "parameterSpaceVersion": 3,
   "variants": {
     "low": {
       "game.rules.win-score-threshold": 16,
@@ -32,7 +32,7 @@
       "game.rules.probability.amplify-multiplier.III": 2.5,
       "game.rules.probability.momentum-bonus": 5,
       "game.rules.probability.rally-multiplier": 1.25,
-      "game.rules.probability.thread-shift": 5,
+      "game.rules.probability.thread-shift": 0,
       "game.rules.scoring.score-deltas.ANNIHILATED_OUTCOME": 2,
       "game.rules.scoring.score-deltas.CORRUPTED_OPPONENT_CARD": 1,
       "game.rules.scoring.score-deltas.EVENT_RESOLVED_AS_WRITTEN": 3,
@@ -51,7 +51,7 @@
       "game.rules.annihilate-earliest-round": 1,
       "game.rules.scoring.written-outcome-shields-annihilation": false,
       "game.rules.probability.erased-weight-to-written-outcome": false,
-      "game.rules.rewrite-latest-round": 1,
+      "game.rules.faction-bet-latest-round": 1,
       "game.rules.scoring.score-deltas.SECRET_OUTCOME_MISSED": -3,
       "game.rules.scoring.expose-requires-declared-event": false,
       "game.rules.scoring.annihilation-requires-consequence": false,
@@ -70,9 +70,12 @@
       "game.rules.scoring.score-deltas.PARADOX_DETONATED": 0,
       "game.rules.scoring.score-deltas.ANNIHILATION_WASTED": 0,
       "game.rules.victory.score-tiebreak": false,
+      "game.rules.victory.normal-victory": false,
       "game.rules.victory.final-era-objective-discount": 0,
       "game.rules.scoring.score-deltas.CHAIN_LINK_MISSED": -2,
       "game.rules.victory.eraser-annihilations-by-player-count.5": 3,
+      "game.rules.victory.prophet-written-resolutions-by-player-count.5": 2,
+      "game.rules.victory.revisionist-successful-eras-by-player-count.5": 2,
       "game.rules.victory.activist-consecutive-eras-by-player-count.5": false
     },
     "high": {
@@ -125,7 +128,7 @@
       "game.rules.annihilate-earliest-round": 3,
       "game.rules.scoring.written-outcome-shields-annihilation": true,
       "game.rules.probability.erased-weight-to-written-outcome": true,
-      "game.rules.rewrite-latest-round": 3,
+      "game.rules.faction-bet-latest-round": 3,
       "game.rules.scoring.score-deltas.SECRET_OUTCOME_MISSED": 0,
       "game.rules.scoring.expose-requires-declared-event": true,
       "game.rules.scoring.annihilation-requires-consequence": true,
@@ -144,9 +147,12 @@
       "game.rules.scoring.score-deltas.PARADOX_DETONATED": -3,
       "game.rules.scoring.score-deltas.ANNIHILATION_WASTED": -2,
       "game.rules.victory.score-tiebreak": true,
+      "game.rules.victory.normal-victory": true,
       "game.rules.victory.final-era-objective-discount": 2,
       "game.rules.scoring.score-deltas.CHAIN_LINK_MISSED": 0,
       "game.rules.victory.eraser-annihilations-by-player-count.5": 5,
+      "game.rules.victory.prophet-written-resolutions-by-player-count.5": 4,
+      "game.rules.victory.revisionist-successful-eras-by-player-count.5": 4,
       "game.rules.victory.activist-consecutive-eras-by-player-count.5": true
     }
   }

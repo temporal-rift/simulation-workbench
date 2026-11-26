@@ -30,6 +30,28 @@ class TableRulesMapperTest {
     }
 
     @Test
+    void theChainLengthAndTheCollapseLimitAreReadWhenTheCaseSaysThem() {
+        var rules = TableRulesMapper.of(rules(Map.of(
+                "game.rules.victory.weaver-chain-length",
+                5,
+                "game.rules.max-cascaded-paradoxes",
+                new BigDecimal("4.0"))));
+
+        assertThat(rules.chainLength()).isEqualTo(5);
+        assertThat(rules.collapseLimit()).isEqualTo(4);
+    }
+
+    @Test
+    void aCaseThatLeavesThemOutReadsTheParameterSpaceBaselines() {
+        var rules = TableRulesMapper.of(rules(Map.of()));
+
+        assertThat(rules.weaverChainLength()).isNull();
+        assertThat(rules.maxCascadedParadoxes()).isNull();
+        assertThat(rules.chainLength()).isEqualTo(4);
+        assertThat(rules.collapseLimit()).isEqualTo(3);
+    }
+
+    @Test
     void numbersAreReadWhateverTheirJsonType() {
         var rules = TableRulesMapper.of(rules(Map.of(
                 "game.rules.scoring.score-deltas.PARADOX_DETONATED",

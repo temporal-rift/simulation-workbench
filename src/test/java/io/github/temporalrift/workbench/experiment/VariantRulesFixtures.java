@@ -22,6 +22,9 @@ public final class VariantRulesFixtures {
 
     public static final String SCOPE = "workbench.execution.lanes[id=lane-1].";
 
+    /** The version of the one parameter space. */
+    public static final int SPACE_VERSION = 3;
+
     private static final String RESOURCE = "/rules/baseline-effective-rules.json";
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -71,7 +74,7 @@ public final class VariantRulesFixtures {
         var overrides = MAPPER.readTree(overridesJson);
         if (!overrides.isEmpty()) {
             variant.set("overrides", overrides);
-            variant.put("parameterSpaceVersion", 1);
+            variant.put("parameterSpaceVersion", SPACE_VERSION);
         }
         return variant;
     }

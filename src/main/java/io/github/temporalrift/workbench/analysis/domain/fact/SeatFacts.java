@@ -1,8 +1,10 @@
 package io.github.temporalrift.workbench.analysis.domain.fact;
 
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeMap;
 
 import io.github.temporalrift.workbench.analysis.domain.game.CardKey;
@@ -12,7 +14,9 @@ import io.github.temporalrift.workbench.shared.game.SpecialAction;
 
 /**
  * What one seat of a succeeded game did and achieved. A card-round is a card the seat held at the start of an
- * action round; its playability is known only when the seat observed that round.
+ * action round; its playability is known only when the seat observed that round. The bet counts are seat-eras:
+ * {@code betsPlaced} where the faction's signature bet was placed, {@code betsScored} of those that recorded a win or
+ * a miss reason, {@code betsWon} of those that recorded a win; facts stored without them read them as zero.
  */
 public record SeatFacts(
         int seat,
@@ -38,7 +42,11 @@ public record SeatFacts(
         WinPath winPath,
         int winEra,
         int betWins,
-        int betMisses) {
+        int betMisses,
+        int betsPlaced,
+        int betsScored,
+        int betsWon,
+        Set<WinPath> winConditions) {
 
     public SeatFacts {
         Objects.requireNonNull(faction, "faction");
@@ -57,6 +65,10 @@ public record SeatFacts(
         declarations = sorted(declarations);
         // Facts stored before the diagnostics existed read them as empty.
         scoreByReason = scoreByReason == null ? Map.of() : sorted(scoreByReason);
+        // Facts stored before the win conditions existed read them as none.
+        winConditions = winConditions == null || winConditions.isEmpty()
+                ? Set.of()
+                : Collections.unmodifiableSet(EnumSet.copyOf(winConditions));
     }
 
     /** Seat facts without the balance diagnostics. */
@@ -104,7 +116,11 @@ public record SeatFacts(
                 null,
                 0,
                 0,
-                0);
+                0,
+                0,
+                0,
+                0,
+                Set.of());
     }
 
     /** Signed points a seat recorded for a score reason in the game. */

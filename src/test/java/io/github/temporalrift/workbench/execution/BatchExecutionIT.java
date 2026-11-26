@@ -690,7 +690,7 @@ class BatchExecutionIT {
         var digest = previewRules
                 .handle(new PreviewVariantRulesUseCase.Query(
                         VariantRulesFixtures.ARTIFACT_DIGEST,
-                        1,
+                        VariantRulesFixtures.SPACE_VERSION,
                         Map.of("game.rules.win-score-threshold", ParameterValue.of(new BigDecimal(threshold)))))
                 .effectiveRulesDigest();
         return VariantRulesFixtures.variant(label, digest, "{\"game.rules.win-score-threshold\":" + threshold + "}");
