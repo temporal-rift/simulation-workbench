@@ -152,12 +152,13 @@ class RescoreRunQueryHandlerTest {
     void anUnknownRunVariantOrTableIsNotFound() {
         add("1", CaseState.SUCCEEDED, 5, EndReason.TIMELINE_STABILIZED);
 
-        assertThatThrownBy(() -> handler.handle(new RescoreRunUseCase.Query(new UUID(5, 5), engine(10), "v", "t")))
-                .isInstanceOf(AnalysisResourceNotFoundException.class);
-        assertThatThrownBy(() -> handler.handle(new RescoreRunUseCase.Query(RUN, engine(10), "other", "t")))
-                .isInstanceOf(AnalysisResourceNotFoundException.class);
-        assertThatThrownBy(() -> handler.handle(new RescoreRunUseCase.Query(RUN, engine(10), "v", "other")))
-                .isInstanceOf(AnalysisResourceNotFoundException.class);
+        var unknownRun = new RescoreRunUseCase.Query(new UUID(5, 5), engine(10), "v", "t");
+        var unknownVariant = new RescoreRunUseCase.Query(RUN, engine(10), "other", "t");
+        var unknownTable = new RescoreRunUseCase.Query(RUN, engine(10), "v", "other");
+
+        assertThatThrownBy(() -> handler.handle(unknownRun)).isInstanceOf(AnalysisResourceNotFoundException.class);
+        assertThatThrownBy(() -> handler.handle(unknownVariant)).isInstanceOf(AnalysisResourceNotFoundException.class);
+        assertThatThrownBy(() -> handler.handle(unknownTable)).isInstanceOf(AnalysisResourceNotFoundException.class);
     }
 
     @Test

@@ -53,8 +53,8 @@ public class RescoreRunQueryHandler implements RescoreRunUseCase {
         var rescorer = new Rescorer(query.engine());
         var judgements = new ArrayList<RescoringCalculator.Judgement>();
         for (var member : members) {
-            runs.countingGame(query.runId(), member).ifPresent(record -> {
-                var game = RecordedGames.of(member, record, rules.scoreDeltas());
+            runs.countingGame(query.runId(), member).ifPresent(evidence -> {
+                var game = RecordedGames.of(member, evidence, rules.scoreDeltas());
                 judgements.add(new RescoringCalculator.Judgement(
                         member.playerCount(),
                         member.seed(),

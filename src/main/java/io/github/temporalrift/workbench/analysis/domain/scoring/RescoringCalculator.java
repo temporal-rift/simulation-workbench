@@ -61,7 +61,7 @@ public final class RescoringCalculator {
             var verdict = (Rescorer.Verdict.Judged) item.verdict();
             for (var seat = 0; seat < item.factions().size(); seat++) {
                 series.computeIfAbsent(item.factions().get(seat), faction -> new BlockSeries(blockOf.size()))
-                        .addRatio(block, verdict.shares()[seat], 1, 0);
+                        .addRatio(block, verdict.shares().get(seat), 1, 0);
             }
         }
         var bootstrap = blockOf.size() < 2

@@ -120,11 +120,10 @@ class RecordedGamesTest {
 
     @Test
     void aPlacedBetReasonWithoutConfiguredPointsIsRefused() {
-        assertThatThrownBy(() -> read(
-                        List.of(Faction.REVISIONISTS, Faction.WEAVERS, Faction.PROPHETS),
-                        1,
-                        new GameEvent.SpecialPlayed(0, 1, SpecialAction.REWRITE),
-                        score(0, 1, "SECRET_OUTCOME_WON", 4)))
-                .isInstanceOf(IllegalStateException.class);
+        var table = List.of(Faction.REVISIONISTS, Faction.WEAVERS, Faction.PROPHETS);
+        var rewrite = new GameEvent.SpecialPlayed(0, 1, SpecialAction.REWRITE);
+        var won = score(0, 1, "SECRET_OUTCOME_WON", 4);
+
+        assertThatThrownBy(() -> read(table, 1, rewrite, won)).isInstanceOf(IllegalStateException.class);
     }
 }

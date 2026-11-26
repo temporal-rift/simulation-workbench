@@ -129,8 +129,9 @@ class RescorerTest {
         var weaversOnly = new ScoringEngine(
                 10, 5, List.of(new FactionScoring(Faction.WEAVERS, List.of(2), 0, Set.of(), null, 0)));
 
-        assertThatThrownBy(() ->
-                        new Rescorer(weaversOnly).judge(game(5, EndReason.TIMELINE_STABILIZED, WEAVER), FINAL_ERA))
-                .isInstanceOf(IllegalArgumentException.class);
+        var rescorer = new Rescorer(weaversOnly);
+        var recorded = game(5, EndReason.TIMELINE_STABILIZED, WEAVER);
+
+        assertThatThrownBy(() -> rescorer.judge(recorded, FINAL_ERA)).isInstanceOf(IllegalArgumentException.class);
     }
 }

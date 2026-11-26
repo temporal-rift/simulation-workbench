@@ -1,6 +1,8 @@
 package io.github.temporalrift.workbench.analysis.domain.scoring;
 
-import java.util.HashMap;
+import java.util.Arrays;
+import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 
 import io.github.temporalrift.workbench.shared.game.EndReason;
@@ -16,7 +18,7 @@ public final class Rescorer {
     public static final int SHARE_UNITS = 60;
 
     private final ScoringEngine engine;
-    private final Map<Faction, FactionScoring> byFaction = new HashMap<>();
+    private final Map<Faction, FactionScoring> byFaction = new EnumMap<>(Faction.class);
 
     public Rescorer(ScoringEngine engine) {
         this.engine = engine;
@@ -26,8 +28,13 @@ public final class Rescorer {
     /** What the engine's race makes of a recorded game. */
     public sealed interface Verdict {
 
-        /** The race ended in {@code era}; {@code shares[seat]} is the seat's win share in {@link #SHARE_UNITS}ths. */
-        record Judged(int era, int[] shares) implements Verdict {}
+        /** The race ended in {@code era}; each seat's win share is in {@link #SHARE_UNITS}ths. */
+        record Judged(int era, List<Integer> shares) implements Verdict {
+
+            public Judged {
+                shares = List.copyOf(shares);
+            }
+        }
 
         /** The race would outlast the recorded game, so it cannot be judged. */
         record Truncated() implements Verdict {}
@@ -73,7 +80,7 @@ public final class Rescorer {
         return best;
     }
 
-    private static int[] shares(SeatScore[] scores) {
+    private static List<Integer> shares(SeatScore[] scores) {
         var best = best(scores);
         var winners = 0;
         for (var score : scores) {
@@ -83,6 +90,6 @@ public final class Rescorer {
         for (var seat = 0; seat < scores.length; seat++) {
             shares[seat] = scores[seat].total() == best ? SHARE_UNITS / winners : 0;
         }
-        return shares;
+        return Arrays.stream(shares).boxed().toList();
     }
 }

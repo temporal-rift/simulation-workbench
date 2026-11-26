@@ -32,11 +32,11 @@ public final class RecordedGames {
      * @param scoreDeltas the variant's configured points per score reason
      * @throws IllegalStateException when a bet reason listed in a placed era has no configured points
      */
-    public static RecordedGame of(AnalyzedCase analyzedCase, GameRecord record, Map<String, Integer> scoreDeltas) {
+    public static RecordedGame of(AnalyzedCase analyzedCase, GameRecord gameRecord, Map<String, Integer> scoreDeltas) {
         var eras = analyzedCase.outcome().eras();
         var seats = new ArrayList<List<RecordedGame.Era>>();
         for (var seat = 0; seat < analyzedCase.seatFactions().size(); seat++) {
-            seats.add(seat(seat, analyzedCase.seatFactions().get(seat), eras, record.events(), scoreDeltas));
+            seats.add(seat(seat, analyzedCase.seatFactions().get(seat), eras, gameRecord.events(), scoreDeltas));
         }
         return new RecordedGame(
                 analyzedCase.playerCount(),
@@ -96,7 +96,7 @@ public final class RecordedGames {
             betPoints += points;
         }
         var outcome = BetOutcome.VOIDED;
-        if (listed.stream().anyMatch(reason -> reasons.wonBy(reason))) {
+        if (listed.stream().anyMatch(reasons::wonBy)) {
             outcome = BetOutcome.WON;
         } else if (!settling.isEmpty()) {
             outcome = BetOutcome.MISSED;
