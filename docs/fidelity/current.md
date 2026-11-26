@@ -7,8 +7,10 @@ records the space revision it ran on. Both sets override every parameter of the 
 is the "low" edge, or a value a constraint of the space forbids at the edge). Boolean parameters take `false` for `low`
 and `true` for `high`.
 
-These sets are for revision 2 of the parameter space, which adds the faction-bet window and a Thread shift that may be
-zero, so the simulator's handling of both is compared with the real services.
+These sets are for revision 3 of the parameter space. Revision 2 added the faction-bet window and a Thread shift that
+may be zero, so the simulator's handling of both is compared with the real services; revision 3 adds
+`game.rules.victory.normal-victory`, which is `false` for `low` (a game never ends by normal victory) and `true` for
+`high`.
 
 `game.rules.faction-bet-latest-round` replaces `game.rules.rewrite-latest-round`: `low` sets the window to round 1 and
 `high` to round 3. The Thread shift now spans 0 to 15 with baseline 0, so `low` is no push at all and `high` the
@@ -97,6 +99,7 @@ reason. The `suppress-shift` keys and `EXPOSE_CHANGED_PLAYER_BEHAVIOR` are deriv
 | `game.rules.scoring.score-deltas.PARADOX_DETONATED` | -1 | 0 † | -3 † |
 | `game.rules.scoring.score-deltas.ANNIHILATION_WASTED` | 0 | 0 † | -2 † |
 | `game.rules.victory.score-tiebreak` | true | false | true |
+| `game.rules.victory.normal-victory` | true | false | true |
 | `game.rules.victory.final-era-objective-discount` | 0 | 0 | 2 |
 | `game.rules.scoring.score-deltas.CHAIN_LINK_MISSED` | -1 | -2 | 0 |
 | `game.rules.victory.eraser-annihilations-by-player-count.5` | 4 | 3 | 5 |

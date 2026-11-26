@@ -84,7 +84,7 @@ class StartFidelityCheckCommandHandlerTest {
         var view = handler().handle(new StartFidelityCheckUseCase.Command(UUID.randomUUID(), "42"));
 
         var check = view.check();
-        assertThat(check.parameterSpaceVersion()).isEqualTo(2);
+        assertThat(check.parameterSpaceVersion()).isEqualTo(3);
         assertThat(check.variants().get(1).overrides())
                 .containsEntry("game.rules.annihilate-earliest-round", ParameterValue.of(new BigDecimal("1")))
                 .containsEntry("game.rules.scoring.written-outcome-shields-annihilation", ParameterValue.of(false))
@@ -107,7 +107,7 @@ class StartFidelityCheckCommandHandlerTest {
     void everyVariantIsResolvedAgainstTheRecordedParameterSpace() {
         handler().handle(new StartFidelityCheckUseCase.Command(UUID.randomUUID(), "42"));
 
-        verify(experiments, times(3)).previewVariant(anyString(), eq(2), any());
+        verify(experiments, times(3)).previewVariant(anyString(), eq(3), any());
     }
 
     @Test
@@ -219,7 +219,7 @@ class StartFidelityCheckCommandHandlerTest {
             }
             throw new FidelityExperimentRefusedException(
                     "the baseline rules carry no number at game.rules.annihilate-earliest-round, which parameter"
-                            + " space 2 needs",
+                            + " space 3 needs",
                     "UNKNOWN_BASELINE",
                     null);
         });

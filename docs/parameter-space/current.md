@@ -1,7 +1,7 @@
 # Parameter space
 
 This is the one parameter space the workbench serves (`parameter-spaces/parameter-space.json`; its `version` is the
-revision of its content, now 2). It was reached through successive versions whose decision records are kept unchanged in
+revision of its content, now 3). It was reached through successive versions whose decision records are kept unchanged in
 [docs/history](../history) (`parameter-space-v1.md` to `parameter-space-v5.md`); version 1's record holds the rationale
 of every original parameter, range and constraint. The rebalance settings below are the newest additions, and "Revision 2" lists what the faction-bet window changed.
 
@@ -44,3 +44,12 @@ baselines mean "no exception": `game.rules.victory.final-era-objective-discount`
 five-player settings above are 4 and `true`. `game.rules.victory.weaver-chain-length` keeps [3, 4] and baseline 4. A
 variant that overrides `game.rules.rewrite-latest-round`, or sets `thread-shift` below 0, is refused naming the key.
 Experiments and campaigns stored on revision 1 can no longer be replayed; their results stay as files.
+
+## Revision 3
+
+Revision 3 adds `game.rules.victory.normal-victory` (BOOLEAN, game-service, baseline `true`). With `false`, a game never
+ends by normal victory and plays to the final era unless the timeline collapses. Every other parameter, range, step and
+constraint is as in revision 2, and a campaign search treats the new key as one more two-value axis. A baseline rules
+document without the key is named by the baseline check at startup, as for any new key. As with revision 2, there is
+one served space: experiments and campaigns stored on revision 2 can no longer be replayed; their results stay as
+files.

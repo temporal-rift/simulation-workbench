@@ -8,7 +8,7 @@
     <parent>
         <groupId>io.github.temporal-rift</groupId>
         <artifactId>temporal-rift-bom</artifactId>
-        <version>2.2.1</version>
+        <version>2.2.2</version>
         <relativePath/>
     </parent>
 
@@ -57,7 +57,7 @@
         <sonar.coverage.exclusions>**/generated-sources/**/*</sonar.coverage.exclusions>
 
         <!-- Workbench-owned boundary (implemented by this application). -->
-        <simulation-api.version>8.0.0</simulation-api.version>
+        <simulation-api.version>8.1.0</simulation-api.version>
         <!-- Isolated execution boundary (consumed operator interface, owned by the game/timeline services). -->
         <simulation-control-api.version>2.3.0</simulation-control-api.version>
         <!-- Pinned participant/event contracts: consumed via generated clients/interfaces only.

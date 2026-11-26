@@ -41,7 +41,7 @@ class VariantRulesIT {
 
     private JsonNode preview(String overridesJson) throws Exception {
         var request = "{\"rulesArtifact\": {\"digest\": \"" + VariantRulesFixtures.ARTIFACT_DIGEST
-                + "\"}, \"parameterSpaceVersion\": 2, \"overrides\": " + overridesJson + "}";
+                + "\"}, \"parameterSpaceVersion\": 3, \"overrides\": " + overridesJson + "}";
         var response = mockMvc.perform(post("/api/v1/variant-rules-previews")
                         .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:read")))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -83,11 +83,11 @@ class VariantRulesIT {
 
     @Test
     void theParameterSpaceIsServedWithItsParametersConstraintsAndHeldFixedList() throws Exception {
-        mockMvc.perform(get("/api/v1/parameter-spaces/2")
+        mockMvc.perform(get("/api/v1/parameter-spaces/3")
                         .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:read"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.version").value(2))
-                .andExpect(jsonPath("$.parameters.length()").value(74))
+                .andExpect(jsonPath("$.version").value(3))
+                .andExpect(jsonPath("$.parameters.length()").value(75))
                 .andExpect(jsonPath("$.parameters[0].type").value("NUMBER"))
                 .andExpect(jsonPath("$.parameters[0].key").value(THRESHOLD))
                 .andExpect(jsonPath("$.parameters[0].baseline").value(20))
@@ -106,7 +106,7 @@ class VariantRulesIT {
                         .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:read"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(1))
-                .andExpect(jsonPath("$.items[0].version").value(2));
+                .andExpect(jsonPath("$.items[0].version").value(3));
     }
 
     @Test
@@ -145,7 +145,7 @@ class VariantRulesIT {
                         .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:read")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"rulesArtifact\": {\"digest\": \"" + VariantRulesFixtures.ARTIFACT_DIGEST
-                                + "\"}, \"parameterSpaceVersion\": 2, \"overrides\": {\"" + THRESHOLD + "\": 27}}"))
+                                + "\"}, \"parameterSpaceVersion\": 3, \"overrides\": {\"" + THRESHOLD + "\": 27}}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
                 .andExpect(jsonPath("$.reason").value("OUT_OF_RANGE"))
@@ -158,7 +158,7 @@ class VariantRulesIT {
                         .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:read")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"rulesArtifact\": {\"digest\": \"" + VariantRulesFixtures.ARTIFACT_DIGEST
-                                + "\"}, \"parameterSpaceVersion\": 2,"
+                                + "\"}, \"parameterSpaceVersion\": 3,"
                                 + " \"overrides\": {\"game.rules.card-category-weights.PARADOX\": 20}}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.reason").value("CONSTRAINT_VIOLATED"))
@@ -245,7 +245,7 @@ class VariantRulesIT {
                         .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:read")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"rulesArtifact\": {\"digest\": \"" + VariantRulesFixtures.ARTIFACT_DIGEST
-                                + "\"}, \"parameterSpaceVersion\": 2, \"overrides\": {\"" + THRESHOLD + "\": true}}"))
+                                + "\"}, \"parameterSpaceVersion\": 3, \"overrides\": {\"" + THRESHOLD + "\": true}}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
                 .andExpect(jsonPath("$.reason").value("WRONG_TYPE"))
@@ -276,15 +276,15 @@ class VariantRulesIT {
                 .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:read")))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"rulesArtifact\": {\"digest\": \"" + VariantRulesFixtures.ARTIFACT_DIGEST
-                        + "\"}, \"parameterSpaceVersion\": 2, \"overrides\": " + overridesJson + "}"));
+                        + "\"}, \"parameterSpaceVersion\": 3, \"overrides\": " + overridesJson + "}"));
     }
 
     @Test
     void parameterSpaceTwoServesTheBetWindowInPlaceOfTheRewriteWindowAndAThreadShiftFromZero() throws Exception {
-        mockMvc.perform(get("/api/v1/parameter-spaces/2")
+        mockMvc.perform(get("/api/v1/parameter-spaces/3")
                         .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:read"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.version").value(2))
+                .andExpect(jsonPath("$.version").value(3))
                 .andExpect(jsonPath("$.parameters[?(@.key=='game.rules.faction-bet-latest-round')].baseline")
                         .value(2))
                 .andExpect(jsonPath("$.parameters[?(@.key=='game.rules.rewrite-latest-round')]")
@@ -293,7 +293,7 @@ class VariantRulesIT {
                         .value(0))
                 .andExpect(jsonPath("$.parameters[?(@.key=='game.rules.probability.thread-shift')].baseline")
                         .value(0))
-                .andExpect(jsonPath("$.parameters.length()").value(74))
+                .andExpect(jsonPath("$.parameters.length()").value(75))
                 .andExpect(jsonPath("$.parameters[?(@.key=='" + EARLIEST_ROUND + "')].type")
                         .value("NUMBER"))
                 .andExpect(jsonPath("$.parameters[?(@.key=='" + EARLIEST_ROUND + "')].baseline")
@@ -319,6 +319,23 @@ class VariantRulesIT {
                         jsonPath("$.rules.properties['" + EARLIEST_ROUND + "']").value(1))
                 .andExpect(jsonPath("$.overrides['" + SHIELD + "']").value(false))
                 .andExpect(jsonPath("$.overrides['" + ERASED_WEIGHT + "']").doesNotExist());
+    }
+
+    @Test
+    void theRecordingVariantTurnsNormalVictoryOffAndItsEffectiveRulesCarryFalse() throws Exception {
+        var normalVictory = "game.rules.victory.normal-victory";
+
+        mockMvc.perform(get("/api/v1/parameter-spaces/3")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_simulation:read"))))
+                .andExpect(jsonPath("$.parameters[?(@.key=='" + normalVictory + "')].type")
+                        .value("BOOLEAN"))
+                .andExpect(jsonPath("$.parameters[?(@.key=='" + normalVictory + "')].baseline")
+                        .value(true));
+        previewSpaceTwo("{\"" + normalVictory + "\": false}")
+                .andExpect(status().isOk())
+                .andExpect(
+                        jsonPath("$.rules.properties['" + normalVictory + "']").value(false))
+                .andExpect(jsonPath("$.overrides['" + normalVictory + "']").value(false));
     }
 
     @Test
