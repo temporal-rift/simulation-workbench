@@ -176,18 +176,22 @@ class EvaluateScoringModelQueryHandlerTest {
 
     @Test
     void anOtherReasonThatBelongsToAnEscalationIsRejectedNamingTheItem() {
-        var rates = rates();
-        var first = rates.get(0);
-        rates.set(
-                0,
-                new SeatEraRates(
-                        first.playerCount(),
-                        first.faction(),
-                        first.betReasons(),
-                        first.voidedRate(),
-                        List.of(new SeatEraRates.OtherReason("CHAIN_LINK_ADDED", 1))));
+        // The default rates give every seat the other reason CORRUPTED_OPPONENT_CARD, which this engine escalates.
+        var escalatesCorruption = new ScoringEngine(
+                5,
+                engine().reasonPoints().stream()
+                        .filter(item -> !item.scoreReason().equals("CORRUPTED_OPPONENT_CARD"))
+                        .toList(),
+                List.of(
+                        new Escalation("weaver-link", List.of("CHAIN_LINK_ADDED"), 6, 3, Set.of(BetOutcome.VOIDED)),
+                        new Escalation(
+                                "corrupt-run", List.of("CORRUPTED_OPPONENT_CARD"), 1, 1, Set.of(BetOutcome.VOIDED))));
 
-        assertRefused(query(rates, List.of()), "rates[0].otherReasons[0].scoreReason", handler);
+        assertThatThrownBy(() -> handler.handle(query(escalatesCorruption, rates(), List.of())))
+                .isInstanceOfSatisfying(InvalidScoringModelException.class, e -> {
+                    assertThat(e.field()).isEqualTo("rates[0].otherReasons[0].scoreReason");
+                    assertThat(e.getMessage()).contains("belongs to an escalation");
+                });
     }
 
     @Test

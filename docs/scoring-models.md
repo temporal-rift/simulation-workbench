@@ -54,10 +54,10 @@ count as placing it (see [Bet survival](evidence-and-reports.md#bet-survival-ana
 
 ### A worked example: the approved design as an engine
 
-The design pays the Prophet `FULFILLMENT_SUCCEEDED` 14 against `EVENT_RESOLVED_AS_WRITTEN` 7, charges an Activist miss
-−4 in Rally mode and −2 in Momentum mode, grows the Weaver's links and the Activist's streak, and retires the chain
-completion and break. As an engine (the reasons shown are the ones the design prices; a re-score needs every reason the
-run's variant configures, so a complete request lists them all):
+The approved design pays the Prophet `FULFILLMENT_SUCCEEDED` 14 against `EVENT_RESOLVED_AS_WRITTEN` 7, charges an
+Activist miss −4 in Rally mode and −2 in Momentum mode, grows the Weaver's links (base 6, increment 3, reset only by a
+voided bet) and the Activist's streak (base 6, increment 2, reset by a miss or an era without a bet), and retires the
+chain completion and break. As an engine, with every value of the design:
 
 ```json
 {
@@ -67,11 +67,18 @@ run's variant configures, so a complete request lists them all):
     { "scoreReason": "ANNIHILATION_WASTED", "points": -1 },
     { "scoreReason": "EVENT_RESOLVED_AS_WRITTEN", "points": 7 },
     { "scoreReason": "FULFILLMENT_SUCCEEDED", "points": 14 },
-    { "scoreReason": "DECLARED_OUTCOME_MISSED_WITH_RALLY", "points": -4 },
-    { "scoreReason": "DECLARED_OUTCOME_MISSED", "points": -2 },
+    { "scoreReason": "EVENT_RESOLVED_DIFFERENTLY_THAN_WRITTEN", "points": -4 },
+    { "scoreReason": "SECRET_OUTCOME_WON", "points": 6 },
+    { "scoreReason": "SECRET_OUTCOME_MISSED", "points": -2 },
     { "scoreReason": "CHAIN_LINK_MISSED", "points": 0 },
     { "scoreReason": "CHAIN_COMPLETED", "points": 0 },
-    { "scoreReason": "CHAIN_BROKEN", "points": 0 }
+    { "scoreReason": "CHAIN_BROKEN", "points": 0 },
+    { "scoreReason": "DECLARED_OUTCOME_MISSED_WITH_RALLY", "points": -4 },
+    { "scoreReason": "DECLARED_OUTCOME_MISSED", "points": -2 },
+    { "scoreReason": "CORRUPTED_OPPONENT_CARD", "points": 2 },
+    { "scoreReason": "MIMIC_CONTRIBUTED_TO_WIN", "points": 1 },
+    { "scoreReason": "MIMIC_NEVER_TRACED", "points": 4 },
+    { "scoreReason": "EXPOSE_SIGNATURE_REVEALED", "points": 2 }
   ],
   "escalations": [
     { "name": "weaver-link", "scoreReasons": ["CHAIN_LINK_ADDED"], "base": 6, "increment": 3,
@@ -82,6 +89,10 @@ run's variant configures, so a complete request lists them all):
   ]
 }
 ```
+
+The paradox and other reasons the design leaves at today's values are listed in `reasonPoints` in the same way, at
+the values the run's variant configures: a re-score needs every reason the variant configures, so a complete request
+lists them all.
 
 A Weaver that records `CHAIN_LINK_ADDED` in eras 1, 2 and 4, `CHAIN_LINK_MISSED` in era 3 and a voided bet in era 5
 scores 6, 9, 0, 12 and 0, and its run is 0 after era 5. An Activist that wins in eras 1 and 2, misses in Rally mode in
@@ -153,11 +164,15 @@ makes the rates sum above 1 or a rate fall below 0.
 The model assumes at most one bet reason per seat-era. Under the default rules every faction meets it: a Weaver adds at
 most one chain link per era, Annihilate and Rewrite are once-per-era specials, an Activist receives at most one
 declaration score per era, and a Prophet writes at most `game.rules.foresight.writings-per-era` outcomes per era
-(default 1) and a written outcome resolves in the era it is written. The assumption fails only if those settings are
-raised, for example `writings-per-era` above 1 for Prophets. Then a faction's `reason_occurrences_per_era` for its bet
-reasons sum to more than its placement rate (`bets_scored` per seat-game divided by the eras played), and the
-difference is the excess: the share of seat-eras that record a second bet reason, which the model does not play.
-Check the difference on a recording run before reading a model result for such a faction.
+(default 1). A writing counts only in the era it was written in, so an event that cascades into a later era does not
+bring its writing along. The assumption fails only if those settings are raised, for example `writings-per-era` above 1
+for Prophets, and the rules give no other way to record two bet reasons in one era. Then a faction's
+`reason_occurrences_per_era` for its bet reasons sum to more than its placement rate (`bets_scored` per seat-game
+divided by the eras played), and the difference is the excess: the share of seat-eras that record a second bet reason,
+which the model does not play. The difference also absorbs a bet reason listed in an era where no bet was placed, which
+settles nothing in the re-score but still occurs, so read a non-zero difference as an upper bound of the excess. Check
+it on a recording run before reading a model result for such a faction. This is read from the rules and the game's
+scoring code; it is not measured on a run.
 
 ## Re-scoring a run
 

@@ -147,7 +147,7 @@ class AnalysisIT {
         }
         assertThat(lines).hasSize(1 + metrics);
         assertThat(lines[1])
-                .startsWith("4," + runId + "," + report.path("manifestDigest").asString() + ",5,1,true," + BASELINE
+                .startsWith("4," + runId + "," + report.path("manifestDigest").asString() + ",6,1,true," + BASELINE
                         + ",random,random,");
         assertThat(csv).doesNotContainIgnoringCase("bearer").doesNotContainIgnoringCase("token");
         assertThat(read(report(runId, CSV))).isEqualTo(csv);

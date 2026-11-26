@@ -153,10 +153,17 @@ class ScoringModelIT {
     @Test
     void anOtherReasonThatBelongsToAnEscalationIsRefusedNamingIt() throws Exception {
         var request = request();
+        var corruption =
+                ((ObjectNode) request.get("engine")).withArray("escalations").addObject();
+        corruption.put("name", "corrupt-run");
+        corruption.putArray("scoreReasons").add("CORRUPTED_OPPONENT_CARD");
+        corruption.put("base", 1);
+        corruption.put("increment", 1);
+        corruption.putArray("resetOn").add("VOIDED");
         ((ObjectNode) request.get("rates").get(0))
                 .putArray("otherReasons")
                 .addObject()
-                .put("scoreReason", "CHAIN_LINK_ADDED")
+                .put("scoreReason", "CORRUPTED_OPPONENT_CARD")
                 .put("perEra", 1);
 
         send(request)
