@@ -1,18 +1,20 @@
 package io.github.temporalrift.workbench.analysis.application.query;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import io.github.temporalrift.workbench.analysis.domain.fact.BetReasons;
 import io.github.temporalrift.workbench.analysis.domain.scoring.BetOutcome;
-import io.github.temporalrift.workbench.analysis.domain.scoring.BetRates;
-import io.github.temporalrift.workbench.analysis.domain.scoring.FactionScoring;
 import io.github.temporalrift.workbench.analysis.domain.scoring.InvalidScoringModelException;
-import io.github.temporalrift.workbench.analysis.domain.scoring.ReasonPoints;
 import io.github.temporalrift.workbench.analysis.domain.scoring.ScoringEngine;
 import io.github.temporalrift.workbench.analysis.domain.scoring.ScoringModel;
+import io.github.temporalrift.workbench.analysis.domain.scoring.SeatEraRates;
 import io.github.temporalrift.workbench.shared.game.Faction;
 
 /** Checks that a scoring model is inside the values the operation accepts, naming the first offending value. */
@@ -24,11 +26,13 @@ final class ScoringModelValidator {
     private static final int MIN_PLAYERS = 3;
     private static final int MAX_PLAYERS = 5;
     private static final String RATES = "rates";
+    private static final String ENGINE = "engine";
     private static final int MAX_POINTS = 50;
-    private static final int MAX_BONUS = 100;
-    private static final int MAX_THRESHOLD = 500;
+    private static final int MAX_INCREMENT = 20;
     private static final int MAX_ERAS = 10;
-    private static final int MAX_WIN_POINTS = 10;
+    private static final int MAX_REASON_POINTS = 64;
+    private static final int MAX_ESCALATIONS = 8;
+    private static final double MAX_PER_ERA = 10;
     private static final double RATE_TOLERANCE = 1e-9;
 
     private ScoringModelValidator() {}
@@ -36,6 +40,7 @@ final class ScoringModelValidator {
     static void check(ScoringModel model) {
         checkGames(model.gamesPerPlayerCount());
         checkEngine(model.engine());
+        checkFactions(model);
         checkPlayerCounts(model);
         checkRates(model);
     }
@@ -47,68 +52,109 @@ final class ScoringModelValidator {
     }
 
     static void checkEngine(ScoringEngine engine) {
-        if (engine.winThreshold() < 1 || engine.winThreshold() > MAX_THRESHOLD) {
-            throw invalid("engine.winThreshold", "winThreshold must be between 1 and " + MAX_THRESHOLD);
-        }
         if (engine.maxEras() < 1 || engine.maxEras() > MAX_ERAS) {
             throw invalid("engine.maxEras", "maxEras must be between 1 and " + MAX_ERAS);
         }
-        if (engine.factions().isEmpty() || engine.factions().size() > Faction.values().length) {
-            throw invalid("engine.factions", "factions must hold between 1 and " + Faction.values().length + " items");
+        var flat = checkReasonPoints(engine);
+        checkEscalations(engine, flat);
+    }
+
+    private static Set<String> checkReasonPoints(ScoringEngine engine) {
+        var points = engine.reasonPoints();
+        if (points.isEmpty() || points.size() > MAX_REASON_POINTS) {
+            throw invalid(
+                    "engine.reasonPoints", "reasonPoints must hold between 1 and " + MAX_REASON_POINTS + " items");
         }
-        var seen = new HashSet<Faction>();
-        for (var index = 0; index < engine.factions().size(); index++) {
-            var faction = engine.factions().get(index);
-            if (!seen.add(faction.faction())) {
-                throw invalid("engine.factions[" + index + "].faction", "each faction may appear only once");
+        var seen = new HashSet<String>();
+        for (var index = 0; index < points.size(); index++) {
+            var path = "engine.reasonPoints[" + index + "]";
+            var item = points.get(index);
+            if (item.points() < -MAX_POINTS || item.points() > MAX_POINTS) {
+                throw invalid(path + ".points", "points must be " + between(-MAX_POINTS, MAX_POINTS));
             }
-            checkFaction("engine.factions[" + index + "]", faction);
+            if (!seen.add(item.scoreReason())) {
+                throw invalid(path + ".scoreReason", item.scoreReason() + " is priced twice");
+            }
+        }
+        return seen;
+    }
+
+    private static void checkEscalations(ScoringEngine engine, Set<String> flat) {
+        var escalations = engine.escalations();
+        if (escalations.size() > MAX_ESCALATIONS) {
+            throw invalid("engine.escalations", "escalations must hold at most " + MAX_ESCALATIONS + " items");
+        }
+        var names = new HashSet<String>();
+        var escalated = new HashSet<String>();
+        for (var index = 0; index < escalations.size(); index++) {
+            var path = "engine.escalations[" + index + "]";
+            var escalation = escalations.get(index);
+            if (!names.add(escalation.name())) {
+                throw invalid(path + ".name", "the escalation name " + escalation.name() + " is used twice");
+            }
+            if (escalation.base() < -MAX_POINTS || escalation.base() > MAX_POINTS) {
+                throw invalid(path + ".base", "base must be " + between(-MAX_POINTS, MAX_POINTS));
+            }
+            if (Math.abs(escalation.increment()) > MAX_INCREMENT) {
+                throw invalid(path + ".increment", "increment must be " + between(-MAX_INCREMENT, MAX_INCREMENT));
+            }
+            if (escalation.resetOn().isEmpty() || escalation.resetOn().contains(BetOutcome.WON)) {
+                throw invalid(path + ".resetOn", "resetOn must hold MISSED, VOIDED or NOT_PLACED");
+            }
+            for (var reasonIndex = 0; reasonIndex < escalation.scoreReasons().size(); reasonIndex++) {
+                var reason = escalation.scoreReasons().get(reasonIndex);
+                var reasonPath = path + ".scoreReasons[" + reasonIndex + "]";
+                if (flat.contains(reason)) {
+                    throw invalid(reasonPath, reason + " is both priced in reasonPoints and escalated");
+                }
+                if (!escalated.add(reason)) {
+                    throw invalid(reasonPath, reason + " belongs to two escalations");
+                }
+            }
         }
     }
 
     /**
-     * Checks the named other scores before any case is read: each must settle no faction's bet, be configured by the
-     * run's variant, and appear only once, naming the first offending item.
+     * Checks, before any case is read, that the engine prices exactly the reasons the run's variant configures: a
+     * configured reason the engine leaves unpriced is refused naming every such reason, and a priced reason the
+     * variant does not configure is refused naming its item.
      */
-    static void checkOtherReasonPoints(List<ReasonPoints> points, Map<String, Integer> scoreDeltas) {
-        var seen = new HashSet<String>();
-        for (var index = 0; index < points.size(); index++) {
-            var item = points.get(index);
-            var path = "otherReasonPoints[" + index + "].scoreReason";
-            if (BetReasons.isBetReason(item.scoreReason())) {
-                throw invalid(path, item.scoreReason() + " settles a faction's bet and is scored by the engine");
+    static void checkCoverage(ScoringEngine engine, Set<String> configured) {
+        var priced = new HashSet<String>();
+        for (var index = 0; index < engine.reasonPoints().size(); index++) {
+            var reason = engine.reasonPoints().get(index).scoreReason();
+            if (!configured.contains(reason)) {
+                throw invalid(
+                        "engine.reasonPoints[" + index + "].scoreReason",
+                        "the run's variant configures no points for " + reason);
             }
-            if (!scoreDeltas.containsKey(item.scoreReason())) {
-                throw invalid(path, "the run's variant configures no points for " + item.scoreReason());
+            priced.add(reason);
+        }
+        for (var index = 0; index < engine.escalations().size(); index++) {
+            var reasons = engine.escalations().get(index).scoreReasons();
+            for (var reasonIndex = 0; reasonIndex < reasons.size(); reasonIndex++) {
+                if (!configured.contains(reasons.get(reasonIndex))) {
+                    throw invalid(
+                            "engine.escalations[" + index + "].scoreReasons[" + reasonIndex + "]",
+                            "the run's variant configures no points for " + reasons.get(reasonIndex));
+                }
+                priced.add(reasons.get(reasonIndex));
             }
-            if (!seen.add(item.scoreReason())) {
-                throw invalid(path, item.scoreReason() + " is named twice");
-            }
+        }
+        var unpriced = new TreeSet<>(configured);
+        unpriced.removeAll(priced);
+        if (!unpriced.isEmpty()) {
+            throw invalid(ENGINE, "the engine leaves unpriced: " + String.join(", ", unpriced));
         }
     }
 
-    private static void checkFaction(String path, FactionScoring faction) {
-        var winPoints = faction.winPoints();
-        if (winPoints.isEmpty() || winPoints.size() > MAX_WIN_POINTS) {
-            throw invalid(path + ".winPoints", "winPoints must hold between 1 and " + MAX_WIN_POINTS + " items");
+    private static void checkFactions(ScoringModel model) {
+        var factions = model.factions();
+        if (factions.isEmpty() || factions.size() > Faction.values().length) {
+            throw invalid("factions", "factions must hold between 1 and " + Faction.values().length + " items");
         }
-        for (var index = 0; index < winPoints.size(); index++) {
-            if (winPoints.get(index) < -MAX_POINTS || winPoints.get(index) > MAX_POINTS) {
-                throw invalid(path + ".winPoints[" + index + "]", "a win scores " + between(-MAX_POINTS, MAX_POINTS));
-            }
-        }
-        if (faction.missPoints() > 0 || faction.missPoints() < -MAX_POINTS) {
-            throw invalid(path + ".missPoints", "missPoints must be " + between(-MAX_POINTS, 0));
-        }
-        if (faction.resetOn().contains(BetOutcome.WON)) {
-            throw invalid(path + ".resetOn", "a win cannot reset the win run");
-        }
-        var wins = faction.objectiveWins();
-        if (wins != null && (wins < 1 || wins > MAX_WIN_POINTS)) {
-            throw invalid(path + ".objectiveWins", "objectiveWins must be between 1 and " + MAX_WIN_POINTS);
-        }
-        if (faction.objectiveBonus() < 0 || faction.objectiveBonus() > MAX_BONUS) {
-            throw invalid(path + ".objectiveBonus", "objectiveBonus must be between 0 and " + MAX_BONUS);
+        if (new HashSet<>(factions).size() != factions.size()) {
+            throw invalid("factions", "each faction may appear only once");
         }
     }
 
@@ -127,8 +173,8 @@ final class ScoringModelValidator {
             if (!seen.add(count)) {
                 throw invalid(path, "each player count may appear only once");
             }
-            if (count > model.engine().factions().size()) {
-                throw invalid("playerCounts", "the engine has fewer factions than " + count + " players need");
+            if (count > model.factions().size()) {
+                throw invalid("playerCounts", "the model has fewer factions than " + count + " players need");
             }
         }
     }
@@ -136,17 +182,21 @@ final class ScoringModelValidator {
     private static void checkRates(ScoringModel model) {
         var wanted = new HashSet<Map.Entry<Integer, Faction>>();
         model.playerCounts()
-                .forEach(count ->
-                        model.engine().factions().forEach(faction -> wanted.add(Map.entry(count, faction.faction()))));
+                .forEach(count -> model.factions().forEach(faction -> wanted.add(Map.entry(count, faction))));
+        var pricing = new HashMap<String, Boolean>();
+        model.engine().reasonPoints().forEach(item -> pricing.put(item.scoreReason(), false));
+        model.engine()
+                .escalations()
+                .forEach(escalation -> escalation.scoreReasons().forEach(reason -> pricing.put(reason, true)));
         var given = new HashSet<Map.Entry<Integer, Faction>>();
         var rates = model.rates();
         for (var index = 0; index < rates.size(); index++) {
             var item = rates.get(index);
-            var path = "rates[" + index + "]";
-            checkRateValues(path, item);
+            var path = RATES + "[" + index + "]";
+            checkRateValues(path, item, pricing);
             var key = Map.entry(item.playerCount(), item.faction());
             if (!wanted.contains(key)) {
-                throw invalid(RATES, "the rates match no requested player count and engine faction");
+                throw invalid(RATES, "the rates match no requested player count and faction");
             }
             if (!given.add(key)) {
                 throw invalid(RATES, "the rates repeat a player count and faction");
@@ -159,15 +209,62 @@ final class ScoringModelValidator {
         }
     }
 
-    private static void checkRateValues(String path, BetRates item) {
-        if (!inUnit(item.winRate()) || !inUnit(item.missRate())) {
-            throw invalid(path, "winRate and missRate must be between 0 and 1");
+    /** @param pricing each priced reason, mapped to whether its points escalate */
+    private static void checkRateValues(String path, SeatEraRates item, Map<String, Boolean> pricing) {
+        var bet = BetReasons.of(item.faction());
+        var seen = new HashSet<String>();
+        var total = item.voidedRate();
+        if (!inUnit(item.voidedRate())) {
+            throw invalid(path + ".voidedRate", "voidedRate must be between 0 and 1");
         }
-        if (item.winRate() + item.missRate() > 1 + RATE_TOLERANCE) {
-            throw invalid(path, "winRate + missRate must not exceed 1");
+        for (var index = 0; index < item.betReasons().size(); index++) {
+            var reason = item.betReasons().get(index);
+            var reasonPath = path + ".betReasons[" + index + "]";
+            if (!bet.isSettling(reason.scoreReason())) {
+                throw invalid(
+                        reasonPath + ".scoreReason",
+                        reason.scoreReason() + " is not a bet reason of " + item.faction());
+            }
+            if (!pricing.containsKey(reason.scoreReason())) {
+                throw invalid(reasonPath + ".scoreReason", "the engine does not price " + reason.scoreReason());
+            }
+            if (!seen.add(reason.scoreReason())) {
+                throw invalid(reasonPath + ".scoreReason", reason.scoreReason() + " is listed twice");
+            }
+            if (!inUnit(reason.rate())) {
+                throw invalid(reasonPath + ".rate", "rate must be between 0 and 1");
+            }
+            total += reason.rate();
         }
-        if (Double.isNaN(item.extraPointsPerEra()) || Math.abs(item.extraPointsPerEra()) > MAX_POINTS) {
-            throw invalid(path, "extraPointsPerEra must be " + between(-MAX_POINTS, MAX_POINTS));
+        if (total > 1 + RATE_TOLERANCE) {
+            throw invalid(path, "the betReasons rates plus voidedRate must not exceed 1");
+        }
+        checkOtherReasons(path, item, pricing);
+    }
+
+    private static void checkOtherReasons(String path, SeatEraRates item, Map<String, Boolean> pricing) {
+        var seen = new HashSet<String>();
+        for (var index = 0; index < item.otherReasons().size(); index++) {
+            var other = item.otherReasons().get(index);
+            var reasonPath = path + ".otherReasons[" + index + "]";
+            if (BetReasons.isBetReason(other.scoreReason())) {
+                throw invalid(reasonPath + ".scoreReason", other.scoreReason() + " settles a faction's bet");
+            }
+            var escalates = pricing.get(other.scoreReason());
+            if (escalates == null) {
+                throw invalid(reasonPath + ".scoreReason", "the engine does not price " + other.scoreReason());
+            }
+            if (escalates) {
+                throw invalid(
+                        reasonPath + ".scoreReason",
+                        other.scoreReason() + " belongs to an escalation, which an expected count cannot escalate");
+            }
+            if (!seen.add(other.scoreReason())) {
+                throw invalid(reasonPath + ".scoreReason", other.scoreReason() + " is listed twice");
+            }
+            if (Double.isNaN(other.perEra()) || other.perEra() < 0 || other.perEra() > MAX_PER_ERA) {
+                throw invalid(reasonPath + ".perEra", "perEra must be between 0 and 10");
+            }
         }
     }
 
@@ -184,7 +281,7 @@ final class ScoringModelValidator {
                 .sorted(Map.Entry.<Integer, Faction>comparingByKey()
                         .thenComparing(entry -> entry.getValue().name()))
                 .map(entry -> "(" + entry.getKey() + ", " + entry.getValue() + ")")
-                .collect(java.util.stream.Collectors.joining(", "));
+                .collect(Collectors.joining(", "));
     }
 
     static InvalidScoringModelException invalid(String field, String message) {

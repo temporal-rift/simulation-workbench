@@ -1,16 +1,14 @@
 package io.github.temporalrift.workbench.analysis.domain.scoring;
 
 import java.util.Arrays;
-import java.util.EnumMap;
 import java.util.List;
-import java.util.Map;
 
 import io.github.temporalrift.workbench.shared.game.EndReason;
-import io.github.temporalrift.workbench.shared.game.Faction;
 
 /**
- * Replays a recorded game under a scoring engine, era by era: each seat-era's bet outcome is scored under the seat's
- * faction, its other recorded score is added, and the race rule decides at each era end.
+ * Replays a recorded game under a scoring engine, era by era: every score reason a seat recorded in an era is scored
+ * one by one, the seat-era's bet outcome then ends the runs of the escalations that reset on it, and the race is
+ * judged after the engine's last era.
  */
 public final class Rescorer {
 
@@ -18,11 +16,11 @@ public final class Rescorer {
     public static final int SHARE_UNITS = 60;
 
     private final ScoringEngine engine;
-    private final Map<Faction, FactionScoring> byFaction = new EnumMap<>(Faction.class);
+    private final SeatScore.Pricing pricing;
 
     public Rescorer(ScoringEngine engine) {
         this.engine = engine;
-        engine.factions().forEach(faction -> byFaction.put(faction.faction(), faction));
+        this.pricing = new SeatScore.Pricing(engine);
     }
 
     /** What the engine's race makes of a recorded game. */
@@ -42,27 +40,19 @@ public final class Rescorer {
 
     /**
      * @param finalEra the last era of the game's arc
-     * @throws IllegalArgumentException when a seat's faction has no entry in the engine
+     * @throws IllegalArgumentException when a recorded reason is not priced by the engine
      */
     public Verdict judge(RecordedGame game, int finalEra) {
         var scores = new SeatScore[game.factions().size()];
-        for (var seat = 0; seat < scores.length; seat++) {
-            var scoring = byFaction.get(game.factions().get(seat));
-            if (scoring == null) {
-                throw new IllegalArgumentException(
-                        "the engine has no entry for " + game.factions().get(seat));
-            }
-            scores[seat] = new SeatScore(scoring);
-        }
-        var threshold = engine.winThreshold() * SeatScore.UNITS;
+        Arrays.setAll(scores, seat -> new SeatScore(pricing));
         var last = Math.min(game.eras(), engine.maxEras());
         for (var era = 1; era <= last; era++) {
             for (var seat = 0; seat < scores.length; seat++) {
                 var recorded = game.seats().get(seat).get(era - 1);
-                scores[seat].apply(recorded.outcome());
-                scores[seat].addExtra(recorded.otherUnits());
+                recorded.reasons().forEach(scores[seat]::occurrence);
+                scores[seat].endEra(recorded.outcome());
             }
-            if (best(scores) >= threshold || era == engine.maxEras()) {
+            if (era == engine.maxEras()) {
                 return new Verdict.Judged(era, shares(scores));
             }
         }

@@ -1,10 +1,9 @@
 package io.github.temporalrift.workbench.analysis.domain.scoring;
 
 /**
- * Points one score reason counts in a re-scored game: a reason the run's variant configures that settles no
- * faction's bet.
+ * Flat points one score reason counts per occurrence.
  *
- * @param scoreReason a score reason the run's variant configures that settles no faction's bet
- * @param points points each listed occurrence of the reason counts in the re-scored game
+ * @param scoreReason a score reason of the game's scoring contract
+ * @param points the points of each occurrence
  */
 public record ReasonPoints(String scoreReason, int points) {}

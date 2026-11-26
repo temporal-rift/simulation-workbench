@@ -31,7 +31,9 @@ public record Vocabulary(
         Set<WinPath> winPaths,
         boolean diagnostics,
         boolean betSurvival,
-        boolean winConditions) {
+        boolean winConditions,
+        Map<Faction, SortedSet<String>> occurringReasons,
+        boolean reasonOccurrences) {
 
     /** A vocabulary without the balance diagnostics of analysis version 3. */
     public Vocabulary(
@@ -50,6 +52,8 @@ public record Vocabulary(
                 Set.of(),
                 false,
                 false,
+                false,
+                Map.of(),
                 false);
     }
 
@@ -65,12 +69,13 @@ public record Vocabulary(
                 facts,
                 analysis.reportsDiagnostics(),
                 analysis.reportsBetSurvival(),
-                analysis.reportsWinConditions());
+                analysis.reportsWinConditions(),
+                analysis.reportsReasonOccurrences());
     }
 
     /** The vocabulary of a run; {@code diagnostics} adds the score reasons and win paths that occur in it. */
     public static Vocabulary of(Collection<AnalyzedCase> cases, Collection<CaseFacts> facts, boolean diagnostics) {
-        return of(cases, facts, diagnostics, false, false);
+        return of(cases, facts, diagnostics, false, false, false);
     }
 
     private static Vocabulary of(
@@ -78,7 +83,8 @@ public record Vocabulary(
             Collection<CaseFacts> facts,
             boolean diagnostics,
             boolean betSurvival,
-            boolean winConditions) {
+            boolean winConditions,
+            boolean reasonOccurrences) {
         var factions = new TreeMap<Integer, Set<Faction>>();
         cases.forEach(analyzedCase -> factions.computeIfAbsent(
                         analyzedCase.playerCount(), ignored -> EnumSet.noneOf(Faction.class))
@@ -88,6 +94,7 @@ public record Vocabulary(
         var modes = EnumSet.noneOf(SpecialAction.class);
         var paradoxTypes = EnumSet.noneOf(ParadoxType.class);
         var reasons = new TreeMap<Faction, SortedSet<String>>();
+        var occurring = new TreeMap<Faction, SortedSet<String>>();
         var paths = EnumSet.noneOf(WinPath.class);
         for (var caseFacts : facts) {
             paradoxTypes.addAll(caseFacts.game().findings().keySet());
@@ -103,6 +110,11 @@ public record Vocabulary(
                 specials.addAll(seat.specialAccepts().keySet());
                 specials.addAll(seat.specialResolutionRejections().keySet());
                 modes.addAll(seat.declarations().keySet());
+                if (reasonOccurrences) {
+                    occurring
+                            .computeIfAbsent(seat.faction(), ignored -> new TreeSet<>())
+                            .addAll(seat.reasonOccurrences().keySet());
+                }
                 if (diagnostics) {
                     reasons.computeIfAbsent(seat.faction(), ignored -> new TreeSet<>())
                             .addAll(seat.scoreByReason().keySet());
@@ -122,7 +134,9 @@ public record Vocabulary(
                 paths,
                 diagnostics,
                 betSurvival,
-                winConditions);
+                winConditions,
+                occurring,
+                reasonOccurrences);
     }
 
     /** Merges the values of two vocabularies, as a comparison lists both sides' values. */
@@ -152,6 +166,13 @@ public record Vocabulary(
         other.scoreReasons.forEach((faction, set) -> mergedReasons
                 .computeIfAbsent(faction, ignored -> new TreeSet<>())
                 .addAll(set));
+        var mergedOccurring = new TreeMap<Faction, SortedSet<String>>();
+        occurringReasons.forEach((faction, set) -> mergedOccurring
+                .computeIfAbsent(faction, ignored -> new TreeSet<>())
+                .addAll(set));
+        other.occurringReasons.forEach((faction, set) -> mergedOccurring
+                .computeIfAbsent(faction, ignored -> new TreeSet<>())
+                .addAll(set));
         var mergedPaths = EnumSet.noneOf(WinPath.class);
         mergedPaths.addAll(winPaths);
         mergedPaths.addAll(other.winPaths);
@@ -165,7 +186,9 @@ public record Vocabulary(
                 mergedPaths,
                 diagnostics || other.diagnostics,
                 betSurvival || other.betSurvival,
-                winConditions || other.winConditions);
+                winConditions || other.winConditions,
+                mergedOccurring,
+                reasonOccurrences || other.reasonOccurrences);
     }
 
     public Set<Faction> factions(int playerCount) {

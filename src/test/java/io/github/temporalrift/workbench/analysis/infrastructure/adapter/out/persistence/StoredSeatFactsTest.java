@@ -51,7 +51,9 @@ class StoredSeatFactsTest {
                 5,
                 3,
                 2,
-                Set.of(WinPath.SCORE_THRESHOLD, WinPath.FACTION_OBJECTIVE));
+                Set.of(WinPath.SCORE_THRESHOLD, WinPath.FACTION_OBJECTIVE),
+                Map.of("SECRET_OUTCOME_WON", 2, "PARADOX_CASCADE_PENALTY", 1),
+                1);
 
         var read =
                 json.read(json.write(SeatDocument.of(seat)), SeatDocument.class).facts();
@@ -81,6 +83,18 @@ class StoredSeatFactsTest {
         var read = json.read(stored.toString(), SeatDocument.class).facts();
 
         assertThat(read.winConditions()).isEmpty();
+    }
+
+    @Test
+    void factsStoredBeforeTheReasonOccurrencesReadThemAsNoneAndNoVoidedBets() {
+        var stored = (ObjectNode) mapper.valueToTree(SeatDocument.of(empty()));
+        stored.remove("reasonOccurrences");
+        stored.remove("betsVoided");
+
+        var read = json.read(stored.toString(), SeatDocument.class).facts();
+
+        assertThat(read.reasonOccurrences()).isEmpty();
+        assertThat(read.betsVoided()).isZero();
     }
 
     private static SeatFacts empty() {

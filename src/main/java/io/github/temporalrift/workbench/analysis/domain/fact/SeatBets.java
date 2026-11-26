@@ -1,6 +1,5 @@
 package io.github.temporalrift.workbench.analysis.domain.fact;
 
-import java.util.HashSet;
 import java.util.List;
 
 import io.github.temporalrift.workbench.analysis.domain.game.GameEvent;
@@ -14,32 +13,15 @@ import io.github.temporalrift.workbench.shared.game.Faction;
 record SeatBets(int placed, int scored, int won) {
 
     static SeatBets of(int seat, Faction faction, List<GameEvent> events) {
-        var placedEras = new HashSet<Integer>();
-        var scoredEras = new HashSet<Integer>();
-        var wonEras = new HashSet<Integer>();
+        var eras = SeatEras.of(seat, faction, events);
         var reasons = BetReasons.of(faction);
-        for (var event : events) {
-            switch (event) {
-                case GameEvent.SpecialPlayed play
-                when play.seat() == seat && BetReasons.places(faction, play) -> placedEras.add(play.era());
-                case GameEvent.DeclarationRecorded declared
-                when declared.seat() == seat && faction == Faction.ACTIVISTS -> placedEras.add(declared.era());
-                case GameEvent.ScoreRecorded score
-                when score.seat() == seat -> {
-                    if (reasons.settledBy(score.reason())) {
-                        scoredEras.add(score.era());
-                    }
-                    if (reasons.wonBy(score.reason())) {
-                        wonEras.add(score.era());
-                    }
-                }
-                default -> {
-                    // not part of the seat's bet
-                }
-            }
+        var scored = 0;
+        var won = 0;
+        for (var era : eras.placedEras()) {
+            var listed = eras.reasons(era);
+            scored += listed.stream().anyMatch(reasons::isSettling) ? 1 : 0;
+            won += listed.stream().anyMatch(reasons::wonBy) ? 1 : 0;
         }
-        scoredEras.retainAll(placedEras);
-        wonEras.retainAll(placedEras);
-        return new SeatBets(placedEras.size(), scoredEras.size(), wonEras.size());
+        return new SeatBets(eras.placedEras().size(), scored, won);
     }
 }

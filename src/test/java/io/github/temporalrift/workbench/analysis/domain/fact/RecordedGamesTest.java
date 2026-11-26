@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -15,8 +14,8 @@ import io.github.temporalrift.workbench.analysis.domain.game.CaseOutcome;
 import io.github.temporalrift.workbench.analysis.domain.game.GameEvent;
 import io.github.temporalrift.workbench.analysis.domain.game.GameRecord;
 import io.github.temporalrift.workbench.analysis.domain.scoring.BetOutcome;
+import io.github.temporalrift.workbench.analysis.domain.scoring.InvalidScoringModelException;
 import io.github.temporalrift.workbench.analysis.domain.scoring.RecordedGame;
-import io.github.temporalrift.workbench.analysis.domain.scoring.SeatScore;
 import io.github.temporalrift.workbench.shared.execution.CaseState;
 import io.github.temporalrift.workbench.shared.game.EndReason;
 import io.github.temporalrift.workbench.shared.game.Faction;
@@ -24,27 +23,20 @@ import io.github.temporalrift.workbench.shared.game.SpecialAction;
 
 class RecordedGamesTest {
 
-    private static final Map<String, Integer> DELTAS = Map.of(
-            "CHAIN_LINK_ADDED", 3,
-            "CHAIN_LINK_MISSED", -1,
-            "PARADOX_CASCADE_PENALTY", -2,
-            "ANNIHILATED_OUTCOME", 6,
-            "ANNIHILATION_WASTED", -1);
+    private static final Set<String> CONFIGURED = Set.of(
+            "CHAIN_LINK_ADDED",
+            "CHAIN_LINK_MISSED",
+            "PARADOX_CASCADE_PENALTY",
+            "ANNIHILATED_OUTCOME",
+            "ANNIHILATION_WASTED",
+            "ANNIHILATION_WASTED_TOO");
+    private static final List<Faction> TABLE = List.of(Faction.WEAVERS, Faction.ERASERS, Faction.PROPHETS);
 
     private static RecordedGame read(List<Faction> factions, int eras, GameEvent... events) {
-        return read(Map.of(), DELTAS, factions, eras, events);
-    }
-
-    private static RecordedGame read(
-            Map<String, Integer> overrides,
-            Map<String, Integer> deltas,
-            List<Faction> factions,
-            int eras,
-            GameEvent... events) {
         var outcome = new CaseOutcome(EndReason.TIMELINE_STABILIZED, Set.of(0), List.of(0, 0, 0), eras, 0, 0);
         var analyzed = new AnalyzedCase(
                 UUID.randomUUID(), "v", "t", "7", factions.size(), List.of(), factions, CaseState.SUCCEEDED, outcome);
-        return RecordedGames.of(analyzed, new GameRecord(List.of(events), List.of(), List.of()), deltas, overrides);
+        return RecordedGames.of(analyzed, new GameRecord(List.of(events), List.of(), List.of()), CONFIGURED);
     }
 
     private static GameEvent thread(int era) {
@@ -54,8 +46,6 @@ class RecordedGamesTest {
     private static GameEvent score(int seat, int era, String reason, int delta) {
         return new GameEvent.ScoreRecorded(seat, era, reason, delta);
     }
-
-    private static final List<Faction> TABLE = List.of(Faction.WEAVERS, Faction.ERASERS, Faction.PROPHETS);
 
     @Test
     void aWeaversBetOutcomesFollowTheListedReasonsOfEachEra() {
@@ -77,18 +67,17 @@ class RecordedGamesTest {
     }
 
     @Test
-    void theOtherScoreOfAJoinedRecordIsWhatTheBetsOwnReasonsDoNotAccountFor() {
+    void aJoinedRecordIsSplitAndARepeatedReasonCountsEachTime() {
         var game = read(
                 TABLE,
-                5,
+                2,
                 thread(1),
-                thread(4),
-                score(0, 1, "CHAIN_LINK_ADDED", 3),
-                score(0, 4, "CHAIN_LINK_ADDED,PARADOX_CASCADE_PENALTY", 1),
-                score(0, 5, "PARADOX_CASCADE_PENALTY", -2));
+                score(0, 1, "CHAIN_LINK_ADDED,PARADOX_CASCADE_PENALTY", 1),
+                score(0, 2, "PARADOX_CASCADE_PENALTY,PARADOX_CASCADE_PENALTY", -4));
 
-        assertThat(game.seats().get(0).stream().map(era -> era.otherUnits() / SeatScore.UNITS))
-                .containsExactly(0L, 0L, 0L, -2L, -2L);
+        assertThat(game.seats().get(0).get(0).reasons()).containsExactly("CHAIN_LINK_ADDED", "PARADOX_CASCADE_PENALTY");
+        assertThat(game.seats().get(0).get(1).reasons())
+                .containsExactly("PARADOX_CASCADE_PENALTY", "PARADOX_CASCADE_PENALTY");
     }
 
     @Test
@@ -100,11 +89,11 @@ class RecordedGamesTest {
     }
 
     @Test
-    void aBetReasonListedWithoutAPlacedBetSettlesNothingAndKeepsItsPoints() {
+    void aBetReasonListedWithoutAPlacedBetSettlesNothingButStillOccurs() {
         var game = read(TABLE, 1, score(0, 1, "CHAIN_LINK_ADDED", 3));
 
         assertThat(game.seats().get(0).get(0).outcome()).isEqualTo(BetOutcome.NOT_PLACED);
-        assertThat(game.seats().get(0).get(0).otherUnits()).isEqualTo(3 * SeatScore.UNITS);
+        assertThat(game.seats().get(0).get(0).reasons()).containsExactly("CHAIN_LINK_ADDED");
     }
 
     @Test
@@ -116,7 +105,6 @@ class RecordedGamesTest {
                 score(0, 1, "ANNIHILATED_OUTCOME,ANNIHILATION_WASTED", 5));
 
         assertThat(game.seats().get(0).get(0).outcome()).isEqualTo(BetOutcome.WON);
-        assertThat(game.seats().get(0).get(0).otherUnits()).isZero();
     }
 
     @Test
@@ -128,58 +116,45 @@ class RecordedGamesTest {
     }
 
     @Test
-    void aPlacedBetReasonWithoutConfiguredPointsIsRefused() {
+    void aRecordedReasonTheVariantDoesNotConfigureIsRefusedNamingIt() {
         var table = List.of(Faction.REVISIONISTS, Faction.WEAVERS, Faction.PROPHETS);
         var rewrite = new GameEvent.SpecialPlayed(0, 1, SpecialAction.REWRITE);
         var won = score(0, 1, "SECRET_OUTCOME_WON", 4);
 
-        assertThatThrownBy(() -> read(table, 1, rewrite, won)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> read(table, 1, rewrite, won))
+                .isInstanceOfSatisfying(InvalidScoringModelException.class, e -> {
+                    assertThat(e.field()).isEqualTo("engine");
+                    assertThat(e.getMessage()).contains("SECRET_OUTCOME_WON");
+                });
     }
 
     @Test
-    void aNamedReasonCountsItsOverridePointsInsteadOfItsConfiguredValue() {
-        var deltas = Map.of("CHAIN_LINK_ADDED", 3, "CHAIN_COMPLETED", 10);
-        var overrides = Map.of("CHAIN_COMPLETED", 0);
-        var game = read(overrides, deltas, TABLE, 1, thread(1), score(0, 1, "CHAIN_LINK_ADDED,CHAIN_COMPLETED", 13));
+    void aReasonRecordedAfterTheLastPlayedEraIsNotRead() {
+        var game = read(TABLE, 1, score(0, 2, "NOT_CONFIGURED_AT_ALL", 1));
 
-        assertThat(game.seats().get(0).get(0).outcome()).isEqualTo(BetOutcome.WON);
-        assertThat(game.seats().get(0).get(0).otherUnits()).isZero();
+        assertThat(game.seats().get(0))
+                .singleElement()
+                .satisfies(era -> assertThat(era.reasons()).isEmpty());
     }
 
     @Test
-    void withoutAnOverrideTheSameCompletionKeepsItsRecordedValue() {
-        var deltas = Map.of("CHAIN_LINK_ADDED", 3, "CHAIN_COMPLETED", 10);
-        var game = read(Map.of(), deltas, TABLE, 1, thread(1), score(0, 1, "CHAIN_LINK_ADDED,CHAIN_COMPLETED", 13));
+    void theReportAndTheRescoreClassifyTheSameSeatErasAsVoided() {
+        // Eras: 1 a kept link, 2 voided, 3 no bet, 4 a missed link, 5 voided.
+        var events = List.<GameEvent>of(
+                thread(1),
+                thread(2),
+                thread(4),
+                thread(5),
+                score(0, 1, "CHAIN_LINK_ADDED", 3),
+                score(0, 4, "CHAIN_LINK_MISSED", -1));
+        var game = read(TABLE, 5, events.toArray(GameEvent[]::new));
+        var seatEras = SeatEras.of(0, Faction.WEAVERS, events);
 
-        assertThat(game.seats().get(0).get(0).outcome()).isEqualTo(BetOutcome.WON);
-        assertThat(game.seats().get(0).get(0).otherUnits()).isEqualTo(10 * SeatScore.UNITS);
-    }
+        var rescoredVoided = game.seats().get(0).stream()
+                .filter(era -> era.outcome() == BetOutcome.VOIDED)
+                .count();
 
-    @Test
-    void aNamedExtraReplacesItsShareOfAJoinedRecord() {
-        var deltas = Map.of(
-                "ANNIHILATED_OUTCOME", 6,
-                "ANNIHILATION_WASTED", -1,
-                "CORRUPTED_OPPONENT_CARD", 2,
-                "PARADOX_CASCADE_PENALTY", -2);
-        var game = read(
-                Map.of("CORRUPTED_OPPONENT_CARD", 3),
-                deltas,
-                List.of(Faction.ERASERS, Faction.WEAVERS, Faction.PROPHETS),
-                1,
-                new GameEvent.SpecialPlayed(0, 1, SpecialAction.ANNIHILATE),
-                score(0, 1, "CORRUPTED_OPPONENT_CARD,PARADOX_CASCADE_PENALTY", 0));
-
-        assertThat(game.seats().get(0).get(0).outcome()).isEqualTo(BetOutcome.VOIDED);
-        assertThat(game.seats().get(0).get(0).otherUnits()).isEqualTo(SeatScore.UNITS);
-    }
-
-    @Test
-    void aNamedReasonListedWithoutAPlacedBetCountsItsOverridePoints() {
-        var deltas = Map.of("CHAIN_LINK_ADDED", 3, "CHAIN_COMPLETED", 10);
-        var game = read(Map.of("CHAIN_COMPLETED", 0), deltas, TABLE, 1, score(0, 1, "CHAIN_COMPLETED", 10));
-
-        assertThat(game.seats().get(0).get(0).outcome()).isEqualTo(BetOutcome.NOT_PLACED);
-        assertThat(game.seats().get(0).get(0).otherUnits()).isZero();
+        assertThat(rescoredVoided).isEqualTo(2);
+        assertThat(seatEras.voided(5)).isEqualTo((int) rescoredVoided);
     }
 }

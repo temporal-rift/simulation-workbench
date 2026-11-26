@@ -108,11 +108,12 @@ workbench:
 `GET /api/v1/runs/{runId}/report` (`simulation:read`) returns a run's report as JSON, or as CSV with
 `Accept: text/csv`. `POST /api/v1/comparisons` (`simulation:write`, `Idempotency-Key`) compares two variants, of one
 run or of two runs, and `GET /api/v1/comparisons/{comparisonId}` reads the comparison as JSON or CSV. Every number
-is computed by analysis version `5` with analysis seed `1` (a comparison keeps the version it was created under); both
+is computed by analysis version `6` with analysis seed `1` (a comparison keeps the version it was created under); both
 are on every report, comparison, and CSV row, and the same version, seed, and case results always produce
 byte-identical documents. Analysis version `2` is version `1` plus the `failure_share` metric, version `3` is
 version `2` plus the balance diagnostics below, version `4` is version `3` plus the bet survival metrics below, and
-version `5` is version `4` plus the win condition metric below: every earlier metric keeps its value and interval.
+version `5` is version `4` plus the win condition metric below, and version `6` is version `5` plus the reason
+occurrence and voided bet metrics below: every earlier metric keeps its value and interval.
 
 ### Populations
 
@@ -327,6 +328,29 @@ projection; when the game lists none, `[winType]` for a score or objective win a
 version `5` are stored under facts version `4`; earlier versions keep reading what they read, so reports and
 comparisons made under them are unchanged. A case result stored before winners listed their conditions reads them
 through the same fallback.
+
+### Reason occurrences and voided bets (analysis version 6)
+
+The scoring model reads its per-era rates from a report (see [Scoring models](scoring-models.md)), and the existing
+metrics give neither of them: `score_by_reason` gives points, not occurrences, so a reason configured at 0 points
+contributes nothing to it, and no metric separated a voided bet from an era without a bet. Version `6` adds, per
+faction and counted in seat-eras over the eras each game lasted:
+
+- `reason_occurrences_per_era` (statistic `MEAN`, unit occurrences per seat-era; dimensions `faction` and
+  `score_reason`): the occurrences of each score reason the faction's seats recorded, per seat-era. A seat's score
+  records for an era arrive joined by commas and every listed reason counts, one by one: a reason listed twice counts
+  twice, and no joined key is a dimension. Reasons configured at 0 points, such as `ANNIHILATION_WASTED` when a variant
+  pays it nothing, are counted.
+- `bet_voided_rate_per_era` (statistic `RATE`, unit seat-eras; dimension `faction`): the share of the faction's
+  seat-eras whose bet was placed and recorded no bet reason of its faction. Its denominator is every seat-era the
+  faction's seats played, as for `bet_win_rate_per_era`, so it maps straight onto a model's `voidedRate`.
+
+A bet is placed, and a seat-era is won, missed, voided or not placed, by the one definition that the re-scoring of a run
+uses (see [Scoring models](scoring-models.md#the-seat-era-bet-outcome)), so a report and a re-score classify the same
+seat-eras as voided. The CSV exports keep their layouts and carry the metrics as extra rows, `score_reason` in the
+`scoreReason` column. Facts for version `6` are stored under facts version `5`; earlier versions keep reading what they
+read, and facts stored without the new counts read them as none, so reports and comparisons made under an earlier
+version are unchanged.
 
 ### Exports
 

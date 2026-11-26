@@ -12,22 +12,57 @@ import io.github.temporalrift.workbench.shared.game.Faction;
 
 class ScoringEvaluatorTest {
 
-    private static ScoringModel symmetric(Faction boosted, double boostedWin, double boostedMiss) {
-        var factions = new ArrayList<FactionScoring>();
-        var rates = new ArrayList<BetRates>();
+    /** One bet reason per faction, each worth 4 points. */
+    private static final List<String> WIN_REASON = List.of(
+            "ANNIHILATED_OUTCOME",
+            "EVENT_RESOLVED_AS_WRITTEN",
+            "SECRET_OUTCOME_WON",
+            "CHAIN_LINK_ADDED",
+            "DECLARED_OUTCOME_WON");
+
+    private static final ScoringEngine ENGINE = engine(5);
+
+    private static ScoringEngine engine(int maxEras) {
+        return new ScoringEngine(
+                maxEras,
+                WIN_REASON.stream().map(reason -> new ReasonPoints(reason, 4)).toList(),
+                List.of());
+    }
+
+    private static ScoringModel symmetric(Faction boosted, double boostedWin) {
+        var rates = new ArrayList<SeatEraRates>();
         for (var faction : Faction.values()) {
-            factions.add(new FactionScoring(faction, List.of(4), 0, Set.of(), null, 0));
+            var reason = WIN_REASON.get(faction.ordinal() % WIN_REASON.size());
             for (var count : List.of(3, 4, 5)) {
-                var boost = faction == boosted;
-                rates.add(new BetRates(count, faction, boost ? boostedWin : 0.5, boost ? boostedMiss : 0.5, 0));
+                var win = faction == boosted ? boostedWin : 0.5;
+                rates.add(new SeatEraRates(
+                        count, faction, List.of(new SeatEraRates.BetReasonRate(reason, win)), 0, List.of()));
             }
         }
-        return new ScoringModel(new ScoringEngine(12, 5, factions), List.of(3, 4, 5), rates, 20_000, 7);
+        return new ScoringModel(ENGINE, List.of(Faction.values()), List.of(3, 4, 5), rates, 20_000, 7);
+    }
+
+    /** Rates under which each faction's own reason is drawn with the given chance. */
+    private static List<SeatEraRates> ratesFor(ScoringEngine engine, double rate) {
+        var rates = new ArrayList<SeatEraRates>();
+        for (var faction : Faction.values()) {
+            var reason = engine.reasonPoints().stream()
+                    .map(ReasonPoints::scoreReason)
+                    .filter(name -> io.github.temporalrift.workbench.analysis.domain.fact.BetReasons.of(faction)
+                            .isSettling(name))
+                    .findFirst()
+                    .orElseThrow();
+            for (var count : List.of(3, 4, 5)) {
+                rates.add(new SeatEraRates(
+                        count, faction, List.of(new SeatEraRates.BetReasonRate(reason, rate)), 0, List.of()));
+            }
+        }
+        return rates;
     }
 
     @Test
     void identicalFactionsWinInProportionToTheirSeats() {
-        var evaluation = ScoringEvaluator.evaluate(symmetric(null, 0.5, 0.5));
+        var evaluation = ScoringEvaluator.evaluate(symmetric(null, 0.5));
 
         assertThat(evaluation.cells())
                 .hasSize(15)
@@ -35,8 +70,8 @@ class ScoringEvaluatorTest {
     }
 
     @Test
-    void aFactionThatWinsItsBetMoreOftenWinsMore() {
-        var evaluation = ScoringEvaluator.evaluate(symmetric(Faction.WEAVERS, 0.6, 0.4));
+    void aFactionThatSettlesItsBetWithAWinMoreOftenWinsMore() {
+        var evaluation = ScoringEvaluator.evaluate(symmetric(Faction.WEAVERS, 0.9));
 
         assertThat(evaluation.cells())
                 .filteredOn(cell -> cell.faction() == Faction.WEAVERS)
@@ -46,7 +81,7 @@ class ScoringEvaluatorTest {
 
     @Test
     void theIntervalBracketsTheRatio() {
-        var evaluation = ScoringEvaluator.evaluate(symmetric(null, 0.5, 0.5));
+        var evaluation = ScoringEvaluator.evaluate(symmetric(null, 0.5));
 
         assertThat(evaluation.cells()).isNotEmpty().allSatisfy(cell -> {
             assertThat(cell.lower()).isLessThan(cell.ratio());
@@ -55,58 +90,68 @@ class ScoringEvaluatorTest {
     }
 
     @Test
-    void everyRaceEndsByTheThresholdOrInTheFinalEra() {
-        var evaluation = ScoringEvaluator.evaluate(symmetric(null, 0.5, 0.5));
-
-        assertThat(evaluation.endings()).hasSize(3).allSatisfy(ending -> {
-            assertThat(ending.thresholdShare() + ending.finalEraShare()).isEqualTo(1.0);
-            assertThat(ending.meanEras()).isBetween(1.0, 5.0);
-        });
-    }
-
-    @Test
-    void seatsReachingTheThresholdTogetherShareTheWinEqually() {
-        var factions = new ArrayList<FactionScoring>();
-        var rates = new ArrayList<BetRates>();
-        for (var faction : Faction.values()) {
-            factions.add(new FactionScoring(faction, List.of(4), 0, Set.of(), null, 0));
-            for (var count : List.of(3, 4, 5)) {
-                rates.add(new BetRates(count, faction, 1.0, 0.0, 0));
-            }
-        }
-        var model = new ScoringModel(new ScoringEngine(8, 5, factions), List.of(3, 4, 5), rates, 500, 3);
+    void seatsThatAlwaysScoreTheSameShareTheWinEqually() {
+        var model =
+                new ScoringModel(ENGINE, List.of(Faction.values()), List.of(3, 4, 5), ratesFor(ENGINE, 1.0), 500, 3);
 
         var evaluation = ScoringEvaluator.evaluate(model);
 
         assertThat(evaluation.cells())
                 .hasSize(15)
                 .allSatisfy(cell -> assertThat(cell.ratio()).isEqualTo(1.0));
-        assertThat(evaluation.endings()).hasSize(3).allSatisfy(ending -> {
-            assertThat(ending.thresholdShare()).isEqualTo(1.0);
-            assertThat(ending.meanEras()).isEqualTo(2.0);
-        });
     }
 
     @Test
-    void anUnreachableThresholdAlwaysEndsInTheFinalEra() {
-        var base = symmetric(null, 0.5, 0.5);
+    void aCellIsListedForEveryRequestedFactionAndPlayerCount() {
+        var base = symmetric(null, 0.5);
         var model = new ScoringModel(
-                new ScoringEngine(500, 5, base.engine().factions()), List.of(4), base.rates(), 1_000, 1);
+                ENGINE,
+                List.of(Faction.WEAVERS, Faction.ERASERS, Faction.PROPHETS),
+                List.of(3),
+                base.rates().stream()
+                        .filter(item -> item.playerCount() == 3
+                                && Set.of(Faction.WEAVERS, Faction.ERASERS, Faction.PROPHETS)
+                                        .contains(item.faction()))
+                        .toList(),
+                1_000,
+                1);
 
-        var ending = ScoringEvaluator.evaluate(model).endings().getFirst();
+        var evaluation = ScoringEvaluator.evaluate(model);
 
-        assertThat(ending.finalEraShare()).isEqualTo(1.0);
-        assertThat(ending.meanEras()).isEqualTo(5.0);
+        assertThat(evaluation.cells())
+                .extracting(ScoringEvaluation.Cell::faction)
+                .containsExactly(Faction.WEAVERS, Faction.ERASERS, Faction.PROPHETS);
+    }
+
+    @Test
+    void anOtherReasonAddsItsExpectedPointsEveryEra() {
+        var trio = List.of(Faction.WEAVERS, Faction.ERASERS, Faction.PROPHETS);
+        var priced = new ScoringEngine(5, List.of(new ReasonPoints("CORRUPTED_OPPONENT_CARD", 2)), List.of());
+        var rates = new ArrayList<SeatEraRates>();
+        for (var faction : trio) {
+            var others = faction == Faction.WEAVERS
+                    ? List.of(new SeatEraRates.OtherReason("CORRUPTED_OPPONENT_CARD", 1))
+                    : List.<SeatEraRates.OtherReason>of();
+            rates.add(new SeatEraRates(3, faction, List.of(), 0, others));
+        }
+
+        var evaluation = ScoringEvaluator.evaluate(new ScoringModel(priced, trio, List.of(3), rates, 1_000, 5));
+
+        // Five eras at an expected 2 points give the Weavers 10 and the others 0, so the Weavers win every game.
+        assertThat(evaluation.cells())
+                .filteredOn(cell -> cell.faction() == Faction.WEAVERS)
+                .singleElement()
+                .satisfies(cell -> assertThat(cell.ratio()).isEqualTo(3.0));
     }
 
     @Test
     void equalModelsGiveEqualEvaluationsAndADifferentSeedDoesNot() {
-        var model = symmetric(Faction.ERASERS, 0.6, 0.3);
+        var model = symmetric(Faction.ERASERS, 0.8);
 
         var first = ScoringEvaluator.evaluate(model);
         var again = ScoringEvaluator.evaluate(model);
         var other = ScoringEvaluator.evaluate(
-                new ScoringModel(model.engine(), model.playerCounts(), model.rates(), 20_000, 8));
+                new ScoringModel(model.engine(), model.factions(), model.playerCounts(), model.rates(), 20_000, 8));
 
         assertThat(again).isEqualTo(first);
         assertThat(other).isNotEqualTo(first);
@@ -114,7 +159,7 @@ class ScoringEvaluatorTest {
 
     @Test
     void theResultDoesNotDependOnTheNumberOfThreads() throws Exception {
-        var model = symmetric(Faction.ERASERS, 0.6, 0.3);
+        var model = symmetric(Faction.ERASERS, 0.8);
         var parallel = ScoringEvaluator.evaluate(model);
 
         var sequential = new java.util.concurrent.ForkJoinPool(1)

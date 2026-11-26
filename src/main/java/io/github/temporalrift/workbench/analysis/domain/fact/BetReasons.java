@@ -53,12 +53,6 @@ public final class BetReasons {
         };
     }
 
-    /** One era's reasons for a seat arrive joined by commas, so every listed reason counts. */
-    public boolean settledBy(String joinedReasons) {
-        return Arrays.stream(joinedReasons.split(","))
-                .anyMatch(reason -> wins.contains(reason) || misses.contains(reason));
-    }
-
     public boolean wonBy(String joinedReasons) {
         return Arrays.stream(joinedReasons.split(",")).anyMatch(wins::contains);
     }

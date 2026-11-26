@@ -1,7 +1,7 @@
 package io.github.temporalrift.workbench.analysis.infrastructure.adapter.in.scoring;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -9,23 +9,22 @@ import java.util.stream.Collectors;
 import io.github.temporalrift.workbench.analysis.application.port.in.EvaluateScoringModelUseCase;
 import io.github.temporalrift.workbench.analysis.application.port.in.RescoreRunUseCase;
 import io.github.temporalrift.workbench.analysis.domain.scoring.BetOutcome;
-import io.github.temporalrift.workbench.analysis.domain.scoring.BetRates;
-import io.github.temporalrift.workbench.analysis.domain.scoring.FactionScoring;
-import io.github.temporalrift.workbench.analysis.domain.scoring.InvalidScoringModelException;
+import io.github.temporalrift.workbench.analysis.domain.scoring.Escalation;
 import io.github.temporalrift.workbench.analysis.domain.scoring.ReasonPoints;
 import io.github.temporalrift.workbench.analysis.domain.scoring.RescoringResult;
 import io.github.temporalrift.workbench.analysis.domain.scoring.ScoringEngine;
 import io.github.temporalrift.workbench.analysis.domain.scoring.ScoringModelResult;
+import io.github.temporalrift.workbench.analysis.domain.scoring.SeatEraRates;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Faction;
-import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.FactionScoringEngine;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.RescoreRequest;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Rescoring;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.RescoringPlayerCount;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ScoringCell;
-import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ScoringEnding;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ScoringModelEvaluation;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ScoringModelRequest;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ScoringSensitivity;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.SeatEraRatesBetReasonsInner;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.SeatEraRatesOtherReasonsInner;
 
 /** Maps the generated scoring-model request and response to and from the use case. */
 final class ScoringModelApiMapper {
@@ -34,34 +33,39 @@ final class ScoringModelApiMapper {
 
     static ScoringEngine engine(
             io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ScoringEngine engine) {
-        var factions = new ArrayList<FactionScoring>();
-        for (var index = 0; index < engine.getFactions().size(); index++) {
-            factions.add(faction(index, engine.getFactions().get(index)));
-        }
-        return new ScoringEngine(engine.getWinThreshold(), engine.getMaxEras(), factions);
+        var points = engine.getReasonPoints().stream()
+                .map(item -> new ReasonPoints(item.getScoreReason(), item.getPoints()))
+                .toList();
+        var escalations = engine.getEscalations() == null
+                ? List.<Escalation>of()
+                : engine.getEscalations().stream()
+                        .map(ScoringModelApiMapper::escalation)
+                        .toList();
+        return new ScoringEngine(engine.getMaxEras(), points, escalations);
+    }
+
+    /** The reasons and outcomes arrive as sets, so they are ordered to keep an item's index stable. */
+    private static Escalation escalation(
+            io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Escalation escalation) {
+        return new Escalation(
+                escalation.getName(),
+                escalation.getScoreReasons().stream().sorted().toList(),
+                escalation.getBase(),
+                escalation.getIncrement(),
+                escalation.getResetOn().stream()
+                        .map(outcome -> BetOutcome.valueOf(outcome.getValue()))
+                        .collect(Collectors.toSet()));
     }
 
     static RescoreRunUseCase.Query rescoreQuery(UUID runId, RescoreRequest request) {
-        var points = request.getOtherReasonPoints() == null
-                ? List.<ReasonPoints>of()
-                : request.getOtherReasonPoints().stream()
-                        .map(item -> new ReasonPoints(item.getScoreReason(), item.getPoints()))
-                        .toList();
         return new RescoreRunUseCase.Query(
-                runId, engine(request.getEngine()), request.getVariantLabel(), request.getTableId(), points);
+                runId, engine(request.getEngine()), request.getVariantLabel(), request.getTableId());
     }
 
     static Rescoring rescoring(RescoringResult result) {
         return new Rescoring()
                 .complete(result.complete())
-                .cells(result.cells().stream()
-                        .map(cell -> new ScoringCell()
-                                .playerCount(cell.playerCount())
-                                .faction(faction(cell.faction()))
-                                .ratio(decimal(cell.ratio()))
-                                .lower(decimal(cell.lower()))
-                                .upper(decimal(cell.upper())))
-                        .toList())
+                .cells(result.cells().stream().map(ScoringModelApiMapper::cell).toList())
                 .playerCounts(result.playerCounts().stream()
                         .map(counts -> new RescoringPlayerCount()
                                 .playerCount(counts.playerCount())
@@ -72,15 +76,12 @@ final class ScoringModelApiMapper {
     }
 
     static EvaluateScoringModelUseCase.Query query(ScoringModelRequest request) {
-        var engine = request.getEngine();
-        var rates = request.getRates().stream()
-                .map(item -> new BetRates(
-                        item.getPlayerCount(),
-                        faction(item.getFaction()),
-                        item.getWinRate().doubleValue(),
-                        item.getMissRate().doubleValue(),
-                        item.getExtraPointsPerEra().doubleValue()))
+        var factions = request.getFactions().stream()
+                .map(ScoringModelApiMapper::faction)
+                .sorted(Comparator.naturalOrder())
                 .toList();
+        var rates =
+                request.getRates().stream().map(ScoringModelApiMapper::rates).toList();
         var sweep = request.getSweep() == null
                 ? List.<EvaluateScoringModelUseCase.SweepParameter>of()
                 : request.getSweep().stream()
@@ -88,7 +89,8 @@ final class ScoringModelApiMapper {
                                 item.getParameter(), item.getStep().doubleValue()))
                         .toList();
         return new EvaluateScoringModelUseCase.Query(
-                engine(engine),
+                engine(request.getEngine()),
+                factions,
                 request.getPlayerCounts().stream().sorted().toList(),
                 rates,
                 request.getGamesPerPlayerCount(),
@@ -96,22 +98,38 @@ final class ScoringModelApiMapper {
                 sweep);
     }
 
+    private static SeatEraRates rates(
+            io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.SeatEraRates item) {
+        var betReasons = item.getBetReasons().stream()
+                .map(ScoringModelApiMapper::betReason)
+                .toList();
+        var others = item.getOtherReasons() == null
+                ? List.<SeatEraRates.OtherReason>of()
+                : item.getOtherReasons().stream()
+                        .map(ScoringModelApiMapper::otherReason)
+                        .toList();
+        return new SeatEraRates(
+                item.getPlayerCount(),
+                faction(item.getFaction()),
+                betReasons,
+                item.getVoidedRate().doubleValue(),
+                others);
+    }
+
+    private static SeatEraRates.BetReasonRate betReason(SeatEraRatesBetReasonsInner item) {
+        return new SeatEraRates.BetReasonRate(
+                item.getScoreReason(), item.getRate().doubleValue());
+    }
+
+    private static SeatEraRates.OtherReason otherReason(SeatEraRatesOtherReasonsInner item) {
+        return new SeatEraRates.OtherReason(
+                item.getScoreReason(), item.getPerEra().doubleValue());
+    }
+
     static ScoringModelEvaluation evaluation(ScoringModelResult result) {
         return new ScoringModelEvaluation()
                 .cells(result.evaluation().cells().stream()
-                        .map(cell -> new ScoringCell()
-                                .playerCount(cell.playerCount())
-                                .faction(faction(cell.faction()))
-                                .ratio(decimal(cell.ratio()))
-                                .lower(decimal(cell.lower()))
-                                .upper(decimal(cell.upper())))
-                        .toList())
-                .endings(result.evaluation().endings().stream()
-                        .map(ending -> new ScoringEnding()
-                                .playerCount(ending.playerCount())
-                                .meanEras(decimal(ending.meanEras()))
-                                .thresholdShare(decimal(ending.thresholdShare()))
-                                .finalEraShare(decimal(ending.finalEraShare())))
+                        .map(ScoringModelApiMapper::cell)
                         .toList())
                 .sensitivity(result.sensitivity().stream()
                         .map(item -> new ScoringSensitivity()
@@ -123,22 +141,14 @@ final class ScoringModelApiMapper {
                         .toList());
     }
 
-    private static FactionScoring faction(int index, FactionScoringEngine engine) {
-        var path = "engine.factions[" + index + "]";
-        if (engine.getObjectiveWins() != null && engine.getObjectiveBonus() == null) {
-            throw new InvalidScoringModelException(
-                    path + ".objectiveBonus", "objectiveBonus is required with objectiveWins");
-        }
-        var resetOn = engine.getResetOn().stream()
-                .map(outcome -> BetOutcome.valueOf(outcome.getValue()))
-                .collect(Collectors.toSet());
-        return new FactionScoring(
-                faction(engine.getFaction()),
-                engine.getWinPoints(),
-                engine.getMissPoints(),
-                resetOn,
-                engine.getObjectiveWins(),
-                engine.getObjectiveBonus() == null ? 0 : engine.getObjectiveBonus());
+    private static ScoringCell cell(
+            io.github.temporalrift.workbench.analysis.domain.scoring.ScoringEvaluation.Cell cell) {
+        return new ScoringCell()
+                .playerCount(cell.playerCount())
+                .faction(faction(cell.faction()))
+                .ratio(decimal(cell.ratio()))
+                .lower(decimal(cell.lower()))
+                .upper(decimal(cell.upper()));
     }
 
     private static io.github.temporalrift.workbench.shared.game.Faction faction(Faction faction) {

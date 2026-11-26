@@ -61,6 +61,9 @@ public final class MetricCatalog {
         if (vocabulary.winConditions()) {
             winConditionMetrics(definitions, vocabulary.factions(cohort.playerCount()));
         }
+        if (vocabulary.reasonOccurrences()) {
+            reasonOccurrenceMetrics(definitions, vocabulary, cohort);
+        }
         cardMetrics(definitions, vocabulary);
         specialMetrics(definitions, vocabulary);
         return List.copyOf(definitions);
@@ -247,6 +250,44 @@ public final class MetricCatalog {
                                     winners.size());
                         }));
             }
+        }
+    }
+
+    /**
+     * The reason metrics of analysis version 6, counted in seat-eras over the eras each game lasted: how often each
+     * score reason occurs, joined records counted one by one and reasons configured at 0 points included, and how
+     * often a placed bet recorded no bet reason. Both are the inputs of a scoring model's per-era rates.
+     */
+    private static void reasonOccurrenceMetrics(
+            List<MetricDefinition> definitions, Vocabulary vocabulary, CohortKey cohort) {
+        for (var faction : vocabulary.factions(cohort.playerCount())) {
+            for (var reason : vocabulary.occurringReasons().getOrDefault(faction, new TreeSet<>())) {
+                definitions.add(ratio(
+                        "reason_occurrences_per_era",
+                        MetricStatistic.MEAN,
+                        Dimensions.of(faction, reason),
+                        "occurrences per seat-era",
+                        (facts, seats) -> {
+                            var of = ofFaction(seats, faction);
+                            return Tally.of(
+                                    of.stream()
+                                            .mapToLong(seat ->
+                                                    seat.reasonOccurrences().getOrDefault(reason, 0))
+                                            .sum(),
+                                    (long) of.size() * facts.game().eras());
+                        }));
+            }
+            definitions.add(ratio(
+                    "bet_voided_rate_per_era",
+                    MetricStatistic.RATE,
+                    Dimensions.of(faction),
+                    "seat-eras",
+                    (facts, seats) -> {
+                        var of = ofFaction(seats, faction);
+                        return Tally.of(
+                                of.stream().mapToLong(SeatFacts::betsVoided).sum(),
+                                (long) of.size() * facts.game().eras());
+                    }));
         }
     }
 
