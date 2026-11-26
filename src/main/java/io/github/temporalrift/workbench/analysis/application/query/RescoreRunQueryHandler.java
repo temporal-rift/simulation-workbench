@@ -38,6 +38,10 @@ public class RescoreRunQueryHandler implements RescoreRunUseCase {
     public RescoringResult handle(Query query) {
         var experimentId = runs.experimentOf(query.runId())
                 .orElseThrow(() -> new AnalysisResourceNotFoundException("Run", query.runId()));
+        var rules = scoring.rules(experimentId, query.variantLabel())
+                .orElseThrow(() -> new AnalysisResourceNotFoundException("Variant", query.variantLabel()));
+        ScoringModelValidator.checkEngine(query.engine());
+        ScoringModelValidator.checkOtherReasonPoints(query.otherReasonPoints(), rules.scoreDeltas());
         var cases = runs.cases(query.runId());
         if (cases.stream().noneMatch(item -> query.variantLabel().equals(item.variantLabel()))) {
             throw new AnalysisResourceNotFoundException("Variant", query.variantLabel());
@@ -45,10 +49,6 @@ public class RescoreRunQueryHandler implements RescoreRunUseCase {
         if (cases.stream().noneMatch(item -> query.tableId().equals(item.tableId()))) {
             throw new AnalysisResourceNotFoundException("Table", query.tableId());
         }
-        var rules = scoring.rules(experimentId, query.variantLabel())
-                .orElseThrow(() -> new AnalysisResourceNotFoundException("Variant", query.variantLabel()));
-        ScoringModelValidator.checkEngine(query.engine());
-        ScoringModelValidator.checkOtherReasonPoints(query.otherReasonPoints(), rules.scoreDeltas());
         var members = cases.stream()
                 .filter(AnalyzedCase::succeeded)
                 .filter(item -> query.variantLabel().equals(item.variantLabel()))

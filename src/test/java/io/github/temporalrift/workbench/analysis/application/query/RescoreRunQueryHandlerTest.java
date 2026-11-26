@@ -253,4 +253,16 @@ class RescoreRunQueryHandlerTest {
                         InvalidScoringModelException.class,
                         e -> assertThat(e.field()).isEqualTo("otherReasonPoints[1].scoreReason"));
     }
+
+    @Test
+    void anInvalidOtherReasonIsRefusedBeforeAnUnknownTableIsNoticed() {
+        add("1", CaseState.SUCCEEDED, 5, EndReason.TIMELINE_STABILIZED);
+        var unknownTable = new RescoreRunUseCase.Query(
+                RUN, engine(10), "v", "other", List.of(new ReasonPoints("SECRET_OUTCOME_WON", 0)));
+
+        assertThatThrownBy(() -> handler.handle(unknownTable))
+                .isInstanceOfSatisfying(
+                        InvalidScoringModelException.class,
+                        e -> assertThat(e.field()).isEqualTo("otherReasonPoints[0].scoreReason"));
+    }
 }
