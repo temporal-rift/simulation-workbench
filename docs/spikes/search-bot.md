@@ -108,8 +108,11 @@ evaluation must integrate over a model of them, which is a design decision of it
 **Cost.** A decision evaluates every candidate (about 20 in an action round) once, or a few times for chance. At 6 ms an
 acknowledgement-sized call, 25 decisions x 20 candidates x 6 ms is 3 s a game on top of 7 to 8 s, so about 1.4 times
 the cost of a game. A hunt plays 1,024 searched games and 1,024 reference games per cell: 15 x (1,024 x 1.4 + 1,024) =
-about 37,000 game-equivalents, **about 7 server hours** at 5,400 games an hour. A cheaper in-process call would bring it
-near a game's cost. The hours are no obstacle here; the horizon and the new contract are.
+about 37,000 game-equivalents, **about 7 server hours** at 5,400 games an hour. Only the evaluation calls scale with
+the searched seat's decisions; the rest is plain games. The 6.8 hours split as 2.8 for the 15,360 reference games, which
+need no evaluation, 2.8 for the play of the 15,360 searched games, and 1.1 for their evaluation calls (4.6 hours had the
+calls been counted for all seats). That is why the estimate fell from 10 to 7 hours and not to 2.5. A cheaper in-process
+call would bring it near a game's cost. The hours are no obstacle here; the horizon and the new contract are.
 
 **Strength.** One round. It finds an exploit that pays within the round it is set up in and misses any line that pays over
 eras, such as a Weaver chain, a bet placed for a later era or a paradox set up in advance, which is where an exploit would
@@ -163,9 +166,11 @@ forward in microseconds.
 
 **It conflicts with the boundary that gameplay stays authoritative in the real services and the workbench holds no
 hand-written copy of the engine.** It is listed because it is the only option that makes move-level search affordable.
-Estimated cost with a model: 25 decisions x 20 candidates x 50 rollouts x about 1 ms is about 25 s of one core a
-game, so the 15,360 searched games of a hunt (15 x 1,024) at 25 s are about 110 core hours, under half a day on 16
-cores; the model's speed is a guess until one exists.
+Estimated cost with a model: copying the state is free, so a rollout from a decision plays only what is left of the game,
+half of it on average. At about 1 ms for a whole game, 25 decisions x 20 candidates x 50 rollouts x 0.5 ms is about 12 s
+of one core a game, so the 15,360 searched games of a hunt (15 x 1,024) are about 55 core hours, a few hours on 16
+cores; the model's speed is a guess until one exists. This halving holds only here: option (a) has no state copy and
+pays a whole game per rollout when it replays to the decision.
 
 **What keeping it faithful costs.** Every rule or content change in game-service or timeline-service is also a change
 to the model, and a model that is wrong gives a false answer in the safe direction: an exploit that exists in the real game
@@ -186,7 +191,7 @@ reaches the exploits a preference table can express without either.
 | (a) Move-level through services | about 3,600 h | Highest in principle | Fork or re-seed in `simulation-control-api`, three services | Perfect knowledge unless re-seeded; hidden facts known by rollouts |
 | (b) Shallow, round ahead | about 7 h | One round only | New evaluation operation in game-service | Priced only if it pays within the round |
 | (c) Strategy-level | **about 14 h** | Anything a preference table expresses | None | Judged by real results |
-| (d) In-process model | about 110 core h | High, bounded by model fidelity | Violates the no-engine-copy boundary | Needs belief sampling |
+| (d) In-process model | about 55 core h | High, bounded by model fidelity | Violates the no-engine-copy boundary | Needs belief sampling |
 
 ## 3. Information play
 
