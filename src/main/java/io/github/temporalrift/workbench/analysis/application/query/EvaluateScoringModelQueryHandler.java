@@ -19,7 +19,8 @@ public class EvaluateScoringModelQueryHandler implements EvaluateScoringModelUse
     public ScoringModelResult handle(Query query) {
         var games =
                 query.gamesPerPlayerCount() == null ? ScoringModelValidator.DEFAULT_GAMES : query.gamesPerPlayerCount();
-        var model = new ScoringModel(query.engine(), query.playerCounts(), query.rates(), games, query.seed());
+        var model = new ScoringModel(
+                query.engine(), query.factions(), query.playerCounts(), query.rates(), games, query.seed());
         ScoringModelValidator.check(model);
         var sweep = query.sweep() == null ? List.<SweepParameter>of() : query.sweep();
         if (sweep.size() > MAX_SWEEP) {

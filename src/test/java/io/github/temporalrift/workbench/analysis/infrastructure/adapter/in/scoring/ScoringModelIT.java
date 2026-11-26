@@ -17,12 +17,17 @@ import tools.jackson.databind.node.ObjectNode;
 
 import io.github.temporalrift.workbench.WorkbenchIntegrationTest;
 
-/** A designer evaluates a scoring design from per-era bet rates and reads win ratios and sensitivity back. */
+/** A designer evaluates a scoring design from per-era rates of score reasons and reads win ratios and sensitivity. */
 @WorkbenchIntegrationTest
 class ScoringModelIT {
 
     private static final String PATH = "/api/v1/scoring-models/evaluations";
     private static final String[] FACTIONS = {"ERASERS", "PROPHETS", "REVISIONISTS", "WEAVERS", "ACTIVISTS"};
+    private static final String[] WIN_REASONS = {
+        "ANNIHILATED_OUTCOME", "FULFILLMENT_SUCCEEDED", "SECRET_OUTCOME_WON", "CHAIN_LINK_ADDED", "DECLARED_OUTCOME_WON"
+    };
+    private static final String RUN = "00000000-0000-0000-0000-0000000000aa";
+    private static final String READ = "SCOPE_simulation:read";
 
     @Autowired
     private MockMvc mockMvc;
@@ -30,26 +35,41 @@ class ScoringModelIT {
     @Autowired
     private ObjectMapper objectMapper;
 
+    /** The Weaver's link escalates; every other bet reason is flat. */
+    private ObjectNode engine() {
+        var engine = objectMapper.createObjectNode();
+        engine.put("maxEras", 5);
+        var points = engine.putArray("reasonPoints");
+        for (var reason : WIN_REASONS) {
+            if (!"CHAIN_LINK_ADDED".equals(reason)) {
+                points.addObject().put("scoreReason", reason).put("points", 6);
+            }
+        }
+        var escalation = engine.putArray("escalations").addObject();
+        escalation.put("name", "weaver-link");
+        escalation.putArray("scoreReasons").add("CHAIN_LINK_ADDED");
+        escalation.put("base", 6);
+        escalation.put("increment", 3);
+        escalation.putArray("resetOn").add("VOIDED");
+        return engine;
+    }
+
     private ObjectNode request() {
         var request = objectMapper.createObjectNode();
-        var engine = request.putObject("engine");
-        engine.put("winThreshold", 12);
-        engine.put("maxEras", 5);
+        request.set("engine", engine());
+        var factions = request.putArray("factions");
         var rates = request.putArray("rates");
-        var factions = engine.putArray("factions");
-        for (var faction : FACTIONS) {
-            var item = factions.addObject();
-            item.put("faction", faction);
-            item.putArray("winPoints").add(4);
-            item.put("missPoints", 0);
-            item.putArray("resetOn");
+        for (var index = 0; index < FACTIONS.length; index++) {
+            factions.add(FACTIONS[index]);
             for (var count : new int[] {3, 4, 5}) {
                 var rate = rates.addObject();
                 rate.put("playerCount", count);
-                rate.put("faction", faction);
-                rate.put("winRate", 0.5);
-                rate.put("missRate", 0.5);
-                rate.put("extraPointsPerEra", 0);
+                rate.put("faction", FACTIONS[index]);
+                rate.putArray("betReasons")
+                        .addObject()
+                        .put("scoreReason", WIN_REASONS[index])
+                        .put("rate", 0.5);
+                rate.put("voidedRate", 0.2);
             }
         }
         request.putArray("playerCounts").add(3).add(4).add(5);
@@ -66,18 +86,21 @@ class ScoringModelIT {
     }
 
     private ResultActions send(ObjectNode request) throws Exception {
-        return send(request, "SCOPE_simulation:read");
+        return send(request, READ);
     }
 
     @Test
-    void ratiosEndingsAndSensitivityComeBack() throws Exception {
+    void ratiosAndSensitivityComeBack() throws Exception {
         var request = request();
-        request.putArray("sweep").addObject().put("parameter", "winThreshold").put("step", 2);
+        request.putArray("sweep")
+                .addObject()
+                .put("parameter", "escalations.weaver-link.increment")
+                .put("step", 1);
 
         send(request)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.cells.length()").value(15))
-                .andExpect(jsonPath("$.endings.length()").value(3))
+                .andExpect(jsonPath("$.endings").doesNotExist())
                 .andExpect(jsonPath("$.sensitivity.length()").value(30));
     }
 
@@ -86,7 +109,7 @@ class ScoringModelIT {
         var request = request();
         request.putArray("sweep")
                 .addObject()
-                .put("parameter", "factions.WEAVERS.winPoints[0]")
+                .put("parameter", "reasonPoints.ANNIHILATED_OUTCOME")
                 .put("step", 1);
 
         var first = send(request)
@@ -104,16 +127,48 @@ class ScoringModelIT {
     }
 
     @Test
-    void ratesAboveOneAreRefusedNamingTheItem() throws Exception {
+    void ratesThatSumAboveOneAreRefusedNamingTheItem() throws Exception {
         var request = request();
-        var item = (ObjectNode) request.get("rates").get(3);
-        item.put("winRate", 0.7);
-        item.put("missRate", 0.4);
+        ((ObjectNode) request.get("rates").get(3)).put("voidedRate", 0.7);
 
         send(request)
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
                 .andExpect(jsonPath("$.field").value("rates[3]"));
+    }
+
+    @Test
+    void aSweepThatPushesTheRatesAboveOneIsRefusedNamingItsStep() throws Exception {
+        var request = request();
+        request.putArray("sweep")
+                .addObject()
+                .put("parameter", "rates.5.WEAVERS.voidedRate")
+                .put("step", 0.4);
+
+        send(request)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.field").value("sweep[0].step"));
+    }
+
+    @Test
+    void anOtherReasonThatBelongsToAnEscalationIsRefusedNamingIt() throws Exception {
+        var request = request();
+        var corruption =
+                ((ObjectNode) request.get("engine")).withArray("escalations").addObject();
+        corruption.put("name", "corrupt-run");
+        corruption.putArray("scoreReasons").add("CORRUPTED_OPPONENT_CARD");
+        corruption.put("base", 1);
+        corruption.put("increment", 1);
+        corruption.putArray("resetOn").add("VOIDED");
+        ((ObjectNode) request.get("rates").get(0))
+                .putArray("otherReasons")
+                .addObject()
+                .put("scoreReason", "CORRUPTED_OPPONENT_CARD")
+                .put("perEra", 1);
+
+        send(request)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.field").value("rates[0].otherReasons[0].scoreReason"));
     }
 
     @Test
@@ -136,29 +191,19 @@ class ScoringModelIT {
     }
 
     @Test
-    void anEmptyWinPointsListIsRefusedNamingIt() throws Exception {
+    void anEngineThatPricesNoReasonIsRefusedNamingIt() throws Exception {
         var request = request();
-        ((ObjectNode) request.get("engine").get("factions").get(1)).putArray("winPoints");
+        ((ObjectNode) request.get("engine")).putArray("reasonPoints");
 
         send(request)
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
-                .andExpect(jsonPath("$.field").value("engine.factions[1].winPoints"));
-    }
-
-    @Test
-    void anObjectiveWinsWithoutABonusIsRefused() throws Exception {
-        var request = request();
-        ((ObjectNode) request.get("engine").get("factions").get(0)).put("objectiveWins", 3);
-
-        send(request)
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.field").value("engine.factions[0].objectiveBonus"));
+                .andExpect(jsonPath("$.field").value("engine.reasonPoints"));
     }
 
     @Test
     void anUnparsableSweepPathIsRefusedNamingIt() throws Exception {
-        for (var path : new String[] {"factions.WEAVERS.winPoints[2147483648]", "rates.3.NOBODY.winRate"}) {
+        for (var path : new String[] {"escalations.nobody.base", "rates.3.NOBODY.voidedRate"}) {
             var request = request();
             request.putArray("sweep").addObject().put("parameter", path).put("step", 1);
 
@@ -173,8 +218,8 @@ class ScoringModelIT {
         send(request(), "SCOPE_simulation:other").andExpect(status().isForbidden());
     }
 
-    private ResultActions rescore(String runId, ObjectNode body, String scope) throws Exception {
-        return mockMvc.perform(post("/api/v1/runs/" + runId + "/rescorings")
+    private ResultActions rescore(ObjectNode body, String scope) throws Exception {
+        return mockMvc.perform(post("/api/v1/runs/" + RUN + "/rescorings")
                 .with(jwt().authorities(new SimpleGrantedAuthority(scope)))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(body)));
@@ -182,7 +227,7 @@ class ScoringModelIT {
 
     private ObjectNode rescoring() {
         var body = objectMapper.createObjectNode();
-        body.set("engine", request().get("engine"));
+        body.set("engine", engine());
         body.put("variantLabel", "baseline");
         body.put("tableId", "table-1");
         return body;
@@ -190,39 +235,35 @@ class ScoringModelIT {
 
     @Test
     void rescoringAnUnknownRunIsNotFound() throws Exception {
-        rescore("00000000-0000-0000-0000-0000000000aa", rescoring(), "SCOPE_simulation:read")
+        rescore(rescoring(), READ)
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
     }
 
     @Test
     void rescoringWithoutTheReadScopeIsForbidden() throws Exception {
-        rescore("00000000-0000-0000-0000-0000000000aa", rescoring(), "SCOPE_simulation:other")
-                .andExpect(status().isForbidden());
+        rescore(rescoring(), "SCOPE_simulation:other").andExpect(status().isForbidden());
     }
 
     @Test
-    void rescoringWithAnEmptyWinPointsListIsRefusedNamingIt() throws Exception {
+    void rescoringWithAnEngineThatPricesNoReasonIsRefusedNamingIt() throws Exception {
         var body = rescoring();
-        ((ObjectNode) body.get("engine").get("factions").get(1)).putArray("winPoints");
+        ((ObjectNode) body.get("engine")).putArray("reasonPoints");
 
-        rescore("00000000-0000-0000-0000-0000000000aa", body, "SCOPE_simulation:read")
+        rescore(body, READ)
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
-                .andExpect(jsonPath("$.field").value("engine.factions[1].winPoints"));
+                .andExpect(jsonPath("$.field").value("engine.reasonPoints"));
     }
 
     @Test
-    void rescoringWithAnOverriddenPointsOutsideRangeIsRefusedNamingIt() throws Exception {
+    void rescoringWithAPriceOutsideRangeIsRefusedNamingIt() throws Exception {
         var body = rescoring();
-        body.putArray("otherReasonPoints")
-                .addObject()
-                .put("scoreReason", "CHAIN_COMPLETED")
-                .put("points", 51);
+        ((ObjectNode) body.get("engine").get("reasonPoints").get(0)).put("points", 51);
 
-        rescore("00000000-0000-0000-0000-0000000000aa", body, "SCOPE_simulation:read")
+        rescore(body, READ)
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
-                .andExpect(jsonPath("$.field").value("otherReasonPoints[0].points"));
+                .andExpect(jsonPath("$.field").value("engine.reasonPoints[0].points"));
     }
 }

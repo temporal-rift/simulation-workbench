@@ -1,17 +1,20 @@
 package io.github.temporalrift.workbench.analysis.domain.scoring;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.IntStream;
 
+import io.github.temporalrift.workbench.analysis.domain.fact.BetReasons;
 import io.github.temporalrift.workbench.shared.game.Faction;
 import io.github.temporalrift.workbench.shared.game.FactionSets;
 import io.github.temporalrift.workbench.shared.random.SplitMix64;
 
 /**
- * Plays the scoring layer of a game alone: each seat draws one bet outcome per era from its rates, scores it under its
- * faction's engine, and a points race decides the winners. It never plays cards or resolves events.
+ * Plays the scoring layer of a game alone: in every era each seat draws exactly one of its bet reasons, a voided bet
+ * or no bet from its rates, scores the drawn reason under the engine, adds the expected points of its other reasons,
+ * and a points race after {@code maxEras} decides the winners. It never plays cards or resolves events.
  *
  * <p>Every game draws from a stream derived from the seed, the player count and the game index only, and the results
  * are summed as exact integers, so an evaluation is the same on any number of threads.
@@ -30,24 +33,20 @@ public final class ScoringEvaluator {
     private static final int PRESENT = 0;
     private static final int SHARE_SUM = FACTIONS;
     private static final int SHARE_SQUARES = 2 * FACTIONS;
-    private static final int ERAS = 3 * FACTIONS;
-    private static final int THRESHOLD_ENDINGS = ERAS + 1;
-    private static final int TALLY_SIZE = THRESHOLD_ENDINGS + 1;
+    private static final int TALLY_SIZE = 3 * FACTIONS;
 
     private ScoringEvaluator() {}
 
     public static ScoringEvaluation evaluate(ScoringModel model) {
         var cells = new ArrayList<ScoringEvaluation.Cell>();
-        var endings = new ArrayList<ScoringEvaluation.Ending>();
         for (var playerCount : model.playerCounts()) {
             var plan = new Plan(model, playerCount);
             var tally = IntStream.range(0, model.gamesPerPlayerCount())
                     .parallel()
                     .collect(() -> new long[TALLY_SIZE], plan::play, ScoringEvaluator::add);
-            model.engine().factions().forEach(engine -> cells.add(cell(playerCount, engine.faction(), tally)));
-            endings.add(ending(playerCount, model.gamesPerPlayerCount(), tally));
+            model.factions().forEach(faction -> cells.add(cell(playerCount, faction, tally)));
         }
-        return new ScoringEvaluation(cells, endings);
+        return new ScoringEvaluation(cells);
     }
 
     private static void add(long[] into, long[] other) {
@@ -73,41 +72,95 @@ public final class ScoringEvaluator {
         return new ScoringEvaluation.Cell(playerCount, faction, ratio, ratio - margin, ratio + margin);
     }
 
-    private static ScoringEvaluation.Ending ending(int playerCount, int games, long[] tally) {
-        var thresholdShare = (double) tally[THRESHOLD_ENDINGS] / games;
-        return new ScoringEvaluation.Ending(
-                playerCount, (double) tally[ERAS] / games, thresholdShare, 1 - thresholdShare);
+    /** What one faction's seat-era draws from at one player count. */
+    private static final class SeatDraw {
+
+        private final String[] betReasons;
+        private final BetOutcome[] outcomes;
+        private final double[] upTo;
+        private final double voidedUpTo;
+        private final long extraUnits;
+
+        SeatDraw(String[] betReasons, BetOutcome[] outcomes, double[] upTo, double voidedUpTo, long extraUnits) {
+            this.betReasons = betReasons;
+            this.outcomes = outcomes;
+            this.upTo = upTo;
+            this.voidedUpTo = voidedUpTo;
+            this.extraUnits = extraUnits;
+        }
+
+        String betReason(int reason) {
+            return betReasons[reason];
+        }
+
+        long extraUnits() {
+            return extraUnits;
+        }
+
+        /** The index of the bet reason a uniform draw selects, or -1 for no bet reason. */
+        int reason(double draw) {
+            for (var index = 0; index < upTo.length; index++) {
+                if (draw < upTo[index]) {
+                    return index;
+                }
+            }
+            return -1;
+        }
+
+        BetOutcome outcome(int reason, double draw) {
+            if (reason >= 0) {
+                return outcomes[reason];
+            }
+            return draw < voidedUpTo ? BetOutcome.VOIDED : BetOutcome.NOT_PLACED;
+        }
     }
 
     /** What every game of one player count shares. */
     private static final class Plan {
 
         private final ScoringEngine engine;
+        private final SeatScore.Pricing pricing;
         private final long seed;
         private final int playerCount;
         private final List<Faction[]> factionSets;
-        private final FactionScoring[] scoring = new FactionScoring[FACTIONS];
-        private final double[] winRate = new double[FACTIONS];
-        private final double[] winOrMissRate = new double[FACTIONS];
-        private final long[] extra = new long[FACTIONS];
+        private final SeatDraw[] draws = new SeatDraw[FACTIONS];
 
         Plan(ScoringModel model, int playerCount) {
             this.engine = model.engine();
+            this.pricing = new SeatScore.Pricing(engine);
             this.seed = model.seed();
             this.playerCount = playerCount;
-            engine.factions().forEach(faction -> scoring[faction.faction().ordinal()] = faction);
             model.rates().stream()
                     .filter(rates -> rates.playerCount() == playerCount)
-                    .forEach(rates -> {
-                        var index = rates.faction().ordinal();
-                        winRate[index] = rates.winRate();
-                        winOrMissRate[index] = rates.winRate() + rates.missRate();
-                        extra[index] = SeatScore.toUnits(rates.extraPointsPerEra());
-                    });
+                    .forEach(rates -> draws[rates.faction().ordinal()] = draw(rates));
             this.factionSets = FactionSets.of(List.of(playerCount)).stream()
-                    .filter(set -> set.stream().allMatch(faction -> scoring[faction.ordinal()] != null))
+                    .filter(set -> model.factions().containsAll(set))
                     .map(set -> set.toArray(new Faction[0]))
                     .toList();
+        }
+
+        private SeatDraw draw(SeatEraRates rates) {
+            var reasons = rates.betReasons();
+            var names = new String[reasons.size()];
+            var outcomes = new BetOutcome[reasons.size()];
+            var upTo = new double[reasons.size()];
+            var cumulative = 0.0;
+            for (var index = 0; index < names.length; index++) {
+                names[index] = reasons.get(index).scoreReason();
+                outcomes[index] =
+                        BetReasons.of(rates.faction()).wonBy(names[index]) ? BetOutcome.WON : BetOutcome.MISSED;
+                cumulative += reasons.get(index).rate();
+                upTo[index] = cumulative;
+            }
+            // Expected points are summed exactly and rounded to millionths once, so equal expected scores stay equal
+            // however the reasons are split.
+            var expected = BigDecimal.ZERO;
+            for (var other : rates.otherReasons()) {
+                expected = expected.add(BigDecimal.valueOf(other.perEra())
+                        .multiply(BigDecimal.valueOf(pricing.flatPoints(other.scoreReason()))));
+            }
+            var extra = SeatScore.toUnits(expected);
+            return new SeatDraw(names, outcomes, upTo, cumulative + rates.voidedRate(), extra);
         }
 
         void play(long[] tally, int game) {
@@ -115,26 +168,20 @@ public final class ScoringEvaluator {
                     STREAM, Long.toString(seed), Integer.toString(playerCount), Integer.toString(game));
             var seats = factionSets.get(random.nextInt(factionSets.size()));
             var scores = new SeatScore[seats.length];
-            Arrays.setAll(scores, seat -> new SeatScore(scoring[seats[seat].ordinal()]));
-            var eras = 0;
-            var qualified = false;
-            while (eras < engine.maxEras() && !qualified) {
-                eras++;
+            Arrays.setAll(scores, seat -> new SeatScore(pricing));
+            for (var era = 1; era <= engine.maxEras(); era++) {
                 for (var seat = 0; seat < seats.length; seat++) {
-                    var faction = seats[seat].ordinal();
-                    scores[seat].apply(outcome(uniform(random), faction));
-                    scores[seat].addExtra(extra[faction]);
+                    var seatDraw = draws[seats[seat].ordinal()];
+                    var draw = uniform(random);
+                    var reason = seatDraw.reason(draw);
+                    if (reason >= 0) {
+                        scores[seat].occurrence(seatDraw.betReason(reason));
+                    }
+                    scores[seat].addUnits(seatDraw.extraUnits());
+                    scores[seat].endEra(seatDraw.outcome(reason, draw));
                 }
-                qualified = best(scores) >= engine.winThreshold() * SeatScore.UNITS;
             }
-            tallyGame(tally, seats, scores, eras, qualified);
-        }
-
-        private BetOutcome outcome(double draw, int faction) {
-            if (draw < winRate[faction]) {
-                return BetOutcome.WON;
-            }
-            return draw < winOrMissRate[faction] ? BetOutcome.MISSED : BetOutcome.VOIDED;
+            tallyGame(tally, seats, scores);
         }
 
         private static double uniform(SplitMix64 random) {
@@ -149,7 +196,7 @@ public final class ScoringEvaluator {
             return best;
         }
 
-        private static void tallyGame(long[] tally, Faction[] seats, SeatScore[] scores, int eras, boolean qualified) {
+        private static void tallyGame(long[] tally, Faction[] seats, SeatScore[] scores) {
             var best = best(scores);
             var winners = 0;
             for (var score : scores) {
@@ -164,10 +211,6 @@ public final class ScoringEvaluator {
                 tally[PRESENT + faction]++;
                 tally[SHARE_SUM + faction] += units;
                 tally[SHARE_SQUARES + faction] += (long) units * units;
-            }
-            tally[ERAS] += eras;
-            if (qualified) {
-                tally[THRESHOLD_ENDINGS]++;
             }
         }
     }

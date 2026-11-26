@@ -102,6 +102,7 @@ OAuth2 resource server (JWT bearer). Reads require `simulation:read`; mutations 
 | [docs/fidelity-checks.md](docs/fidelity-checks.md) | Simulator-vs-lane fidelity checks |
 | [docs/search-campaigns.md](docs/search-campaigns.md) | Balance search campaigns and confirmation |
 | [docs/operations.md](docs/operations.md) | Timing metrics and capacity measurement |
+| [docs/scoring-models.md](docs/scoring-models.md) | Reason-based scoring engine, scoring-model evaluation and run re-scoring |
 | [docs/evidence-and-reports.md](docs/evidence-and-reports.md) | Retained evidence, replay, reproduction, reports and comparisons |
 | [docs/bot-policies.md](docs/bot-policies.md) | Baseline bot policies |
 | [docs/integration-proof.md](docs/integration-proof.md) | HTTP-boundary integration proof suites |

@@ -1,6 +1,8 @@
 package io.github.temporalrift.workbench.analysis.infrastructure.config;
 
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import org.springframework.boot.http.converter.autoconfigure.ServerHttpMessageConvertersCustomizer;
@@ -8,6 +10,7 @@ import org.springframework.boot.jackson.autoconfigure.JsonMapperBuilderCustomize
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.module.SimpleModule;
 
 import io.github.temporalrift.workbench.analysis.CandidateScreening;
 import io.github.temporalrift.workbench.analysis.RunConfirmation;
@@ -170,5 +173,14 @@ public class AnalysisConfiguration {
                         EvaluatedLine.class,
                         RunEvaluation.class)
                 .forEach(type -> builder.withConfigOverride(type, override -> override.setInclude(always)));
+    }
+
+    /**
+     * A request array that the contract declares unique reaches the service as a set, and a plain set forgets the
+     * order the client sent it in. Keeping that order lets a refusal name the item at the index the client submitted.
+     */
+    @Bean
+    JsonMapperBuilderCustomizer analysisKeepsSubmittedSetOrder() {
+        return builder -> builder.addModule(new SimpleModule().addAbstractTypeMapping(Set.class, LinkedHashSet.class));
     }
 }

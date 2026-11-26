@@ -275,7 +275,7 @@ class ComparisonCalculatorTest {
         pair("1", EPW, Set.of(0), Set.of(0));
         var experiment = experiment(Map.of("seeds", "[1]"));
 
-        var current = compareUnder(experiment, AnalysisVersion.CURRENT);
+        var current = compareUnder(experiment, new AnalysisVersion("5", 1L));
         var previous = compareUnder(experiment, new AnalysisVersion("4", 1L));
 
         assertThat(differenceNames(current)).contains("win_condition_rate");

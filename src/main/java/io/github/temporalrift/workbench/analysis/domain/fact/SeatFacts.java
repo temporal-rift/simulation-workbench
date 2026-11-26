@@ -17,6 +17,9 @@ import io.github.temporalrift.workbench.shared.game.SpecialAction;
  * action round; its playability is known only when the seat observed that round. The bet counts are seat-eras:
  * {@code betsPlaced} where the faction's signature bet was placed, {@code betsScored} of those that recorded a win or
  * a miss reason, {@code betsWon} of those that recorded a win; facts stored without them read them as zero.
+ * {@code reasonOccurrences} counts every score reason the seat recorded in the eras it played, a joined record split
+ * and a repeated reason counted each time, and {@code betsVoided} the played eras whose placed bet recorded no bet
+ * reason.
  */
 public record SeatFacts(
         int seat,
@@ -46,7 +49,9 @@ public record SeatFacts(
         int betsPlaced,
         int betsScored,
         int betsWon,
-        Set<WinPath> winConditions) {
+        Set<WinPath> winConditions,
+        Map<String, Integer> reasonOccurrences,
+        int betsVoided) {
 
     public SeatFacts {
         Objects.requireNonNull(faction, "faction");
@@ -69,6 +74,71 @@ public record SeatFacts(
         winConditions = winConditions == null || winConditions.isEmpty()
                 ? Set.of()
                 : Collections.unmodifiableSet(EnumSet.copyOf(winConditions));
+        // Facts stored before the reason occurrences existed read them as empty.
+        reasonOccurrences = reasonOccurrences == null ? Map.of() : sorted(reasonOccurrences);
+    }
+
+    /** Seat facts without the reason occurrences and voided bets of analysis version 6. */
+    public SeatFacts(
+            int seat,
+            Faction faction,
+            boolean won,
+            boolean sharedWin,
+            int score,
+            Map<CardKey, Integer> cardsOffered,
+            Map<CardKey, Integer> cardsKept,
+            Map<CardKey, Integer> cardsPlayed,
+            Map<CardKey, Integer> reactiveCardsOffered,
+            Map<CardKey, Integer> reactiveCardsPlayed,
+            Map<CardKey, Integer> knownCardRounds,
+            Map<CardKey, Integer> playableCardRounds,
+            Map<CardKey, Integer> unknownCardRounds,
+            Map<SpecialAction, Integer> specialAttempts,
+            Map<SpecialAction, Integer> specialSubmissionRejections,
+            Map<SpecialAction, Integer> specialAccepts,
+            Map<SpecialAction, Integer> specialResolutionRejections,
+            int declarationOffers,
+            Map<SpecialAction, Integer> declarations,
+            Map<String, Integer> scoreByReason,
+            WinPath winPath,
+            int winEra,
+            int betWins,
+            int betMisses,
+            int betsPlaced,
+            int betsScored,
+            int betsWon,
+            Set<WinPath> winConditions) {
+        this(
+                seat,
+                faction,
+                won,
+                sharedWin,
+                score,
+                cardsOffered,
+                cardsKept,
+                cardsPlayed,
+                reactiveCardsOffered,
+                reactiveCardsPlayed,
+                knownCardRounds,
+                playableCardRounds,
+                unknownCardRounds,
+                specialAttempts,
+                specialSubmissionRejections,
+                specialAccepts,
+                specialResolutionRejections,
+                declarationOffers,
+                declarations,
+                scoreByReason,
+                winPath,
+                winEra,
+                betWins,
+                betMisses,
+                betsPlaced,
+                betsScored,
+                betsWon,
+                winConditions,
+                Map.of(),
+                0);
     }
 
     /** Seat facts without the balance diagnostics. */
@@ -120,7 +190,9 @@ public record SeatFacts(
                 0,
                 0,
                 0,
-                Set.of());
+                Set.of(),
+                Map.of(),
+                0);
     }
 
     /** Signed points a seat recorded for a score reason in the game. */

@@ -1,40 +1,86 @@
 package io.github.temporalrift.workbench.analysis.domain.scoring;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.HashMap;
+import java.util.Map;
+
 /**
- * The running score of one seat under its faction's engine, kept in exact millionths of a point so that equal
- * scores reached in different orders stay equal and a threshold is crossed exactly when the arithmetic says so.
+ * The running score of one seat under a scoring engine, kept in exact millionths of a point so that equal scores
+ * reached in different orders stay equal.
+ *
+ * <p>A seat is scored era by era: every occurrence of the era's reasons through {@link #occurrence}, then the era's bet
+ * outcome through {@link #endEra}, which ends the runs of the escalations that reset on it. Banked points never change.
  */
 public final class SeatScore {
 
     /** Millionths in one point. */
     public static final long UNITS = 1_000_000L;
 
-    private final FactionScoring engine;
+    private final Pricing pricing;
+    private final int[] runs;
     private long total;
-    private int winRun;
-    private int wins;
 
-    public SeatScore(FactionScoring engine) {
-        this.engine = engine;
+    public SeatScore(Pricing pricing) {
+        this.pricing = pricing;
+        this.runs = new int[pricing.escalations.length];
     }
 
-    /** Scores one era's bet outcome and returns the total afterwards, in millionths. */
-    public long apply(BetOutcome outcome) {
-        switch (outcome) {
-            case WON -> win();
-            case MISSED -> total += engine.missPoints() * UNITS;
-            default -> {
-                // Neither a win nor a miss scores.
+    /** What an engine prices, looked up by reason; share one across the seats and games of an evaluation. */
+    public static final class Pricing {
+
+        private final Map<String, Integer> flat = new HashMap<>();
+        private final Map<String, Integer> escalationOf = new HashMap<>();
+        private final Escalation[] escalations;
+
+        public Pricing(ScoringEngine engine) {
+            engine.reasonPoints().forEach(item -> flat.put(item.scoreReason(), item.points()));
+            this.escalations = engine.escalations().toArray(new Escalation[0]);
+            for (var index = 0; index < escalations.length; index++) {
+                for (var reason : escalations[index].scoreReasons()) {
+                    escalationOf.put(reason, index);
+                }
             }
         }
-        if (engine.resetOn().contains(outcome)) {
-            winRun = 0;
+
+        /** The flat points of a reason, or {@code null} when the reason is escalated or unpriced. */
+        public Integer flatPoints(String reason) {
+            return flat.get(reason);
         }
-        return total;
     }
 
-    /** Adds the seat's other scores of the era, in millionths. */
-    public void addExtra(long units) {
+    /**
+     * Scores one occurrence of a reason: an escalated reason extends its run to n and scores
+     * {@code base + increment * (n - 1)}, any other scores its flat points.
+     *
+     * @throws IllegalArgumentException when the engine does not price the reason
+     */
+    public void occurrence(String reason) {
+        var escalation = pricing.escalationOf.get(reason);
+        if (escalation != null) {
+            var rule = pricing.escalations[escalation];
+            total += (rule.base() + (long) rule.increment() * runs[escalation]) * UNITS;
+            runs[escalation]++;
+            return;
+        }
+        var points = pricing.flat.get(reason);
+        if (points == null) {
+            throw new IllegalArgumentException("the engine does not price " + reason);
+        }
+        total += points * UNITS;
+    }
+
+    /** Ends the era: every escalation that resets on the seat-era's bet outcome starts its next run from 0. */
+    public void endEra(BetOutcome outcome) {
+        for (var index = 0; index < runs.length; index++) {
+            if (pricing.escalations[index].resetOn().contains(outcome)) {
+                runs[index] = 0;
+            }
+        }
+    }
+
+    /** Adds points counted outside the engine's occurrences, in millionths. */
+    public void addUnits(long units) {
         total += units;
     }
 
@@ -43,18 +89,13 @@ public final class SeatScore {
         return Math.round(points * UNITS);
     }
 
+    /** Resolves an exact number of points to millionths, rounding half up. */
+    public static long toUnits(BigDecimal points) {
+        return points.movePointRight(6).setScale(0, RoundingMode.HALF_UP).longValueExact();
+    }
+
     /** The total in millionths. */
     public long total() {
         return total;
-    }
-
-    private void win() {
-        winRun++;
-        wins++;
-        var points = engine.winPoints();
-        total += points.get(Math.min(winRun, points.size()) - 1) * UNITS;
-        if (engine.objectiveWins() != null && wins == engine.objectiveWins()) {
-            total += engine.objectiveBonus() * UNITS;
-        }
     }
 }

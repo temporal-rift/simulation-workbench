@@ -91,7 +91,7 @@ class ReportWinConditionsTest {
                 Map.of(0, Set.of(WinPath.SCORE_THRESHOLD, WinPath.FACTION_OBJECTIVE)),
                 4);
 
-        var current = pooled(AnalysisVersion.CURRENT);
+        var current = pooled(new AnalysisVersion("5", 1L));
         var previous = pooled(new AnalysisVersion("4", 1L));
 
         assertThat(current.metrics().stream().filter(metric -> !metric.name().equals("win_condition_rate")))

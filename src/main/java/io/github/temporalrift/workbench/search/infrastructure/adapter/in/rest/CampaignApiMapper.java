@@ -22,6 +22,7 @@ import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CampaignDefinition;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CampaignEvaluation;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CampaignFailure;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CampaignKind;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CampaignList;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CampaignLogDecision;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CampaignLogEntry;
@@ -84,34 +85,37 @@ class CampaignApiMapper {
         var algorithm = definition.algorithm();
         var failure = campaign.failure();
         return new Campaign(
-                campaign.campaignId(),
-                definition.name(),
-                mapper.treeToValue(definition.baseline(), CampaignBaseline.class),
-                definition.parameterSpaceVersion(),
-                definition.criterionVersion(),
-                policies(definition.policies()),
-                definition.playerCounts().stream()
-                        .map(Campaign.PlayerCountsEnum::fromValue)
-                        .collect(Collectors.toCollection(LinkedHashSet::new)),
-                campaign.parallelism(),
-                definition.searchMasterSeed(),
-                definition.confirmationMasterSeed(),
-                new SearchAlgorithm(
-                        SearchAlgorithm.VersionEnum.fromValue(
-                                algorithm.version().name()),
-                        algorithm.initialCandidates(),
-                        algorithm.screeningSeeds(),
-                        algorithm.eta(),
-                        algorithm.shortListSize()),
-                CampaignState.valueOf(campaign.state().name()),
-                Math.toIntExact(campaign.spentSeconds()),
-                campaign.round(),
-                campaign.shortList(),
-                confirmation(campaign.confirmation()),
-                failure == null ? null : new CampaignFailure(failure.code(), failure.message()),
-                utc(campaign.createdAt()),
-                utc(campaign.startedAt()),
-                utc(campaign.finishedAt()));
+                        campaign.campaignId(),
+                        definition.name(),
+                        mapper.treeToValue(definition.baseline(), CampaignBaseline.class),
+                        definition.parameterSpaceVersion(),
+                        definition.criterionVersion(),
+                        policies(definition.policies()),
+                        definition.playerCounts().stream()
+                                .map(Campaign.PlayerCountsEnum::fromValue)
+                                .collect(Collectors.toCollection(LinkedHashSet::new)),
+                        campaign.parallelism(),
+                        definition.searchMasterSeed(),
+                        definition.confirmationMasterSeed(),
+                        new SearchAlgorithm(
+                                SearchAlgorithm.VersionEnum.fromValue(
+                                        algorithm.version().name()),
+                                algorithm.initialCandidates(),
+                                algorithm.screeningSeeds(),
+                                algorithm.eta(),
+                                algorithm.shortListSize()),
+                        CampaignState.valueOf(campaign.state().name()),
+                        Math.toIntExact(campaign.spentSeconds()),
+                        campaign.round(),
+                        campaign.shortList(),
+                        confirmation(campaign.confirmation()),
+                        failure == null ? null : new CampaignFailure(failure.code(), failure.message()),
+                        utc(campaign.createdAt()),
+                        utc(campaign.startedAt()),
+                        utc(campaign.finishedAt()))
+                // The service runs configuration searches only; the contract reads an absent kind the same way, but
+                // the campaign representation keeps every field, so a null kind would be written out and refused.
+                .kind(CampaignKind.RULES_SEARCH);
     }
 
     private static CampaignConfirmation confirmation(Confirmation confirmation) {

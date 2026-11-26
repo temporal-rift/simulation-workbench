@@ -86,20 +86,9 @@ any other variant truncate whenever the engine's race is longer than the recorde
 recording variant. Playing it needs game-service and the lane bundles to serve the key; a baseline that lacks it is named at
 startup and variants on revision 3 are refused until it is served.
 
-To judge a design that retires or changes a score other than a bet outcome, name the reason in the re-scoring
-request's `otherReasonPoints`: every listed occurrence of a named reason counts its named points in place of the
-points the recording variant configured for it, while reasons not named keep their recorded value. A design that
-retires the chain completion and break is re-scored with:
-
-```json
-{ "engine": { "...": "..." }, "variantLabel": "recording", "tableId": "mixed",
-  "otherReasonPoints": [
-    { "scoreReason": "CHAIN_COMPLETED", "points": 0 },
-    { "scoreReason": "CHAIN_BROKEN", "points": 0 } ] }
-```
-
-Naming a reason that settles any faction's bet, a reason the recording variant does not configure, or a reason twice
-is refused with `400 INVALID_REQUEST` naming the item.
+A recorded run is re-scored under a reason-based engine and its report feeds the scoring model; see
+[Scoring models and re-scoring](scoring-models.md). A design that retires a score prices it at 0 in the engine's
+`reasonPoints`.
 
 ## Cohort-matrix preview
 

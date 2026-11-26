@@ -126,7 +126,9 @@ public class CaseFactsRepositoryAdapter implements CaseFactsRepository {
             int betsPlaced,
             int betsScored,
             int betsWon,
-            Set<WinPath> winConditions) {
+            Set<WinPath> winConditions,
+            Map<String, Integer> reasonOccurrences,
+            int betsVoided) {
 
         static SeatDocument of(SeatFacts facts) {
             return new SeatDocument(
@@ -157,7 +159,9 @@ public class CaseFactsRepositoryAdapter implements CaseFactsRepository {
                     facts.betsPlaced(),
                     facts.betsScored(),
                     facts.betsWon(),
-                    facts.winConditions());
+                    facts.winConditions(),
+                    facts.reasonOccurrences(),
+                    facts.betsVoided());
         }
 
         SeatFacts facts() {
@@ -189,7 +193,9 @@ public class CaseFactsRepositoryAdapter implements CaseFactsRepository {
                     betsPlaced,
                     betsScored,
                     betsWon,
-                    winConditions);
+                    winConditions,
+                    reasonOccurrences,
+                    betsVoided);
         }
 
         private static Map<String, Integer> text(Map<CardKey, Integer> counts) {

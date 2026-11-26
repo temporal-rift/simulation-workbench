@@ -103,7 +103,7 @@ class AnalysisIT {
 
         assertThat(report.path("formatVersion").asInt()).isEqualTo(4);
         assertThat(report.path("complete").asBoolean()).isTrue();
-        assertThat(report.path("analysisVersion").asString()).isEqualTo("5");
+        assertThat(report.path("analysisVersion").asString()).isEqualTo("6");
         assertThat(report.path("caseCounts").path("succeeded").asInt()).isEqualTo(18);
         assertThat(report.path("cohorts")).hasSize(2 * (1 + 3 + 1 + 3));
         var pooled = report.path("cohorts").get(0);
@@ -147,7 +147,7 @@ class AnalysisIT {
         }
         assertThat(lines).hasSize(1 + metrics);
         assertThat(lines[1])
-                .startsWith("4," + runId + "," + report.path("manifestDigest").asString() + ",5,1,true," + BASELINE
+                .startsWith("4," + runId + "," + report.path("manifestDigest").asString() + ",6,1,true," + BASELINE
                         + ",random,random,");
         assertThat(csv).doesNotContainIgnoringCase("bearer").doesNotContainIgnoringCase("token");
         assertThat(read(report(runId, CSV))).isEqualTo(csv);
@@ -205,7 +205,7 @@ class AnalysisIT {
         var created =
                 objectMapper.readTree(read(compare(UUID.randomUUID(), side(runId, BASELINE), side(runId, CANDIDATE))));
         var comparisonId = created.path("comparisonId").asString();
-        assertThat(created.path("analysisVersion").asString()).isEqualTo("5");
+        assertThat(created.path("analysisVersion").asString()).isEqualTo("6");
         jdbc.update("UPDATE analysis_comparison SET analysis_version = '1'");
 
         var stored = objectMapper.readTree(read(comparison(comparisonId, MediaType.APPLICATION_JSON)));
@@ -247,7 +247,7 @@ class AnalysisIT {
         var summary = listed.path("items").get(1);
         assertThat(summary.path("baseline").path("variantLabel").asString()).isEqualTo(BASELINE);
         assertThat(summary.path("candidate").path("runId").asString()).isEqualTo(runId.toString());
-        assertThat(summary.path("analysisVersion").asString()).isEqualTo("5");
+        assertThat(summary.path("analysisVersion").asString()).isEqualTo("6");
         assertThat(summary.path("createdAt").asString()).isNotBlank();
         assertThat(summary.has("cohorts")).isFalse();
         assertThat(unrelated.path("total").asInt()).isZero();

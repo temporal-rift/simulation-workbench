@@ -101,9 +101,10 @@ class CaseFactsProviderTest {
         provider.factsOf(RUN, cases, new AnalysisVersion("3", 1L));
         provider.factsOf(RUN, cases, new AnalysisVersion("4", 1L));
         provider.factsOf(RUN, cases, new AnalysisVersion("5", 1L));
+        provider.factsOf(RUN, cases, new AnalysisVersion("6", 1L));
 
-        assertThat(stored).containsOnlyKeys("2", "3", "4");
-        assertThat(AnalysisVersion.CURRENT.factsVersion()).isEqualTo("4");
+        assertThat(stored).containsOnlyKeys("2", "3", "4", "5");
+        assertThat(AnalysisVersion.CURRENT.factsVersion()).isEqualTo("5");
     }
 
     @Test
@@ -125,8 +126,8 @@ class CaseFactsProviderTest {
         var cases = List.of(succeeded(new UUID(1, 2)));
 
         assertThatIllegalStateException()
-                .isThrownBy(() -> provider.factsOf(RUN, cases, new AnalysisVersion("6", 1L)))
-                .withMessageContaining("Analysis version 6");
+                .isThrownBy(() -> provider.factsOf(RUN, cases, new AnalysisVersion("7", 1L)))
+                .withMessageContaining("Analysis version 7");
         assertThat(stored).isEmpty();
     }
 
