@@ -67,4 +67,9 @@ public final class BetReasons {
     public boolean isSettling(String reason) {
         return wins.contains(reason) || misses.contains(reason);
     }
+
+    /** Whether the reason settles any faction's bet, kept or lost, and is scored by a scoring engine. */
+    public static boolean isBetReason(String reason) {
+        return BY_FACTION.values().stream().anyMatch(reasons -> reasons.isSettling(reason));
+    }
 }

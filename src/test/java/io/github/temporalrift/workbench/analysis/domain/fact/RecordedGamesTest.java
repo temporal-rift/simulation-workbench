@@ -32,10 +32,19 @@ class RecordedGamesTest {
             "ANNIHILATION_WASTED", -1);
 
     private static RecordedGame read(List<Faction> factions, int eras, GameEvent... events) {
+        return read(Map.of(), DELTAS, factions, eras, events);
+    }
+
+    private static RecordedGame read(
+            Map<String, Integer> overrides,
+            Map<String, Integer> deltas,
+            List<Faction> factions,
+            int eras,
+            GameEvent... events) {
         var outcome = new CaseOutcome(EndReason.TIMELINE_STABILIZED, Set.of(0), List.of(0, 0, 0), eras, 0, 0);
         var analyzed = new AnalyzedCase(
                 UUID.randomUUID(), "v", "t", "7", factions.size(), List.of(), factions, CaseState.SUCCEEDED, outcome);
-        return RecordedGames.of(analyzed, new GameRecord(List.of(events), List.of(), List.of()), DELTAS);
+        return RecordedGames.of(analyzed, new GameRecord(List.of(events), List.of(), List.of()), deltas, overrides);
     }
 
     private static GameEvent thread(int era) {
@@ -125,5 +134,52 @@ class RecordedGamesTest {
         var won = score(0, 1, "SECRET_OUTCOME_WON", 4);
 
         assertThatThrownBy(() -> read(table, 1, rewrite, won)).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void aNamedReasonCountsItsOverridePointsInsteadOfItsConfiguredValue() {
+        var deltas = Map.of("CHAIN_LINK_ADDED", 3, "CHAIN_COMPLETED", 10);
+        var overrides = Map.of("CHAIN_COMPLETED", 0);
+        var game = read(overrides, deltas, TABLE, 1, thread(1), score(0, 1, "CHAIN_LINK_ADDED,CHAIN_COMPLETED", 13));
+
+        assertThat(game.seats().get(0).get(0).outcome()).isEqualTo(BetOutcome.WON);
+        assertThat(game.seats().get(0).get(0).otherUnits()).isZero();
+    }
+
+    @Test
+    void withoutAnOverrideTheSameCompletionKeepsItsRecordedValue() {
+        var deltas = Map.of("CHAIN_LINK_ADDED", 3, "CHAIN_COMPLETED", 10);
+        var game = read(Map.of(), deltas, TABLE, 1, thread(1), score(0, 1, "CHAIN_LINK_ADDED,CHAIN_COMPLETED", 13));
+
+        assertThat(game.seats().get(0).get(0).outcome()).isEqualTo(BetOutcome.WON);
+        assertThat(game.seats().get(0).get(0).otherUnits()).isEqualTo(10 * SeatScore.UNITS);
+    }
+
+    @Test
+    void aNamedExtraReplacesItsShareOfAJoinedRecord() {
+        var deltas = Map.of(
+                "ANNIHILATED_OUTCOME", 6,
+                "ANNIHILATION_WASTED", -1,
+                "CORRUPTED_OPPONENT_CARD", 2,
+                "PARADOX_CASCADE_PENALTY", -2);
+        var game = read(
+                Map.of("CORRUPTED_OPPONENT_CARD", 3),
+                deltas,
+                List.of(Faction.ERASERS, Faction.WEAVERS, Faction.PROPHETS),
+                1,
+                new GameEvent.SpecialPlayed(0, 1, SpecialAction.ANNIHILATE),
+                score(0, 1, "CORRUPTED_OPPONENT_CARD,PARADOX_CASCADE_PENALTY", 0));
+
+        assertThat(game.seats().get(0).get(0).outcome()).isEqualTo(BetOutcome.VOIDED);
+        assertThat(game.seats().get(0).get(0).otherUnits()).isEqualTo(SeatScore.UNITS);
+    }
+
+    @Test
+    void aNamedReasonListedWithoutAPlacedBetCountsItsOverridePoints() {
+        var deltas = Map.of("CHAIN_LINK_ADDED", 3, "CHAIN_COMPLETED", 10);
+        var game = read(Map.of("CHAIN_COMPLETED", 0), deltas, TABLE, 1, score(0, 1, "CHAIN_COMPLETED", 10));
+
+        assertThat(game.seats().get(0).get(0).outcome()).isEqualTo(BetOutcome.NOT_PLACED);
+        assertThat(game.seats().get(0).get(0).otherUnits()).isZero();
     }
 }

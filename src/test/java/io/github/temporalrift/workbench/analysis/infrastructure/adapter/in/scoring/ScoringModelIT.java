@@ -211,4 +211,18 @@ class ScoringModelIT {
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
                 .andExpect(jsonPath("$.field").value("engine.factions[1].winPoints"));
     }
+
+    @Test
+    void rescoringWithAnOverriddenPointsOutsideRangeIsRefusedNamingIt() throws Exception {
+        var body = rescoring();
+        body.putArray("otherReasonPoints")
+                .addObject()
+                .put("scoreReason", "CHAIN_COMPLETED")
+                .put("points", 51);
+
+        rescore("00000000-0000-0000-0000-0000000000aa", body, "SCOPE_simulation:read")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.field").value("otherReasonPoints[0].points"));
+    }
 }

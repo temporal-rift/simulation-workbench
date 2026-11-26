@@ -5,10 +5,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
+import io.github.temporalrift.workbench.analysis.domain.fact.BetReasons;
 import io.github.temporalrift.workbench.analysis.domain.scoring.BetOutcome;
 import io.github.temporalrift.workbench.analysis.domain.scoring.BetRates;
 import io.github.temporalrift.workbench.analysis.domain.scoring.FactionScoring;
 import io.github.temporalrift.workbench.analysis.domain.scoring.InvalidScoringModelException;
+import io.github.temporalrift.workbench.analysis.domain.scoring.ReasonPoints;
 import io.github.temporalrift.workbench.analysis.domain.scoring.ScoringEngine;
 import io.github.temporalrift.workbench.analysis.domain.scoring.ScoringModel;
 import io.github.temporalrift.workbench.shared.game.Faction;
@@ -61,6 +63,27 @@ final class ScoringModelValidator {
                 throw invalid("engine.factions[" + index + "].faction", "each faction may appear only once");
             }
             checkFaction("engine.factions[" + index + "]", faction);
+        }
+    }
+
+    /**
+     * Checks the named other scores before any case is read: each must settle no faction's bet, be configured by the
+     * run's variant, and appear only once, naming the first offending item.
+     */
+    static void checkOtherReasonPoints(List<ReasonPoints> points, Map<String, Integer> scoreDeltas) {
+        var seen = new HashSet<String>();
+        for (var index = 0; index < points.size(); index++) {
+            var item = points.get(index);
+            var path = "otherReasonPoints[" + index + "].scoreReason";
+            if (BetReasons.isBetReason(item.scoreReason())) {
+                throw invalid(path, item.scoreReason() + " settles a faction's bet and is scored by the engine");
+            }
+            if (!scoreDeltas.containsKey(item.scoreReason())) {
+                throw invalid(path, "the run's variant configures no points for " + item.scoreReason());
+            }
+            if (!seen.add(item.scoreReason())) {
+                throw invalid(path, item.scoreReason() + " is named twice");
+            }
         }
     }
 
