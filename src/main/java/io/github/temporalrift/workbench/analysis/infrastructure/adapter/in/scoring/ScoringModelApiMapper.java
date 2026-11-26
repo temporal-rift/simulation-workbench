@@ -12,6 +12,7 @@ import io.github.temporalrift.workbench.analysis.domain.scoring.BetOutcome;
 import io.github.temporalrift.workbench.analysis.domain.scoring.BetRates;
 import io.github.temporalrift.workbench.analysis.domain.scoring.FactionScoring;
 import io.github.temporalrift.workbench.analysis.domain.scoring.InvalidScoringModelException;
+import io.github.temporalrift.workbench.analysis.domain.scoring.ReasonPoints;
 import io.github.temporalrift.workbench.analysis.domain.scoring.RescoringResult;
 import io.github.temporalrift.workbench.analysis.domain.scoring.ScoringEngine;
 import io.github.temporalrift.workbench.analysis.domain.scoring.ScoringModelResult;
@@ -41,8 +42,13 @@ final class ScoringModelApiMapper {
     }
 
     static RescoreRunUseCase.Query rescoreQuery(UUID runId, RescoreRequest request) {
+        var points = request.getOtherReasonPoints() == null
+                ? List.<ReasonPoints>of()
+                : request.getOtherReasonPoints().stream()
+                        .map(item -> new ReasonPoints(item.getScoreReason(), item.getPoints()))
+                        .toList();
         return new RescoreRunUseCase.Query(
-                runId, engine(request.getEngine()), request.getVariantLabel(), request.getTableId());
+                runId, engine(request.getEngine()), request.getVariantLabel(), request.getTableId(), points);
     }
 
     static Rescoring rescoring(RescoringResult result) {

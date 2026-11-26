@@ -23,6 +23,7 @@ import io.github.temporalrift.workbench.analysis.domain.port.out.VariantScoring;
 import io.github.temporalrift.workbench.analysis.domain.scoring.BetOutcome;
 import io.github.temporalrift.workbench.analysis.domain.scoring.FactionScoring;
 import io.github.temporalrift.workbench.analysis.domain.scoring.InvalidScoringModelException;
+import io.github.temporalrift.workbench.analysis.domain.scoring.ReasonPoints;
 import io.github.temporalrift.workbench.analysis.domain.scoring.ScoringEngine;
 import io.github.temporalrift.workbench.shared.execution.CaseState;
 import io.github.temporalrift.workbench.shared.game.EndReason;
@@ -33,7 +34,8 @@ class RescoreRunQueryHandlerTest {
 
     private static final UUID RUN = new UUID(0, 1);
     private static final List<Faction> TABLE = List.of(Faction.WEAVERS, Faction.ERASERS, Faction.PROPHETS);
-    private static final Map<String, Integer> DELTAS = Map.of("CHAIN_LINK_ADDED", 3, "CHAIN_LINK_MISSED", -1);
+    private static final Map<String, Integer> DELTAS =
+            Map.of("CHAIN_LINK_ADDED", 3, "CHAIN_LINK_MISSED", -1, "CHAIN_COMPLETED", 10);
 
     private final List<AnalyzedCase> cases = new ArrayList<>();
     private final Map<UUID, GameRecord> games = new java.util.HashMap<>();
@@ -88,8 +90,29 @@ class RescoreRunQueryHandlerTest {
         return new GameRecord(events, List.of(), List.of());
     }
 
+    /** The Weaver wins its link and completes a chain in every recorded era. */
+    private static GameRecord weaverCompletionGame(int eras) {
+        var events = new ArrayList<GameEvent>();
+        for (var era = 1; era <= eras; era++) {
+            events.add(new GameEvent.SpecialPlayed(0, era, SpecialAction.THREAD));
+            events.add(new GameEvent.ScoreRecorded(0, era, "CHAIN_LINK_ADDED,CHAIN_COMPLETED", 13));
+        }
+        return new GameRecord(events, List.of(), List.of());
+    }
+
+    private void addCompletion(String seed, int eras) {
+        var id = UUID.randomUUID();
+        var outcome = new CaseOutcome(EndReason.TIMELINE_STABILIZED, Set.of(0), List.of(0, 0, 0), eras, 0, 0);
+        cases.add(new AnalyzedCase(id, "v", "t", seed, 3, List.of(), TABLE, CaseState.SUCCEEDED, outcome));
+        games.put(id, weaverCompletionGame(eras));
+    }
+
     private RescoreRunUseCase.Query query(ScoringEngine engine) {
-        return new RescoreRunUseCase.Query(RUN, engine, "v", "t");
+        return query(engine, List.of());
+    }
+
+    private RescoreRunUseCase.Query query(ScoringEngine engine, List<ReasonPoints> otherReasonPoints) {
+        return new RescoreRunUseCase.Query(RUN, engine, "v", "t", otherReasonPoints);
     }
 
     @Test
@@ -152,9 +175,9 @@ class RescoreRunQueryHandlerTest {
     void anUnknownRunVariantOrTableIsNotFound() {
         add("1", CaseState.SUCCEEDED, 5, EndReason.TIMELINE_STABILIZED);
 
-        var unknownRun = new RescoreRunUseCase.Query(new UUID(5, 5), engine(10), "v", "t");
-        var unknownVariant = new RescoreRunUseCase.Query(RUN, engine(10), "other", "t");
-        var unknownTable = new RescoreRunUseCase.Query(RUN, engine(10), "v", "other");
+        var unknownRun = new RescoreRunUseCase.Query(new UUID(5, 5), engine(10), "v", "t", List.of());
+        var unknownVariant = new RescoreRunUseCase.Query(RUN, engine(10), "other", "t", List.of());
+        var unknownTable = new RescoreRunUseCase.Query(RUN, engine(10), "v", "other", List.of());
 
         assertThatThrownBy(() -> handler.handle(unknownRun)).isInstanceOf(AnalysisResourceNotFoundException.class);
         assertThatThrownBy(() -> handler.handle(unknownVariant)).isInstanceOf(AnalysisResourceNotFoundException.class);
@@ -181,5 +204,53 @@ class RescoreRunQueryHandlerTest {
                 .isInstanceOfSatisfying(
                         InvalidScoringModelException.class,
                         e -> assertThat(e.field()).isEqualTo("engine.winThreshold"));
+    }
+
+    @Test
+    void aNamedCompletionReplacesItsConfiguredPointsInTheRace() {
+        addCompletion("1", 5);
+
+        var plain = handler.handle(query(engine(24)));
+        var repriced = handler.handle(query(engine(24), List.of(new ReasonPoints("CHAIN_COMPLETED", 0))));
+
+        assertThat(plain.playerCounts())
+                .singleElement()
+                .satisfies(counts -> assertThat(counts.meanEras()).isEqualTo(2.0));
+        assertThat(repriced.playerCounts())
+                .singleElement()
+                .satisfies(counts -> assertThat(counts.meanEras()).isEqualTo(5.0));
+    }
+
+    @Test
+    void anOtherReasonThatSettlesABetIsRefusedNamingTheItem() {
+        add("1", CaseState.SUCCEEDED, 5, EndReason.TIMELINE_STABILIZED);
+
+        assertThatThrownBy(() -> handler.handle(query(engine(10), List.of(new ReasonPoints("SECRET_OUTCOME_WON", 0)))))
+                .isInstanceOfSatisfying(
+                        InvalidScoringModelException.class,
+                        e -> assertThat(e.field()).isEqualTo("otherReasonPoints[0].scoreReason"));
+    }
+
+    @Test
+    void anOtherReasonTheVariantDoesNotConfigureIsRefusedNamingTheItem() {
+        add("1", CaseState.SUCCEEDED, 5, EndReason.TIMELINE_STABILIZED);
+
+        assertThatThrownBy(() ->
+                        handler.handle(query(engine(10), List.of(new ReasonPoints("MIMIC_CONTRIBUTED_TO_WIN", 1)))))
+                .isInstanceOfSatisfying(
+                        InvalidScoringModelException.class,
+                        e -> assertThat(e.field()).isEqualTo("otherReasonPoints[0].scoreReason"));
+    }
+
+    @Test
+    void aRepeatedOtherReasonIsRefusedNamingTheItem() {
+        add("1", CaseState.SUCCEEDED, 5, EndReason.TIMELINE_STABILIZED);
+
+        assertThatThrownBy(() -> handler.handle(query(
+                        engine(10),
+                        List.of(new ReasonPoints("CHAIN_COMPLETED", 0), new ReasonPoints("CHAIN_COMPLETED", 0)))))
+                .isInstanceOfSatisfying(
+                        InvalidScoringModelException.class,
+                        e -> assertThat(e.field()).isEqualTo("otherReasonPoints[1].scoreReason"));
     }
 }
