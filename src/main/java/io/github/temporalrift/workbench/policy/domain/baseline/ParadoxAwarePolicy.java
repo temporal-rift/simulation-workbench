@@ -35,8 +35,12 @@ final class ParadoxAwarePolicy implements BotPolicy {
     /** What a commitment on an event is worth to the seat: about one win of its signature bet. */
     static final int COMMITMENT_VALUE = 3;
 
+    /** Links short of completion at which a seat other than the Weaver's tears a Chain Conflict. */
+    static final int CHAIN_BREAK_MARGIN = 2;
+
     private final FactionRecipePolicy recipe;
     private final boolean spread;
+    private final SearchParameters params;
 
     ParadoxAwarePolicy() {
         this(false);
@@ -47,8 +51,14 @@ final class ParadoxAwarePolicy implements BotPolicy {
      *     seat breaks a leading chain or finishes a collapse by Detonate before the ordinary paradox rule decides
      */
     ParadoxAwarePolicy(boolean spread) {
+        this(spread, SearchParameters.DEFAULTS);
+    }
+
+    /** As {@link #ParadoxAwarePolicy(boolean)}, with the thresholds and behaviors the parameters name. */
+    ParadoxAwarePolicy(boolean spread, SearchParameters params) {
         this.spread = spread;
-        this.recipe = new FactionRecipePolicy(spread);
+        this.params = params;
+        this.recipe = new FactionRecipePolicy(spread && params.enabled(SearchParameters.AVOID_PUBLIC_LINK), params);
     }
 
     @Override
@@ -69,9 +79,11 @@ final class ParadoxAwarePolicy implements BotPolicy {
                     .filter(candidate -> !excluded.contains(candidate))
                     .toList();
             var cards = FactionRecipePolicy.cardsById(observation);
-            var chosen = spread ? detonation(observation, available, cards) : Optional.<Candidate>empty();
+            var chosen = spread && params.enabled(SearchParameters.DETONATE)
+                    ? detonation(observation, available, cards, params)
+                    : Optional.<Candidate>empty();
             if (chosen.isEmpty()) {
-                chosen = paradoxChoice(observation, available, cards, reading, rules);
+                chosen = paradoxChoice(observation, available, cards, reading, rules, params);
             }
             if (chosen.isPresent()) {
                 return new PolicyDecision.Chosen(chosen.get());
@@ -80,13 +92,17 @@ final class ParadoxAwarePolicy implements BotPolicy {
             available.stream()
                     .filter(candidate -> isParadoxCard(candidate, cards))
                     .forEach(withoutParadoxCards::add);
-            return recipe.decide(observation, withoutParadoxCards, entropy, FactionRecipePolicy::wasted);
+            return recipe.decide(
+                    observation,
+                    withoutParadoxCards,
+                    entropy,
+                    (candidate, board) -> FactionRecipePolicy.wasted(candidate, board, params));
         }
         return recipe.decide(
                 observation,
                 excluded,
                 entropy,
-                (candidate, reading) -> setAside.contains(candidate) || wasted(candidate, reading, rules));
+                (candidate, reading) -> setAside.contains(candidate) || wasted(candidate, reading, rules, params));
     }
 
     /**
@@ -95,20 +111,27 @@ final class ParadoxAwarePolicy implements BotPolicy {
      * scores detonates an open paradox not yet cascaded when one more cascade would collapse the timeline.
      */
     private static Optional<Candidate> detonation(
-            EntitledObservation observation, List<Candidate> available, Map<UUID, DealtCard> cards) {
-        return breaksLeadingChain(observation, available, cards)
+            EntitledObservation observation,
+            List<Candidate> available,
+            Map<UUID, DealtCard> cards,
+            SearchParameters params) {
+        return breaksLeadingChain(observation, available, cards, params)
                 .or(() -> finishesCollapse(observation, available, cards));
     }
 
     /** A seat other than the Weaver's tears a Chain Conflict once the public chain is within two links of done. */
     private static Optional<Candidate> breaksLeadingChain(
-            EntitledObservation observation, List<Candidate> available, Map<UUID, DealtCard> cards) {
+            EntitledObservation observation,
+            List<Candidate> available,
+            Map<UUID, DealtCard> cards,
+            SearchParameters params) {
         var board = observation.board();
         var chain = board.chain();
         var leading = observation.faction() != Faction.WEAVERS
                 && chain != null
                 && chain.status() == Board.ChainStatus.ACTIVE
-                && chain.confirmedLinks() >= observation.tableRules().chainLength() - 2;
+                && chain.confirmedLinks()
+                        >= observation.tableRules().chainLength() - params.value(SearchParameters.CHAIN_BREAK_MARGIN);
         if (!leading) {
             return Optional.empty();
         }
@@ -153,9 +176,10 @@ final class ParadoxAwarePolicy implements BotPolicy {
             List<Candidate> available,
             Map<UUID, DealtCard> cards,
             BoardReading reading,
-            TableRules rules) {
+            TableRules rules,
+            SearchParameters params) {
         for (var event : observation.events()) {
-            var worth = Worth.of(event, reading, rules);
+            var worth = Worth.of(event, reading, rules, params.value(SearchParameters.STAKE_VALUE));
             if (worth.clear() > 0 && worth.clear() > worth.cascade()) {
                 var stabilize = play(available, cards, event.eventId(), CardType.STABILIZE);
                 if (stabilize.isPresent()) {
@@ -178,10 +202,10 @@ final class ParadoxAwarePolicy implements BotPolicy {
      */
     private record Worth(int clear, int cascade) {
 
-        static Worth of(EventView event, BoardReading reading, TableRules rules) {
+        static Worth of(EventView event, BoardReading reading, TableRules rules, int stakeValue) {
             var committed =
                     event.outcomes().stream().map(OutcomeView::outcomeId).anyMatch(reading::isCommitment);
-            var stake = committed ? COMMITMENT_VALUE : 0;
+            var stake = committed ? stakeValue : 0;
             var tear = rules.detonateContestsStabilize() ? rules.detonateDelta() : Math.abs(rules.cascadePenalty());
             return new Worth(stake + rules.stabilizeDelta(), -stake + tear);
         }
@@ -207,9 +231,13 @@ final class ParadoxAwarePolicy implements BotPolicy {
 
     /** The base recipe waste rule, with the Thread and Reweave cases following the current Tapestry rule. */
     static boolean wasted(Candidate candidate, BoardReading reading, TableRules rules) {
+        return wasted(candidate, reading, rules, SearchParameters.DEFAULTS);
+    }
+
+    static boolean wasted(Candidate candidate, BoardReading reading, TableRules rules, SearchParameters params) {
         if (rules.tapestryAbsorbsChainConflict()
                 || !(candidate instanceof Candidate.PlaySpecial(var action, var target))) {
-            return FactionRecipePolicy.wasted(candidate, reading);
+            return FactionRecipePolicy.wasted(candidate, reading, params);
         }
         return switch (action) {
             // The protected link stays pending after an Annihilate, so the service refuses a second Thread.
@@ -219,7 +247,7 @@ final class ParadoxAwarePolicy implements BotPolicy {
                 !reading.threaded()
                         || !reading.isLow(reading.threadOutcome())
                         || outcomeOf(target).equals(reading.threadOutcome());
-            default -> FactionRecipePolicy.wasted(candidate, reading);
+            default -> FactionRecipePolicy.wasted(candidate, reading, params);
         };
     }
 

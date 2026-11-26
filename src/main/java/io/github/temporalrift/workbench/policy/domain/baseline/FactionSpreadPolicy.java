@@ -21,18 +21,30 @@ import io.github.temporalrift.workbench.policy.domain.observation.EntitledObserv
  */
 final class FactionSpreadPolicy implements BotPolicy {
 
-    private final ParadoxAwarePolicy recipe = new ParadoxAwarePolicy(true);
+    private final ParadoxAwarePolicy recipe;
+    private final SearchParameters params;
+
+    FactionSpreadPolicy() {
+        this(SearchParameters.DEFAULTS);
+    }
+
+    /** {@code faction-spread} with the preferences, thresholds and behaviors the parameters name. */
+    FactionSpreadPolicy(SearchParameters params) {
+        this.params = params;
+        this.recipe = new ParadoxAwarePolicy(true, params);
+    }
 
     @Override
     public PolicyDecision decide(EntitledObservation observation, Set<Candidate> excluded, PolicyEntropy entropy) {
         var available = excluded;
         if (observation.window() instanceof DecisionWindow.ActionRound round) {
-            var contest = ChainContest.choose(observation, excluded);
+            var contest = ChainContest.choose(observation, excluded, params);
             if (contest.isPresent()) {
                 return new PolicyDecision.Chosen(contest.get());
             }
             available = FactionGreedyPolicy.withoutUnavailable(observation, round, excluded);
         }
-        return recipe.decide(observation, available, SpreadLayer.setAside(observation, available, entropy), entropy);
+        return recipe.decide(
+                observation, available, SpreadLayer.setAside(observation, available, entropy, params), entropy);
     }
 }

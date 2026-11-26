@@ -37,13 +37,19 @@ final class SpreadLayer {
      * reads to the recipe as refused on its whole event, which would drop the candidate the draw kept.
      */
     static Set<Candidate> setAside(EntitledObservation observation, Set<Candidate> excluded, PolicyEntropy entropy) {
+        return setAside(observation, excluded, entropy, SearchParameters.DEFAULTS);
+    }
+
+    /** As {@link #setAside(EntitledObservation, Set, PolicyEntropy)}, with the spread behaviors the parameters name. */
+    static Set<Candidate> setAside(
+            EntitledObservation observation, Set<Candidate> excluded, PolicyEntropy entropy, SearchParameters params) {
         var reading = BoardReading.of(observation);
         var rules = observation.tableRules();
         var refused = FactionRecipePolicy.refusedSpecials(excluded);
         var open = CandidateGenerator.generate(observation).stream()
                 .filter(candidate -> !excluded.contains(candidate))
                 .filter(candidate -> !refused.contains(FactionRecipePolicy.refusalKey(candidate)))
-                .filter(candidate -> !ParadoxAwarePolicy.wasted(candidate, reading, rules))
+                .filter(candidate -> !ParadoxAwarePolicy.wasted(candidate, reading, rules, params))
                 .toList();
         var linked = confirmedLinkEvents(observation);
         var result = new HashSet<Candidate>();
@@ -55,19 +61,20 @@ final class SpreadLayer {
                     candidates,
                     event -> !event.stalled() && !(skipLinked && linked.contains(event.eventId())),
                     action == SpecialAction.FORESIGHT,
-                    entropy);
+                    entropy,
+                    params);
             keep(candidates, kept, result);
         }
         var declarations = open.stream()
                 .filter(Candidate.Declare.class::isInstance)
                 .map(Candidate.Declare.class::cast)
                 .toList();
-        var declared = drawDeclaration(observation, declarations, entropy);
+        var declared = drawDeclaration(observation, declarations, entropy, params);
         declarations.stream()
                 .filter(declaration -> declared.isEmpty() || !sameTarget(declaration, declared.get()))
                 .forEach(result::add);
         var annihilates = specials(open, SpecialAction.ANNIHILATE);
-        keep(annihilates, draw(observation, annihilates, event -> true, false, entropy), result);
+        keep(annihilates, draw(observation, annihilates, event -> true, false, entropy, params), result);
         return result;
     }
 
@@ -105,7 +112,8 @@ final class SpreadLayer {
             List<Candidate.PlaySpecial> candidates,
             Predicate<EventView> live,
             boolean mayNameRunnerUp,
-            PolicyEntropy entropy) {
+            PolicyEntropy entropy,
+            SearchParameters params) {
         if (candidates.isEmpty()) {
             return Optional.empty();
         }
@@ -118,9 +126,9 @@ final class SpreadLayer {
         if (pool.isEmpty()) {
             return Optional.empty();
         }
-        var chosen = weighted(pool, entropy);
+        var chosen = weighted(pool, entropy, params);
         var outcome = chosen.favorite();
-        if (mayNameRunnerUp && entropy.nextIndex(2) == 1) {
+        if (mayNameRunnerUp && namesRunnerUp(entropy, params)) {
             var runnerUp = favorite(
                     chosen.event().outcomes().stream()
                             .filter(candidate -> !candidate
@@ -137,7 +145,10 @@ final class SpreadLayer {
     }
 
     private static Optional<Drawn> drawDeclaration(
-            EntitledObservation observation, List<Candidate.Declare> declarations, PolicyEntropy entropy) {
+            EntitledObservation observation,
+            List<Candidate.Declare> declarations,
+            PolicyEntropy entropy,
+            SearchParameters params) {
         if (declarations.isEmpty()) {
             return Optional.empty();
         }
@@ -147,7 +158,7 @@ final class SpreadLayer {
         if (pool.isEmpty()) {
             return Optional.empty();
         }
-        var chosen = weighted(pool, entropy);
+        var chosen = weighted(pool, entropy, params);
         return Optional.of(new Drawn(chosen.event().eventId(), chosen.favorite().outcomeId()));
     }
 
@@ -181,7 +192,10 @@ final class SpreadLayer {
     }
 
     /** The event drawn with a chance proportional to its favorite's known weight; uniform when all weigh 0. */
-    private static Entry weighted(List<Entry> pool, PolicyEntropy entropy) {
+    private static Entry weighted(List<Entry> pool, PolicyEntropy entropy, SearchParameters params) {
+        if (!params.enabled(SearchParameters.BET_SPREADING)) {
+            return pool.stream().max(Comparator.comparingInt(Entry::weight)).orElseThrow();
+        }
         var total = pool.stream().mapToInt(Entry::weight).sum();
         if (total == 0) {
             return pool.get(entropy.nextIndex(pool.size()));
@@ -194,6 +208,15 @@ final class SpreadLayer {
             }
         }
         throw new IllegalStateException("The ticket is below the total weight");
+    }
+
+    /**
+     * Whether the runner-up is named. At the default 50 percent it is the single coin of {@code faction-spread}, so the
+     * entropy stream moves as it does; any other share draws over 100.
+     */
+    private static boolean namesRunnerUp(PolicyEntropy entropy, SearchParameters params) {
+        var percent = params.value(SearchParameters.RUNNER_UP_PERCENT);
+        return percent == 50 ? entropy.nextIndex(2) == 1 : entropy.nextIndex(100) < percent;
     }
 
     /**
