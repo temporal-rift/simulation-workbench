@@ -99,6 +99,7 @@ class EvaluateScoringModelQueryHandlerTest {
         assertThat(result.sensitivity()).hasSize(2 * result.evaluation().cells().size());
         assertThat(result.sensitivity())
                 .filteredOn(item -> item.faction() == Faction.WEAVERS && item.playerCount() == 3 && item.delta() > 0)
+                .isNotEmpty()
                 .allSatisfy(item -> assertThat(item.ratioChange()).isPositive());
         assertThat(handler.handle(query(rates(), sweep))).isEqualTo(result);
     }
@@ -110,6 +111,7 @@ class EvaluateScoringModelQueryHandlerTest {
 
         assertThat(result.sensitivity())
                 .filteredOn(item -> item.faction() == Faction.PROPHETS && item.delta() > 0)
+                .isNotEmpty()
                 .allSatisfy(item -> assertThat(item.ratioChange()).isPositive());
     }
 
@@ -120,9 +122,11 @@ class EvaluateScoringModelQueryHandlerTest {
 
         assertThat(result.sensitivity())
                 .filteredOn(item -> item.playerCount() != 4)
+                .isNotEmpty()
                 .allSatisfy(item -> assertThat(item.ratioChange()).isZero());
         assertThat(result.sensitivity())
                 .filteredOn(item -> item.playerCount() == 4 && item.faction() == Faction.WEAVERS && item.delta() > 0)
+                .isNotEmpty()
                 .allSatisfy(item -> assertThat(item.ratioChange()).isPositive());
     }
 

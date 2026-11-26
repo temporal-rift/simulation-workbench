@@ -73,8 +73,29 @@ public final class ScoringEvaluator {
     }
 
     /** What one faction's seat-era draws from at one player count. */
-    private record SeatDraw(
-            String[] betReasons, BetOutcome[] outcomes, double[] upTo, double voidedUpTo, long extraUnits) {
+    private static final class SeatDraw {
+
+        private final String[] betReasons;
+        private final BetOutcome[] outcomes;
+        private final double[] upTo;
+        private final double voidedUpTo;
+        private final long extraUnits;
+
+        SeatDraw(String[] betReasons, BetOutcome[] outcomes, double[] upTo, double voidedUpTo, long extraUnits) {
+            this.betReasons = betReasons;
+            this.outcomes = outcomes;
+            this.upTo = upTo;
+            this.voidedUpTo = voidedUpTo;
+            this.extraUnits = extraUnits;
+        }
+
+        String betReason(int reason) {
+            return betReasons[reason];
+        }
+
+        long extraUnits() {
+            return extraUnits;
+        }
 
         /** The index of the bet reason a uniform draw selects, or -1 for no bet reason. */
         int reason(double draw) {
@@ -154,7 +175,7 @@ public final class ScoringEvaluator {
                     var draw = uniform(random);
                     var reason = seatDraw.reason(draw);
                     if (reason >= 0) {
-                        scores[seat].occurrence(seatDraw.betReasons()[reason]);
+                        scores[seat].occurrence(seatDraw.betReason(reason));
                     }
                     scores[seat].addUnits(seatDraw.extraUnits());
                     scores[seat].endEra(seatDraw.outcome(reason, draw));

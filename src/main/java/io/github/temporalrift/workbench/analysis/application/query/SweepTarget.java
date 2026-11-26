@@ -15,15 +15,15 @@ import io.github.temporalrift.workbench.shared.game.Faction;
 final class SweepTarget {
 
     private static final String REASON = "reason";
+    private static final String REASON_GROUP = "(?<" + REASON + ">.{1,64})";
     private static final String RATE_PATH = "rates\\.(?<count>\\d)\\.(?<faction>[A-Z_]+)\\.";
     private static final Pattern MAX_ERAS = Pattern.compile("maxEras");
-    private static final Pattern REASON_POINTS = Pattern.compile("reasonPoints\\.(?<" + REASON + ">.{1,64})");
+    private static final Pattern REASON_POINTS = Pattern.compile("reasonPoints\\." + REASON_GROUP);
     private static final Pattern ESCALATION =
             Pattern.compile("escalations\\.(?<name>[a-z][a-z0-9-]{0,31})\\.(?<field>base|increment)");
-    private static final Pattern BET_REASON = Pattern.compile(RATE_PATH + "betReasons\\.(?<" + REASON + ">.{1,64})");
+    private static final Pattern BET_REASON = Pattern.compile(RATE_PATH + "betReasons\\." + REASON_GROUP);
     private static final Pattern VOIDED_RATE = Pattern.compile(RATE_PATH + "voidedRate");
-    private static final Pattern OTHER_REASON =
-            Pattern.compile(RATE_PATH + "otherReasons\\.(?<" + REASON + ">.{1,64})");
+    private static final Pattern OTHER_REASON = Pattern.compile(RATE_PATH + "otherReasons\\." + REASON_GROUP);
 
     private final String path;
     private final boolean whole;

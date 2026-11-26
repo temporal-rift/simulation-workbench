@@ -84,6 +84,7 @@ class ReportReasonOccurrencesTest {
                 .isEqualTo(0.4);
         assertThat(cohort.metrics())
                 .filteredOn(metric -> metric.name().equals(REASON_METRIC))
+                .isNotEmpty()
                 .allSatisfy(
                         metric -> assertThat(metric.dimensions().scoreReason()).doesNotContain(","));
     }
