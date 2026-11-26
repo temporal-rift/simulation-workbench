@@ -10,6 +10,11 @@ public interface PolicyCatalog {
 
     PolicyReferenceVerdict verify(String id, String version, String artifactDigest, int parameterCount);
 
+    /** Every served version of the policy parameter space, ascending; empty without a parameterized bundle. */
+    default List<PolicyParameterSpaceDescriptor> parameterSpaces() {
+        return List.of();
+    }
+
     /**
      * Resolves an entry that names parameters. A bundle that declares none refuses any; a parameterized bundle accepts
      * only declared parameters, each an integer in its range and on its step, and its digest must be the one its

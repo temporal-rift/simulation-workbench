@@ -6,12 +6,14 @@ import java.util.Map;
 
 import io.github.temporalrift.workbench.policy.PolicyCatalog;
 import io.github.temporalrift.workbench.policy.PolicyDescriptor;
+import io.github.temporalrift.workbench.policy.PolicyParameterSpaceDescriptor;
 import io.github.temporalrift.workbench.policy.PolicyReferenceVerdict;
 import io.github.temporalrift.workbench.policy.PolicyVerification;
 import io.github.temporalrift.workbench.policy.domain.baseline.BaselinePolicies;
 import io.github.temporalrift.workbench.policy.domain.baseline.FactionSearchBundle;
 import io.github.temporalrift.workbench.policy.domain.baseline.PolicyBundle;
 import io.github.temporalrift.workbench.policy.domain.baseline.SearchParameters;
+import io.github.temporalrift.workbench.policy.domain.baseline.SearchedSubsets;
 
 /**
  * Resolves references against the baseline bundles, which declare no free parameters, and against
@@ -26,6 +28,21 @@ public class BaselinePolicyCatalog implements PolicyCatalog {
                 .map(bundle -> new PolicyDescriptor(
                         bundle.id(), bundle.version(), bundle.artifactDigest(), bundle.description()))
                 .toList();
+    }
+
+    /** The one served version of the {@code faction-search} parameter space. */
+    @Override
+    public List<PolicyParameterSpaceDescriptor> parameterSpaces() {
+        var parameters = SearchParameters.schema().stream()
+                .map(spec -> new PolicyParameterSpaceDescriptor.Parameter(
+                        spec.key(), spec.defaultValue(), spec.min(), spec.max(), spec.step()))
+                .toList();
+        var subsets = new java.util.LinkedHashMap<String, List<String>>();
+        for (var faction : io.github.temporalrift.workbench.shared.game.Faction.values()) {
+            subsets.put(faction.name(), SearchedSubsets.of(faction));
+        }
+        return List.of(new PolicyParameterSpaceDescriptor(
+                1, FactionSearchBundle.ID, FactionSearchBundle.VERSION, parameters, subsets));
     }
 
     @Override
