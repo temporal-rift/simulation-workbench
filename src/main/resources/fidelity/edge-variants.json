@@ -1,5 +1,5 @@
 {
-  "parameterSpaceVersion": 2,
+  "parameterSpaceVersion": 3,
   "variants": {
     "low": {
       "game.rules.win-score-threshold": 16,
@@ -70,6 +70,7 @@
       "game.rules.scoring.score-deltas.PARADOX_DETONATED": 0,
       "game.rules.scoring.score-deltas.ANNIHILATION_WASTED": 0,
       "game.rules.victory.score-tiebreak": false,
+      "game.rules.victory.normal-victory": false,
       "game.rules.victory.final-era-objective-discount": 0,
       "game.rules.scoring.score-deltas.CHAIN_LINK_MISSED": -2,
       "game.rules.victory.eraser-annihilations-by-player-count.5": 3,
@@ -146,6 +147,7 @@
       "game.rules.scoring.score-deltas.PARADOX_DETONATED": -3,
       "game.rules.scoring.score-deltas.ANNIHILATION_WASTED": -2,
       "game.rules.victory.score-tiebreak": true,
+      "game.rules.victory.normal-victory": true,
       "game.rules.victory.final-era-objective-discount": 2,
       "game.rules.scoring.score-deltas.CHAIN_LINK_MISSED": 0,
       "game.rules.victory.eraser-annihilations-by-player-count.5": 5,

@@ -308,6 +308,38 @@ class VariantRulesTest {
     }
 
     @Test
+    void aVariantThatTurnsNormalVictoryOffIsAcceptedAndItsEffectiveRulesCarryFalse() {
+        var key = "game.rules.victory.normal-victory";
+
+        var preview = rules.preview(
+                VariantRulesFixtures.ARTIFACT_DIGEST,
+                VariantRulesFixtures.SPACE_VERSION,
+                Map.of(key, ParameterValue.of(false)));
+
+        assertThat(preview.overrides()).containsExactly(Map.entry(key, ParameterValue.of(false)));
+        assertThat(preview.rules().value(key)).contains(ParameterValue.of(false));
+        assertThat(rules.preview(VariantRulesFixtures.ARTIFACT_DIGEST, VariantRulesFixtures.SPACE_VERSION, Map.of())
+                        .rules()
+                        .value(key))
+                .contains(ParameterValue.of(true));
+    }
+
+    @Test
+    void aBaselineWithoutTheNormalVictoryKeyIsNamedByTheBaselineCheck() {
+        var document = (tools.jackson.databind.node.ObjectNode)
+                new tools.jackson.databind.json.JsonMapper().readTree(VariantRulesFixtures.baselineText());
+        ((tools.jackson.databind.node.ObjectNode) document.get("properties"))
+                .remove("game.rules.victory.normal-victory");
+        var old = new BaselineRulesCatalog.Baseline(document.toString(), EffectiveRules.parse(document));
+        var oldRules = new VariantRules(VariantRulesFixtures.spaces(), VariantRulesFixtures.catalogOf(old));
+
+        assertThat(oldRules.baselineGaps(VariantRulesFixtures.SPACE_VERSION))
+                .singleElement()
+                .satisfies(
+                        gap -> assertThat(gap.missing()).containsExactly("boolean game.rules.victory.normal-victory"));
+    }
+
+    @Test
     void theRetiredRewriteWindowIsRefusedOnTheNewestSpaceNamingItsKey() {
         var overrides = Map.of("game.rules.rewrite-latest-round", ParameterValue.of(new BigDecimal("2")));
 
