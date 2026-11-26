@@ -44,12 +44,12 @@ final class ScoringModelApiMapper {
         return new ScoringEngine(engine.getMaxEras(), points, escalations);
     }
 
-    /** The reasons and outcomes arrive as sets, so they are ordered to keep an item's index stable. */
+    /** The reasons arrive as an insertion-ordered set, so an item keeps the index the client submitted it at. */
     private static Escalation escalation(
             io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Escalation escalation) {
         return new Escalation(
                 escalation.getName(),
-                escalation.getScoreReasons().stream().sorted().toList(),
+                List.copyOf(escalation.getScoreReasons()),
                 escalation.getBase(),
                 escalation.getIncrement(),
                 escalation.getResetOn().stream()

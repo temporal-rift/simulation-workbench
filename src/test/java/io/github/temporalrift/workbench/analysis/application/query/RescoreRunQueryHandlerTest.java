@@ -244,11 +244,16 @@ class RescoreRunQueryHandlerTest {
         var id = UUID.randomUUID();
         var outcome = new CaseOutcome(EndReason.TIMELINE_STABILIZED, Set.of(0), List.of(0, 0, 0), 5, 0, 0);
         cases.add(new AnalyzedCase(id, "v", "t", "1", 3, List.of(), TABLE, CaseState.SUCCEEDED, outcome));
-        // The Erasers' seat records a completion worth 99 in the game, which the engine prices at 10.
+        // The Erasers' seat records a completion worth 99 in the game, which the engine prices at 10. The Weaver
+        // records a link worth 150 in the game, which the engine scores at 2: by recorded points the Weaver would win.
         games.put(
                 id,
                 new GameRecord(
-                        List.of(new GameEvent.ScoreRecorded(1, 1, "CHAIN_COMPLETED", 99)), List.of(), List.of()));
+                        List.of(
+                                new GameEvent.ScoreRecorded(1, 1, "CHAIN_COMPLETED", 99),
+                                new GameEvent.ScoreRecorded(0, 1, "CHAIN_LINK_ADDED", 150)),
+                        List.of(),
+                        List.of()));
 
         var result = handler.handle(query(engine(5)));
 

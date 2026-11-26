@@ -1,5 +1,6 @@
 package io.github.temporalrift.workbench.analysis.domain.scoring;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -130,10 +131,14 @@ public final class ScoringEvaluator {
                 cumulative += reasons.get(index).rate();
                 upTo[index] = cumulative;
             }
-            var extra = 0L;
+            // Expected points are summed exactly and rounded to millionths once, so equal expected scores stay equal
+            // however the reasons are split.
+            var expected = BigDecimal.ZERO;
             for (var other : rates.otherReasons()) {
-                extra += SeatScore.toUnits(other.perEra() * pricing.flatPoints(other.scoreReason()));
+                expected = expected.add(BigDecimal.valueOf(other.perEra())
+                        .multiply(BigDecimal.valueOf(pricing.flatPoints(other.scoreReason()))));
             }
+            var extra = SeatScore.toUnits(expected);
             return new SeatDraw(names, outcomes, upTo, cumulative + rates.voidedRate(), extra);
         }
 

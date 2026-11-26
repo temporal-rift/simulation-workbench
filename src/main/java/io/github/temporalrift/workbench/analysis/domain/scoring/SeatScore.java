@@ -1,5 +1,7 @@
 package io.github.temporalrift.workbench.analysis.domain.scoring;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -85,6 +87,11 @@ public final class SeatScore {
     /** Resolves a decimal number of points to millionths. */
     public static long toUnits(double points) {
         return Math.round(points * UNITS);
+    }
+
+    /** Resolves an exact number of points to millionths, rounding half up. */
+    public static long toUnits(BigDecimal points) {
+        return points.movePointRight(6).setScale(0, RoundingMode.HALF_UP).longValueExact();
     }
 
     /** The total in millionths. */

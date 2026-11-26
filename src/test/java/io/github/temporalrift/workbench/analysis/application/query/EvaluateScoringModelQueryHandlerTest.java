@@ -269,6 +269,19 @@ class EvaluateScoringModelQueryHandlerTest {
     }
 
     @Test
+    void anIncrementOutsideTheRangeIsRejectedNamingItEvenAtTheIntegerMinimum() {
+        for (var increment : new int[] {21, -21, Integer.MIN_VALUE}) {
+            var engine = new ScoringEngine(
+                    5,
+                    engine().reasonPoints(),
+                    List.of(new Escalation(
+                            "weaver-link", List.of("CHAIN_LINK_ADDED"), 6, increment, Set.of(BetOutcome.VOIDED))));
+
+            assertRefused(query(engine, rates(), List.of()), "engine.escalations[0].increment", handler);
+        }
+    }
+
+    @Test
     void anEngineThatRepeatsAReasonOrAnEscalationNameIsRejectedNamingTheValue() {
         var twice = new ScoringEngine(
                 5,

@@ -145,6 +145,40 @@ class ScoringEvaluatorTest {
     }
 
     @Test
+    void equalExpectedPointsStayEqualHoweverTheReasonsAreSplit() {
+        var trio = List.of(Faction.WEAVERS, Faction.ERASERS, Faction.PROPHETS);
+        var priced = new ScoringEngine(
+                5,
+                List.of(
+                        new ReasonPoints("CORRUPTED_OPPONENT_CARD", 1),
+                        new ReasonPoints("MIMIC_CONTRIBUTED_TO_WIN", 1),
+                        new ReasonPoints("EXPOSE_SIGNATURE_REVEALED", 1)),
+                List.of());
+        var rates = List.of(
+                // Two reasons at 0.3333333 a seat-era and one at 0.6666666 are the same 0.6666666 points.
+                new SeatEraRates(
+                        3,
+                        Faction.WEAVERS,
+                        List.of(),
+                        0,
+                        List.of(
+                                new SeatEraRates.OtherReason("CORRUPTED_OPPONENT_CARD", 0.3333333),
+                                new SeatEraRates.OtherReason("MIMIC_CONTRIBUTED_TO_WIN", 0.3333333))),
+                new SeatEraRates(
+                        3,
+                        Faction.ERASERS,
+                        List.of(),
+                        0,
+                        List.of(new SeatEraRates.OtherReason("EXPOSE_SIGNATURE_REVEALED", 0.6666666))),
+                new SeatEraRates(3, Faction.PROPHETS, List.of(), 0, List.of()));
+
+        var evaluation = ScoringEvaluator.evaluate(new ScoringModel(priced, trio, List.of(3), rates, 1_000, 5));
+
+        // The two seats that expect the same points tie in every game, and the third seat never wins.
+        assertThat(evaluation.cells()).extracting(ScoringEvaluation.Cell::ratio).containsExactly(1.5, 1.5, 0.0);
+    }
+
+    @Test
     void equalModelsGiveEqualEvaluationsAndADifferentSeedDoesNot() {
         var model = symmetric(Faction.ERASERS, 0.8);
 

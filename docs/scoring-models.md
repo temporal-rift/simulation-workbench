@@ -168,8 +168,8 @@ declaration score per era, and a Prophet writes at most `game.rules.foresight.wr
 bring its writing along. The assumption fails only if those settings are raised, for example `writings-per-era` above 1
 for Prophets, and the rules give no other way to record two bet reasons in one era. Then a faction's
 `reason_occurrences_per_era` for its bet reasons sum to more than its placement rate (`bets_scored` per seat-game
-divided by the eras played), and the difference is the excess: the share of seat-eras that record a second bet reason,
-which the model does not play. The difference also absorbs a bet reason listed in an era where no bet was placed, which
+divided by the eras played), and the difference is the mean excess of occurrences per seat-era over one bet reason,
+which the model does not play (to read a share of seat-eras with more than one, count those seat-eras directly). The difference also absorbs a bet reason listed in an era where no bet was placed, which
 settles nothing in the re-score but still occurs, so read a non-zero difference as an upper bound of the excess. Check
 it on a recording run before reading a model result for such a faction. This is read from the rules and the game's
 scoring code; it is not measured on a run.

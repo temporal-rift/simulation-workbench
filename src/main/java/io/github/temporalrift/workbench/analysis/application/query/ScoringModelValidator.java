@@ -95,7 +95,7 @@ final class ScoringModelValidator {
             if (escalation.base() < -MAX_POINTS || escalation.base() > MAX_POINTS) {
                 throw invalid(path + ".base", "base must be " + between(-MAX_POINTS, MAX_POINTS));
             }
-            if (Math.abs(escalation.increment()) > MAX_INCREMENT) {
+            if (escalation.increment() < -MAX_INCREMENT || escalation.increment() > MAX_INCREMENT) {
                 throw invalid(path + ".increment", "increment must be " + between(-MAX_INCREMENT, MAX_INCREMENT));
             }
             if (escalation.resetOn().isEmpty() || escalation.resetOn().contains(BetOutcome.WON)) {
