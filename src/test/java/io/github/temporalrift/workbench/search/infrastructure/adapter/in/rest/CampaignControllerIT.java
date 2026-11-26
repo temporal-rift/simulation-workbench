@@ -221,6 +221,7 @@ class CampaignControllerIT {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.campaignId").value(CAMPAIGN.toString()))
                 .andExpect(jsonPath("$.name").value("threshold-halving-01"))
+                .andExpect(jsonPath("$.kind").value("RULES_SEARCH"))
                 .andExpect(jsonPath("$.state").value("QUEUED"))
                 .andExpect(jsonPath("$.budgetSeconds").doesNotExist())
                 .andExpect(jsonPath("$.parallelism").value(4))
