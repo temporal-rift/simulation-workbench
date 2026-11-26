@@ -125,6 +125,6 @@ class ReportReasonOccurrencesTest {
     void version5ListsNeitherNewMetric() {
         var cohort = pooled(V5);
 
-        assertThat(cohort.metrics()).extracting(Metric::name).doesNotContain(REASON_METRIC, VOIDED_METRIC);
+        assertThat(cohort.metrics()).isNotEmpty().extracting(Metric::name).doesNotContain(REASON_METRIC, VOIDED_METRIC);
     }
 }
