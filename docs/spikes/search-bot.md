@@ -6,9 +6,13 @@ Answers [simulation-workbench#198](https://github.com/temporal-rift/simulation-w
 **Verdict: build option (c), a strategy-level best response, and keep (a) to (d) as the record of what was weighed.**
 One seat keeps the priority-bot structure but its preference table and decision thresholds, including the cards the
 standard bots ignore, become parameters searched with ordinary games against the standard bots. It needs no change to
-any service or contract, it costs about 14 server hours for one hunt (five factions by three table sizes), and it is
-the only option whose information play is judged by real outcomes. Its limit is that it finds strategies a preference
-table can express, not conditional combinations. The rule owner decides; the draft implementation issue is in section 7.
+any service or contract, it is the only option whose information play is judged by real outcomes, and a hunt starting
+with the five-player tables costs **about 3 server hours** (about 4 at the default 4 slots), inside the 4-hour target.
+Its limit is that it finds strategies a preference table can express, not conditional combinations. The rule owner
+decides; the draft implementation issue is in section 7.
+
+**No hunt runs now.** The hunt is meant to run once the new rules are implemented. Hunting with today's rules would spend
+the hours on rules that are going to change. This spike only decides how the hunt is done and what it costs.
 
 Revisions read: simulation-workbench `34c4b1b`, `simulation-control-api` 2.4.0. Nothing in this spike is a new
 measurement: the costs in section 1 are the repository's published capacity reports, and every statement marked
@@ -51,9 +55,10 @@ is **7 to 8 s per game per slot and 5,400 games an hour at 12 slots**, the rate 
 
 ## 2. The options
 
-Costs are *estimates* unless stated. They use about 25 decisions of the searched seat per game (100 commands over a
-four-player table's seats), and a rollout or a game costs all of its seats' commands. Using the game-wide 100 as the
-searched seat's decisions would be a conservative upper bound, four times higher for (a), (b) and (d).
+Costs are *estimates* unless stated. They are for the same hunt as option (c) (section 6): the five-player tables, five
+factions, 300 searched games and 300 reference games per faction. They use about 20 decisions of the searched seat per
+game (100 commands over five seats), and a rollout or a game costs all of its seats' commands. Using the game-wide 100
+as the searched seat's decisions would be a conservative upper bound, five times higher for (a), (b) and (d).
 
 ### (a) Move-level search through the real services
 
@@ -81,11 +86,10 @@ hunt, or it needs the same new capability as the fork: "continue this game under
 
 **Cost.** With a fork, a rollout costs the rest of the game, on average half a game, and a rollout from the start costs a
 whole game. With 5 candidates a decision and 20 rollouts each, one decision costs 100 rollouts, so a searched game costs
-about 25 decisions x 100 rollouts x half a game = 1,250 games, about 2.6 hours of one slot, or about 14 minutes on 12
-slots. A hunt needs about 1,000 searched games per cell for a usable ratio (section 6), so the hunt is about
-15 cells x 1,024 x 1,250 = 19 million games, roughly 3,600 hours at 5,400 games an hour. By replay it is twice that.
-Shrinking it to the budget of the other options (about 15 hours) leaves about one rollout per candidate, which is no
-search.
+about 20 decisions x 100 rollouts x half a game = 1,000 games, about 2 hours of one slot, or about 11 minutes on 12
+slots. The hunt plays 5 x 300 = 1,500 searched games, so it is 1.5 million games, roughly 280 hours at 5,400 games an
+hour. By replay it is twice that. Shrinking it to the budget of the other options (a few hours) leaves a few rollouts
+per candidate, which is no search.
 
 **Strength.** The highest in principle: it searches the real rules with no model. It is also the only option that can
 find a line of play that depends on the exact state.
@@ -106,10 +110,11 @@ resolution and scoring on a hypothetical. The other seats' simultaneous actions 
 evaluation must integrate over a model of them, which is a design decision of its own.
 
 **Cost.** A decision evaluates every candidate (about 20 in an action round) once, or a few times for chance. At 6 ms an
-acknowledgement-sized call, 25 decisions x 20 candidates x 6 ms is 3 s a game on top of 7 to 8 s, so about 1.4 times
-the cost of a game. A hunt plays 1,024 searched games and 1,024 reference games per cell: 15 x (1,024 x 1.4 + 1,024) =
-about 37,000 game-equivalents, **about 7 server hours** at 5,400 games an hour. A cheaper in-process call would bring it
-near a game's cost. The hours are no obstacle here; the horizon and the new contract are.
+acknowledgement-sized call, 20 decisions x 20 candidates x 6 ms is 2.4 s a game on top of 7 to 8 s, so about 1.3 times
+the cost of a game. The hunt plays 5 x 300 searched games and 5 x 300 reference games: 5 x (300 x 1.3 + 300) = about
+3,500 game-equivalents, **about 0.6 server hours** at 5,400 games an hour. Of that, 0.28 hours are the reference games,
+which need no evaluation, 0.28 the play of the searched games and 0.09 their evaluation calls; only the calls scale with
+the searched seat's decisions. The hours are no obstacle here; the horizon and the new contract are.
 
 **Strength.** One round. It finds an exploit that pays within the round it is set up in and misses any line that pays over
 eras, such as a Weaver chain, a bet placed for a later era or a paradox set up in advance, which is where an exploit would
@@ -130,13 +135,29 @@ win ratio against the standard bots at the same table, using ordinary games.
 **Size of the space.** Per faction, about 12 card-type affinities, 8 special-action affinities, 2 outcome-lean
 parameters and about 6 thresholds: **about 28 parameters**, searched per faction and table size.
 
-**Games and hours.** Per cell (one faction at one table size), with the successive-halving structure the campaigns
-already use: 64 candidates from a Latin hypercube sample, `eta` 4, screening on 16, 64 and 256 seeds, so about
-1,024 games in each of the 3 rounds = **3,072 search games**. The best candidate is then confirmed on 1,024 fresh seeds,
-with the standard seat played on the same 1,024 seeds as its reference = **2,048 confirmation games**. That is **5,120
-games per cell**, **76,800 for one hunt** of 15 cells, which is **14.2 hours at 5,400 games an hour** (12 slots) or about
-19 hours at the default 4 slots (4,003 an hour). The cost scales with the number of cells and linearly with the
-seeds; the confirmation alone is 30,720 games, 5.7 hours.
+**Why a few hundred games are enough.** An exploit is a large advantage by definition (section 6): the searched seat wins
+about 1.5 times as often as it normally does, which is about +0.5 of win ratio. The noise of a ratio was measured on the
+last validation's tables (every faction at 3, 4 and 5 players, 600, 800 and 1,000 games): the standard error of a
+faction's ratio, taken from its 95% interval, has a median of 0.064 to 0.070 and a 90th percentile of 0.077 to 0.092.
+It grows as the square root of the games, so with 250 games it is about 0.13 (median) and 0.15 (90th percentile), and
+with 300 games about 0.12. A difference of +0.5 is more than three standard errors, so a few hundred games show it. A
+smaller advantage that 300 games would miss lies inside the balance band (0.8 to 1.25) and is balance noise, which the
+normal validation already controls.
+
+**Games and hours.** The hunt starts with the five-player tables, five cells (one per faction), and takes the three- and
+four-player tables only if a signal appears or time is left. Per cell, with the successive-halving structure the
+campaigns already use, the screening is: 32 candidates from a Latin hypercube sample, `eta` 4, 48 games each (1,536
+games); the best 8 play 144 more each, 192 in all (1,152 games); the best 2 play 108 more, 300 in all (216 games). That
+is **2,904 screening games per cell and 14,520 for the five cells, 2.7 hours at 5,400 games an hour** (12 slots). The
+confirmation runs only in the cells whose best candidate gives a signal: 300 fresh games for the candidate and 300 for
+the standard seat on the same seeds, 600 games. With two signal cells that is 1,200 games, 0.2 hours; with all five,
+3,000 games, 0.6 hours. **A five-player hunt is therefore about 2.9 hours (3.3 at worst), or about 3.9 hours (4.4) at the
+default 4 slots (4,003 games an hour).** Adding the three- and four-player tables repeats the screening twice, about
+5.4 hours more, plus 0.1 hour for each confirmed cell.
+
+At 48 games the noise of a ratio is about 0.30, so the first round only discards: a candidate that is really +0.5 stays in
+the best quarter about 85% of the time (an estimate from normal noise, to be checked on the first hunt). The decision is
+taken at 300 games, not at the screening.
 
 **Can the existing campaign machinery drive it?** Part of it. A campaign today searches the rules parameter space of a
 baseline and evaluates each candidate on the full matrix of all-bot tables against the balance criterion; policies take no
@@ -163,9 +184,11 @@ forward in microseconds.
 
 **It conflicts with the boundary that gameplay stays authoritative in the real services and the workbench holds no
 hand-written copy of the engine.** It is listed because it is the only option that makes move-level search affordable.
-Estimated cost with a model: 25 decisions x 20 candidates x 50 rollouts x about 1 ms is about 25 s of one core a
-game, so the 15,360 searched games of a hunt (15 x 1,024) at 25 s are about 110 core hours, under half a day on 16
-cores; the model's speed is a guess until one exists.
+Estimated cost with a model: copying the state is free, so a rollout from a decision plays only what is left of the game,
+half of it on average. At about 1 ms for a whole game, 20 decisions x 20 candidates x 50 rollouts x 0.5 ms is about 10 s
+of one core a game, so the 1,500 searched games of the hunt are about 4 core hours; the model's speed is a guess until
+one exists. This halving holds only here: option (a) has no state copy and pays a whole game per rollout when it replays
+to the decision.
 
 **What keeping it faithful costs.** Every rule or content change in game-service or timeline-service is also a change
 to the model, and a model that is wrong gives a false answer in the safe direction: an exploit that exists in the real game
@@ -181,12 +204,12 @@ reaches the exploits a preference table can express without either.
 
 ### Comparison
 
-| | Cost of one hunt (estimate) | Strength | Contract / boundary | Information play |
+| | Cost of one five-player hunt (estimate) | Strength | Contract / boundary | Information play |
 |---|---|---|---|---|
-| (a) Move-level through services | about 3,600 h | Highest in principle | Fork or re-seed in `simulation-control-api`, three services | Perfect knowledge unless re-seeded; hidden facts known by rollouts |
-| (b) Shallow, round ahead | about 7 h | One round only | New evaluation operation in game-service | Priced only if it pays within the round |
-| (c) Strategy-level | **about 14 h** | Anything a preference table expresses | None | Judged by real results |
-| (d) In-process model | about 110 core h | High, bounded by model fidelity | Violates the no-engine-copy boundary | Needs belief sampling |
+| (a) Move-level through services | about 280 h | Highest in principle | Fork or re-seed in `simulation-control-api`, three services | Perfect knowledge unless re-seeded; hidden facts known by rollouts |
+| (b) Shallow, round ahead | about 0.6 h | One round only | New evaluation operation in game-service | Priced only if it pays within the round |
+| (c) Strategy-level | **about 3 h** | Anything a preference table expresses | None | Judged by real results |
+| (d) In-process model | about 4 core h | High, bounded by model fidelity | Violates the no-engine-copy boundary | Needs belief sampling |
 
 ## 3. Information play
 
@@ -218,38 +241,43 @@ round. None of the options detects a line that needs the cooperation of two seat
 
 ## 5. Risks of the recommended option
 
-- **Narrow strategies.** 64 candidates in 28 dimensions is sparse. A strategy that needs several parameters moved
-  together can be missed. Mitigation inside the option: a second stage of coordinate search around the best candidate, and
-  a hunt that finds nothing is reported as "no exploit within a preference-table strategy", not as "no exploit".
-- **Winner's curse.** The best of 64 on shared seeds is optimistic; the confirmation on fresh seeds (1,024) removes it, as it
+- **Narrow strategies.** 32 candidates in 28 dimensions is sparse. A strategy that needs several parameters moved
+  together can be missed. Mitigation inside the option: a second stage of coordinate search around the best candidate when
+  time is left, and a hunt that finds nothing is reported as "no exploit within a preference-table strategy", not as "no
+  exploit".
+- **Winner's curse.** The best of 32 on shared seeds is optimistic; the confirmation on fresh seeds (300) removes it, as it
   does for rule search.
+- **Noisy screening.** 48 games per candidate in the first round only discards; a real +0.5 survives it about 85% of the
+  time. If the first hunt shows a lower rate, more games in round 0 are the first lever.
 - **Strategy beyond the bots.** A searched seat may legitimately beat a bot by playing better. That is not an exploit; the
   threshold below separates the two.
 
 ## 6. Recommendation
 
-**Option (c).** It costs about a working day of server time (option (b) is cheaper), touches no contract or
-service, keeps the policies entitled-observation only, measures information by results, and is not limited to a one-round
-horizon, which is why it is preferred to (b).
+**Option (c).** It costs about three server hours for the five-player tables (option (b) is cheaper), touches no
+contract or service, keeps the policies entitled-observation only, measures information by results, and is not limited
+to a one-round horizon, which is why it is preferred to (b).
 
-**Exploit-hunt threshold (a proposal for the rule owner).** The balance criterion reads a faction's win ratio (its win
-rate over its fair share, `1/N`): scored band 0.8 to 1.25, gate band 0.5 to 2.0. The standard bots' own ratios under the
-current rules sit around 0.4 to 1.5 at 1,000 games per size, with 95% intervals of about plus or minus 0.1 to 0.2. A
-confirmed searched seat counts as an exploit when **both** hold, on the 1,024 fresh confirmation seeds:
+**What counts as an exploit (a proposal for the rule owner).** The balance criterion reads a faction's win ratio (its win
+rate over its fair share, `1/N`): scored band 0.8 to 1.25, gate band 0.5 to 2.0. An exploit is a large advantage, not a
+subtle one: the searched seat wins **at least 1.5 times as often as the faction normally does**. The normal ratio is 1.0
+or the standard seat's own ratio on the same seeds, whichever is higher, so for a normal ratio of 1.0 an exploit is a
+ratio of 1.5, about +0.5. The decision is taken on 300 fresh games for the candidate and 300 for the standard seat, and a
+cell is **flagged when the candidate's ratio is at least 1.25 times the normal ratio**, midway between normal and exploit.
+With a standard error of about 0.12 at 300 games (section 2), a real exploit of 1.5 is flagged about 98% of the time and a
+faction at its normal 1.0 about 2% of the time (normal noise, estimates). A flag is reported with its ratio, the standard
+seat's ratio and the parameters found, for the rule owner to judge; a ratio between 1.0 and 1.25 times normal is balance
+noise and is not reported as an exploit.
 
-1. its win ratio's lower 95% bound is **above 1.5**, the middle of the way from the scored upper edge (1.25) to the gate
-   upper edge (2.0), and it is a definite exploit above 2.0; and
-2. its ratio exceeds the standard seat's ratio on the same seeds by **at least 0.3** (about 3 standard errors of the
-   difference at 1,024 games, whose ratio error is about 0.05 to 0.07 at a four-player table).
+**Server hours for one hunt.** The five-player tables first: **about 2.9 hours at 12 slots (3.3 at worst), about 3.9 hours
+(4.4) at the default 4 slots**, from 14,520 screening games and 600 confirmation games for each flagged cell, at the
+rates of section 1. The three- and four-player tables add about 5.4 hours and are taken only on a signal or with time
+left. It runs on the rented server, per the project's rule for campaigns, with the rules that are then in force.
 
-The first condition says the faction wins too often; the second says the cause is the strategy and not a faction that is
-already above band for the standard bots. A ratio between 1.25 and 1.5 is reported as a finding and not as an exploit.
-The numbers are a proposal; the intervals follow from `sqrt(p(1-p)/n)` with `p` near `1/N` and should be recomputed from
-the first hunt.
-
-**Server hours for one hunt: about 14 (14.2 at 12 slots, about 19 at 4).** 5 factions x 3 table sizes x 5,120 games. At the
-rate of the confirmation matrix this is about 4 times the 3.2-hour confirmation of one candidate over 17,160 games. It
-runs on the rented server, per the project's rule for campaigns.
+**If it did not fit.** A larger server is the other lever: the simulator's games per hour grew from 1,424 at one slot to
+6,309 at eight (55% to 78% of linear per doubling), so a machine with several times the processors would finish sooner,
+but not in proportion. The report does not count on it: the 12-slot figure was measured under heavier machine load and
+nothing was measured beyond it.
 
 ## 7. Draft of the implementation issue
 
@@ -267,16 +295,19 @@ runs on the rented server, per the project's rule for campaigns.
 > 2. A policy parameter space, served like the rules parameter spaces, declares the ranges and steps.
 > 3. A campaign over one faction and one table size runs the existing halving search (Latin hypercube, shared seeds, fresh
 >    confirmation seeds) with the searched seat's win ratio as its objective, on mixed tables of the searched seat against
->    the N-1 standard seats of an N-player cell (two, three or four), and confirms the best candidate with the standard seat as reference on the same seeds.
-> 4. The report states the confirmed ratio and interval, the gap to the standard seat, whether it meets the exploit
->    threshold, and the parameters found, per faction and table size.
+>    the N-1 standard seats of an N-player cell (two, three or four). It screens 32 candidates on 48, 192 and 300 games,
+>    and a confirmation, started only for a cell whose best candidate is flagged, plays the candidate on 300 fresh seeds
+>    and the standard seat on the same seeds.
+> 4. The report states the confirmed ratio and interval, the standard seat's ratio, whether the cell is flagged (ratio at
+>    least 1.25 times the normal ratio, the larger of 1.0 and the standard seat's) or an exploit (at least 1.5 times), and
+>    the parameters found, per faction and table size.
 >
 > **Contract and data changes.** None outside this repository: a policy parameter schema in the policy catalog and a new
 > campaign kind. No change to the services or `apis`.
 >
-> **Acceptance criteria.** Default parameters reproduce `faction-greedy` decision for decision; a hunt of 15 cells runs
-> through the campaign worker on the simulator and ends with a report; the report separates an exploit from a better
-> play by the two conditions above; the run is repeatable from its master seeds; documentation states that results
+> **Acceptance criteria.** Default parameters reproduce `faction-greedy` decision for decision; a hunt of the five-player
+> cells runs through the campaign worker on the simulator in about 3 hours and ends with a report; the report separates
+> a flagged cell and an exploit by the thresholds above; the run is repeatable from its master seeds; documentation states that results
 > characterize bot strategies only.
 >
 > **Cross-repo dependencies.** None. Part of game-service#381.
@@ -293,5 +324,8 @@ The implementation issue is created only after the rule owner decides on an opti
   services.
 - **Every cost in sections 2 and 6 beyond the published rates is an estimate** built from the 100 commands and the 5,400
   games an hour; (d)'s rollout speed is a guess until a model exists.
-- **The parameter count and the search sizes** (28 parameters, 64 candidates, `eta` 4, 16/64/256 seeds, 1,024 confirmation
-  seeds) are a starting design; the first hunt should report its realized noise so they can be resized.
+- **The parameter count and the search sizes** (28 parameters, 32 candidates, `eta` 4, 48/192/300 games, 300 confirmation
+  games) are a starting design. The noise they rest on comes from tables of all-standard seats; a mixed table of one
+  searched seat against standard seats was not measured, so the first hunt should report its realized noise.
+- **The 85% survival of a real exploit in the first round and the 98% and 2% flag rates** are normal-noise estimates, not
+  measurements.
