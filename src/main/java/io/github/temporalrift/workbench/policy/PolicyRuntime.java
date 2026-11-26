@@ -12,6 +12,14 @@ public interface PolicyRuntime {
     /** The defined policy for a manifest reference, if any. */
     Optional<BotPolicy> policy(String id, String version);
 
+    /**
+     * The defined policy for an entry that names parameters: a parameterized bundle plays them, any other bundle is
+     * found by id and version alone.
+     */
+    default Optional<BotPolicy> policy(String id, String version, java.util.Map<String, Integer> parameters) {
+        return policy(id, version);
+    }
+
     /** The window procedure bound to one case's participant gateway. */
     PlayDecisionWindowUseCase windowPlayer(ParticipantGateway gateway);
 }

@@ -265,7 +265,7 @@ public final class ExperimentValidator {
         if (legacy) {
             validateSeatAssignment(policy.get("seatAssignment"), path + ".seatAssignment");
         }
-        return new PolicyRef(id, version, artifactDigest);
+        return new PolicyRef(id, version, artifactDigest, integerParameters(parameters));
     }
 
     /** A schema-version-1 policy entry plays every seat, so it reads as one uniform table of that policy. */
@@ -368,6 +368,17 @@ public final class ExperimentValidator {
             values.put(
                     entry.getKey(),
                     value.isIntegralNumber() && value.canConvertToLong() ? (Object) value.asLong() : value.toString());
+        });
+        return values;
+    }
+
+    /** The whole-number parameters of an entry; the verifier refuses any other value of a bundle that declares them. */
+    private static Map<String, Integer> integerParameters(JsonNode parameters) {
+        var values = new java.util.TreeMap<String, Integer>();
+        parameters.properties().forEach(entry -> {
+            if (entry.getValue().isIntegralNumber() && entry.getValue().canConvertToInt()) {
+                values.put(entry.getKey(), entry.getValue().asInt());
+            }
         });
         return values;
     }
@@ -641,7 +652,15 @@ public final class ExperimentValidator {
             List<List<String>> factionSets) {}
 
     /** A policy bundle by id and version. */
-    public record PolicyRef(String id, String version, String artifactDigest) {
+    public record PolicyRef(String id, String version, String artifactDigest, Map<String, Integer> parameters) {
+
+        public PolicyRef {
+            parameters = parameters == null ? Map.of() : Map.copyOf(parameters);
+        }
+
+        public PolicyRef(String id, String version, String artifactDigest) {
+            this(id, version, artifactDigest, Map.of());
+        }
 
         /** A reference that names no digest, for the baselines whose id and version already identify them. */
         public PolicyRef(String id, String version) {

@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -129,7 +130,9 @@ public final class MatrixPreviewService {
                     seat,
                     Faction.valueOf(sortedFactions.get((seat + rotation) % players)),
                     policy.id(),
-                    policy.version()));
+                    policy.version(),
+                    policy.artifactDigest(),
+                    policy.parameters()));
         }
         var caseKey = UUID.nameUUIDFromBytes(
                 key(manifestDigest, schemaVersion, seed, variant, table, sortedFactions, rotation)
@@ -202,5 +205,16 @@ public final class MatrixPreviewService {
             List<SeatAssignment> seats) {}
 
     /** One seat of a case coordinate. */
-    public record SeatAssignment(int seatIndex, Faction faction, String policyId, String policyVersion) {}
+    public record SeatAssignment(
+            int seatIndex,
+            Faction faction,
+            String policyId,
+            String policyVersion,
+            String policyDigest,
+            Map<String, Integer> policyParameters) {
+
+        public SeatAssignment(int seatIndex, Faction faction, String policyId, String policyVersion) {
+            this(seatIndex, faction, policyId, policyVersion, null, Map.of());
+        }
+    }
 }

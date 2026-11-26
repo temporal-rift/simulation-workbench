@@ -23,6 +23,11 @@ public class DecisionRuntimeAdapter implements DecisionRuntime {
     }
 
     @Override
+    public Optional<BotPolicy> policy(String id, String version, java.util.Map<String, Integer> parameters) {
+        return runtime.policy(id, version, parameters);
+    }
+
+    @Override
     public PlayDecisionWindowUseCase windowPlayer(ParticipantGateway gateway) {
         return runtime.windowPlayer(gateway);
     }

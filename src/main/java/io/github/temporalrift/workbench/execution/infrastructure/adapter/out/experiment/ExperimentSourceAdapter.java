@@ -115,8 +115,13 @@ public class ExperimentSourceAdapter implements ExperimentSource {
                 experimentCase.tableId(),
                 experimentCase.playerCount(),
                 experimentCase.seats().stream()
-                        .map(seat ->
-                                new SeatPlan(seat.seatIndex(), seat.faction(), seat.policyId(), seat.policyVersion()))
+                        .map(seat -> new SeatPlan(
+                                seat.seatIndex(),
+                                seat.faction(),
+                                seat.policyId(),
+                                seat.policyVersion(),
+                                seat.policyDigest(),
+                                seat.policyParameters()))
                         .toList());
     }
 }
