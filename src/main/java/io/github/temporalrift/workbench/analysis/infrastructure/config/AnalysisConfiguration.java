@@ -18,6 +18,7 @@ import io.github.temporalrift.workbench.analysis.application.port.in.GetComparis
 import io.github.temporalrift.workbench.analysis.application.port.in.GetRunEvaluationUseCase;
 import io.github.temporalrift.workbench.analysis.application.port.in.GetRunReportUseCase;
 import io.github.temporalrift.workbench.analysis.application.port.in.ListComparisonsUseCase;
+import io.github.temporalrift.workbench.analysis.application.port.in.RescoreRunUseCase;
 import io.github.temporalrift.workbench.analysis.application.query.BalanceCriteriaQueryHandler;
 import io.github.temporalrift.workbench.analysis.application.query.CandidateScreeningService;
 import io.github.temporalrift.workbench.analysis.application.query.CaseFactsProvider;
@@ -27,16 +28,19 @@ import io.github.temporalrift.workbench.analysis.application.query.GetComparison
 import io.github.temporalrift.workbench.analysis.application.query.GetRunEvaluationQueryHandler;
 import io.github.temporalrift.workbench.analysis.application.query.GetRunReportQueryHandler;
 import io.github.temporalrift.workbench.analysis.application.query.ListComparisonsQueryHandler;
+import io.github.temporalrift.workbench.analysis.application.query.RescoreRunQueryHandler;
 import io.github.temporalrift.workbench.analysis.application.query.RunConfirmationService;
 import io.github.temporalrift.workbench.analysis.domain.port.out.BalanceCriteria;
 import io.github.temporalrift.workbench.analysis.domain.port.out.CaseFactsRepository;
 import io.github.temporalrift.workbench.analysis.domain.port.out.ComparisonRepository;
 import io.github.temporalrift.workbench.analysis.domain.port.out.ExperimentDefinitions;
 import io.github.temporalrift.workbench.analysis.domain.port.out.RunSource;
+import io.github.temporalrift.workbench.analysis.domain.port.out.VariantScoring;
 import io.github.temporalrift.workbench.analysis.infrastructure.adapter.in.rest.AnalysisCsvConverter;
 import io.github.temporalrift.workbench.analysis.infrastructure.adapter.out.configuration.ConfiguredBalanceCriteria;
 import io.github.temporalrift.workbench.analysis.infrastructure.adapter.out.execution.RunSourceAdapter;
 import io.github.temporalrift.workbench.analysis.infrastructure.adapter.out.experiment.ExperimentDefinitionsAdapter;
+import io.github.temporalrift.workbench.analysis.infrastructure.adapter.out.experiment.VariantScoringAdapter;
 import io.github.temporalrift.workbench.execution.RunCatalog;
 import io.github.temporalrift.workbench.experiment.ExperimentCatalog;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Band;
@@ -102,6 +106,16 @@ public class AnalysisConfiguration {
     @Bean
     EvaluateScoringModelUseCase evaluateScoringModelUseCase() {
         return new EvaluateScoringModelQueryHandler();
+    }
+
+    @Bean
+    VariantScoring variantScoring(ExperimentCatalog catalog) {
+        return new VariantScoringAdapter(catalog);
+    }
+
+    @Bean
+    RescoreRunUseCase rescoreRunUseCase(RunSource runs, VariantScoring scoring) {
+        return new RescoreRunQueryHandler(runs, scoring);
     }
 
     @Bean

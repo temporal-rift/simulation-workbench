@@ -3,17 +3,23 @@ package io.github.temporalrift.workbench.analysis.infrastructure.adapter.in.scor
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import io.github.temporalrift.workbench.analysis.application.port.in.EvaluateScoringModelUseCase;
+import io.github.temporalrift.workbench.analysis.application.port.in.RescoreRunUseCase;
 import io.github.temporalrift.workbench.analysis.domain.scoring.BetOutcome;
 import io.github.temporalrift.workbench.analysis.domain.scoring.BetRates;
 import io.github.temporalrift.workbench.analysis.domain.scoring.FactionScoring;
 import io.github.temporalrift.workbench.analysis.domain.scoring.InvalidScoringModelException;
+import io.github.temporalrift.workbench.analysis.domain.scoring.RescoringResult;
 import io.github.temporalrift.workbench.analysis.domain.scoring.ScoringEngine;
 import io.github.temporalrift.workbench.analysis.domain.scoring.ScoringModelResult;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Faction;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.FactionScoringEngine;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.RescoreRequest;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Rescoring;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.RescoringPlayerCount;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ScoringCell;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ScoringEnding;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ScoringModelEvaluation;
@@ -25,12 +31,42 @@ final class ScoringModelApiMapper {
 
     private ScoringModelApiMapper() {}
 
-    static EvaluateScoringModelUseCase.Query query(ScoringModelRequest request) {
-        var engine = request.getEngine();
+    static ScoringEngine engine(
+            io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ScoringEngine engine) {
         var factions = new ArrayList<FactionScoring>();
         for (var index = 0; index < engine.getFactions().size(); index++) {
             factions.add(faction(index, engine.getFactions().get(index)));
         }
+        return new ScoringEngine(engine.getWinThreshold(), engine.getMaxEras(), factions);
+    }
+
+    static RescoreRunUseCase.Query rescoreQuery(UUID runId, RescoreRequest request) {
+        return new RescoreRunUseCase.Query(
+                runId, engine(request.getEngine()), request.getVariantLabel(), request.getTableId());
+    }
+
+    static Rescoring rescoring(RescoringResult result) {
+        return new Rescoring()
+                .complete(result.complete())
+                .cells(result.cells().stream()
+                        .map(cell -> new ScoringCell()
+                                .playerCount(cell.playerCount())
+                                .faction(faction(cell.faction()))
+                                .ratio(decimal(cell.ratio()))
+                                .lower(decimal(cell.lower()))
+                                .upper(decimal(cell.upper())))
+                        .toList())
+                .playerCounts(result.playerCounts().stream()
+                        .map(counts -> new RescoringPlayerCount()
+                                .playerCount(counts.playerCount())
+                                .judgedCases(counts.judgedCases())
+                                .truncatedCases(counts.truncatedCases())
+                                .meanEras(counts.meanEras() == null ? null : decimal(counts.meanEras())))
+                        .toList());
+    }
+
+    static EvaluateScoringModelUseCase.Query query(ScoringModelRequest request) {
+        var engine = request.getEngine();
         var rates = request.getRates().stream()
                 .map(item -> new BetRates(
                         item.getPlayerCount(),
@@ -46,7 +82,7 @@ final class ScoringModelApiMapper {
                                 item.getParameter(), item.getStep().doubleValue()))
                         .toList();
         return new EvaluateScoringModelUseCase.Query(
-                new ScoringEngine(engine.getWinThreshold(), engine.getMaxEras(), factions),
+                engine(engine),
                 request.getPlayerCounts().stream().sorted().toList(),
                 rates,
                 request.getGamesPerPlayerCount(),

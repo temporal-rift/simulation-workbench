@@ -44,7 +44,7 @@ final class ScoringModelValidator {
         }
     }
 
-    private static void checkEngine(ScoringEngine engine) {
+    static void checkEngine(ScoringEngine engine) {
         if (engine.winThreshold() < 1 || engine.winThreshold() > MAX_THRESHOLD) {
             throw invalid("engine.winThreshold", "winThreshold must be between 1 and " + MAX_THRESHOLD);
         }
