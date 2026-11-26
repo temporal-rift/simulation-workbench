@@ -25,7 +25,7 @@ light lane (the real services over Kafka) and records every command acknowledgem
 |---|---:|---:|---:|
 | One full game | 13 to 18 s (median, by table size and bot) | 2.5 s (1,424 games/h) | 7 to 8 s per slot (5,402 games/h; about 20,000 games in 3.3 h) |
 | Commands per game | about 99 (10,960 acknowledgements over 110 games) | same game | same game |
-| One decision (a game over its commands) | about 160 ms | about 25 ms | about 70 ms |
+| One command (a game over its commands, all seats) | about 160 ms | about 25 ms | about 70 ms |
 | Settle waits per game | 23 to 24 | not recorded | not recorded |
 
 Where a game's time goes, on the light lane (the only place the split was recorded):
@@ -41,15 +41,19 @@ A settle wait costs 0.387 s (causal barrier) plus 0.174 s (projection barrier), 
 13.5 s of its 13 to 18 s. An acknowledgement is 6 ms. The policy is negligible: a bot decision is well under a
 millisecond, so no option below is limited by the bot, only by how many games the services can play.
 
-Reading the table: the 100 commands per game are the unit the issue calls decisions (a rejected candidate is also an
-acknowledged command, so this slightly overstates the accepted ones). The simulator removes Kafka, the outbox and the
+Reading the table: the 100 commands per game are counted over every seat of the game, three to five of them, and include
+rejected candidates, which are also acknowledged commands. One seat therefore makes about 100 / N of them, about 25 at a
+four-player table (33 at three seats, 20 at five), and that is the number of decisions a search of one seat has to make.
+The rollouts of a search still play every seat, so a rollout costs a whole game's commands. The simulator removes Kafka, the outbox and the
 database, which is why it plays a game in a fifth to a half of the lane's time. Slots share one machine, so a game takes
 longer the more run at once: the 12-slot rate is 3.8 times the 1-slot rate for 12 times the slots. The cost basis below
 is **7 to 8 s per game per slot and 5,400 games an hour at 12 slots**, the rate the confirmation matrix already uses.
 
 ## 2. The options
 
-Costs use the 100 commands per game above and are *estimates* unless stated.
+Costs are *estimates* unless stated. They use about 25 decisions of the searched seat per game (100 commands over a
+four-player table's seats), and a rollout or a game costs all of its seats' commands. Using the game-wide 100 as the
+searched seat's decisions would be a conservative upper bound, four times higher for (a), (b) and (d).
 
 ### (a) Move-level search through the real services
 
@@ -77,9 +81,9 @@ hunt, or it needs the same new capability as the fork: "continue this game under
 
 **Cost.** With a fork, a rollout costs the rest of the game, on average half a game, and a rollout from the start costs a
 whole game. With 5 candidates a decision and 20 rollouts each, one decision costs 100 rollouts, so a searched game costs
-about 100 decisions x 100 rollouts x half a game = 5,000 games, about 10 hours of one slot, or about an hour on 12
+about 25 decisions x 100 rollouts x half a game = 1,250 games, about 2.6 hours of one slot, or about 14 minutes on 12
 slots. A hunt needs about 1,000 searched games per cell for a usable ratio (section 6), so the hunt is about
-15 cells x 1,024 x 5,000 = 77 million games, roughly 14,000 hours at 5,400 games an hour. By replay it is twice that.
+15 cells x 1,024 x 1,250 = 19 million games, roughly 3,600 hours at 5,400 games an hour. By replay it is twice that.
 Shrinking it to the budget of the other options (about 15 hours) leaves about one rollout per candidate, which is no
 search.
 
@@ -102,9 +106,9 @@ resolution and scoring on a hypothetical. The other seats' simultaneous actions 
 evaluation must integrate over a model of them, which is a design decision of its own.
 
 **Cost.** A decision evaluates every candidate (about 20 in an action round) once, or a few times for chance. At 6 ms an
-acknowledgement-sized call, 100 decisions x 20 candidates x 6 ms is 12 s a game on top of 7 to 8 s, so about 2.6 times
-the cost of a game. A hunt plays 1,024 searched games and 1,024 reference games per cell: 15 x (1,024 x 2.6 + 1,024) =
-about 55,000 game-equivalents, **about 10 server hours** at 5,400 games an hour. A cheaper in-process call would bring it
+acknowledgement-sized call, 25 decisions x 20 candidates x 6 ms is 3 s a game on top of 7 to 8 s, so about 1.4 times
+the cost of a game. A hunt plays 1,024 searched games and 1,024 reference games per cell: 15 x (1,024 x 1.4 + 1,024) =
+about 37,000 game-equivalents, **about 7 server hours** at 5,400 games an hour. A cheaper in-process call would bring it
 near a game's cost. The hours are no obstacle here; the horizon and the new contract are.
 
 **Strength.** One round. It finds an exploit that pays within the round it is set up in and misses any line that pays over
@@ -159,9 +163,9 @@ forward in microseconds.
 
 **It conflicts with the boundary that gameplay stays authoritative in the real services and the workbench holds no
 hand-written copy of the engine.** It is listed because it is the only option that makes move-level search affordable.
-Estimated cost with a model: 100 decisions x 20 candidates x 50 rollouts x about 1 ms is about 100 s of one core a
-game, so the 15,360 searched games of a hunt (15 x 1,024) at 100 s are about 430 core hours, a day on 16 cores; the
-model's speed is a guess until one exists.
+Estimated cost with a model: 25 decisions x 20 candidates x 50 rollouts x about 1 ms is about 25 s of one core a
+game, so the 15,360 searched games of a hunt (15 x 1,024) at 25 s are about 110 core hours, under half a day on 16
+cores; the model's speed is a guess until one exists.
 
 **What keeping it faithful costs.** Every rule or content change in game-service or timeline-service is also a change
 to the model, and a model that is wrong gives a false answer in the safe direction: an exploit that exists in the real game
@@ -179,10 +183,10 @@ reaches the exploits a preference table can express without either.
 
 | | Cost of one hunt (estimate) | Strength | Contract / boundary | Information play |
 |---|---|---|---|---|
-| (a) Move-level through services | about 14,000 h | Highest in principle | Fork or re-seed in `simulation-control-api`, three services | Perfect knowledge unless re-seeded; hidden facts known by rollouts |
-| (b) Shallow, round ahead | about 10 h | One round only | New evaluation operation in game-service | Priced only if it pays within the round |
+| (a) Move-level through services | about 3,600 h | Highest in principle | Fork or re-seed in `simulation-control-api`, three services | Perfect knowledge unless re-seeded; hidden facts known by rollouts |
+| (b) Shallow, round ahead | about 7 h | One round only | New evaluation operation in game-service | Priced only if it pays within the round |
 | (c) Strategy-level | **about 14 h** | Anything a preference table expresses | None | Judged by real results |
-| (d) In-process model | about 430 core h | High, bounded by model fidelity | Violates the no-engine-copy boundary | Needs belief sampling |
+| (d) In-process model | about 110 core h | High, bounded by model fidelity | Violates the no-engine-copy boundary | Needs belief sampling |
 
 ## 3. Information play
 
@@ -224,7 +228,7 @@ round. None of the options detects a line that needs the cooperation of two seat
 
 ## 6. Recommendation
 
-**Option (c).** It costs about a working day of server time (option (b) is about as cheap), touches no contract or
+**Option (c).** It costs about a working day of server time (option (b) is cheaper), touches no contract or
 service, keeps the policies entitled-observation only, measures information by results, and is not limited to a one-round
 horizon, which is why it is preferred to (b).
 
@@ -263,7 +267,7 @@ runs on the rented server, per the project's rule for campaigns.
 > 2. A policy parameter space, served like the rules parameter spaces, declares the ranges and steps.
 > 3. A campaign over one faction and one table size runs the existing halving search (Latin hypercube, shared seeds, fresh
 >    confirmation seeds) with the searched seat's win ratio as its objective, on mixed tables of the searched seat against
->    four standard seats, and confirms the best candidate with the standard seat as reference on the same seeds.
+>    the N-1 standard seats of an N-player cell (two, three or four), and confirms the best candidate with the standard seat as reference on the same seeds.
 > 4. The report states the confirmed ratio and interval, the gap to the standard seat, whether it meets the exploit
 >    threshold, and the parameters found, per faction and table size.
 >
