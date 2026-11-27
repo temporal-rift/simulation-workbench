@@ -80,14 +80,10 @@ public class BaselinePolicyCatalog implements PolicyCatalog {
         if (!isSearch(id, version)) {
             return java.util.Optional.empty();
         }
-        var probe = verify(id, version, "0".repeat(64), parameters);
-        if (probe.verdict() != PolicyReferenceVerdict.DIGEST_MISMATCH
-                && probe.verdict() != PolicyReferenceVerdict.VALID) {
-            return java.util.Optional.empty();
-        }
-        var named = new HashMap<String, Integer>();
-        parameters.forEach((key, value) -> named.put(key, ((Number) value).intValue()));
-        return java.util.Optional.of(FactionSearchBundle.of(named).artifactDigest());
+        var checked = check(parameters);
+        return checked.failure() == null
+                ? java.util.Optional.of(FactionSearchBundle.of(checked.named()).artifactDigest())
+                : java.util.Optional.empty();
     }
 
     @Override
@@ -95,25 +91,38 @@ public class BaselinePolicyCatalog implements PolicyCatalog {
         if (!isSearch(id, version)) {
             return new PolicyVerification(verify(id, version, artifactDigest, parameters.size()), null);
         }
-        var named = new HashMap<String, Integer>();
-        for (var entry : parameters.entrySet()) {
-            var spec = SearchParameters.spec(entry.getKey());
-            if (spec.isEmpty()) {
-                return new PolicyVerification(PolicyReferenceVerdict.UNKNOWN_PARAMETER, entry.getKey());
-            }
-            // The value is checked as given: narrowing a long first could fold an out-of-range value onto a valid one.
-            if (!(entry.getValue() instanceof Integer || entry.getValue() instanceof Long)
-                    || !fits(spec.get(), ((Number) entry.getValue()).longValue())) {
-                return new PolicyVerification(PolicyReferenceVerdict.INVALID_PARAMETER_VALUE, entry.getKey());
-            }
-            named.put(entry.getKey(), ((Number) entry.getValue()).intValue());
+        var checked = check(parameters);
+        if (checked.failure() != null) {
+            return checked.failure();
         }
-        PolicyBundle bundle = FactionSearchBundle.of(named);
+        PolicyBundle bundle = FactionSearchBundle.of(checked.named());
         return new PolicyVerification(
                 bundle.artifactDigest().equals(artifactDigest)
                         ? PolicyReferenceVerdict.VALID
                         : PolicyReferenceVerdict.DIGEST_MISMATCH,
                 null);
+    }
+
+    /** The parameters as integers, or the first refusal: the one place a value is checked and then narrowed. */
+    private record Checked(Map<String, Integer> named, PolicyVerification failure) {}
+
+    private static Checked check(Map<String, Object> parameters) {
+        var named = new HashMap<String, Integer>();
+        for (var entry : parameters.entrySet()) {
+            var spec = SearchParameters.spec(entry.getKey());
+            if (spec.isEmpty()) {
+                return new Checked(
+                        named, new PolicyVerification(PolicyReferenceVerdict.UNKNOWN_PARAMETER, entry.getKey()));
+            }
+            // The value is checked as given: narrowing a long first could fold an out-of-range value onto a valid one.
+            if (!(entry.getValue() instanceof Integer || entry.getValue() instanceof Long)
+                    || !fits(spec.get(), ((Number) entry.getValue()).longValue())) {
+                return new Checked(
+                        named, new PolicyVerification(PolicyReferenceVerdict.INVALID_PARAMETER_VALUE, entry.getKey()));
+            }
+            named.put(entry.getKey(), ((Number) entry.getValue()).intValue());
+        }
+        return new Checked(named, null);
     }
 
     private static boolean fits(SearchParameters.Spec spec, long value) {

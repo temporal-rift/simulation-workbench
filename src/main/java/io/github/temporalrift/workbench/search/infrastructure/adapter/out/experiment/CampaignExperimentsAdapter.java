@@ -462,17 +462,22 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
         var space = policySpace(definition)
                 .orElseThrow(() -> new CampaignPlayRefusedException("The policy parameter space is not served"));
         return overrides -> {
-            var parameters = new java.util.TreeMap<String, Integer>();
+            var parameters = new java.util.LinkedHashMap<String, Object>();
             var kept = new java.util.TreeMap<String, ParameterValue>();
-            overrides.forEach((key, value) -> {
-                var parameter = space.parameters().get(key);
-                var number = value.json().asInt();
-                if (parameter != null && number != parameter.defaultValue()) {
-                    parameters.put(key, number);
-                    kept.put(key, value);
+            for (var entry : overrides.entrySet()) {
+                var parameter = space.parameters().get(entry.getKey());
+                var json = entry.getValue().json();
+                // A parameter of the space with a whole number, as given: nothing is truncated or dropped silently.
+                if (parameter == null || !json.isIntegralNumber() || !json.canConvertToLong()) {
+                    return Optional.empty();
                 }
-            });
-            return catalog.artifactDigest(SEARCH_ID, SEARCH_VERSION, new java.util.LinkedHashMap<>(parameters))
+                var number = json.asLong();
+                if (number != parameter.defaultValue()) {
+                    parameters.put(entry.getKey(), number);
+                    kept.put(entry.getKey(), entry.getValue());
+                }
+            }
+            return catalog.artifactDigest(SEARCH_ID, SEARCH_VERSION, parameters)
                     .map(digest -> new CandidateValidation.Validated(digest, kept));
         };
     }

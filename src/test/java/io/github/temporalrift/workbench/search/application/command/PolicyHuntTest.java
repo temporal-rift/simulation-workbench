@@ -259,4 +259,17 @@ class PolicyHuntTest {
         assertThat(failed.failure().code()).isEqualTo("CONFIRMATION_EVALUATION_FAILED");
         assertThat(failed.hunt().classification()).isEqualTo(HuntReport.Classification.NOT_CONFIRMED);
     }
+
+    @Test
+    void aWaveWhereNoCandidateHasAllItsGamesFailsInsteadOfReportingNoExploit() {
+        var id = create();
+        missingGames = table -> 1;
+
+        drive(id);
+
+        var failed = campaign(id);
+        assertThat(failed.state()).isEqualTo(CampaignState.FAILED);
+        assertThat(failed.failure().code()).isEqualTo("EVALUATION_FAILED");
+        assertThat(failed.hunt()).isNull();
+    }
 }

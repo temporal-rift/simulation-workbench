@@ -267,4 +267,19 @@ class HuntFreezeTest {
                 new TreeMap<>(java.util.Map.of("simulation-control-api", "2.3.0")),
                 1);
     }
+
+    @Test
+    void anOverrideThatIsNotAWholeNumberOfTheSpaceMakesNoCandidate() {
+        var validation = adapter.validation(definition(Faction.WEAVERS, 5));
+        var fractional = new TreeMap<String, ParameterValue>();
+        fractional.put(SCAN, ParameterValue.of(new BigDecimal("7.5")));
+        var unknown = new TreeMap<String, ParameterValue>();
+        unknown.put("affinity.card.WEAVERS.NOPE", ParameterValue.of(BigDecimal.ONE));
+        var outOfRange = new TreeMap<String, ParameterValue>();
+        outOfRange.put(SCAN, ParameterValue.of(BigDecimal.valueOf(4_294_967_296L + 1)));
+
+        assertThat(validation.validate(fractional)).isEmpty();
+        assertThat(validation.validate(unknown)).isEmpty();
+        assertThat(validation.validate(outOfRange)).isEmpty();
+    }
 }

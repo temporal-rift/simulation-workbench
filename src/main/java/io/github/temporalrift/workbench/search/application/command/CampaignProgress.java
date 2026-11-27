@@ -341,6 +341,13 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
         var seeds = seeds(campaign).gameSeeds(definition.seedsInRound(round));
         var assessments = assess(step, ledger, seeds);
         if (definition.isHunt()) {
+            if (assessments.stream().allMatch(assessment -> assessment.verdict() == Assessment.Verdict.INVALID)) {
+                // Nothing was measured: reading that as a cell without a flag would report evidence there is not.
+                return fail(
+                        step,
+                        EVALUATION_FAILED,
+                        "No candidate of round " + round + " played a complete set of games, so none can be ranked");
+            }
             return decideHunt(step, ledger, assessments);
         }
         var outcome = RoundDecider.decide(assessments, algorithm, round, ledger.nextSequence());
