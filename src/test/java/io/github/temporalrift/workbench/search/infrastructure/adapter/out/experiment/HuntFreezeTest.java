@@ -196,6 +196,27 @@ class HuntFreezeTest {
         assertThat(manifest.path("seeds").valueStream().map(JsonNode::asString)).containsExactly("21", "22");
     }
 
+    @Test
+    void theFrozenWaveIsAManifestTheExperimentValidatorAccepts() {
+        adapter.freeze(
+                UUID.randomUUID(),
+                definition(Faction.WEAVERS, 5),
+                0,
+                List.of(candidate("c-0001", SCAN, 8), candidate("c-0002", TRACE, 7)),
+                List.of("11", "12"),
+                List.of());
+
+        var view = io.github.temporalrift.workbench.experiment.domain.ExperimentValidator.validate(
+                frozen(),
+                new io.github.temporalrift.workbench.experiment.infrastructure.adapter.out.policy
+                        .PolicyReferenceVerifierAdapter(new BaselinePolicyCatalog()));
+
+        assertThat(view.tables()).hasSize(2);
+        assertThat(view.tables().get(0).seats())
+                .doesNotContainAnyElementsOf(view.tables().get(1).seats());
+        assertThat(view.tables().get(0).uniform()).isTrue();
+    }
+
     private JsonNode frozen() {
         var manifest = ArgumentCaptor.forClass(JsonNode.class);
         verify(experiments).freeze(any(), manifest.capture());
@@ -240,10 +261,10 @@ class HuntFreezeTest {
                 new LaneBundle.Artifact("c".repeat(64), "content"),
                 "d".repeat(64),
                 "c".repeat(64),
-                new LaneBundle.ServiceBuild("sha256:game", "game"),
-                new LaneBundle.ServiceBuild("sha256:timeline", "timeline"),
-                new LaneBundle.ServiceBuild("sha256:read", "read"),
-                new TreeMap<>(),
+                new LaneBundle.ServiceBuild("sha256:" + "a".repeat(64), "a".repeat(40)),
+                new LaneBundle.ServiceBuild("sha256:" + "b".repeat(64), "b".repeat(40)),
+                new LaneBundle.ServiceBuild("sha256:" + "c".repeat(64), "c".repeat(40)),
+                new TreeMap<>(java.util.Map.of("simulation-control-api", "2.3.0")),
                 1);
     }
 }
