@@ -44,9 +44,15 @@ final class FakeServiceJars {
         return jar;
     }
 
+    private static final long FIXED_ENTRY_TIME_MILLIS = 0L;
+
     private static void put(JarOutputStream out, String entry, String content) {
         try {
-            out.putNextEntry(new JarEntry(entry));
+            // Fixed timestamps: identical content must yield identical bytes, so digest assertions do not
+            // depend on whether two writes fall inside the same two-second DOS timestamp window.
+            var jarEntry = new JarEntry(entry);
+            jarEntry.setTime(FIXED_ENTRY_TIME_MILLIS);
+            out.putNextEntry(jarEntry);
             out.write(content.getBytes(StandardCharsets.UTF_8));
             out.closeEntry();
         } catch (IOException e) {
