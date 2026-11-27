@@ -7,14 +7,19 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 import io.github.temporalrift.workbench.search.application.port.in.CreateCampaignUseCase;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignKind;
 import io.github.temporalrift.workbench.search.domain.campaign.Confirmation;
 import io.github.temporalrift.workbench.search.domain.log.LogEntry;
 import io.github.temporalrift.workbench.shared.Page;
+import io.github.temporalrift.workbench.shared.game.Faction;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.OverrideValues;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Campaign;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CampaignBaseline;
@@ -22,7 +27,6 @@ import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CampaignDefinition;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CampaignEvaluation;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CampaignFailure;
-import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CampaignKind;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CampaignList;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CampaignLogDecision;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CampaignLogEntry;
@@ -32,6 +36,11 @@ import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CampaignState;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ConfirmationRun;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.EvaluationVerdict;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.HuntClassification;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.HuntConfirmation;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.HuntInterval;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.HuntReport;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.HuntScreening;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.PolicyBundleReference;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.SearchAlgorithm;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.SearchAlgorithmRequest;
@@ -48,7 +57,7 @@ class CampaignApiMapper {
         this.mapper = mapper;
     }
 
-    CreateCampaignUseCase.Command toCommand(java.util.UUID idempotencyKey, CampaignDefinition definition) {
+    CreateCampaignUseCase.Command toCommand(UUID idempotencyKey, CampaignDefinition definition) {
         var playerCounts = definition.getPlayerCounts().stream()
                 .map(CampaignDefinition.PlayerCountsEnum::getValue)
                 .sorted()
@@ -65,7 +74,14 @@ class CampaignApiMapper {
                 definition.getParallelism(),
                 definition.getSearchMasterSeed(),
                 definition.getConfirmationMasterSeed(),
-                searchAlgorithm(algorithm));
+                searchAlgorithm(algorithm),
+                definition.getKind() == null
+                        ? null
+                        : CampaignKind.valueOf(definition.getKind().name()),
+                definition.getFaction() == null
+                        ? null
+                        : Faction.valueOf(definition.getFaction().name()),
+                definition.getPolicyParameterSpaceVersion());
     }
 
     private static CreateCampaignUseCase.AlgorithmRequest searchAlgorithm(SearchAlgorithmRequest algorithm) {
@@ -113,9 +129,46 @@ class CampaignApiMapper {
                         utc(campaign.createdAt()),
                         utc(campaign.startedAt()),
                         utc(campaign.finishedAt()))
-                // The service runs configuration searches only; the contract reads an absent kind the same way, but
-                // the campaign representation keeps every field, so a null kind would be written out and refused.
-                .kind(CampaignKind.RULES_SEARCH);
+                // The representation keeps every field, so a campaign always names its kind.
+                .kind(
+                        io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CampaignKind
+                                .valueOf(definition.kind().name()))
+                .faction(
+                        definition.faction() == null
+                                ? null
+                                : io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model
+                                        .Faction.fromValue(definition.faction().name()))
+                .policyParameterSpaceVersion(definition.policyParameterSpaceVersion())
+                .huntReport(huntReport(campaign.hunt()));
+    }
+
+    private static HuntReport huntReport(io.github.temporalrift.workbench.search.domain.campaign.HuntReport report) {
+        if (report == null) {
+            return null;
+        }
+        var screening = report.screening();
+        var confirmation = report.confirmation();
+        return new HuntReport(
+                io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Faction.fromValue(
+                        report.faction().name()),
+                HuntReport.PlayerCountEnum.fromValue(report.playerCount()),
+                new HuntScreening(
+                        screening.candidates(),
+                        BigDecimal.valueOf(screening.screeningRatioOfBest()),
+                        BigDecimal.valueOf(screening.noise()),
+                        BigDecimal.valueOf(screening.shareAboveFlagLine())),
+                HuntClassification.valueOf(report.classification().name()),
+                confirmation == null
+                        ? null
+                        : new HuntConfirmation(
+                                BigDecimal.valueOf(confirmation.candidateRatio()),
+                                new HuntInterval(
+                                        BigDecimal.valueOf(confirmation.lower()),
+                                        BigDecimal.valueOf(confirmation.upper())),
+                                BigDecimal.valueOf(confirmation.standardRatio()),
+                                BigDecimal.valueOf(confirmation.normalRatio()),
+                                confirmation.parameters()),
+                report.limitations());
     }
 
     private static CampaignConfirmation confirmation(Confirmation confirmation) {
@@ -140,12 +193,12 @@ class CampaignApiMapper {
         return new CampaignEvaluation(EvaluationVerdict.valueOf(evaluation.verdict()), score, null);
     }
 
-    private List<PolicyBundleReference> policies(tools.jackson.databind.JsonNode node) {
+    private List<PolicyBundleReference> policies(JsonNode node) {
         var policies = new ArrayList<PolicyBundleReference>();
         node.forEach(policy -> {
             // A campaign stored before seat tables also carries the seat assignment of its policies, never played.
             var bundle = policy.deepCopy();
-            ((tools.jackson.databind.node.ObjectNode) bundle).remove("seatAssignment");
+            ((ObjectNode) bundle).remove("seatAssignment");
             policies.add(mapper.treeToValue(bundle, PolicyBundleReference.class));
         });
         return policies;

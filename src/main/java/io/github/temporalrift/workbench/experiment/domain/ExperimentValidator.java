@@ -5,9 +5,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -48,6 +50,7 @@ public final class ExperimentValidator {
     private static final String SEAT_INDEX_FIELD = "seatIndex";
     private static final String POLICY_ID_FIELD = "policyId";
     private static final String POLICY_VERSION_FIELD = "policyVersion";
+    private static final String POLICY_DIGEST_FIELD = "policyDigest";
     private static final List<String> SECRET_KEYS = List.of(
             "password",
             "passwd",
@@ -259,12 +262,12 @@ public final class ExperimentValidator {
             throw invalid(path + ".parameters", "policy parameters must be an object");
         }
         if (verifier != null) {
-            verifyReference(verifier, path, id, version, artifactDigest, parameters.size());
+            verifyReference(verifier, path, id, version, artifactDigest, parameterValues(parameters));
         }
         if (legacy) {
             validateSeatAssignment(policy.get("seatAssignment"), path + ".seatAssignment");
         }
-        return new PolicyRef(id, version);
+        return new PolicyRef(id, version, artifactDigest, integerParameters(parameters));
     }
 
     /** A schema-version-1 policy entry plays every seat, so it reads as one uniform table of that policy. */
@@ -335,14 +338,56 @@ public final class ExperimentValidator {
         return index.asInt();
     }
 
+    /**
+     * The policies entry a seat names: by id and version, and by artifact digest when it gives one. Two entries that
+     * share an id and version, such as two parameter sets of one bundle, are told apart only by the digest.
+     */
     private static PolicyRef seatPolicy(JsonNode seat, String seatPath, Set<PolicyRef> known) {
         var policyId = text(seat, POLICY_ID_FIELD);
         var policyVersion = text(seat, POLICY_VERSION_FIELD);
-        var policy = policyId == null || policyVersion == null ? null : new PolicyRef(policyId, policyVersion);
-        if (policy == null || !known.contains(policy)) {
+        var policyDigest = text(seat, POLICY_DIGEST_FIELD);
+        var matches = known.stream()
+                .filter(ref -> ref.id().equals(policyId)
+                        && ref.version().equals(policyVersion)
+                        && (policyDigest == null || ref.artifactDigest().equals(policyDigest)))
+                .toList();
+        if (policyId == null || policyVersion == null || matches.isEmpty()) {
             throw invalid(seatPath + "." + POLICY_ID_FIELD, "seat names no policies entry");
         }
-        return policy;
+        if (matches.size() > 1) {
+            throw invalid(
+                    seatPath + "." + POLICY_DIGEST_FIELD,
+                    "seat names more than one policies entry: give the policyDigest");
+        }
+        return matches.get(0);
+    }
+
+    /** The values of a policy entry's parameters: an integer where the number is whole, else its decimal. */
+    private static Map<String, Object> parameterValues(JsonNode parameters) {
+        var values = new LinkedHashMap<String, Object>();
+        parameters.properties().forEach(entry -> {
+            var value = entry.getValue();
+            values.put(
+                    entry.getKey(),
+                    value.isIntegralNumber() && value.canConvertToLong() ? (Object) value.asLong() : value.toString());
+        });
+        return values;
+    }
+
+    /** The whole-number parameters of an entry; the verifier refuses any other value of a bundle that declares them. */
+    private static Map<String, Integer> integerParameters(JsonNode parameters) {
+        var values = new TreeMap<String, Integer>();
+        parameters.properties().forEach(entry -> {
+            if (entry.getValue().isIntegralNumber() && entry.getValue().canConvertToInt()) {
+                values.put(entry.getKey(), entry.getValue().asInt());
+            }
+        });
+        return values;
+    }
+
+    /** How an error names a policy: {@code policy id@version}. */
+    private static String policyName(String id, String version) {
+        return "policy " + id + "@" + version;
     }
 
     private static void verifyReference(
@@ -351,18 +396,28 @@ public final class ExperimentValidator {
             String id,
             String version,
             String artifactDigest,
-            int parameterCount) {
-        switch (verifier.verify(id, version, artifactDigest, parameterCount)) {
+            Map<String, Object> parameters) {
+        var result = verifier.verify(id, version, artifactDigest, parameters);
+        switch (result.status()) {
             case VALID -> {
                 // The reference names a defined bundle; nothing to report.
             }
             case UNKNOWN_POLICY -> throw invalid(path + ".id", "unknown policy " + id + "@" + version);
             case UNSUPPORTED_PARAMETERS ->
-                throw invalid(path + ".parameters", "policy " + id + "@" + version + " accepts no parameters");
+                throw invalid(path + ".parameters", policyName(id, version) + " accepts no parameters");
+            case UNKNOWN_PARAMETER ->
+                throw invalid(
+                        path + ".parameters." + result.parameter(),
+                        policyName(id, version) + " declares no parameter " + result.parameter());
+            case INVALID_PARAMETER_VALUE ->
+                throw invalid(
+                        path + ".parameters." + result.parameter(),
+                        policyName(id, version) + " parameter " + result.parameter()
+                                + " must be an integer in its range and on its step");
             case DIGEST_MISMATCH ->
                 throw mismatch(
                         path + ".artifactDigest",
-                        "policy " + id + "@" + version + " artifactDigest does not match the defined bundle");
+                        policyName(id, version) + " artifactDigest does not match the defined bundle");
         }
     }
 
@@ -604,9 +659,23 @@ public final class ExperimentValidator {
             List<List<String>> factionSets) {}
 
     /** A policy bundle by id and version. */
-    public record PolicyRef(String id, String version) {
+    public record PolicyRef(String id, String version, String artifactDigest, Map<String, Integer> parameters) {
+
+        public PolicyRef {
+            parameters = parameters == null ? Map.of() : Map.copyOf(parameters);
+        }
+
+        public PolicyRef(String id, String version, String artifactDigest) {
+            this(id, version, artifactDigest, Map.of());
+        }
+
+        /** A reference that names no digest, for the baselines whose id and version already identify them. */
+        public PolicyRef(String id, String version) {
+            this(id, version, null);
+        }
+
         String key() {
-            return id + "@" + version;
+            return id + "@" + version + (artifactDigest == null ? "" : "#" + artifactDigest.substring(0, 12));
         }
     }
 

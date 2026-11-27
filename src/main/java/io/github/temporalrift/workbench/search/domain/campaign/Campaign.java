@@ -29,7 +29,38 @@ public record Campaign(
         CampaignFailure failure,
         Instant createdAt,
         Instant startedAt,
-        Instant finishedAt) {
+        Instant finishedAt,
+        HuntReport hunt) {
+
+    /** A campaign with no hunt report: every rules search, and a hunt until it has one. */
+    public Campaign(
+            UUID campaignId,
+            CampaignDefinition definition,
+            int parallelism,
+            CampaignState state,
+            long spentSeconds,
+            int round,
+            List<String> shortList,
+            Confirmation confirmation,
+            CampaignFailure failure,
+            Instant createdAt,
+            Instant startedAt,
+            Instant finishedAt) {
+        this(
+                campaignId,
+                definition,
+                parallelism,
+                state,
+                spentSeconds,
+                round,
+                shortList,
+                confirmation,
+                failure,
+                createdAt,
+                startedAt,
+                finishedAt,
+                null);
+    }
 
     public Campaign {
         Objects.requireNonNull(campaignId, "campaignId");
@@ -55,6 +86,7 @@ public record Campaign(
                 null,
                 null,
                 now,
+                null,
                 null,
                 null);
     }
@@ -114,7 +146,8 @@ public record Campaign(
                 failure,
                 createdAt,
                 startedAt,
-                finishedAt);
+                finishedAt,
+                hunt);
     }
 
     /**
@@ -151,7 +184,8 @@ public record Campaign(
                 failure,
                 createdAt,
                 startedAt,
-                finishedAt);
+                finishedAt,
+                hunt);
     }
 
     /** Moves on to the next round of a running search. */
@@ -171,7 +205,8 @@ public record Campaign(
                 failure,
                 createdAt,
                 startedAt,
-                finishedAt);
+                finishedAt,
+                hunt);
     }
 
     /** Ends the search of a running campaign with its short list. */
@@ -191,7 +226,8 @@ public record Campaign(
                 failure,
                 createdAt,
                 startedAt,
-                finishedAt);
+                finishedAt,
+                hunt);
     }
 
     /** Starts confirming a campaign whose search is complete. */
@@ -212,7 +248,8 @@ public record Campaign(
                 failure,
                 createdAt,
                 startedAt,
-                finishedAt);
+                finishedAt,
+                hunt);
     }
 
     /** Ends a confirming campaign with the evaluation of every confirmation run. */
@@ -236,7 +273,73 @@ public record Campaign(
                 failure,
                 createdAt,
                 startedAt,
-                now);
+                now,
+                hunt);
+    }
+
+    /**
+     * Ends a running hunt whose best candidate did not pass the screening gate: nothing is confirmed and the report
+     * says so.
+     */
+    public Campaign completeHuntWithoutConfirmation(List<String> shortListed, HuntReport report, Instant now) {
+        if (state != CampaignState.RUNNING || !definition.isHunt()) {
+            throw new InvalidCampaignStateException("completeHuntWithoutConfirmation", state);
+        }
+        Objects.requireNonNull(report, "report");
+        return new Campaign(
+                campaignId,
+                definition,
+                parallelism,
+                CampaignState.COMPLETED,
+                spentSeconds,
+                round,
+                shortListed,
+                confirmation,
+                failure,
+                createdAt,
+                startedAt,
+                now,
+                report);
+    }
+
+    /** Records what the search of a hunt measured, with nothing confirmed yet. */
+    public Campaign withHuntReport(HuntReport report) {
+        return new Campaign(
+                campaignId,
+                definition,
+                parallelism,
+                state,
+                spentSeconds,
+                round,
+                shortList,
+                confirmation,
+                failure,
+                createdAt,
+                startedAt,
+                finishedAt,
+                report);
+    }
+
+    /** Ends a confirming hunt with its final report. */
+    public Campaign completeHuntConfirmation(Confirmation played, HuntReport report, Instant now) {
+        if (state != CampaignState.CONFIRMING || !definition.isHunt()) {
+            throw new InvalidCampaignStateException("completeHuntConfirmation", state);
+        }
+        Objects.requireNonNull(report, "report");
+        return new Campaign(
+                campaignId,
+                definition,
+                parallelism,
+                CampaignState.COMPLETED,
+                spentSeconds,
+                round,
+                shortList,
+                played,
+                failure,
+                createdAt,
+                startedAt,
+                now,
+                report);
     }
 
     /** Stops a campaign that is not over because of an error. */
@@ -260,6 +363,7 @@ public record Campaign(
                 reason,
                 createdAt,
                 started,
-                finished);
+                finished,
+                hunt);
     }
 }

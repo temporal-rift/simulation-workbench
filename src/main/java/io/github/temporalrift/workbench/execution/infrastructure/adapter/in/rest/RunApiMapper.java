@@ -65,10 +65,11 @@ final class RunApiMapper {
                 ModelCase.PlayerCountEnum.fromValue(logicalCase.playerCount()),
                 logicalCase.seats().stream()
                         .map(seat -> new SeatAssignment(
-                                seat.seatIndex(),
-                                Faction.fromValue(seat.faction().name()),
-                                seat.policyId(),
-                                seat.policyVersion()))
+                                        seat.seatIndex(),
+                                        Faction.fromValue(seat.faction().name()),
+                                        seat.policyId(),
+                                        seat.policyVersion())
+                                .policyDigest(seat.policyDigest()))
                         .toList(),
                 CaseState.valueOf(logicalCase.state().name()),
                 view.attempts().stream().map(RunApiMapper::attempt).toList(),

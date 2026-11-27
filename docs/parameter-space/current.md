@@ -53,3 +53,12 @@ constraint is as in revision 2, and a campaign search treats the new key as one 
 document without the key is named by the baseline check at startup, as for any new key. As with revision 2, there is
 one served space: experiments and campaigns stored on revision 2 can no longer be replayed; their results stay as
 files.
+
+## The policy parameter space
+
+The parameters of the parameterized bundle `faction-search` are served separately, as the **policy parameter space**
+(`GET /api/v1/policy-parameter-spaces`), version 1: each parameter's default, range and step (see
+[bot policies](../bot-policies.md)) and, for each faction, the **searched subset** a hunt of that faction varies: 12 to 16
+parameters, always including the preferences for Scan, Intercept, Decoy, Trace and Obscure, plus the faction's own
+specials, the shifters it supports its bet with and its own thresholds. Every other parameter stays at its
+`faction-spread` default; a Weavers hunt, for example, does not search the preference for Seal.

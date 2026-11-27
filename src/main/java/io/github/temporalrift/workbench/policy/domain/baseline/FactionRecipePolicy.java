@@ -41,8 +41,10 @@ final class FactionRecipePolicy implements BotPolicy {
     static final int PROTECT_AFFINITY = 7;
     static final int GUARD_AFFINITY = 6;
     static final int COUNTER_AFFINITY = 5;
+    static final int TAPESTRY_LINKS = 2;
 
     private final boolean avoidsPublicLink;
+    private final SearchParameters params;
 
     FactionRecipePolicy() {
         this(false);
@@ -54,12 +56,18 @@ final class FactionRecipePolicy implements BotPolicy {
      *     {@link #DECLARED_BY_OTHER_PENALTY} lower
      */
     FactionRecipePolicy(boolean avoidsPublicLink) {
+        this(avoidsPublicLink, SearchParameters.DEFAULTS);
+    }
+
+    /** As {@link #FactionRecipePolicy(boolean)}, with the preferences and thresholds the parameters name. */
+    FactionRecipePolicy(boolean avoidsPublicLink, SearchParameters params) {
         this.avoidsPublicLink = avoidsPublicLink;
+        this.params = params;
     }
 
     @Override
     public PolicyDecision decide(EntitledObservation observation, Set<Candidate> excluded, PolicyEntropy entropy) {
-        return decide(observation, excluded, entropy, FactionRecipePolicy::wasted);
+        return decide(observation, excluded, entropy, (candidate, reading) -> wasted(candidate, reading, params));
     }
 
     /**
@@ -107,6 +115,11 @@ final class FactionRecipePolicy implements BotPolicy {
 
     /** Whether the candidate is an action the seat can tell has no effect, or is not yet called for. */
     static boolean wasted(Candidate candidate, BoardReading reading) {
+        return wasted(candidate, reading, SearchParameters.DEFAULTS);
+    }
+
+    /** As {@link #wasted(Candidate, BoardReading)}, reading the links Tapestry waits for from the parameters. */
+    static boolean wasted(Candidate candidate, BoardReading reading, SearchParameters params) {
         if (!(candidate instanceof Candidate.PlaySpecial(var action, var target))) {
             return false;
         }
@@ -122,7 +135,7 @@ final class FactionRecipePolicy implements BotPolicy {
                         || outcomeOf(target).equals(reading.threadOutcome());
             case TAPESTRY ->
                 !reading.threaded()
-                        || reading.confirmedLinks() < 2
+                        || reading.confirmedLinks() < params.value(SearchParameters.TAPESTRY_LINKS)
                         || reading.tapestryArmed()
                         || !outcomeOf(target).equals(reading.threadOutcome());
             case FULFILLMENT -> !reading.isWritten(outcomeOf(target)) || reading.isFulfilledEvent(eventOf(target));
@@ -200,28 +213,26 @@ final class FactionRecipePolicy implements BotPolicy {
         return switch (candidate) {
             case Candidate.KeepHand(var cardInstanceIds) ->
                 cardInstanceIds.stream()
-                        .mapToLong(id -> (long) FactionPreferences.card(
-                                                faction, cards.get(id).type())
-                                        .affinity()
-                                * AFFINITY_SCALE)
+                        .mapToLong(id ->
+                                (long) params.card(faction, cards.get(id).type())
+                                                .affinity()
+                                        * AFFINITY_SCALE)
                         .sum();
             case Candidate.Declare(var mode, var eventId, var outcomeId) ->
                 DECLARATION_SCORE + (mode == DeclarationMode.MOMENTUM ? MOMENTUM_BONUS : 0) + reading.rank(outcomeId);
             case Candidate.PlayCard(var cardInstanceId, var target) -> {
-                var preference = FactionPreferences.card(
-                        faction, cards.get(cardInstanceId).type());
+                var preference = params.card(faction, cards.get(cardInstanceId).type());
                 yield preference.affinity() * (long) AFFINITY_SCALE
                         + lean(preference.bias(), target, reading)
                         + adjustment(destination(candidate, cards), reading);
             }
             case Candidate.PlayParadoxCard(var cardInstanceId, var target) -> {
-                var preference = FactionPreferences.card(
-                        faction, cards.get(cardInstanceId).type());
+                var preference = params.card(faction, cards.get(cardInstanceId).type());
                 yield preference.affinity() * (long) AFFINITY_SCALE + lean(preference.bias(), target, reading);
             }
             case Candidate.PlaySpecial(var action, var target) -> {
-                var preference = FactionPreferences.special(faction, action);
-                yield affinity(action, target, preference.affinity(), reading) * (long) AFFINITY_SCALE
+                var preference = params.special(faction, action);
+                yield affinity(action, target, preference.affinity(), reading, params) * (long) AFFINITY_SCALE
                         + lean(preference.bias(), target, reading)
                         + (action == SpecialAction.MIMIC ? adjustment(outcomeOf(target), reading) : 0);
             }
@@ -230,28 +241,34 @@ final class FactionRecipePolicy implements BotPolicy {
     }
 
     /** The counter's affinity when its trigger is present, else the faction's base affinity. */
-    private static int affinity(SpecialAction action, Target target, int base, BoardReading reading) {
+    private static int affinity(
+            SpecialAction action, Target target, int base, BoardReading reading, SearchParameters params) {
+        var protect = params.value(SearchParameters.PROTECT_AFFINITY);
+        var guard = params.value(SearchParameters.GUARD_AFFINITY);
+        var counter = params.value(SearchParameters.COUNTER_AFFINITY);
         return switch (action) {
-            case TAPESTRY -> PROTECT_AFFINITY;
-            case REWEAVE -> PROTECT_AFFINITY;
-            case FULFILLMENT -> reading.isHigh(outcomeOf(target)) ? PROTECT_AFFINITY : base;
-            case SEAL -> reading.isHigh(outcomeOf(target)) ? GUARD_AFFINITY : base;
-            case EXPOSE, CORRUPT -> COUNTER_AFFINITY;
-            case MIMIC -> reading.isLow(outcomeOf(target)) ? base : COUNTER_AFFINITY;
+            case TAPESTRY -> protect;
+            case REWEAVE -> protect;
+            case FULFILLMENT -> reading.isHigh(outcomeOf(target)) ? protect : base;
+            case SEAL -> reading.isHigh(outcomeOf(target)) ? guard : base;
+            case EXPOSE, CORRUPT -> counter;
+            case MIMIC -> reading.isLow(outcomeOf(target)) ? base : counter;
             default -> base;
         };
     }
 
     private int adjustment(UUID destination, BoardReading reading) {
+        var commitmentBonus = params.value(SearchParameters.COMMITMENT_BONUS);
+        var penalty = params.value(SearchParameters.DECLARED_BY_OTHER_PENALTY);
         if (destination == null) {
             return 0;
         }
         if (reading.isCommitment(destination)) {
-            return reading.isLow(destination) ? 0 : COMMITMENT_BONUS;
+            return reading.isLow(destination) ? 0 : commitmentBonus;
         }
         var fedByOthers =
                 reading.isDeclaredByOther(destination) || (avoidsPublicLink && reading.isPublicLink(destination));
-        return fedByOthers ? -DECLARED_BY_OTHER_PENALTY : 0;
+        return fedByOthers ? -penalty : 0;
     }
 
     private static int lean(Bias bias, Target target, BoardReading reading) {

@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Configuration;
 import tools.jackson.databind.ObjectMapper;
 
 import io.github.temporalrift.workbench.analysis.CandidateScreening;
+import io.github.temporalrift.workbench.analysis.HuntTallies;
 import io.github.temporalrift.workbench.analysis.RunConfirmation;
 import io.github.temporalrift.workbench.execution.LaneEnvironments;
 import io.github.temporalrift.workbench.execution.RunCatalog;
@@ -40,9 +41,11 @@ import io.github.temporalrift.workbench.search.domain.port.out.CampaignExperimen
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRepository;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignRuns;
 import io.github.temporalrift.workbench.search.domain.port.out.CandidateEvaluation;
+import io.github.temporalrift.workbench.search.domain.port.out.HuntObjective;
 import io.github.temporalrift.workbench.search.domain.port.out.MasterSeeds;
 import io.github.temporalrift.workbench.search.infrastructure.adapter.in.scheduler.CampaignWorker;
 import io.github.temporalrift.workbench.search.infrastructure.adapter.out.analysis.CandidateEvaluationAdapter;
+import io.github.temporalrift.workbench.search.infrastructure.adapter.out.analysis.HuntObjectiveAdapter;
 import io.github.temporalrift.workbench.search.infrastructure.adapter.out.defaults.RandomMasterSeeds;
 import io.github.temporalrift.workbench.search.infrastructure.adapter.out.defaults.ShippedCampaignDefaults;
 import io.github.temporalrift.workbench.search.infrastructure.adapter.out.execution.CampaignRunsAdapter;
@@ -73,14 +76,20 @@ public class SearchConfiguration {
     }
 
     @Bean
+    HuntObjective huntObjective(HuntTallies tallies) {
+        return new HuntObjectiveAdapter(tallies);
+    }
+
+    @Bean
     AdvanceCampaignsUseCase advanceCampaignsUseCase(
             CampaignRepository campaigns,
             CampaignExperiments experiments,
             CampaignRuns runs,
             CandidateEvaluation evaluation,
+            HuntObjective objective,
             SearchProperties properties,
             Clock clock) {
-        return new CampaignProgress(campaigns, experiments, runs, evaluation, properties.settings(), clock);
+        return new CampaignProgress(campaigns, experiments, runs, evaluation, objective, properties.settings(), clock);
     }
 
     @Bean

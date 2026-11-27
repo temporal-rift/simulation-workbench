@@ -50,5 +50,6 @@
     <include file="db/changelog/search/006-create-campaign-round.xml"/>
     <include file="db/changelog/search/007-add-campaign-confirmation.xml"/>
     <include file="db/changelog/search/008-create-campaign-command.xml"/>
+    <include file="db/changelog/search/009-add-campaign-hunt-report.xml"/>
 
 </databaseChangeLog>

@@ -3,13 +3,21 @@ package io.github.temporalrift.workbench.experiment.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Map;
+import java.util.function.Consumer;
+
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
 
 import io.github.temporalrift.workbench.experiment.ExperimentManifests;
 import io.github.temporalrift.workbench.experiment.domain.port.out.PolicyReferenceVerifier;
 import io.github.temporalrift.workbench.experiment.infrastructure.adapter.out.policy.PolicyReferenceVerifierAdapter;
 import io.github.temporalrift.workbench.policy.application.query.BaselinePolicyCatalog;
+import io.github.temporalrift.workbench.policy.domain.baseline.FactionSearchBundle;
+import io.github.temporalrift.workbench.policy.domain.baseline.SearchParameters;
+import io.github.temporalrift.workbench.shared.game.CardType;
+import io.github.temporalrift.workbench.shared.game.Faction;
 
 class ExperimentValidatorTest {
 
@@ -238,7 +246,7 @@ class ExperimentValidatorTest {
     private static final PolicyReferenceVerifier VERIFIER =
             new PolicyReferenceVerifierAdapter(new BaselinePolicyCatalog());
 
-    private static ObjectNode withFirstPolicy(java.util.function.Consumer<ObjectNode> edit) {
+    private static ObjectNode withFirstPolicy(Consumer<ObjectNode> edit) {
         var manifest = (ObjectNode) ExperimentManifests.valid().deepCopy();
         edit.accept(manifest.withArray("policies").get(0).asObject());
         return manifest;
@@ -312,5 +320,94 @@ class ExperimentValidatorTest {
                     .isInstanceOf(ExperimentValidationException.class)
                     .hasMessageContaining(field + " must be an integer from 1 to");
         }
+    }
+
+    private static ObjectNode searchEntry(Map<String, Integer> parameters, String digest) {
+        var mapper = JsonMapper.builder().build();
+        var entry = mapper.createObjectNode();
+        entry.put("id", "faction-search");
+        entry.put("version", "1.0.0");
+        entry.put("artifactDigest", digest);
+        var values = entry.putObject("parameters");
+        parameters.forEach(values::put);
+        return entry;
+    }
+
+    private static ObjectNode withSearchTable(ObjectNode first, ObjectNode second, boolean namesDigests) {
+        var manifest = (ObjectNode) ExperimentManifests.valid().deepCopy();
+        var policies = manifest.putArray("policies");
+        policies.add(ExperimentManifests.valid().get("policies").get(1));
+        policies.add(first);
+        policies.add(second);
+        var tables = manifest.putArray("tables");
+        var table = tables.addObject();
+        table.put("id", "hunt");
+        var seats = table.putArray("seats");
+        for (var seat = 0; seat < 5; seat++) {
+            var entry = seats.addObject();
+            entry.put("seatIndex", seat);
+            var policy = seat == 0 ? first : seat == 1 ? second : policies.get(0);
+            entry.put("policyId", policy.get("id").asString());
+            entry.put("policyVersion", policy.get("version").asString());
+            if (namesDigests) {
+                entry.put("policyDigest", policy.get("artifactDigest").asString());
+            }
+        }
+        return manifest;
+    }
+
+    private static final String SCAN = SearchParameters.cardKey(Faction.WEAVERS, CardType.SCAN);
+    private static final String TRACE = SearchParameters.cardKey(Faction.WEAVERS, CardType.TRACE);
+
+    @Test
+    void twoParameterSetsOfOneBundleAreTwoPolicies() {
+        var first = searchEntry(
+                Map.of(SCAN, 8), FactionSearchBundle.of(Map.of(SCAN, 8)).artifactDigest());
+        var second = searchEntry(
+                Map.of(TRACE, 7), FactionSearchBundle.of(Map.of(TRACE, 7)).artifactDigest());
+
+        var view = ExperimentValidator.validate(withSearchTable(first, second, true), VERIFIER);
+
+        assertThat(view.policies()).hasSize(3);
+        var seats = view.tables().get(0).seats();
+        assertThat(seats.get(0).artifactDigest())
+                .isEqualTo(FactionSearchBundle.of(Map.of(SCAN, 8)).artifactDigest());
+        assertThat(seats.get(1).artifactDigest())
+                .isEqualTo(FactionSearchBundle.of(Map.of(TRACE, 7)).artifactDigest());
+    }
+
+    @Test
+    void aSeatThatNamesNoDigestForSharedIdAndVersionIsInvalid() {
+        var first = searchEntry(
+                Map.of(SCAN, 8), FactionSearchBundle.of(Map.of(SCAN, 8)).artifactDigest());
+        var second = searchEntry(
+                Map.of(TRACE, 7), FactionSearchBundle.of(Map.of(TRACE, 7)).artifactDigest());
+        var manifest = withSearchTable(first, second, false);
+
+        assertThatThrownBy(() -> ExperimentValidator.validate(manifest, VERIFIER))
+                .isInstanceOf(ExperimentValidationException.class)
+                .matches(ex -> ((ExperimentValidationException) ex).code() == ExperimentErrorCode.INVALID_EXPERIMENT);
+    }
+
+    @Test
+    void anUnknownSearchParameterIsInvalidAndAStaleDigestIsAMismatch() {
+        var digest = FactionSearchBundle.defaults().artifactDigest();
+        var unknown = withSearchTable(
+                searchEntry(Map.of("nope", 1), digest),
+                searchEntry(
+                        Map.of(TRACE, 7),
+                        FactionSearchBundle.of(Map.of(TRACE, 7)).artifactDigest()),
+                true);
+        var stale = withSearchTable(
+                searchEntry(Map.of(SCAN, 8), digest),
+                searchEntry(
+                        Map.of(TRACE, 7),
+                        FactionSearchBundle.of(Map.of(TRACE, 7)).artifactDigest()),
+                true);
+
+        assertThatThrownBy(() -> ExperimentValidator.validate(unknown, VERIFIER))
+                .matches(ex -> ((ExperimentValidationException) ex).code() == ExperimentErrorCode.INVALID_EXPERIMENT);
+        assertThatThrownBy(() -> ExperimentValidator.validate(stale, VERIFIER))
+                .matches(ex -> ((ExperimentValidationException) ex).code() == ExperimentErrorCode.MANIFEST_MISMATCH);
     }
 }

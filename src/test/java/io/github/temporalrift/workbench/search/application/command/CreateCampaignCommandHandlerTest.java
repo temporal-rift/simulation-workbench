@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 import io.github.temporalrift.workbench.search.application.port.in.CreateCampaignUseCase;
@@ -24,7 +25,9 @@ import io.github.temporalrift.workbench.search.domain.campaign.CampaignChange;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignCommandKey;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignIdempotencyConflictException;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignKind;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
+import io.github.temporalrift.workbench.search.domain.campaign.HuntPlan;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignException;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignReason;
 import io.github.temporalrift.workbench.search.domain.campaign.SearchAlgorithm;
@@ -32,6 +35,7 @@ import io.github.temporalrift.workbench.search.domain.port.out.CampaignDefaults;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignExperiments;
 import io.github.temporalrift.workbench.search.domain.port.out.CandidateEvaluation;
 import io.github.temporalrift.workbench.search.domain.port.out.MasterSeeds;
+import io.github.temporalrift.workbench.shared.game.Faction;
 
 class CreateCampaignCommandHandlerTest {
 
@@ -314,6 +318,78 @@ class CreateCampaignCommandHandlerTest {
                         e -> assertThat(e.reason()).isEqualTo(InvalidCampaignReason.INVALID_VALUE));
     }
 
+    private static CreateCampaignUseCase.Command hunt(
+            Faction faction, List<Integer> playerCounts, CreateCampaignUseCase.AlgorithmRequest algorithm) {
+        return new CreateCampaignUseCase.Command(
+                UUID.randomUUID(),
+                "hunt",
+                baseline(),
+                null,
+                null,
+                null,
+                playerCounts,
+                null,
+                "7",
+                "9",
+                algorithm,
+                CampaignKind.POLICY_HUNT,
+                faction,
+                null);
+    }
+
+    @Test
+    void aHuntTakesTheHuntPlanAndTheNewestPolicyParameterSpace() {
+        when(experiments.newestPolicyParameterSpaceVersion()).thenReturn(3);
+
+        var campaign = create.handle(hunt(Faction.WEAVERS, List.of(5), null));
+
+        var definition = campaign.definition();
+        assertThat(definition.isHunt()).isTrue();
+        assertThat(definition.faction()).isEqualTo(Faction.WEAVERS);
+        assertThat(definition.policyParameterSpaceVersion()).isEqualTo(3);
+        assertThat(definition.algorithm()).isEqualTo(HuntPlan.algorithm(5));
+        assertThat(definition.algorithm().initialCandidates()).isEqualTo(64);
+        assertThat(definition.algorithm().eta()).isEqualTo(4);
+    }
+
+    @Test
+    void aHuntThatNamesNoFactionMoreThanOnePlayerCountOrAnAlgorithmIsRefused() {
+        assertThatThrownBy(() -> create.handle(hunt(null, List.of(5), null)))
+                .isInstanceOfSatisfying(
+                        InvalidCampaignException.class,
+                        e -> assertThat(e.field()).isEqualTo("faction"));
+        assertThatThrownBy(() -> create.handle(hunt(Faction.WEAVERS, List.of(4, 5), null)))
+                .isInstanceOfSatisfying(
+                        InvalidCampaignException.class,
+                        e -> assertThat(e.field()).isEqualTo("playerCounts"));
+        assertThatThrownBy(() -> create.handle(hunt(
+                        Faction.WEAVERS, List.of(5), new CreateCampaignUseCase.AlgorithmRequest(null, 8, 2, 2, 2))))
+                .isInstanceOfSatisfying(
+                        InvalidCampaignException.class,
+                        e -> assertThat(e.field()).isEqualTo("algorithm"));
+    }
+
+    @Test
+    void aRulesSearchThatNamesAFactionIsRefused() {
+        var command = new CreateCampaignUseCase.Command(
+                UUID.randomUUID(),
+                "search",
+                baseline(),
+                1,
+                1,
+                policies(),
+                List.of(3),
+                null,
+                "7",
+                "9",
+                null,
+                null,
+                Faction.WEAVERS,
+                null);
+
+        assertThatThrownBy(() -> create.handle(command)).isInstanceOf(InvalidCampaignException.class);
+    }
+
     private static CreateCampaignUseCase.Command command(UUID key, String searchSeed, String confirmationSeed) {
         return new CreateCampaignUseCase.Command(
                 key,
@@ -339,13 +415,13 @@ class CreateCampaignCommandHandlerTest {
                 key, "search", baseline(), null, null, policies(), List.of(3), null, null, null, algorithm);
     }
 
-    private static tools.jackson.databind.JsonNode baseline() {
+    private static JsonNode baseline() {
         var node = JsonMapper.builder().build().createObjectNode();
         node.putObject("rulesArtifact").put("digest", "d".repeat(64));
         return node;
     }
 
-    private static tools.jackson.databind.JsonNode policies() {
+    private static JsonNode policies() {
         var mapper = JsonMapper.builder().build();
         return mapper.createArrayNode().add(mapper.createObjectNode().put("id", "random"));
     }

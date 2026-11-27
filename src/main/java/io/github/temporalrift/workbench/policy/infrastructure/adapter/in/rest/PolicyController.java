@@ -23,7 +23,13 @@ class PolicyController implements PoliciesApi {
     public ResponseEntity<PolicyCatalog> listPolicies() {
         return ResponseEntity.ok(new PolicyCatalog(listPolicies.handle().stream()
                 .map(policy -> new PolicyBundle(
-                        policy.id(), policy.version(), policy.artifactDigest(), policy.description(), Map.of()))
+                                policy.id(), policy.version(), policy.artifactDigest(), policy.description(), Map.of())
+                        .parameterDefinitions(
+                                policy.parameterDefinitions().isEmpty()
+                                        ? null
+                                        : policy.parameterDefinitions().stream()
+                                                .map(PolicyParameterSpaceController::definition)
+                                                .toList()))
                 .toList()));
     }
 }

@@ -39,6 +39,7 @@ import {
   evaluationText,
 } from './campaignView'
 import { ConfirmationReport } from './ConfirmationReport'
+import { HuntReportSection } from './HuntReportSection'
 
 type Command = 'pause' | 'resume' | 'cancel' | 'confirm'
 
@@ -197,7 +198,7 @@ function CampaignDetail({ campaign, stale }: { readonly campaign: Campaign; read
         />
       )}
       {isTuneable(campaign.state) && <ParallelismControl campaign={campaign} />}
-      <ConfirmationReport campaign={campaign} />
+      {campaign.kind === 'POLICY_HUNT' ? <HuntReportSection campaign={campaign} /> : <ConfirmationReport campaign={campaign} />}
     </>
   )
 }

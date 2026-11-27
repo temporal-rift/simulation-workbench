@@ -1,5 +1,6 @@
 package io.github.temporalrift.workbench.execution.infrastructure.adapter.out.policy;
 
+import java.util.Map;
 import java.util.Optional;
 
 import io.github.temporalrift.workbench.execution.domain.port.out.DecisionRuntime;
@@ -20,6 +21,11 @@ public class DecisionRuntimeAdapter implements DecisionRuntime {
     @Override
     public Optional<BotPolicy> policy(String id, String version) {
         return runtime.policy(id, version);
+    }
+
+    @Override
+    public Optional<BotPolicy> policy(String id, String version, Map<String, Integer> parameters) {
+        return runtime.policy(id, version, parameters);
     }
 
     @Override

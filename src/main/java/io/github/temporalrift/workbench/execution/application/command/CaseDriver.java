@@ -227,7 +227,7 @@ public final class CaseDriver {
         var seats = new ArrayList<SeatPolicy>();
         for (var plan : logicalCase.seats()) {
             var policy = decisions
-                    .policy(plan.policyId(), plan.policyVersion())
+                    .policy(plan.policyId(), plan.policyVersion(), plan.policyParameters())
                     .orElseThrow(() -> new AttemptFailedException(
                             FailureCode.CONTRACT_MISMATCH,
                             "Policy " + plan.policyId() + "@" + plan.policyVersion() + " is not defined"));

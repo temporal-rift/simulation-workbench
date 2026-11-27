@@ -6,6 +6,8 @@ import java.util.UUID;
 import tools.jackson.databind.JsonNode;
 
 import io.github.temporalrift.workbench.search.domain.campaign.Campaign;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignKind;
+import io.github.temporalrift.workbench.shared.game.Faction;
 
 public interface CreateCampaignUseCase {
 
@@ -30,6 +32,9 @@ public interface CreateCampaignUseCase {
      * @param searchMasterSeed the seed that derives every search seed, or null for a random one
      * @param confirmationMasterSeed the seed that derives every confirmation seed, or null for a random one
      * @param algorithm the search parameters the designer sets, or null for the approved record's
+     * @param kind what the campaign searches, or null for the rules
+     * @param faction the hunted faction of a policy hunt, otherwise null
+     * @param policyParameterSpaceVersion the policy parameter space a hunt searches, or null for the newest
      */
     record Command(
             UUID idempotencyKey,
@@ -42,7 +47,41 @@ public interface CreateCampaignUseCase {
             Integer parallelism,
             String searchMasterSeed,
             String confirmationMasterSeed,
-            AlgorithmRequest algorithm) {}
+            AlgorithmRequest algorithm,
+            CampaignKind kind,
+            Faction faction,
+            Integer policyParameterSpaceVersion) {
+
+        /** A request for a rules search. */
+        public Command(
+                UUID idempotencyKey,
+                String name,
+                JsonNode baseline,
+                Integer parameterSpaceVersion,
+                Integer criterionVersion,
+                JsonNode policies,
+                List<Integer> playerCounts,
+                Integer parallelism,
+                String searchMasterSeed,
+                String confirmationMasterSeed,
+                AlgorithmRequest algorithm) {
+            this(
+                    idempotencyKey,
+                    name,
+                    baseline,
+                    parameterSpaceVersion,
+                    criterionVersion,
+                    policies,
+                    playerCounts,
+                    parallelism,
+                    searchMasterSeed,
+                    confirmationMasterSeed,
+                    algorithm,
+                    null,
+                    null,
+                    null);
+        }
+    }
 
     /**
      * The search parameters a request sets; each null one takes the approved record's value.

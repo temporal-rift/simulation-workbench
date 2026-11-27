@@ -136,3 +136,42 @@ resubmission is reported as `NotAccepted`. Either way the results of the other s
 **Limitations.** Neither policy models authoritative resolution, scoring, or opponents, and terminal readiness has
 no dedicated participant operation in the pinned contracts, so the gateway maps it to the runner's continuation
 signal. Bot results characterize these baselines only and do not establish human balance.
+
+## `faction-search`: a parameterized policy
+
+`faction-search` 1.0.0 is `faction-spread` whose preferences, leans, thresholds and spread behaviors are parameters, so a
+seat can play a strategy the standard bots never play. It serves two uses: finding a faction's best response (see
+[search campaigns](search-campaigns.md)) and seating several fixed play styles at one table in an ordinary experiment.
+
+**Parameters.** Every parameter is an integer on a declared grid (`GET /api/v1/policies` lists each one with its default,
+range and step, and `GET /api/v1/policy-parameter-spaces` serves the space). A parameter left out reads as its default,
+which is the value `faction-spread` holds, so a manifest that names none plays exactly as `faction-spread` does, decision
+for decision and in the use of its entropy.
+
+| Key | Meaning | Range |
+|---|---|---|
+| `affinity.card.<FACTION>.<CARD>` | How strongly the faction favors playing that card type | 0 to 8 |
+| `affinity.special.<FACTION>.<ACTION>` | How strongly the faction favors that special action | 0 to 8 |
+| `lean.support.<FACTION>` | The end of the known outcome weights Push and Swing aim at: 0 leading, 1 trailing, 2 neutral | 0 to 2 |
+| `lean.suppress.<FACTION>` | The same for Suppress | 0 to 2 |
+| `threshold.chainThreatLinks.<FACTION>` | Confirmed links from which the faction contests a Weaver chain | 1 to 4 |
+| `threshold.tapestryLinks.<FACTION>` | Confirmed links a Weaver waits for before Tapestry | 1 to 4 |
+| `threshold.stakeValue.<FACTION>` | What a commitment is worth when it chooses paradox cards | 0 to 8 |
+| `threshold.commitmentBonus.<FACTION>`, `threshold.declaredByOtherPenalty.<FACTION>` | The bonus for backing its own commitment and the penalty for feeding another seat's declared outcome | 0 to 600 in steps of 100 |
+| `threshold.protectAffinity.<FACTION>`, `threshold.guardAffinity.<FACTION>`, `threshold.counterAffinity.<FACTION>` | The affinity of protecting, guarding and countering plays when their trigger is present | 0 to 9 |
+| `threshold.chainBreakMargin.<FACTION>` | Links short of completion at which a seat other than the Weaver's tears a Chain Conflict | 0 to 3 |
+| `spread.betSpreading.<FACTION>`, `spread.contestChain.<FACTION>`, `spread.avoidPublicLink.<FACTION>`, `spread.detonate.<FACTION>` | Switches (0 or 1): spreading bets over events, contesting a leading chain, not feeding the public link, breaking a chain or finishing a collapse by Detonate | 0 to 1 |
+| `spread.runnerUpPercent.<FACTION>` | How often the Prophet writes the runner-up (the default 50 is the single coin `faction-spread` draws) | 0 to 100 in steps of 25 |
+
+Every parameter acts only on the seat that plays its faction, so one parameter set at a table changes the play of one
+faction and leaves the others as `faction-spread` plays them.
+
+**Identity.** The artifact digest of an entry hashes the bundle id, version, behavior revision and the parameters that
+differ from their defaults, so two manifests that name the same values name the same digest, and a digest that does not
+follow the parameters is refused with `MANIFEST_MISMATCH`. A manifest names the bundle once for each parameter set, and a
+table seat that shares an id and version with another entry names the entry by `policyDigest`. A parameter outside the
+schema, or a value outside its range or off its step, is refused with `INVALID_EXPERIMENT`; the baselines still accept no
+parameter. A run's cases and reports carry the digest, so the cohorts of a table that seats several sets tell them apart.
+
+**Limitations.** Results of bots that play `faction-search` characterize bot strategies only and say nothing about
+balance among human players.

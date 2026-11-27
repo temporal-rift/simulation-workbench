@@ -60,7 +60,12 @@ public class ExperimentCatalogQueryHandler implements ExperimentCatalog {
                 coordinate.playerCount(),
                 coordinate.seats().stream()
                         .map(seat -> new ExperimentSeat(
-                                seat.seatIndex(), seat.faction(), seat.policyId(), seat.policyVersion()))
+                                seat.seatIndex(),
+                                seat.faction(),
+                                seat.policyId(),
+                                seat.policyVersion(),
+                                seat.policyDigest(),
+                                seat.policyParameters()))
                         .toList());
     }
 }

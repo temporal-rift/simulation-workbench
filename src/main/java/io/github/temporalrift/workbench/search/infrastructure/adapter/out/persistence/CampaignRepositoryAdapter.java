@@ -35,6 +35,7 @@ import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinitio
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignFailure;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
 import io.github.temporalrift.workbench.search.domain.campaign.Confirmation;
+import io.github.temporalrift.workbench.search.domain.campaign.HuntReport;
 import io.github.temporalrift.workbench.search.domain.campaign.StoredCampaign;
 import io.github.temporalrift.workbench.search.domain.candidate.Candidate;
 import io.github.temporalrift.workbench.search.domain.log.LogEntry;
@@ -78,6 +79,7 @@ class CampaignRepositoryAdapter implements CampaignRepository {
     private static final Field<Integer> ROUND = DSL.field(DSL.name("round"), SQLDataType.INTEGER);
     private static final Field<String> SHORT_LIST = DSL.field(DSL.name("short_list_json"), SQLDataType.CLOB);
     private static final Field<String> CONFIRMATION = DSL.field(DSL.name("confirmation_json"), SQLDataType.CLOB);
+    private static final Field<String> HUNT_REPORT = DSL.field(DSL.name("hunt_report_json"), SQLDataType.CLOB);
     private static final Field<String> FAILURE_CODE = DSL.field(DSL.name("failure_code"), SQLDataType.VARCHAR);
     private static final Field<String> FAILURE_MESSAGE = DSL.field(DSL.name("failure_message"), SQLDataType.CLOB);
     private static final Field<OffsetDateTime> ACCRUED =
@@ -243,6 +245,7 @@ class CampaignRepositoryAdapter implements CampaignRepository {
                         .set(ROUND, next.round())
                         .set(SHORT_LIST, json.write(next.shortList()))
                         .set(CONFIRMATION, next.confirmation() == null ? null : json.write(next.confirmation()))
+                        .set(HUNT_REPORT, next.hunt() == null ? null : json.write(next.hunt()))
                         .set(FAILURE_CODE, failure == null ? null : failure.code())
                         .set(FAILURE_MESSAGE, failure == null ? null : failure.message())
                         .set(ACCRUED, utc(accruedAt))
@@ -465,7 +468,8 @@ class CampaignRepositoryAdapter implements CampaignRepository {
                 code == null ? null : new CampaignFailure(code, row.get(FAILURE_MESSAGE)),
                 instant(row.get(CREATED)),
                 instant(row.get(STARTED)),
-                instant(row.get(FINISHED)));
+                instant(row.get(FINISHED)),
+                row.get(HUNT_REPORT) == null ? null : json.read(row.get(HUNT_REPORT), HuntReport.class));
         return new StoredCampaign(campaign, row.get(VERSION), instant(row.get(ACCRUED)));
     }
 
