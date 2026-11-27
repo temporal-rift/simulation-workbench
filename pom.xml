@@ -81,12 +81,16 @@
         <skipTests>false</skipTests>
         <!-- Two parallel integration test forks, each with its own Testcontainers and database; override per environment. -->
         <failsafe.forkCount>2</failsafe.forkCount>
+        <!-- Unit tests run in parallel forks; override per environment (e.g. -Dsurefire.forkCount=4 locally). -->
+        <surefire.forkCount>2</surefire.forkCount>
         <!-- JaCoCo sets argLine to its agent; empty when JaCoCo is skipped, so @{argLine} still resolves. -->
         <argLine/>
         <!--
             A stopped simulator slot's classes stay softly reachable from the framework's soft caches until memory
-            runs short. The tests that check a slot's class loaders are released must see them collected at the next
-            full collection, so test JVMs clear soft references at every collection.
+            runs short. The tests that check a slot's class loaders are released (SlotRuntimeTest,
+            SimulatorClassLoaderReleaseIT) must see them collected at the next full collection, so test JVMs
+            clear soft references at every collection. Measured GC cost is small versus the class-loader
+            tests failing without it.
         -->
         <test.jvm.flags>@{argLine} -XX:SoftRefLRUPolicyMSPerMB=0</test.jvm.flags>
     </properties>
@@ -292,6 +296,8 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
+                    <forkCount>${surefire.forkCount}</forkCount>
+                    <reuseForks>true</reuseForks>
                     <argLine>${test.jvm.flags}</argLine>
                 </configuration>
             </plugin>
@@ -300,6 +306,7 @@
                 <artifactId>maven-failsafe-plugin</artifactId>
                 <configuration>
                     <forkCount>${failsafe.forkCount}</forkCount>
+                    <reuseForks>true</reuseForks>
                     <argLine>${test.jvm.flags}</argLine>
                 </configuration>
                 <executions>
