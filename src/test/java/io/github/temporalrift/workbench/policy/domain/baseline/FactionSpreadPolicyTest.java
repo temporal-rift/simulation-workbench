@@ -270,6 +270,54 @@ class FactionSpreadPolicyTest {
     }
 
     @Test
+    void changingTheLeaderChangesSpreadButNotGreedyAtAnImminentCollapse() {
+        var leading = paradox(
+                Faction.REVISIONISTS,
+                null,
+                new Board.Scores(9, List.of(4, 7)),
+                Board.ParadoxKind.DEAD_HEAT,
+                4,
+                EVENT_1,
+                EVENT_3);
+        var trailing = paradox(
+                Faction.REVISIONISTS,
+                null,
+                new Board.Scores(5, List.of(4, 7)),
+                Board.ParadoxKind.DEAD_HEAT,
+                4,
+                EVENT_1,
+                EVENT_3);
+
+        assertThat(choose(spread, leading, 1)).isEqualTo(detonate(EVENT_2));
+        assertThat(choose(spread, trailing, 1)).isNotEqualTo(choose(spread, leading, 1));
+        assertThat(choose(greedy, trailing, 1)).isEqualTo(choose(greedy, leading, 1));
+    }
+
+    @Test
+    void aLeadingChainIsDetonatedRegardlessOfLeaderAtAnImminentCollapse() {
+        var leading = paradox(
+                Faction.ACTIVISTS,
+                chain(2),
+                new Board.Scores(9, List.of(4, 7)),
+                Board.ParadoxKind.CHAIN_CONFLICT,
+                4,
+                EVENT_1,
+                EVENT_3);
+        var trailing = paradox(
+                Faction.ACTIVISTS,
+                chain(2),
+                new Board.Scores(5, List.of(4, 7)),
+                Board.ParadoxKind.CHAIN_CONFLICT,
+                4,
+                EVENT_1,
+                EVENT_3);
+
+        assertThat(choose(spread, leading, 1)).isEqualTo(detonate(EVENT_2));
+        assertThat(choose(spread, trailing, 1)).isEqualTo(detonate(EVENT_2));
+        assertThat(choose(greedy, trailing, 1)).isEqualTo(choose(greedy, leading, 1));
+    }
+
+    @Test
     void theLeaderDoesNotDetonateWhenTheCollapseIsStillFar() {
         var scores = new Board.Scores(9, List.of(4, 7));
         var observation = paradox(Faction.REVISIONISTS, null, scores, Board.ParadoxKind.DEAD_HEAT, 4, EVENT_1);
