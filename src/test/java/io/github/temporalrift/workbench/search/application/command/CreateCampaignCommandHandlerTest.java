@@ -314,6 +314,85 @@ class CreateCampaignCommandHandlerTest {
                         e -> assertThat(e.reason()).isEqualTo(InvalidCampaignReason.INVALID_VALUE));
     }
 
+    private static CreateCampaignUseCase.Command hunt(
+            io.github.temporalrift.workbench.shared.game.Faction faction,
+            List<Integer> playerCounts,
+            CreateCampaignUseCase.AlgorithmRequest algorithm) {
+        return new CreateCampaignUseCase.Command(
+                UUID.randomUUID(),
+                "hunt",
+                baseline(),
+                null,
+                null,
+                null,
+                playerCounts,
+                null,
+                "7",
+                "9",
+                algorithm,
+                io.github.temporalrift.workbench.search.domain.campaign.CampaignKind.POLICY_HUNT,
+                faction,
+                null);
+    }
+
+    @Test
+    void aHuntTakesTheHuntPlanAndTheNewestPolicyParameterSpace() {
+        when(experiments.newestPolicyParameterSpaceVersion()).thenReturn(3);
+
+        var campaign =
+                create.handle(hunt(io.github.temporalrift.workbench.shared.game.Faction.WEAVERS, List.of(5), null));
+
+        var definition = campaign.definition();
+        assertThat(definition.isHunt()).isTrue();
+        assertThat(definition.faction()).isEqualTo(io.github.temporalrift.workbench.shared.game.Faction.WEAVERS);
+        assertThat(definition.policyParameterSpaceVersion()).isEqualTo(3);
+        assertThat(definition.algorithm())
+                .isEqualTo(io.github.temporalrift.workbench.search.domain.campaign.HuntPlan.algorithm(5));
+        assertThat(definition.algorithm().initialCandidates()).isEqualTo(64);
+        assertThat(definition.algorithm().eta()).isEqualTo(4);
+    }
+
+    @Test
+    void aHuntThatNamesNoFactionMoreThanOnePlayerCountOrAnAlgorithmIsRefused() {
+        assertThatThrownBy(() -> create.handle(hunt(null, List.of(5), null)))
+                .isInstanceOfSatisfying(
+                        InvalidCampaignException.class,
+                        e -> assertThat(e.field()).isEqualTo("faction"));
+        assertThatThrownBy(() -> create.handle(
+                        hunt(io.github.temporalrift.workbench.shared.game.Faction.WEAVERS, List.of(4, 5), null)))
+                .isInstanceOfSatisfying(
+                        InvalidCampaignException.class,
+                        e -> assertThat(e.field()).isEqualTo("playerCounts"));
+        assertThatThrownBy(() -> create.handle(hunt(
+                        io.github.temporalrift.workbench.shared.game.Faction.WEAVERS,
+                        List.of(5),
+                        new CreateCampaignUseCase.AlgorithmRequest(null, 8, 2, 2, 2))))
+                .isInstanceOfSatisfying(
+                        InvalidCampaignException.class,
+                        e -> assertThat(e.field()).isEqualTo("algorithm"));
+    }
+
+    @Test
+    void aRulesSearchThatNamesAFactionIsRefused() {
+        var command = new CreateCampaignUseCase.Command(
+                UUID.randomUUID(),
+                "search",
+                baseline(),
+                1,
+                1,
+                policies(),
+                List.of(3),
+                null,
+                "7",
+                "9",
+                null,
+                null,
+                io.github.temporalrift.workbench.shared.game.Faction.WEAVERS,
+                null);
+
+        assertThatThrownBy(() -> create.handle(command)).isInstanceOf(InvalidCampaignException.class);
+    }
+
     private static CreateCampaignUseCase.Command command(UUID key, String searchSeed, String confirmationSeed) {
         return new CreateCampaignUseCase.Command(
                 key,

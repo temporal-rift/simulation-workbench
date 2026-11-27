@@ -150,6 +150,13 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
         return idempotencyKey;
     }
 
+    @Override
+    public synchronized UUID freezeHuntConfirmation(
+            UUID idempotencyKey, CampaignDefinition definition, Candidate candidate, List<String> seeds) {
+        experiments.putIfAbsent(idempotencyKey, new Experiment(-1, List.of(candidate.id()), seeds, List.of()));
+        return idempotencyKey;
+    }
+
     // --- runs ---
 
     private static final class Run {
