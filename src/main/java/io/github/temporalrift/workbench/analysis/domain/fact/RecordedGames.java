@@ -16,6 +16,9 @@ import io.github.temporalrift.workbench.analysis.domain.scoring.RecordedGame;
  */
 public final class RecordedGames {
 
+    /** The marker game-service records for a seat with no score decision in an era: no reason occurred. */
+    private static final String NO_SCORE_CHANGE = "NO_SCORE_CHANGE";
+
     private RecordedGames() {}
 
     /**
@@ -29,7 +32,9 @@ public final class RecordedGames {
             var seatEras = SeatEras.of(seat, analyzedCase.seatFactions().get(seat), gameRecord.events());
             var result = new ArrayList<RecordedGame.Era>();
             for (var era = 1; era <= eras; era++) {
-                var reasons = seatEras.reasons(era);
+                var reasons = seatEras.reasons(era).stream()
+                        .filter(reason -> !NO_SCORE_CHANGE.equals(reason))
+                        .toList();
                 for (var reason : reasons) {
                     if (!configuredReasons.contains(reason)) {
                         throw new InvalidScoringModelException(

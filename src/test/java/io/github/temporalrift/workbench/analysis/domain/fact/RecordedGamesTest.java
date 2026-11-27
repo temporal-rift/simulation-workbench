@@ -129,6 +129,14 @@ class RecordedGamesTest {
     }
 
     @Test
+    void theNoScoreChangeMarkerIsNotAReasonAndKeepsABetVoided() {
+        var game = read(TABLE, 1, thread(1), score(0, 1, "NO_SCORE_CHANGE", 0));
+
+        assertThat(game.seats().get(0).get(0).reasons()).isEmpty();
+        assertThat(game.seats().get(0).get(0).outcome()).isEqualTo(BetOutcome.VOIDED);
+    }
+
+    @Test
     void aReasonRecordedAfterTheLastPlayedEraIsNotRead() {
         var game = read(TABLE, 1, score(0, 2, "NOT_CONFIGURED_AT_ALL", 1));
 
