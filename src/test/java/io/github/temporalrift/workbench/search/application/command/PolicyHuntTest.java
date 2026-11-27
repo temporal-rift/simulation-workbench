@@ -36,12 +36,25 @@ class PolicyHuntTest {
     /** The win ratio of a table by its id, and the ratio of the standard table, scripted per test. */
     private ToDoubleFunction<String> ratios = table -> 1.0;
 
+    /** The games of a table a failed case left unplayed, scripted per test. */
+    private java.util.function.ToIntFunction<String> missingGames = table -> 0;
+
+    /**
+     * The games a table played: the seeds its run finished among those asked for, as the analysis counts them, so a
+     * candidate that played in several waves adds its waves up. A confirmation plays all its seeds on both tables.
+     */
     private final HuntObjective objective = (runId, tableId, faction, seeds) -> {
-        var games =
-                (seeds.isEmpty() ? HuntPlan.confirmationSeeds(PLAYERS) : seeds.size()) * HuntPlan.casesPerSeed(PLAYERS);
-        var wins = (int) Math.round(ratios.applyAsDouble(tableId) * games / PLAYERS);
-        var ratio = (double) wins / games * PLAYERS;
-        return new HuntObjective.Tally(PLAYERS, games, wins, ratio - 0.2, ratio + 0.2);
+        var confirmation = HuntPlan.CANDIDATE_TABLE.equals(tableId) || HuntPlan.STANDARD_TABLE.equals(tableId);
+        var playedSeeds = confirmation
+                ? HuntPlan.confirmationSeeds(PLAYERS)
+                : (int) play.finishedSeeds(runId, tableId).stream()
+                        .filter(seeds::contains)
+                        .count();
+        var planned = playedSeeds * HuntPlan.casesPerSeed(PLAYERS);
+        var wins = (int) Math.round(ratios.applyAsDouble(tableId) * planned / PLAYERS);
+        var games = Math.max(0, planned - missingGames.applyAsInt(tableId));
+        var ratio = games == 0 ? 0 : (double) wins / games * PLAYERS;
+        return new HuntObjective.Tally(PLAYERS, games, Math.min(wins, games), ratio - 0.2, ratio + 0.2);
     };
 
     private final CampaignProgress progress =
@@ -210,5 +223,39 @@ class PolicyHuntTest {
         drive(id);
 
         assertThat(campaign(id).hunt().classification()).isEqualTo(HuntReport.Classification.BALANCE_NOISE);
+    }
+
+    @Test
+    void aCandidateWithGamesMissingIsInvalidAndNeverFlagged() {
+        var id = create();
+        // c-0003 would be the best by far, but one of its games failed
+        ratios = table -> "c-0003".equals(table) ? 4.0 : 1.0;
+        missingGames = table -> "c-0003".equals(table) ? 1 : 0;
+
+        drive(id);
+
+        var log = campaigns.log(id, 5_000, 0).items();
+        assertThat(log)
+                .filteredOn(entry -> "c-0003".equals(entry.candidateId()) && entry.evaluation() != null)
+                .allSatisfy(entry -> assertThat(entry.evaluation().verdict()).isEqualTo("INVALID"));
+        assertThat(campaign(id).shortList()).doesNotContain("c-0003");
+        assertThat(campaign(id).state()).isEqualTo(CampaignState.COMPLETED);
+    }
+
+    @Test
+    void aConfirmationWithGamesMissingOnATableFailsInsteadOfClassifying() {
+        var id = create();
+        ratios = table ->
+                HuntPlan.CANDIDATE_TABLE.equals(table) ? 1.6 : HuntPlan.STANDARD_TABLE.equals(table) ? 1.0 : 1.4;
+        drive(id);
+        start.handle(id, UUID.randomUUID());
+        missingGames = table -> HuntPlan.STANDARD_TABLE.equals(table) ? 1 : 0;
+
+        drive(id);
+
+        var failed = campaign(id);
+        assertThat(failed.state()).isEqualTo(CampaignState.FAILED);
+        assertThat(failed.failure().code()).isEqualTo("CONFIRMATION_EVALUATION_FAILED");
+        assertThat(failed.hunt().classification()).isEqualTo(HuntReport.Classification.NOT_CONFIRMED);
     }
 }

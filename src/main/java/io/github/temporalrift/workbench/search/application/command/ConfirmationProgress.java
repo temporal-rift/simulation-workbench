@@ -89,6 +89,18 @@ class ConfirmationProgress {
         var run = campaign.confirmation().runs().getFirst();
         var candidate = objective.tally(run.runId(), HuntPlan.CANDIDATE_TABLE, definition.faction(), List.of());
         var standard = objective.tally(run.runId(), HuntPlan.STANDARD_TABLE, definition.faction(), List.of());
+        // A failed game is final, so a run can complete with some of its games missing on either table. A ratio over
+        // different or partial sets of seeds would say nothing about the candidate against the standard seat.
+        var expected = campaign.confirmation().seedCount() * HuntPlan.casesPerSeed(definition.huntPlayerCount());
+        if (candidate.games() != expected || standard.games() != expected) {
+            var next = campaign.fail(
+                    new CampaignFailure(
+                            CampaignFailure.CONFIRMATION_EVALUATION_FAILED,
+                            "The confirmation played " + candidate.games() + " games of the candidate and "
+                                    + standard.games() + " of the standard seat, of " + expected + " each"),
+                    clock.instant());
+            return campaigns.apply(CampaignChange.of(stored, next, stored.accruedAt()));
+        }
         var parameters = new TreeMap<String, Integer>();
         campaigns.candidates(campaign.campaignId()).stream()
                 .filter(found -> found.id().equals(run.subject()))

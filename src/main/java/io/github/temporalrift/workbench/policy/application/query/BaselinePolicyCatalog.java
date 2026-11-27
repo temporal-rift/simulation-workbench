@@ -101,8 +101,9 @@ public class BaselinePolicyCatalog implements PolicyCatalog {
             if (spec.isEmpty()) {
                 return new PolicyVerification(PolicyReferenceVerdict.UNKNOWN_PARAMETER, entry.getKey());
             }
+            // The value is checked as given: narrowing a long first could fold an out-of-range value onto a valid one.
             if (!(entry.getValue() instanceof Integer || entry.getValue() instanceof Long)
-                    || !spec.get().accepts(((Number) entry.getValue()).intValue())) {
+                    || !fits(spec.get(), ((Number) entry.getValue()).longValue())) {
                 return new PolicyVerification(PolicyReferenceVerdict.INVALID_PARAMETER_VALUE, entry.getKey());
             }
             named.put(entry.getKey(), ((Number) entry.getValue()).intValue());
@@ -113,6 +114,10 @@ public class BaselinePolicyCatalog implements PolicyCatalog {
                         ? PolicyReferenceVerdict.VALID
                         : PolicyReferenceVerdict.DIGEST_MISMATCH,
                 null);
+    }
+
+    private static boolean fits(SearchParameters.Spec spec, long value) {
+        return value >= spec.min() && value <= spec.max() && spec.accepts((int) value);
     }
 
     private static boolean isSearch(String id, String version) {

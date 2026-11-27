@@ -441,6 +441,19 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
         return candidates.stream()
                 .map(candidate -> {
                     var tally = tallyOf(definition, ledger, candidate, seeds);
+                    // A failed game is final, so a run can complete with some games missing. A candidate with only
+                    // part of its games would be ranked on a few outcomes, so it is invalid and ranks last.
+                    if (tally.games() != gamesSpent) {
+                        return new Assessment(
+                                candidate,
+                                seeds,
+                                gamesSpent,
+                                Assessment.Verdict.INVALID,
+                                null,
+                                List.of(),
+                                null,
+                                List.of());
+                    }
                     return new Assessment(
                             candidate,
                             seeds,
@@ -501,9 +514,10 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
                     .map(LogEntry::candidateId)
                     .toList();
             var best = outcome.survivors().getFirst();
+            var bestRatio = best.score() == null ? 0 : -best.score();
             var report = HuntReport.unconfirmed(
-                    definition.faction(), definition.huntPlayerCount(), screening(campaign, entries, -best.score()));
-            var flagged = -best.score() >= HuntPlan.FLAG_FACTOR * HuntPlan.FAIR_RATIO;
+                    definition.faction(), definition.huntPlayerCount(), screening(campaign, entries, bestRatio));
+            var flagged = bestRatio >= HuntPlan.FLAG_FACTOR * HuntPlan.FAIR_RATIO;
             next = flagged
                     ? campaign.completeSearch(shortList).withHuntReport(report)
                     : campaign.completeHuntWithoutConfirmation(shortList, report, clock.instant());

@@ -10,7 +10,9 @@ import io.github.temporalrift.workbench.shared.game.SpecialAction;
 /**
  * The parameters a hunt of each faction searches: the faction's own specials, the information cards and Obscure, the
  * shifters it uses to support its bet and its own thresholds. Every other parameter stays at its {@code faction-spread}
- * default, which keeps a search of about 16 dimensions dense enough for 64 candidates.
+ * default, which keeps a search of about 16 dimensions dense enough for 64 candidates. A special whose affinity the
+ * recipe never reads (Corrupt, Expose, Tapestry and Reweave play at the counter or protect threshold) is not searched:
+ * its threshold is.
  */
 public final class SearchedSubsets {
 
@@ -23,7 +25,7 @@ public final class SearchedSubsets {
         specials(keys, faction, SpecialAction.OBSCURE);
         switch (faction) {
             case ERASERS -> {
-                specials(keys, faction, SpecialAction.ANNIHILATE, SpecialAction.CORRUPT, SpecialAction.CASCADE);
+                specials(keys, faction, SpecialAction.ANNIHILATE, SpecialAction.CASCADE);
                 cards(keys, faction, CardType.SUPPRESS, CardType.NULLIFY, CardType.DETONATE, CardType.PUSH);
                 keys.addAll(List.of(
                         "lean.suppress." + faction,
@@ -51,7 +53,7 @@ public final class SearchedSubsets {
                         SearchParameters.scoped(SearchParameters.BET_SPREADING, faction)));
             }
             case WEAVERS -> {
-                specials(keys, faction, SpecialAction.THREAD, SpecialAction.REWEAVE, SpecialAction.TAPESTRY);
+                specials(keys, faction, SpecialAction.THREAD);
                 cards(keys, faction, CardType.PUSH, CardType.AMPLIFY, CardType.STABILIZE);
                 keys.addAll(List.of(
                         "lean.support." + faction,
@@ -60,7 +62,7 @@ public final class SearchedSubsets {
                         SearchParameters.scoped(SearchParameters.COMMITMENT_BONUS, faction)));
             }
             case ACTIVISTS -> {
-                specials(keys, faction, SpecialAction.EXPOSE, SpecialAction.RALLY, SpecialAction.MOMENTUM);
+                specials(keys, faction, SpecialAction.RALLY, SpecialAction.MOMENTUM);
                 cards(
                         keys,
                         faction,

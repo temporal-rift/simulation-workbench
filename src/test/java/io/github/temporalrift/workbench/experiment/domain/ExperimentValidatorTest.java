@@ -367,8 +367,11 @@ class ExperimentValidatorTest {
         var view = ExperimentValidator.validate(withSearchTable(first, second, true), VERIFIER);
 
         assertThat(view.policies()).hasSize(3);
-        assertThat(view.tables().get(0).seats().get(0))
-                .isNotEqualTo(view.tables().get(0).seats().get(1));
+        var seats = view.tables().get(0).seats();
+        assertThat(seats.get(0).artifactDigest())
+                .isEqualTo(FactionSearchBundle.of(java.util.Map.of(SCAN, 8)).artifactDigest());
+        assertThat(seats.get(1).artifactDigest())
+                .isEqualTo(FactionSearchBundle.of(java.util.Map.of(TRACE, 7)).artifactDigest());
     }
 
     @Test

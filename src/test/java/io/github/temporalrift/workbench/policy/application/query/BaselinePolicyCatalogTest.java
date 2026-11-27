@@ -112,4 +112,20 @@ class BaselinePolicyCatalogTest {
                         .verdict())
                 .isEqualTo(PolicyReferenceVerdict.UNSUPPORTED_PARAMETERS);
     }
+
+    @Test
+    void aLongThatOnlyNarrowsOntoAValidValueIsOutOfRange() {
+        var key = SearchParameters.cardKey(Faction.WEAVERS, CardType.SCAN);
+        var folded = SearchParameters.spec(key).orElseThrow().defaultValue() + 4_294_967_296L;
+
+        var verification = catalog.verify(
+                "faction-search",
+                "1.0.0",
+                FactionSearchBundle.defaults().artifactDigest(),
+                Map.<String, Object>of(key, folded));
+
+        assertThat(verification.verdict()).isEqualTo(PolicyReferenceVerdict.INVALID_PARAMETER_VALUE);
+        assertThat(catalog.artifactDigest("faction-search", "1.0.0", Map.<String, Object>of(key, folded)))
+                .isEmpty();
+    }
 }
