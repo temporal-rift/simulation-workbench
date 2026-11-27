@@ -1,12 +1,17 @@
 package io.github.temporalrift.workbench.search.infrastructure.adapter.out.experiment;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -220,14 +225,13 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
         var builds = bundle.gameService().imageDigest()
                 + bundle.timelineService().imageDigest()
                 + bundle.readService().imageDigest();
-        return UUID.nameUUIDFromBytes(
-                (idempotencyKey + ":" + builds).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        return UUID.nameUUIDFromBytes((idempotencyKey + ":" + builds).getBytes(StandardCharsets.UTF_8));
     }
 
     /** The newest bundle of each policy, as a manifest states a bundle. */
     @Override
     public List<JsonNode> bundles(List<PolicyRef> required) {
-        var nodes = new java.util.ArrayList<JsonNode>();
+        var nodes = new ArrayList<JsonNode>();
         for (var wanted : required) {
             var bundle = catalog.list().stream()
                     .filter(candidate -> candidate.id().equals(wanted.id())
@@ -272,7 +276,7 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
 
     /** The bundles the tables play, once each, as a manifest states a bundle. */
     private static List<JsonNode> usedBundles(CampaignDefinition definition, List<SeatTable> tables) {
-        var used = new java.util.LinkedHashMap<String, JsonNode>();
+        var used = new LinkedHashMap<String, JsonNode>();
         for (var table : tables) {
             for (var policy : table.seats()) {
                 var bundle = bundleOf(definition, policy);
@@ -294,7 +298,7 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
                 .mapToInt(Integer::intValue)
                 .max()
                 .orElse(1);
-        var nodes = new java.util.ArrayList<JsonNode>();
+        var nodes = new ArrayList<JsonNode>();
         for (var table : tables) {
             var node = mapper.createObjectNode();
             node.put("id", table.id());
@@ -314,7 +318,7 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
     /** The criterion's confirmation tables as a manifest states them, each seat naming the bundle of its policy. */
     private List<JsonNode> confirmationTables(
             List<SeatTable> tables, List<PolicyRef> policies, List<JsonNode> bundles, int seatCount) {
-        var nodes = new java.util.ArrayList<JsonNode>();
+        var nodes = new ArrayList<JsonNode>();
         for (var table : tables) {
             var node = mapper.createObjectNode();
             node.put("id", table.id());
@@ -426,7 +430,7 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
                 .findFirst()
                 .map(space -> new PolicySpace(
                         space.parameters().stream()
-                                .collect(java.util.stream.Collectors.toMap(
+                                .collect(Collectors.toMap(
                                         PolicyParameterSpaceDescriptor.Parameter::key, parameter -> parameter)),
                         space.searchedSubsets()
                                 .getOrDefault(definition.faction().name(), List.of())));
@@ -462,8 +466,8 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
         var space = policySpace(definition)
                 .orElseThrow(() -> new CampaignPlayRefusedException("The policy parameter space is not served"));
         return overrides -> {
-            var parameters = new java.util.LinkedHashMap<String, Object>();
-            var kept = new java.util.TreeMap<String, ParameterValue>();
+            var parameters = new LinkedHashMap<String, Object>();
+            var kept = new TreeMap<String, ParameterValue>();
             for (var entry : overrides.entrySet()) {
                 var parameter = space.parameters().get(entry.getKey());
                 var json = entry.getValue().json();
@@ -551,7 +555,7 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
             List<String> seeds) {
         var simulator = lanes.simulator().orElseThrow(() -> new CampaignPlayRefusedException(SIMULATOR_DISABLED));
         var entries = candidates.stream().map(this::searchEntry).toList();
-        var tables = new java.util.ArrayList<ObjectNode>();
+        var tables = new ArrayList<ObjectNode>();
         for (var index = 0; index < candidates.size(); index++) {
             tables.add(uniformTable(definition, candidates.get(index).id(), entries.get(index)));
         }

@@ -3,6 +3,7 @@ package io.github.temporalrift.workbench.analysis;
 import java.util.List;
 import java.util.UUID;
 
+import io.github.temporalrift.workbench.analysis.domain.statistics.ClopperPearson;
 import io.github.temporalrift.workbench.shared.game.Faction;
 
 /**
@@ -32,8 +33,7 @@ public interface HuntTallies {
             if (games == 0) {
                 return new double[] {0, 0};
             }
-            var share = io.github.temporalrift.workbench.analysis.domain.statistics.ClopperPearson.interval(
-                    wins, games, 0.95);
+            var share = ClopperPearson.interval(wins, games, 0.95);
             return new double[] {share[0] * playerCount, share[1] * playerCount};
         }
     }

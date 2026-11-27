@@ -8,6 +8,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.ToDoubleFunction;
+import java.util.function.ToIntFunction;
 
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;
@@ -37,7 +38,7 @@ class PolicyHuntTest {
     private ToDoubleFunction<String> ratios = table -> 1.0;
 
     /** The games of a table a failed case left unplayed, scripted per test. */
-    private java.util.function.ToIntFunction<String> missingGames = table -> 0;
+    private ToIntFunction<String> missingGames = table -> 0;
 
     /**
      * The games a table played: the seeds its run finished among those asked for, as the analysis counts them, so a

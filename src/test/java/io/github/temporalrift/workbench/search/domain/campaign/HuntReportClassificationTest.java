@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 import io.github.temporalrift.workbench.search.domain.campaign.HuntReport.Classification;
@@ -66,10 +67,7 @@ class HuntReportClassificationTest {
     }
 
     private static CampaignDefinition definition(
-            tools.jackson.databind.JsonNode baseline,
-            tools.jackson.databind.JsonNode policies,
-            Faction faction,
-            List<Integer> playerCounts) {
+            JsonNode baseline, JsonNode policies, Faction faction, List<Integer> playerCounts) {
         return new CampaignDefinition(
                 "hunt",
                 baseline,

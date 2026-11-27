@@ -1,6 +1,8 @@
 package io.github.temporalrift.workbench.policy;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 /** Public API of the policy module: resolves manifest policy references against defined bundles. */
 public interface PolicyCatalog {
@@ -14,9 +16,8 @@ public interface PolicyCatalog {
      * The artifact digest of a parameterized bundle playing these parameters, or empty when the bundle is unknown or a
      * parameter is outside its schema, range or step.
      */
-    default java.util.Optional<String> artifactDigest(
-            String id, String version, java.util.Map<String, Object> parameters) {
-        return java.util.Optional.empty();
+    default Optional<String> artifactDigest(String id, String version, Map<String, Object> parameters) {
+        return Optional.empty();
     }
 
     /** Every served version of the policy parameter space, ascending; empty without a parameterized bundle. */
@@ -30,7 +31,7 @@ public interface PolicyCatalog {
      * parameters derive.
      */
     default PolicyVerification verify(
-            String id, String version, String artifactDigest, java.util.Map<String, Object> parameters) {
+            String id, String version, String artifactDigest, Map<String, Object> parameters) {
         return new PolicyVerification(verify(id, version, artifactDigest, parameters.size()), null);
     }
 }

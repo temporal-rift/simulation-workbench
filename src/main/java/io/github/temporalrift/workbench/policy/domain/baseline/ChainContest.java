@@ -3,6 +3,7 @@ package io.github.temporalrift.workbench.policy.domain.baseline;
 import java.util.Comparator;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import io.github.temporalrift.workbench.policy.domain.decision.Candidate;
 import io.github.temporalrift.workbench.policy.domain.decision.CandidateGenerator;
@@ -59,7 +60,7 @@ final class ChainContest {
         var unavailable = round.specials().stream()
                 .filter(PlayableSpecial::unavailable)
                 .map(PlayableSpecial::action)
-                .collect(java.util.stream.Collectors.toSet());
+                .collect(Collectors.toSet());
         var annihilate = candidates.stream()
                 .filter(Candidate.PlaySpecial.class::isInstance)
                 .map(Candidate.PlaySpecial.class::cast)

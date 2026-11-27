@@ -5,9 +5,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -362,7 +364,7 @@ public final class ExperimentValidator {
 
     /** The values of a policy entry's parameters: an integer where the number is whole, else its decimal. */
     private static Map<String, Object> parameterValues(JsonNode parameters) {
-        var values = new java.util.LinkedHashMap<String, Object>();
+        var values = new LinkedHashMap<String, Object>();
         parameters.properties().forEach(entry -> {
             var value = entry.getValue();
             values.put(
@@ -374,7 +376,7 @@ public final class ExperimentValidator {
 
     /** The whole-number parameters of an entry; the verifier refuses any other value of a bundle that declares them. */
     private static Map<String, Integer> integerParameters(JsonNode parameters) {
-        var values = new java.util.TreeMap<String, Integer>();
+        var values = new TreeMap<String, Integer>();
         parameters.properties().forEach(entry -> {
             if (entry.getValue().isIntegralNumber() && entry.getValue().canConvertToInt()) {
                 values.put(entry.getKey(), entry.getValue().asInt());

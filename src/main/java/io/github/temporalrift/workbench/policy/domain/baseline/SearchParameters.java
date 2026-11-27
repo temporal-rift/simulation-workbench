@@ -1,6 +1,7 @@
 package io.github.temporalrift.workbench.policy.domain.baseline;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -255,7 +256,7 @@ public final class SearchParameters {
                         scoped(spec.key(), faction), spec.min(), spec.max(), spec.step(), spec.defaultValue()));
             }
         });
-        return specs.stream().sorted(java.util.Comparator.comparing(Spec::key)).toList();
+        return specs.stream().sorted(Comparator.comparing(Spec::key)).toList();
     }
 
     private static Map<String, Spec> indexed(List<Spec> specs) {

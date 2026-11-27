@@ -48,6 +48,7 @@ import io.github.temporalrift.workbench.analysis.infrastructure.adapter.out.expe
 import io.github.temporalrift.workbench.analysis.infrastructure.adapter.out.experiment.VariantScoringAdapter;
 import io.github.temporalrift.workbench.execution.RunCatalog;
 import io.github.temporalrift.workbench.experiment.ExperimentCatalog;
+import io.github.temporalrift.workbench.policy.PolicyCatalog;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Band;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Cohort;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ComparisonCohort;
@@ -150,9 +151,7 @@ public class AnalysisConfiguration {
 
     @Bean
     RunConfirmation runConfirmation(
-            GetRunEvaluationUseCase evaluations,
-            BalanceCriteria criteria,
-            io.github.temporalrift.workbench.policy.PolicyCatalog policyCatalog) {
+            GetRunEvaluationUseCase evaluations, BalanceCriteria criteria, PolicyCatalog policyCatalog) {
         return new RunConfirmationService(evaluations, criteria, policyCatalog);
     }
 

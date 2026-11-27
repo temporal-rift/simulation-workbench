@@ -7,14 +7,19 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 import io.github.temporalrift.workbench.search.application.port.in.CreateCampaignUseCase;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignKind;
 import io.github.temporalrift.workbench.search.domain.campaign.Confirmation;
 import io.github.temporalrift.workbench.search.domain.log.LogEntry;
 import io.github.temporalrift.workbench.shared.Page;
+import io.github.temporalrift.workbench.shared.game.Faction;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.OverrideValues;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Campaign;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.CampaignBaseline;
@@ -52,7 +57,7 @@ class CampaignApiMapper {
         this.mapper = mapper;
     }
 
-    CreateCampaignUseCase.Command toCommand(java.util.UUID idempotencyKey, CampaignDefinition definition) {
+    CreateCampaignUseCase.Command toCommand(UUID idempotencyKey, CampaignDefinition definition) {
         var playerCounts = definition.getPlayerCounts().stream()
                 .map(CampaignDefinition.PlayerCountsEnum::getValue)
                 .sorted()
@@ -72,12 +77,10 @@ class CampaignApiMapper {
                 searchAlgorithm(algorithm),
                 definition.getKind() == null
                         ? null
-                        : io.github.temporalrift.workbench.search.domain.campaign.CampaignKind.valueOf(
-                                definition.getKind().name()),
+                        : CampaignKind.valueOf(definition.getKind().name()),
                 definition.getFaction() == null
                         ? null
-                        : io.github.temporalrift.workbench.shared.game.Faction.valueOf(
-                                definition.getFaction().name()),
+                        : Faction.valueOf(definition.getFaction().name()),
                 definition.getPolicyParameterSpaceVersion());
     }
 
@@ -190,12 +193,12 @@ class CampaignApiMapper {
         return new CampaignEvaluation(EvaluationVerdict.valueOf(evaluation.verdict()), score, null);
     }
 
-    private List<PolicyBundleReference> policies(tools.jackson.databind.JsonNode node) {
+    private List<PolicyBundleReference> policies(JsonNode node) {
         var policies = new ArrayList<PolicyBundleReference>();
         node.forEach(policy -> {
             // A campaign stored before seat tables also carries the seat assignment of its policies, never played.
             var bundle = policy.deepCopy();
-            ((tools.jackson.databind.node.ObjectNode) bundle).remove("seatAssignment");
+            ((ObjectNode) bundle).remove("seatAssignment");
             policies.add(mapper.treeToValue(bundle, PolicyBundleReference.class));
         });
         return policies;

@@ -9,6 +9,7 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 import io.github.temporalrift.workbench.policy.domain.decision.PolicyEntropy;
+import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
 import io.github.temporalrift.workbench.shared.game.CardType;
 import io.github.temporalrift.workbench.shared.game.Faction;
 
@@ -84,8 +85,7 @@ class FactionSearchBundleTest {
                         .isTrue());
     }
 
-    private static PolicyEntropy entropyOf(
-            io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation observation, int seed) {
+    private static PolicyEntropy entropyOf(EntitledObservation observation, int seed) {
         return PolicyEntropy.derive(
                 seed, observation.seatIndex(), observation.window().ref(), 0);
     }

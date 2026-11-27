@@ -1,5 +1,6 @@
 package io.github.temporalrift.workbench.policy;
 
+import java.util.Map;
 import java.util.Optional;
 
 import io.github.temporalrift.workbench.policy.application.port.in.PlayDecisionWindowUseCase;
@@ -16,7 +17,7 @@ public interface PolicyRuntime {
      * The defined policy for an entry that names parameters: a parameterized bundle plays them, any other bundle is
      * found by id and version alone.
      */
-    default Optional<BotPolicy> policy(String id, String version, java.util.Map<String, Integer> parameters) {
+    default Optional<BotPolicy> policy(String id, String version, Map<String, Integer> parameters) {
         return policy(id, version);
     }
 

@@ -3,7 +3,11 @@ package io.github.temporalrift.workbench.experiment.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Map;
+import java.util.function.Consumer;
+
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
 
 import io.github.temporalrift.workbench.experiment.ExperimentManifests;
@@ -242,7 +246,7 @@ class ExperimentValidatorTest {
     private static final PolicyReferenceVerifier VERIFIER =
             new PolicyReferenceVerifierAdapter(new BaselinePolicyCatalog());
 
-    private static ObjectNode withFirstPolicy(java.util.function.Consumer<ObjectNode> edit) {
+    private static ObjectNode withFirstPolicy(Consumer<ObjectNode> edit) {
         var manifest = (ObjectNode) ExperimentManifests.valid().deepCopy();
         edit.accept(manifest.withArray("policies").get(0).asObject());
         return manifest;
@@ -318,8 +322,8 @@ class ExperimentValidatorTest {
         }
     }
 
-    private static ObjectNode searchEntry(java.util.Map<String, Integer> parameters, String digest) {
-        var mapper = tools.jackson.databind.json.JsonMapper.builder().build();
+    private static ObjectNode searchEntry(Map<String, Integer> parameters, String digest) {
+        var mapper = JsonMapper.builder().build();
         var entry = mapper.createObjectNode();
         entry.put("id", "faction-search");
         entry.put("version", "1.0.0");
@@ -358,30 +362,26 @@ class ExperimentValidatorTest {
     @Test
     void twoParameterSetsOfOneBundleAreTwoPolicies() {
         var first = searchEntry(
-                java.util.Map.of(SCAN, 8),
-                FactionSearchBundle.of(java.util.Map.of(SCAN, 8)).artifactDigest());
+                Map.of(SCAN, 8), FactionSearchBundle.of(Map.of(SCAN, 8)).artifactDigest());
         var second = searchEntry(
-                java.util.Map.of(TRACE, 7),
-                FactionSearchBundle.of(java.util.Map.of(TRACE, 7)).artifactDigest());
+                Map.of(TRACE, 7), FactionSearchBundle.of(Map.of(TRACE, 7)).artifactDigest());
 
         var view = ExperimentValidator.validate(withSearchTable(first, second, true), VERIFIER);
 
         assertThat(view.policies()).hasSize(3);
         var seats = view.tables().get(0).seats();
         assertThat(seats.get(0).artifactDigest())
-                .isEqualTo(FactionSearchBundle.of(java.util.Map.of(SCAN, 8)).artifactDigest());
+                .isEqualTo(FactionSearchBundle.of(Map.of(SCAN, 8)).artifactDigest());
         assertThat(seats.get(1).artifactDigest())
-                .isEqualTo(FactionSearchBundle.of(java.util.Map.of(TRACE, 7)).artifactDigest());
+                .isEqualTo(FactionSearchBundle.of(Map.of(TRACE, 7)).artifactDigest());
     }
 
     @Test
     void aSeatThatNamesNoDigestForSharedIdAndVersionIsInvalid() {
         var first = searchEntry(
-                java.util.Map.of(SCAN, 8),
-                FactionSearchBundle.of(java.util.Map.of(SCAN, 8)).artifactDigest());
+                Map.of(SCAN, 8), FactionSearchBundle.of(Map.of(SCAN, 8)).artifactDigest());
         var second = searchEntry(
-                java.util.Map.of(TRACE, 7),
-                FactionSearchBundle.of(java.util.Map.of(TRACE, 7)).artifactDigest());
+                Map.of(TRACE, 7), FactionSearchBundle.of(Map.of(TRACE, 7)).artifactDigest());
         var manifest = withSearchTable(first, second, false);
 
         assertThatThrownBy(() -> ExperimentValidator.validate(manifest, VERIFIER))
@@ -393,16 +393,16 @@ class ExperimentValidatorTest {
     void anUnknownSearchParameterIsInvalidAndAStaleDigestIsAMismatch() {
         var digest = FactionSearchBundle.defaults().artifactDigest();
         var unknown = withSearchTable(
-                searchEntry(java.util.Map.of("nope", 1), digest),
+                searchEntry(Map.of("nope", 1), digest),
                 searchEntry(
-                        java.util.Map.of(TRACE, 7),
-                        FactionSearchBundle.of(java.util.Map.of(TRACE, 7)).artifactDigest()),
+                        Map.of(TRACE, 7),
+                        FactionSearchBundle.of(Map.of(TRACE, 7)).artifactDigest()),
                 true);
         var stale = withSearchTable(
-                searchEntry(java.util.Map.of(SCAN, 8), digest),
+                searchEntry(Map.of(SCAN, 8), digest),
                 searchEntry(
-                        java.util.Map.of(TRACE, 7),
-                        FactionSearchBundle.of(java.util.Map.of(TRACE, 7)).artifactDigest()),
+                        Map.of(TRACE, 7),
+                        FactionSearchBundle.of(Map.of(TRACE, 7)).artifactDigest()),
                 true);
 
         assertThatThrownBy(() -> ExperimentValidator.validate(unknown, VERIFIER))

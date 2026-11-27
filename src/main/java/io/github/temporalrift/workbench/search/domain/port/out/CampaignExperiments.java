@@ -6,6 +6,8 @@ import java.util.UUID;
 import tools.jackson.databind.JsonNode;
 
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
+import io.github.temporalrift.workbench.search.domain.campaign.PolicyRef;
+import io.github.temporalrift.workbench.search.domain.campaign.SeatTable;
 import io.github.temporalrift.workbench.search.domain.candidate.Candidate;
 import io.github.temporalrift.workbench.search.domain.candidate.ParameterGrid;
 
@@ -36,7 +38,7 @@ public interface CampaignExperiments {
      * @throws io.github.temporalrift.workbench.search.domain.campaign.PolicyNotAvailableException when a policy has no
      *     bundle
      */
-    List<JsonNode> bundles(List<io.github.temporalrift.workbench.search.domain.campaign.PolicyRef> policies);
+    List<JsonNode> bundles(List<PolicyRef> policies);
 
     /**
      * Freezes the experiment of one wave, once per idempotency key: a variant per candidate, labelled by its id, each
@@ -51,7 +53,7 @@ public interface CampaignExperiments {
             int waveIndex,
             List<Candidate> candidates,
             List<String> seeds,
-            List<io.github.temporalrift.workbench.search.domain.campaign.SeatTable> tables);
+            List<SeatTable> tables);
 
     /**
      * Freezes the experiment that confirms one candidate on the simulator, once per idempotency key: a single variant
@@ -71,7 +73,7 @@ public interface CampaignExperiments {
             CampaignDefinition definition,
             Candidate candidate,
             List<String> seeds,
-            List<io.github.temporalrift.workbench.search.domain.campaign.SeatTable> tables);
+            List<SeatTable> tables);
 
     /**
      * Freezes the experiment that confirms the best candidate of a policy hunt, once per idempotency key combined with
@@ -101,7 +103,5 @@ public interface CampaignExperiments {
      * How many cases, each one played game, a candidate playing one seed over the tables has. It sizes a wave and turns
      * the seeds of a log entry into the games it records.
      */
-    int casesPerGame(
-            CampaignDefinition definition,
-            List<io.github.temporalrift.workbench.search.domain.campaign.SeatTable> tables);
+    int casesPerGame(CampaignDefinition definition, List<SeatTable> tables);
 }

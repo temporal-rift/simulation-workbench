@@ -1,8 +1,11 @@
 package io.github.temporalrift.workbench.policy.application.query;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Stream;
 
 import io.github.temporalrift.workbench.policy.PolicyCatalog;
 import io.github.temporalrift.workbench.policy.PolicyDescriptor;
@@ -14,6 +17,7 @@ import io.github.temporalrift.workbench.policy.domain.baseline.FactionSearchBund
 import io.github.temporalrift.workbench.policy.domain.baseline.PolicyBundle;
 import io.github.temporalrift.workbench.policy.domain.baseline.SearchParameters;
 import io.github.temporalrift.workbench.policy.domain.baseline.SearchedSubsets;
+import io.github.temporalrift.workbench.shared.game.Faction;
 
 /**
  * Resolves references against the baseline bundles, which declare no free parameters, and against
@@ -36,8 +40,7 @@ public class BaselinePolicyCatalog implements PolicyCatalog {
                         .map(spec -> new PolicyParameterSpaceDescriptor.Parameter(
                                 spec.key(), spec.defaultValue(), spec.min(), spec.max(), spec.step()))
                         .toList());
-        return java.util.stream.Stream.concat(baselines, java.util.stream.Stream.of(parameterized))
-                .toList();
+        return Stream.concat(baselines, Stream.of(parameterized)).toList();
     }
 
     /** The one served version of the {@code faction-search} parameter space. */
@@ -47,8 +50,8 @@ public class BaselinePolicyCatalog implements PolicyCatalog {
                 .map(spec -> new PolicyParameterSpaceDescriptor.Parameter(
                         spec.key(), spec.defaultValue(), spec.min(), spec.max(), spec.step()))
                 .toList();
-        var subsets = new java.util.LinkedHashMap<String, List<String>>();
-        for (var faction : io.github.temporalrift.workbench.shared.game.Faction.values()) {
+        var subsets = new LinkedHashMap<String, List<String>>();
+        for (var faction : Faction.values()) {
             subsets.put(faction.name(), SearchedSubsets.of(faction));
         }
         return List.of(new PolicyParameterSpaceDescriptor(
@@ -76,14 +79,14 @@ public class BaselinePolicyCatalog implements PolicyCatalog {
     }
 
     @Override
-    public java.util.Optional<String> artifactDigest(String id, String version, Map<String, Object> parameters) {
+    public Optional<String> artifactDigest(String id, String version, Map<String, Object> parameters) {
         if (!isSearch(id, version)) {
-            return java.util.Optional.empty();
+            return Optional.empty();
         }
         var checked = check(parameters);
         return checked.failure() == null
-                ? java.util.Optional.of(FactionSearchBundle.of(checked.named()).artifactDigest())
-                : java.util.Optional.empty();
+                ? Optional.of(FactionSearchBundle.of(checked.named()).artifactDigest())
+                : Optional.empty();
     }
 
     @Override

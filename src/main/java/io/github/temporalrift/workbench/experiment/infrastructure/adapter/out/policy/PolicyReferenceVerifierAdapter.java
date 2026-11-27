@@ -1,7 +1,10 @@
 package io.github.temporalrift.workbench.experiment.infrastructure.adapter.out.policy;
 
+import java.util.Map;
+
 import io.github.temporalrift.workbench.experiment.domain.port.out.PolicyReferenceVerifier;
 import io.github.temporalrift.workbench.policy.PolicyCatalog;
+import io.github.temporalrift.workbench.policy.PolicyReferenceVerdict;
 
 public class PolicyReferenceVerifierAdapter implements PolicyReferenceVerifier {
 
@@ -12,7 +15,7 @@ public class PolicyReferenceVerifierAdapter implements PolicyReferenceVerifier {
     }
 
     @Override
-    public Result verify(String id, String version, String artifactDigest, java.util.Map<String, Object> parameters) {
+    public Result verify(String id, String version, String artifactDigest, Map<String, Object> parameters) {
         var verification = catalog.verify(id, version, artifactDigest, parameters);
         return new Result(status(verification.verdict()), verification.parameter());
     }
@@ -22,7 +25,7 @@ public class PolicyReferenceVerifierAdapter implements PolicyReferenceVerifier {
         return status(catalog.verify(id, version, artifactDigest, parameterCount));
     }
 
-    private static Status status(io.github.temporalrift.workbench.policy.PolicyReferenceVerdict verdict) {
+    private static Status status(PolicyReferenceVerdict verdict) {
         return switch (verdict) {
             case VALID -> Status.VALID;
             case UNKNOWN_POLICY -> Status.UNKNOWN_POLICY;

@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
 import java.util.UUID;
@@ -24,6 +25,7 @@ import tools.jackson.databind.json.JsonMapper;
 import io.github.temporalrift.workbench.execution.LaneEnvironments;
 import io.github.temporalrift.workbench.experiment.ExperimentFactory;
 import io.github.temporalrift.workbench.experiment.LaneBundle;
+import io.github.temporalrift.workbench.experiment.domain.ExperimentValidator;
 import io.github.temporalrift.workbench.policy.application.query.BaselinePolicyCatalog;
 import io.github.temporalrift.workbench.policy.domain.baseline.FactionSearchBundle;
 import io.github.temporalrift.workbench.policy.domain.baseline.SearchParameters;
@@ -86,7 +88,7 @@ class HuntFreezeTest {
         assertThat(first.effectiveRulesDigest()).isEqualTo(second.effectiveRulesDigest());
         assertThat(first.effectiveRulesDigest()).isNotEqualTo(different.effectiveRulesDigest());
         assertThat(first.effectiveRulesDigest())
-                .isEqualTo(FactionSearchBundle.of(java.util.Map.of(SCAN, 8)).artifactDigest());
+                .isEqualTo(FactionSearchBundle.of(Map.of(SCAN, 8)).artifactDigest());
     }
 
     @Test
@@ -206,7 +208,7 @@ class HuntFreezeTest {
                 List.of("11", "12"),
                 List.of());
 
-        var view = io.github.temporalrift.workbench.experiment.domain.ExperimentValidator.validate(
+        var view = ExperimentValidator.validate(
                 frozen(),
                 new io.github.temporalrift.workbench.experiment.infrastructure.adapter.out.policy
                         .PolicyReferenceVerifierAdapter(new BaselinePolicyCatalog()));
@@ -231,7 +233,7 @@ class HuntFreezeTest {
                 0,
                 List.of(0),
                 overrides,
-                FactionSearchBundle.of(java.util.Map.of(key, value)).artifactDigest(),
+                FactionSearchBundle.of(Map.of(key, value)).artifactDigest(),
                 0);
     }
 
@@ -264,7 +266,7 @@ class HuntFreezeTest {
                 new LaneBundle.ServiceBuild("sha256:" + "a".repeat(64), "a".repeat(40)),
                 new LaneBundle.ServiceBuild("sha256:" + "b".repeat(64), "b".repeat(40)),
                 new LaneBundle.ServiceBuild("sha256:" + "c".repeat(64), "c".repeat(40)),
-                new TreeMap<>(java.util.Map.of("simulation-control-api", "2.3.0")),
+                new TreeMap<>(Map.of("simulation-control-api", "2.3.0")),
                 1);
     }
 

@@ -3,13 +3,17 @@ package io.github.temporalrift.workbench.search.application.command;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
+
+import tools.jackson.databind.JsonNode;
 
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException;
@@ -78,7 +82,7 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
     @Override
     public CandidateValidation validation(CampaignDefinition definition) {
         return overrides -> Optional.of(new CandidateValidation.Validated(
-                Sha256.hexUtf8(new java.util.TreeMap<>(overrides).toString()), new java.util.TreeMap<>(overrides)));
+                Sha256.hexUtf8(new TreeMap<>(overrides).toString()), new TreeMap<>(overrides)));
     }
 
     @Override
@@ -108,7 +112,7 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
     }
 
     @Override
-    public synchronized List<tools.jackson.databind.JsonNode> bundles(List<PolicyRef> policies) {
+    public synchronized List<JsonNode> bundles(List<PolicyRef> policies) {
         if (!policiesServed) {
             throw new PolicyNotAvailableException("no bundle serves the policies");
         }
@@ -319,8 +323,8 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
     @Override
     public List<SeatTable> screeningTables(int criterionVersion) {
         return List.of(
-                new SeatTable("faction-greedy", java.util.Collections.nCopies(5, new PolicyRef("faction-greedy", "1"))),
-                new SeatTable("random", java.util.Collections.nCopies(5, new PolicyRef("random", "1"))));
+                new SeatTable("faction-greedy", Collections.nCopies(5, new PolicyRef("faction-greedy", "1"))),
+                new SeatTable("random", Collections.nCopies(5, new PolicyRef("random", "1"))));
     }
 
     @Override
@@ -330,8 +334,8 @@ final class SimulatedPlay implements CampaignExperiments, CampaignRuns, Candidat
 
     /** The screening tables plus a mixed table that only confirmation plays. */
     static final List<SeatTable> CONFIRMATION_TABLES = List.of(
-            new SeatTable("faction-greedy", java.util.Collections.nCopies(5, new PolicyRef("faction-greedy", "1"))),
-            new SeatTable("random", java.util.Collections.nCopies(5, new PolicyRef("random", "1"))),
+            new SeatTable("faction-greedy", Collections.nCopies(5, new PolicyRef("faction-greedy", "1"))),
+            new SeatTable("random", Collections.nCopies(5, new PolicyRef("random", "1"))),
             new SeatTable(
                     "random-seat-vs-faction-greedy",
                     List.of(

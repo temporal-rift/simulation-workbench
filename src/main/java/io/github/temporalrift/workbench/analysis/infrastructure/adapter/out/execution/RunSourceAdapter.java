@@ -13,6 +13,7 @@ import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import io.github.temporalrift.asyncapi.actionevents.GeneratedChannelContract;
 import io.github.temporalrift.asyncapi.actionevents.GeneratedChannelContract.ActionRoundStartedPayload;
 import io.github.temporalrift.asyncapi.actionevents.GeneratedChannelContract.ActivistDeclarationRecordedPayload;
 import io.github.temporalrift.asyncapi.actionevents.GeneratedChannelContract.CardPlayedPayload;
@@ -348,12 +349,10 @@ public class RunSourceAdapter implements RunSource {
     /** Event types of the action events contract, usable as switch labels. */
     private static final class ActionEvents {
 
-        static final String ACTION_ROUND_STARTED_EVENT_TYPE =
-                io.github.temporalrift.asyncapi.actionevents.GeneratedChannelContract.ACTION_ROUND_STARTED_EVENT_TYPE;
+        static final String ACTION_ROUND_STARTED_EVENT_TYPE = GeneratedChannelContract.ACTION_ROUND_STARTED_EVENT_TYPE;
         static final String ACTIVIST_DECLARATION_RECORDED_EVENT_TYPE = io.github.temporalrift.asyncapi.actionevents
                 .GeneratedChannelContract.ACTIVIST_DECLARATION_RECORDED_EVENT_TYPE;
-        static final String CARD_PLAYED_EVENT_TYPE =
-                io.github.temporalrift.asyncapi.actionevents.GeneratedChannelContract.CARD_PLAYED_EVENT_TYPE;
+        static final String CARD_PLAYED_EVENT_TYPE = GeneratedChannelContract.CARD_PLAYED_EVENT_TYPE;
         static final String DECLARATION_OPTIONS_OFFERED_EVENT_TYPE = io.github.temporalrift.asyncapi.actionevents
                 .GeneratedChannelContract.DECLARATION_OPTIONS_OFFERED_EVENT_TYPE;
         static final String PARADOX_RESOLUTION_CARDS_OFFERED_EVENT_TYPE = io.github.temporalrift.asyncapi.actionevents
@@ -361,7 +360,7 @@ public class RunSourceAdapter implements RunSource {
         static final String PARADOX_RESOLUTION_CARD_PLAYED_EVENT_TYPE = io.github.temporalrift.asyncapi.actionevents
                 .GeneratedChannelContract.PARADOX_RESOLUTION_CARD_PLAYED_EVENT_TYPE;
         static final String SPECIAL_ACTION_PLAYED_EVENT_TYPE =
-                io.github.temporalrift.asyncapi.actionevents.GeneratedChannelContract.SPECIAL_ACTION_PLAYED_EVENT_TYPE;
+                GeneratedChannelContract.SPECIAL_ACTION_PLAYED_EVENT_TYPE;
 
         private ActionEvents() {}
     }
