@@ -8,8 +8,10 @@ import io.github.temporalrift.workbench.policy.PolicyCatalog;
 import io.github.temporalrift.workbench.policy.PolicyRuntime;
 import io.github.temporalrift.workbench.policy.application.command.BaselinePolicyRuntime;
 import io.github.temporalrift.workbench.policy.application.port.in.ListPoliciesUseCase;
+import io.github.temporalrift.workbench.policy.application.port.in.PolicyParameterSpacesUseCase;
 import io.github.temporalrift.workbench.policy.application.query.BaselinePolicyCatalog;
 import io.github.temporalrift.workbench.policy.application.query.ListPoliciesQueryHandler;
+import io.github.temporalrift.workbench.policy.application.query.PolicyParameterSpacesQueryHandler;
 import io.github.temporalrift.workbench.policy.domain.port.out.DecisionTimings;
 import io.github.temporalrift.workbench.policy.infrastructure.adapter.out.metrics.MicrometerDecisionTimings;
 
@@ -24,6 +26,11 @@ public class PolicyConfiguration {
     @Bean
     ListPoliciesUseCase listPoliciesUseCase(PolicyCatalog catalog) {
         return new ListPoliciesQueryHandler(catalog);
+    }
+
+    @Bean
+    PolicyParameterSpacesUseCase policyParameterSpacesUseCase(PolicyCatalog catalog) {
+        return new PolicyParameterSpacesQueryHandler(catalog);
     }
 
     @Bean

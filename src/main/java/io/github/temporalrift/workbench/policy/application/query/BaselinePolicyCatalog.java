@@ -23,10 +23,20 @@ public class BaselinePolicyCatalog implements PolicyCatalog {
 
     @Override
     public List<PolicyDescriptor> list() {
-        return java.util.stream.Stream.concat(
-                        BaselinePolicies.all().stream(), java.util.stream.Stream.of(FactionSearchBundle.defaults()))
+        var baselines = BaselinePolicies.all().stream()
                 .map(bundle -> new PolicyDescriptor(
-                        bundle.id(), bundle.version(), bundle.artifactDigest(), bundle.description()))
+                        bundle.id(), bundle.version(), bundle.artifactDigest(), bundle.description()));
+        var search = FactionSearchBundle.defaults();
+        var parameterized = new PolicyDescriptor(
+                search.id(),
+                search.version(),
+                search.artifactDigest(),
+                search.description(),
+                SearchParameters.schema().stream()
+                        .map(spec -> new PolicyParameterSpaceDescriptor.Parameter(
+                                spec.key(), spec.defaultValue(), spec.min(), spec.max(), spec.step()))
+                        .toList());
+        return java.util.stream.Stream.concat(baselines, java.util.stream.Stream.of(parameterized))
                 .toList();
     }
 
