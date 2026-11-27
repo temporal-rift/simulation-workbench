@@ -1,5 +1,7 @@
 package io.github.temporalrift.workbench.policy.domain.baseline;
 
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.Set;
 
 import io.github.temporalrift.workbench.policy.domain.decision.BotPolicy;
@@ -8,6 +10,7 @@ import io.github.temporalrift.workbench.policy.domain.decision.PolicyDecision;
 import io.github.temporalrift.workbench.policy.domain.decision.PolicyEntropy;
 import io.github.temporalrift.workbench.policy.domain.observation.DecisionWindow;
 import io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation;
+import io.github.temporalrift.workbench.shared.game.Faction;
 
 /**
  * {@code faction-spread}: {@code faction-greedy} (the public-chain contest, the unavailable-special filter, the
@@ -21,30 +24,38 @@ import io.github.temporalrift.workbench.policy.domain.observation.EntitledObserv
  */
 final class FactionSpreadPolicy implements BotPolicy {
 
-    private final ParadoxAwarePolicy recipe;
-    private final SearchParameters params;
+    private final Map<Faction, SearchParameters> params = new EnumMap<>(Faction.class);
+    private final Map<Faction, ParadoxAwarePolicy> recipes = new EnumMap<>(Faction.class);
 
     FactionSpreadPolicy() {
         this(SearchParameters.DEFAULTS);
     }
 
-    /** {@code faction-spread} with the preferences, thresholds and behaviors the parameters name. */
-    FactionSpreadPolicy(SearchParameters params) {
-        this.params = params;
-        this.recipe = new ParadoxAwarePolicy(true, params);
+    /**
+     * {@code faction-spread} with the preferences, thresholds and behaviors the parameters name. The thresholds and
+     * behaviors are those of the faction the seat plays, so a parameter set changes the play of its own faction only.
+     */
+    FactionSpreadPolicy(SearchParameters parameters) {
+        for (var faction : Faction.values()) {
+            var scoped = parameters.forFaction(faction);
+            params.put(faction, scoped);
+            recipes.put(faction, new ParadoxAwarePolicy(true, scoped));
+        }
     }
 
     @Override
     public PolicyDecision decide(EntitledObservation observation, Set<Candidate> excluded, PolicyEntropy entropy) {
+        var scoped = params.get(observation.faction());
+        var recipe = recipes.get(observation.faction());
         var available = excluded;
         if (observation.window() instanceof DecisionWindow.ActionRound round) {
-            var contest = ChainContest.choose(observation, excluded, params);
+            var contest = ChainContest.choose(observation, excluded, scoped);
             if (contest.isPresent()) {
                 return new PolicyDecision.Chosen(contest.get());
             }
             available = FactionGreedyPolicy.withoutUnavailable(observation, round, excluded);
         }
         return recipe.decide(
-                observation, available, SpreadLayer.setAside(observation, available, entropy, params), entropy);
+                observation, available, SpreadLayer.setAside(observation, available, entropy, scoped), entropy);
     }
 }

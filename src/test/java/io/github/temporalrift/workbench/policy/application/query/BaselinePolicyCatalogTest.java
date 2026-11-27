@@ -93,7 +93,7 @@ class BaselinePolicyCatalogTest {
 
     @Test
     void anOutOfRangeOffStepOrFractionalValueIsNamed() {
-        var key = SearchParameters.RUNNER_UP_PERCENT;
+        var key = SearchParameters.scoped(SearchParameters.RUNNER_UP_PERCENT, Faction.PROPHETS);
         for (Object value : new Object[] {30L, 200L, "0.5"}) {
             var verification = catalog.verify(
                     "faction-search", "1.0.0", FactionSearchBundle.defaults().artifactDigest(), Map.of(key, value));

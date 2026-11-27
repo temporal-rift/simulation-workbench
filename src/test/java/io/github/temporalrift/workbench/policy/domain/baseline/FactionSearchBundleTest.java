@@ -68,9 +68,11 @@ class FactionSearchBundleTest {
                 .isInstanceOfSatisfying(
                         SearchParameters.Refused.class,
                         refused -> assertThat(refused.parameter()).isEqualTo("nope"));
-        assertThatThrownBy(() -> FactionSearchBundle.of(Map.of(SearchParameters.RUNNER_UP_PERCENT, 30)))
+        assertThatThrownBy(() -> FactionSearchBundle.of(
+                        Map.of(SearchParameters.scoped(SearchParameters.RUNNER_UP_PERCENT, Faction.PROPHETS), 30)))
                 .isInstanceOf(SearchParameters.Refused.class);
-        assertThatThrownBy(() -> FactionSearchBundle.of(Map.of(SearchParameters.BET_SPREADING, 2)))
+        assertThatThrownBy(() -> FactionSearchBundle.of(
+                        Map.of(SearchParameters.scoped(SearchParameters.BET_SPREADING, Faction.PROPHETS), 2)))
                 .isInstanceOf(SearchParameters.Refused.class);
     }
 
@@ -86,5 +88,26 @@ class FactionSearchBundleTest {
             io.github.temporalrift.workbench.policy.domain.observation.EntitledObservation observation, int seed) {
         return PolicyEntropy.derive(
                 seed, observation.seatIndex(), observation.window().ref(), 0);
+    }
+
+    @Test
+    void aFactionsParametersChangeOnlyThePlayOfThatFaction() {
+        var weavers = FactionSearchBundle.of(Map.of(
+                SearchParameters.cardKey(Faction.WEAVERS, CardType.SCAN), 8,
+                SearchParameters.scoped(SearchParameters.TAPESTRY_LINKS, Faction.WEAVERS), 4,
+                SearchParameters.scoped(SearchParameters.BET_SPREADING, Faction.WEAVERS), 0,
+                SearchParameters.scoped(SearchParameters.CONTEST_CHAIN, Faction.WEAVERS), 0));
+        var spread = BaselinePolicies.FACTION_SPREAD.policy();
+        var others = PinnedDecisions.corpus().stream()
+                .filter(observation -> observation.faction() != Faction.WEAVERS)
+                .toList();
+
+        assertThat(others).isNotEmpty();
+        for (var observation : others) {
+            for (var seed = 0; seed < PinnedDecisions.SEEDS; seed++) {
+                assertThat(weavers.policy().decide(observation, Set.of(), entropyOf(observation, seed)))
+                        .isEqualTo(spread.decide(observation, Set.of(), entropyOf(observation, seed)));
+            }
+        }
     }
 }

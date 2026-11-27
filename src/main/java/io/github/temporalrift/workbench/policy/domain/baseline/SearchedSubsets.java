@@ -27,37 +27,37 @@ public final class SearchedSubsets {
                 cards(keys, faction, CardType.SUPPRESS, CardType.NULLIFY, CardType.DETONATE, CardType.PUSH);
                 keys.addAll(List.of(
                         "lean.suppress." + faction,
-                        SearchParameters.CHAIN_THREAT_LINKS,
-                        SearchParameters.COUNTER_AFFINITY,
-                        SearchParameters.CONTEST_CHAIN));
+                        SearchParameters.scoped(SearchParameters.CHAIN_THREAT_LINKS, faction),
+                        SearchParameters.scoped(SearchParameters.COUNTER_AFFINITY, faction),
+                        SearchParameters.scoped(SearchParameters.CONTEST_CHAIN, faction)));
             }
             case PROPHETS -> {
                 specials(keys, faction, SpecialAction.FORESIGHT, SpecialAction.SEAL, SpecialAction.FULFILLMENT);
                 cards(keys, faction, CardType.PUSH, CardType.STABILIZE, CardType.AMPLIFY);
                 keys.addAll(List.of(
                         "lean.support." + faction,
-                        SearchParameters.RUNNER_UP_PERCENT,
-                        SearchParameters.PROTECT_AFFINITY,
-                        SearchParameters.GUARD_AFFINITY,
-                        SearchParameters.BET_SPREADING));
+                        SearchParameters.scoped(SearchParameters.RUNNER_UP_PERCENT, faction),
+                        SearchParameters.scoped(SearchParameters.PROTECT_AFFINITY, faction),
+                        SearchParameters.scoped(SearchParameters.GUARD_AFFINITY, faction),
+                        SearchParameters.scoped(SearchParameters.BET_SPREADING, faction)));
             }
             case REVISIONISTS -> {
                 specials(keys, faction, SpecialAction.REWRITE, SpecialAction.MIMIC);
                 cards(keys, faction, CardType.PUSH, CardType.SWING, CardType.REDIRECT, CardType.STABILIZE);
                 keys.addAll(List.of(
                         "lean.support." + faction,
-                        SearchParameters.COUNTER_AFFINITY,
-                        SearchParameters.COMMITMENT_BONUS,
-                        SearchParameters.BET_SPREADING));
+                        SearchParameters.scoped(SearchParameters.COUNTER_AFFINITY, faction),
+                        SearchParameters.scoped(SearchParameters.COMMITMENT_BONUS, faction),
+                        SearchParameters.scoped(SearchParameters.BET_SPREADING, faction)));
             }
             case WEAVERS -> {
                 specials(keys, faction, SpecialAction.THREAD, SpecialAction.REWEAVE, SpecialAction.TAPESTRY);
                 cards(keys, faction, CardType.PUSH, CardType.AMPLIFY, CardType.STABILIZE);
                 keys.addAll(List.of(
                         "lean.support." + faction,
-                        SearchParameters.TAPESTRY_LINKS,
-                        SearchParameters.PROTECT_AFFINITY,
-                        SearchParameters.COMMITMENT_BONUS));
+                        SearchParameters.scoped(SearchParameters.TAPESTRY_LINKS, faction),
+                        SearchParameters.scoped(SearchParameters.PROTECT_AFFINITY, faction),
+                        SearchParameters.scoped(SearchParameters.COMMITMENT_BONUS, faction)));
             }
             case ACTIVISTS -> {
                 specials(keys, faction, SpecialAction.EXPOSE, SpecialAction.RALLY, SpecialAction.MOMENTUM);
@@ -71,8 +71,8 @@ public final class SearchedSubsets {
                         CardType.STABILIZE);
                 keys.addAll(List.of(
                         "lean.support." + faction,
-                        SearchParameters.COUNTER_AFFINITY,
-                        SearchParameters.AVOID_PUBLIC_LINK));
+                        SearchParameters.scoped(SearchParameters.COUNTER_AFFINITY, faction),
+                        SearchParameters.scoped(SearchParameters.AVOID_PUBLIC_LINK, faction)));
             }
         }
         return keys.stream().sorted().toList();

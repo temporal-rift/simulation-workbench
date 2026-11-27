@@ -25,7 +25,7 @@ import io.github.temporalrift.workbench.shared.game.SpecialAction;
 public final class SearchParameters {
 
     /** The parameters of {@code faction-spread}: every value at its default. */
-    public static final SearchParameters DEFAULTS = new SearchParameters(Map.of());
+    public static final SearchParameters DEFAULTS = new SearchParameters(Map.of(), null);
 
     public static final String CHAIN_THREAT_LINKS = "threshold.chainThreatLinks";
     public static final String TAPESTRY_LINKS = "threshold.tapestryLinks";
@@ -43,13 +43,29 @@ public final class SearchParameters {
     public static final String DETONATE = "spread.detonate";
 
     private static final int MAX_AFFINITY = 8;
+    private static final Map<String, Spec> GLOBALS = new LinkedHashMap<>();
     private static final List<Spec> SCHEMA = buildSchema();
     private static final Map<String, Spec> BY_KEY = indexed(SCHEMA);
 
     private final Map<String, Integer> values;
+    private final Faction scope;
 
-    private SearchParameters(Map<String, Integer> values) {
+    private SearchParameters(Map<String, Integer> values, Faction scope) {
         this.values = new TreeMap<>(values);
+        this.scope = scope;
+    }
+
+    /**
+     * The key of a threshold or spread behavior for one faction: these parameters act only on the seat that plays that
+     * faction, so a table of one parameter set changes the play of one faction and leaves the others as they are.
+     */
+    public static String scoped(String base, Faction faction) {
+        return base + "." + faction;
+    }
+
+    /** These parameters read for the seat that plays {@code faction}: its thresholds and behaviors apply. */
+    SearchParameters forFaction(Faction faction) {
+        return new SearchParameters(values, faction);
     }
 
     /** One declared parameter: its grid {@code min + k * step} up to {@code max}, and its default. */
@@ -106,7 +122,7 @@ public final class SearchParameters {
                 kept.put(entry.getKey(), entry.getValue());
             }
         }
-        return new SearchParameters(kept);
+        return new SearchParameters(kept, null);
     }
 
     /** The values that differ from their defaults, by key. */
@@ -121,7 +137,18 @@ public final class SearchParameters {
         return String.join(",", parts);
     }
 
+    /**
+     * A parameter's value. A threshold or spread behavior (a base key) reads the one of the faction this view is for,
+     * and its default when the view is for none.
+     */
     int value(String key) {
+        var global = GLOBALS.get(key);
+        if (global != null) {
+            if (scope == null) {
+                return global.defaultValue();
+            }
+            key = scoped(key, scope);
+        }
         var override = values.get(key);
         return override != null ? override : BY_KEY.get(key).defaultValue();
     }
@@ -172,6 +199,10 @@ public final class SearchParameters {
         };
     }
 
+    private static void global(Spec spec) {
+        GLOBALS.put(spec.key(), spec);
+    }
+
     private static List<Spec> buildSchema() {
         var specs = new ArrayList<Spec>();
         for (var faction : Faction.values()) {
@@ -204,20 +235,26 @@ public final class SearchParameters {
                     1,
                     lean(FactionPreferences.card(faction, CardType.SUPPRESS).bias())));
         }
-        specs.add(new Spec(CHAIN_THREAT_LINKS, 1, 4, 1, ChainContest.THREATENING_LINKS));
-        specs.add(new Spec(TAPESTRY_LINKS, 1, 4, 1, FactionRecipePolicy.TAPESTRY_LINKS));
-        specs.add(new Spec(STAKE_VALUE, 0, 8, 1, ParadoxAwarePolicy.COMMITMENT_VALUE));
-        specs.add(new Spec(COMMITMENT_BONUS, 0, 600, 100, FactionRecipePolicy.COMMITMENT_BONUS));
-        specs.add(new Spec(DECLARED_BY_OTHER_PENALTY, 0, 600, 100, FactionRecipePolicy.DECLARED_BY_OTHER_PENALTY));
-        specs.add(new Spec(PROTECT_AFFINITY, 0, 9, 1, FactionRecipePolicy.PROTECT_AFFINITY));
-        specs.add(new Spec(GUARD_AFFINITY, 0, 9, 1, FactionRecipePolicy.GUARD_AFFINITY));
-        specs.add(new Spec(COUNTER_AFFINITY, 0, 9, 1, FactionRecipePolicy.COUNTER_AFFINITY));
-        specs.add(new Spec(CHAIN_BREAK_MARGIN, 0, 3, 1, ParadoxAwarePolicy.CHAIN_BREAK_MARGIN));
-        specs.add(new Spec(BET_SPREADING, 0, 1, 1, 1));
-        specs.add(new Spec(RUNNER_UP_PERCENT, 0, 100, 25, 50));
-        specs.add(new Spec(CONTEST_CHAIN, 0, 1, 1, 1));
-        specs.add(new Spec(AVOID_PUBLIC_LINK, 0, 1, 1, 1));
-        specs.add(new Spec(DETONATE, 0, 1, 1, 1));
+        global(new Spec(CHAIN_THREAT_LINKS, 1, 4, 1, ChainContest.THREATENING_LINKS));
+        global(new Spec(TAPESTRY_LINKS, 1, 4, 1, FactionRecipePolicy.TAPESTRY_LINKS));
+        global(new Spec(STAKE_VALUE, 0, 8, 1, ParadoxAwarePolicy.COMMITMENT_VALUE));
+        global(new Spec(COMMITMENT_BONUS, 0, 600, 100, FactionRecipePolicy.COMMITMENT_BONUS));
+        global(new Spec(DECLARED_BY_OTHER_PENALTY, 0, 600, 100, FactionRecipePolicy.DECLARED_BY_OTHER_PENALTY));
+        global(new Spec(PROTECT_AFFINITY, 0, 9, 1, FactionRecipePolicy.PROTECT_AFFINITY));
+        global(new Spec(GUARD_AFFINITY, 0, 9, 1, FactionRecipePolicy.GUARD_AFFINITY));
+        global(new Spec(COUNTER_AFFINITY, 0, 9, 1, FactionRecipePolicy.COUNTER_AFFINITY));
+        global(new Spec(CHAIN_BREAK_MARGIN, 0, 3, 1, ParadoxAwarePolicy.CHAIN_BREAK_MARGIN));
+        global(new Spec(BET_SPREADING, 0, 1, 1, 1));
+        global(new Spec(RUNNER_UP_PERCENT, 0, 100, 25, 50));
+        global(new Spec(CONTEST_CHAIN, 0, 1, 1, 1));
+        global(new Spec(AVOID_PUBLIC_LINK, 0, 1, 1, 1));
+        global(new Spec(DETONATE, 0, 1, 1, 1));
+        GLOBALS.values().forEach(spec -> {
+            for (var faction : Faction.values()) {
+                specs.add(new Spec(
+                        scoped(spec.key(), faction), spec.min(), spec.max(), spec.step(), spec.defaultValue()));
+            }
+        });
         return specs.stream().sorted(java.util.Comparator.comparing(Spec::key)).toList();
     }
 
