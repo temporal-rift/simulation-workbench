@@ -47,8 +47,13 @@ public record RunCase(
         this(caseId, caseKey, variantLabel, tableId, seed, playerCount, seats, state, result, null);
     }
 
-    /** A seat of the case: its faction and the policy that plays it. */
-    public record Seat(int seatIndex, Faction faction, String policyId, String policyVersion) {}
+    /** A seat of the case: its faction and its policy; the digest tells apart parameter sets of one bundle. */
+    public record Seat(int seatIndex, Faction faction, String policyId, String policyVersion, String policyDigest) {
+
+        public Seat(int seatIndex, Faction faction, String policyId, String policyVersion) {
+            this(seatIndex, faction, policyId, policyVersion, null);
+        }
+    }
 
     /**
      * The authoritative ending of the case's game.

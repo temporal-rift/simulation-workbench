@@ -91,7 +91,7 @@ public class RunSourceAdapter implements RunSource {
                 runCase.seed(),
                 runCase.playerCount(),
                 runCase.seats().stream()
-                        .map(seat -> new SeatPolicy(seat.policyId(), seat.policyVersion()))
+                        .map(seat -> new SeatPolicy(seat.policyId(), seat.policyVersion(), seat.policyDigest()))
                         .toList(),
                 runCase.seats().stream().map(RunCase.Seat::faction).toList(),
                 runCase.state(),

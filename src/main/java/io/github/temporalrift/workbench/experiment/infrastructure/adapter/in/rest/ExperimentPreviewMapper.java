@@ -38,10 +38,11 @@ final class ExperimentPreviewMapper {
                 PreviewCase.PlayerCountEnum.fromValue(coordinate.playerCount()),
                 coordinate.seats().stream()
                         .map(seat -> new SeatAssignment(
-                                seat.seatIndex(),
-                                Faction.fromValue(seat.faction().name()),
-                                seat.policyId(),
-                                seat.policyVersion()))
+                                        seat.seatIndex(),
+                                        Faction.fromValue(seat.faction().name()),
+                                        seat.policyId(),
+                                        seat.policyVersion())
+                                .policyDigest(seat.policyDigest()))
                         .toList());
     }
 }

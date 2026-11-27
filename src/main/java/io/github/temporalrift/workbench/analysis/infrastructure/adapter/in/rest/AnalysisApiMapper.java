@@ -105,6 +105,7 @@ final class AnalysisApiMapper {
                 .tableId(key.tableId())
                 .policyId(key.policyId())
                 .policyVersion(key.policyVersion())
+                .policyDigest(key.policyDigest())
                 .playerCount(Cohort.PlayerCountEnum.fromValue(key.playerCount()))
                 .factionSet(key.factionSet() == null ? null : factions(key.factionSet()))
                 .seatIndex(key.seatIndex())

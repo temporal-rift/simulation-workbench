@@ -78,7 +78,11 @@ public class RunCatalogQueryHandler implements RunCatalog {
                 logicalCase.playerCount(),
                 logicalCase.seats().stream()
                         .map(seat -> new RunCase.Seat(
-                                seat.seatIndex(), seat.faction(), seat.policyId(), seat.policyVersion()))
+                                seat.seatIndex(),
+                                seat.faction(),
+                                seat.policyId(),
+                                seat.policyVersion(),
+                                seat.policyDigest()))
                         .toList(),
                 logicalCase.state(),
                 logicalCase.result() == null ? null : result(logicalCase.result()),

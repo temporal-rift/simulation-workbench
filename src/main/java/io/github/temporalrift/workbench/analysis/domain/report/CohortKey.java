@@ -52,6 +52,12 @@ public record CohortKey(
         return policy == null ? null : policy.version();
     }
 
+    /** The artifact digest of the policy of the cohort seats; null when they play several or it is not kept. */
+    public String policyDigest() {
+        var policy = policy();
+        return policy == null ? null : policy.digest();
+    }
+
     private SeatPolicy policy() {
         if (seatIndex != null) {
             return seatPolicies.get(seatIndex);
@@ -91,11 +97,12 @@ public record CohortKey(
     /** A stable text identity, used to seed the cohort's resampling. */
     public String text() {
         var version = policyVersion();
+        var digest = policyDigest();
         return String.join(
                 "|",
                 variantLabel,
                 tableId,
-                version == null ? "*" : version,
+                version == null ? "*" : version + (digest == null ? "" : "#" + digest),
                 String.valueOf(playerCount),
                 factionSet == null ? "*" : factionSet.toString(),
                 seatIndex == null ? "*" : seatIndex.toString());
