@@ -70,16 +70,7 @@ public record CampaignDefinition(
         Objects.requireNonNull(algorithm, "algorithm");
         playerCounts = List.copyOf(playerCounts);
         kind = kind == null ? CampaignKind.RULES_SEARCH : kind;
-        if (kind == CampaignKind.POLICY_HUNT) {
-            if (faction == null || policyParameterSpaceVersion == null) {
-                throw new IllegalArgumentException("a policy hunt names its faction and policy parameter space");
-            }
-            if (playerCounts.size() != 1) {
-                throw new IllegalArgumentException("a policy hunt plays exactly one player count");
-            }
-        } else if (faction != null || policyParameterSpaceVersion != null) {
-            throw new IllegalArgumentException("only a policy hunt names a faction or a policy parameter space");
-        }
+        requireKindInputs(kind, faction, policyParameterSpaceVersion, playerCounts);
         if (name == null || name.isBlank() || name.length() > 120) {
             throw new IllegalArgumentException("name must be 1 to 120 characters");
         }
@@ -93,6 +84,23 @@ public record CampaignDefinition(
         }
         if (playerCounts.isEmpty()) {
             throw new IllegalArgumentException("a campaign plays at least one player count");
+        }
+    }
+
+    /** A hunt names its faction, its policy parameter space and exactly one player count; a rules search names none. */
+    private static void requireKindInputs(
+            CampaignKind kind, Faction faction, Integer policyParameterSpaceVersion, List<Integer> playerCounts) {
+        if (kind != CampaignKind.POLICY_HUNT) {
+            if (faction != null || policyParameterSpaceVersion != null) {
+                throw new IllegalArgumentException("only a policy hunt names a faction or a policy parameter space");
+            }
+            return;
+        }
+        if (faction == null || policyParameterSpaceVersion == null) {
+            throw new IllegalArgumentException("a policy hunt names its faction and policy parameter space");
+        }
+        if (playerCounts.size() != 1) {
+            throw new IllegalArgumentException("a policy hunt plays exactly one player count");
         }
     }
 

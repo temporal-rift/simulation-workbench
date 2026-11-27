@@ -55,9 +55,11 @@ class HuntReportClassificationTest {
         var baseline = JsonMapper.builder().build().createObjectNode();
         var policies = JsonMapper.builder().build().createArrayNode();
 
-        assertThatThrownBy(() -> definition(baseline, policies, null, List.of(5)))
+        var one = List.of(5);
+        var two = List.of(4, 5);
+        assertThatThrownBy(() -> definition(baseline, policies, null, one))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> definition(baseline, policies, Faction.WEAVERS, List.of(4, 5)))
+        assertThatThrownBy(() -> definition(baseline, policies, Faction.WEAVERS, two))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThat(definition(baseline, policies, Faction.WEAVERS, List.of(5)).isHunt())
                 .isTrue();

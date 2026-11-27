@@ -28,7 +28,7 @@ public final class SearchedSubsets {
                 specials(keys, faction, SpecialAction.ANNIHILATE, SpecialAction.CASCADE);
                 cards(keys, faction, CardType.SUPPRESS, CardType.NULLIFY, CardType.DETONATE, CardType.PUSH);
                 keys.addAll(List.of(
-                        "lean.suppress." + faction,
+                        suppressLean(faction),
                         SearchParameters.scoped(SearchParameters.CHAIN_THREAT_LINKS, faction),
                         SearchParameters.scoped(SearchParameters.COUNTER_AFFINITY, faction),
                         SearchParameters.scoped(SearchParameters.CONTEST_CHAIN, faction)));
@@ -37,7 +37,7 @@ public final class SearchedSubsets {
                 specials(keys, faction, SpecialAction.FORESIGHT, SpecialAction.SEAL, SpecialAction.FULFILLMENT);
                 cards(keys, faction, CardType.PUSH, CardType.STABILIZE, CardType.AMPLIFY);
                 keys.addAll(List.of(
-                        "lean.support." + faction,
+                        supportLean(faction),
                         SearchParameters.scoped(SearchParameters.RUNNER_UP_PERCENT, faction),
                         SearchParameters.scoped(SearchParameters.PROTECT_AFFINITY, faction),
                         SearchParameters.scoped(SearchParameters.GUARD_AFFINITY, faction),
@@ -47,7 +47,7 @@ public final class SearchedSubsets {
                 specials(keys, faction, SpecialAction.REWRITE, SpecialAction.MIMIC);
                 cards(keys, faction, CardType.PUSH, CardType.SWING, CardType.REDIRECT, CardType.STABILIZE);
                 keys.addAll(List.of(
-                        "lean.support." + faction,
+                        supportLean(faction),
                         SearchParameters.scoped(SearchParameters.COUNTER_AFFINITY, faction),
                         SearchParameters.scoped(SearchParameters.COMMITMENT_BONUS, faction),
                         SearchParameters.scoped(SearchParameters.BET_SPREADING, faction)));
@@ -56,7 +56,7 @@ public final class SearchedSubsets {
                 specials(keys, faction, SpecialAction.THREAD);
                 cards(keys, faction, CardType.PUSH, CardType.AMPLIFY, CardType.STABILIZE);
                 keys.addAll(List.of(
-                        "lean.support." + faction,
+                        supportLean(faction),
                         SearchParameters.scoped(SearchParameters.TAPESTRY_LINKS, faction),
                         SearchParameters.scoped(SearchParameters.PROTECT_AFFINITY, faction),
                         SearchParameters.scoped(SearchParameters.COMMITMENT_BONUS, faction)));
@@ -72,12 +72,20 @@ public final class SearchedSubsets {
                         CardType.DETONATE,
                         CardType.STABILIZE);
                 keys.addAll(List.of(
-                        "lean.support." + faction,
+                        supportLean(faction),
                         SearchParameters.scoped(SearchParameters.COUNTER_AFFINITY, faction),
                         SearchParameters.scoped(SearchParameters.AVOID_PUBLIC_LINK, faction)));
             }
         }
         return keys.stream().sorted().toList();
+    }
+
+    private static String supportLean(Faction faction) {
+        return "lean.support." + faction;
+    }
+
+    private static String suppressLean(Faction faction) {
+        return "lean.suppress." + faction;
     }
 
     private static void specials(List<String> keys, Faction faction, SpecialAction... actions) {

@@ -516,7 +516,7 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
             var best = outcome.survivors().getFirst();
             var bestRatio = best.score() == null ? 0 : -best.score();
             var report = HuntReport.unconfirmed(
-                    definition.faction(), definition.huntPlayerCount(), screening(campaign, entries, bestRatio));
+                    definition.faction(), definition.huntPlayerCount(), screening(campaign, bestRatio));
             var flagged = bestRatio >= HuntPlan.FLAG_FACTOR * HuntPlan.FAIR_RATIO;
             next = flagged
                     ? campaign.completeSearch(shortList).withHuntReport(report)
@@ -529,7 +529,7 @@ public class CampaignProgress implements AdvanceCampaignsUseCase {
      * What the search measured: the round-0 win ratios of every candidate, on the same seeds, give the realized noise
      * (their standard deviation) and the share of candidates at or above the flag line.
      */
-    private HuntReport.Screening screening(Campaign campaign, List<LogEntry> lastRound, double bestRatio) {
+    private HuntReport.Screening screening(Campaign campaign, double bestRatio) {
         var ratios = new ArrayList<Double>();
         var offset = 0;
         Page<LogEntry> page;

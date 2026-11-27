@@ -2,6 +2,7 @@ package io.github.temporalrift.workbench.analysis.application.query;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.analysis.HuntTallies;
@@ -29,23 +30,24 @@ public class HuntTalliesService implements HuntTallies {
         var wins = 0;
         var playerCount = 0;
         for (var played : runs.cases(runId)) {
-            if (!played.tableId().equals(tableId)
-                    || played.status() != CaseState.SUCCEEDED
-                    || played.outcome() == null
-                    || (!wanted.isEmpty() && !wanted.contains(played.seed()))) {
-                continue;
-            }
-            var seat = seatOf(played, faction);
-            if (seat < 0) {
-                continue;
-            }
-            playerCount = played.playerCount();
-            games++;
-            if (played.outcome().winnerSeats().contains(seat)) {
-                wins++;
+            var seat = counts(played, tableId, wanted) ? seatOf(played, faction) : -1;
+            if (seat >= 0) {
+                playerCount = played.playerCount();
+                games++;
+                if (played.outcome().winnerSeats().contains(seat)) {
+                    wins++;
+                }
             }
         }
         return new Tally(playerCount, games, wins);
+    }
+
+    /** Whether the case is a succeeded game of the table, on one of the wanted seeds when any are asked for. */
+    private static boolean counts(AnalyzedCase played, String tableId, Set<String> wanted) {
+        return played.tableId().equals(tableId)
+                && played.status() == CaseState.SUCCEEDED
+                && played.outcome() != null
+                && (wanted.isEmpty() || wanted.contains(played.seed()));
     }
 
     private static int seatOf(AnalyzedCase played, Faction faction) {

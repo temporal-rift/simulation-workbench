@@ -68,7 +68,7 @@ class CampaignApiMapperHuntTest {
                 new HuntReport.Screening(64, 1.31, 0.31, 0.04),
                 HuntReport.Classification.FLAGGED,
                 new HuntReport.Confirmed(1.34, 1.1, 1.58, 1.0, 1.0, Map.of("affinity.card.WEAVERS.SCAN", 8)),
-                HuntReport.LIMITATIONS);
+                HuntReport.STANDARD_STATEMENTS);
 
         var api = mapper.toApi(hunt(report)).getHuntReport();
 

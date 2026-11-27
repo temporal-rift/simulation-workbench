@@ -98,11 +98,15 @@ public record CohortKey(
     public String text() {
         var version = policyVersion();
         var digest = policyDigest();
+        var policy = version == null ? "*" : version;
+        if (version != null && digest != null) {
+            policy += "#" + digest;
+        }
         return String.join(
                 "|",
                 variantLabel,
                 tableId,
-                version == null ? "*" : version + (digest == null ? "" : "#" + digest),
+                policy,
                 String.valueOf(playerCount),
                 factionSet == null ? "*" : factionSet.toString(),
                 seatIndex == null ? "*" : seatIndex.toString());

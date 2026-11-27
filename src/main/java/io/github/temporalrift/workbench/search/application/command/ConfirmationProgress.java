@@ -121,7 +121,7 @@ class ConfirmationProgress {
                         standard.ratio(),
                         HuntReport.normalRatio(standard.ratio()),
                         parameters),
-                HuntReport.LIMITATIONS);
+                HuntReport.STANDARD_STATEMENTS);
         var next = campaign.completeHuntConfirmation(campaign.confirmation(), report, clock.instant());
         return campaigns.apply(CampaignChange.of(stored, next, stored.accruedAt()));
     }

@@ -23,7 +23,7 @@ public record HuntReport(
         List<String> limitations) {
 
     /** The statements every report carries. */
-    public static final List<String> LIMITATIONS = List.of(
+    public static final List<String> STANDARD_STATEMENTS = List.of(
             "A cell without a flag is evidence, not a guarantee, that no exploit exists: the search covers the"
                     + " strategies a preference table can express.",
             "Results characterize bot strategies only and say nothing about balance among human players.");
@@ -87,6 +87,6 @@ public record HuntReport(
 
     /** The report of a cell whose best candidate did not pass the screening gate or is not confirmed yet. */
     public static HuntReport unconfirmed(Faction faction, int playerCount, Screening screening) {
-        return new HuntReport(faction, playerCount, screening, Classification.NOT_CONFIRMED, null, LIMITATIONS);
+        return new HuntReport(faction, playerCount, screening, Classification.NOT_CONFIRMED, null, STANDARD_STATEMENTS);
     }
 }

@@ -383,6 +383,11 @@ public final class ExperimentValidator {
         return values;
     }
 
+    /** How an error names a policy: {@code policy id@version}. */
+    private static String policyName(String id, String version) {
+        return "policy " + id + "@" + version;
+    }
+
     private static void verifyReference(
             PolicyReferenceVerifier verifier,
             String path,
@@ -397,20 +402,20 @@ public final class ExperimentValidator {
             }
             case UNKNOWN_POLICY -> throw invalid(path + ".id", "unknown policy " + id + "@" + version);
             case UNSUPPORTED_PARAMETERS ->
-                throw invalid(path + ".parameters", "policy " + id + "@" + version + " accepts no parameters");
+                throw invalid(path + ".parameters", policyName(id, version) + " accepts no parameters");
             case UNKNOWN_PARAMETER ->
                 throw invalid(
                         path + ".parameters." + result.parameter(),
-                        "policy " + id + "@" + version + " declares no parameter " + result.parameter());
+                        policyName(id, version) + " declares no parameter " + result.parameter());
             case INVALID_PARAMETER_VALUE ->
                 throw invalid(
                         path + ".parameters." + result.parameter(),
-                        "policy " + id + "@" + version + " parameter " + result.parameter()
+                        policyName(id, version) + " parameter " + result.parameter()
                                 + " must be an integer in its range and on its step");
             case DIGEST_MISMATCH ->
                 throw mismatch(
                         path + ".artifactDigest",
-                        "policy " + id + "@" + version + " artifactDigest does not match the defined bundle");
+                        policyName(id, version) + " artifactDigest does not match the defined bundle");
         }
     }
 

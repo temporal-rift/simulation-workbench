@@ -237,6 +237,7 @@ class PolicyHuntTest {
         var log = campaigns.log(id, 5_000, 0).items();
         assertThat(log)
                 .filteredOn(entry -> "c-0003".equals(entry.candidateId()) && entry.evaluation() != null)
+                .isNotEmpty()
                 .allSatisfy(entry -> assertThat(entry.evaluation().verdict()).isEqualTo("INVALID"));
         assertThat(campaign(id).shortList()).doesNotContain("c-0003");
         assertThat(campaign(id).state()).isEqualTo(CampaignState.COMPLETED);

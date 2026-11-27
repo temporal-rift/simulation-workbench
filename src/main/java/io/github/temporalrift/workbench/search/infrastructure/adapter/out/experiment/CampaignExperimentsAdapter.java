@@ -45,6 +45,12 @@ import io.github.temporalrift.workbench.shared.rules.ParameterValue;
 public class CampaignExperimentsAdapter implements CampaignExperiments {
 
     private static final String VERSION_FIELD = "version";
+    private static final String SIMULATOR_DISABLED = "The simulator is not enabled";
+    private static final String ARTIFACT_DIGEST_FIELD = "artifactDigest";
+    private static final String SEATS_FIELD = "seats";
+    private static final String SEAT_INDEX_FIELD = "seatIndex";
+    private static final String POLICY_ID_FIELD = "policyId";
+    private static final String POLICY_VERSION_FIELD = "policyVersion";
     private static final int SCHEMA_VERSION = 2;
 
     /** A wave plays one case at a time until the campaign allows more, so the frozen bounds never depend on it. */
@@ -150,8 +156,7 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
         if (definition.isHunt()) {
             return freezeHuntWave(idempotencyKey, definition, waveIndex, candidates, seeds);
         }
-        var simulator =
-                lanes.simulator().orElseThrow(() -> new CampaignPlayRefusedException("The simulator is not enabled"));
+        var simulator = lanes.simulator().orElseThrow(() -> new CampaignPlayRefusedException(SIMULATOR_DISABLED));
         var name = definition.name() + ", wave " + waveIndex;
         var variants = candidates.stream()
                 .map(candidate -> variant(
@@ -175,8 +180,7 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
             Candidate candidate,
             List<String> seeds,
             List<SeatTable> tables) {
-        var simulator =
-                lanes.simulator().orElseThrow(() -> new SimulatorNotAvailableException("The simulator is not enabled"));
+        var simulator = lanes.simulator().orElseThrow(() -> new SimulatorNotAvailableException(SIMULATOR_DISABLED));
         var seats = definition.playerCounts().stream()
                 .mapToInt(Integer::intValue)
                 .max()
@@ -234,7 +238,7 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
             var node = mapper.createObjectNode();
             node.put("id", bundle.id());
             node.put(VERSION_FIELD, bundle.version());
-            node.put("artifactDigest", bundle.artifactDigest());
+            node.put(ARTIFACT_DIGEST_FIELD, bundle.artifactDigest());
             node.putObject("parameters");
             nodes.add(node);
         }
@@ -294,13 +298,13 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
         for (var table : tables) {
             var node = mapper.createObjectNode();
             node.put("id", table.id());
-            var seats = node.putArray("seats");
+            var seats = node.putArray(SEATS_FIELD);
             for (var seat = 0; seat < seatCount; seat++) {
                 var bundle = bundleOf(definition, table.seats().get(seat));
                 seats.addObject()
-                        .put("seatIndex", seat)
-                        .put("policyId", bundle.path("id").asString())
-                        .put("policyVersion", bundle.path(VERSION_FIELD).asString());
+                        .put(SEAT_INDEX_FIELD, seat)
+                        .put(POLICY_ID_FIELD, bundle.path("id").asString())
+                        .put(POLICY_VERSION_FIELD, bundle.path(VERSION_FIELD).asString());
             }
             nodes.add(node);
         }
@@ -314,13 +318,13 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
         for (var table : tables) {
             var node = mapper.createObjectNode();
             node.put("id", table.id());
-            var seats = node.putArray("seats");
+            var seats = node.putArray(SEATS_FIELD);
             for (var seat = 0; seat < seatCount; seat++) {
                 var bundle = bundles.get(policies.indexOf(table.seats().get(seat)));
                 seats.addObject()
-                        .put("seatIndex", seat)
-                        .put("policyId", bundle.path("id").asString())
-                        .put("policyVersion", bundle.path(VERSION_FIELD).asString());
+                        .put(SEAT_INDEX_FIELD, seat)
+                        .put(POLICY_ID_FIELD, bundle.path("id").asString())
+                        .put(POLICY_VERSION_FIELD, bundle.path(VERSION_FIELD).asString());
             }
             nodes.add(node);
         }
@@ -335,26 +339,6 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
             List<ObjectNode> variants,
             List<String> seeds,
             LaneBundle simulator) {
-        return manifest(
-                definition,
-                name,
-                policies,
-                tables,
-                variants,
-                seeds,
-                simulator,
-                FactionSets.of(definition.playerCounts()));
-    }
-
-    private ObjectNode manifest(
-            CampaignDefinition definition,
-            String name,
-            List<? extends JsonNode> policies,
-            List<? extends JsonNode> tables,
-            List<ObjectNode> variants,
-            List<String> seeds,
-            LaneBundle simulator,
-            List<List<Faction>> factionSets) {
         var manifest = mapper.createObjectNode();
         manifest.put("schemaVersion", SCHEMA_VERSION);
         manifest.put("name", name);
@@ -371,17 +355,22 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
         seeds.forEach(seedNodes::add);
         var counts = manifest.putArray("playerCounts");
         definition.playerCounts().forEach(counts::add);
-        var sets = manifest.putArray("factionSets");
-        factionSets.forEach(set -> {
-            var node = sets.addArray();
-            set.stream().map(Faction::name).forEach(node::add);
-        });
+        setFactionSets(manifest, FactionSets.of(definition.playerCounts()));
         manifest.put("seatRotationMode", "CYCLIC");
         manifest.put("timingMode", "LOGICAL");
         manifest.put("concurrency", FROZEN_CONCURRENCY);
         manifest.put("caseWallTimeoutSeconds", bounds.caseWallTimeoutSeconds());
         manifest.put("maxRejectedCandidatesPerWindow", bounds.maxRejectedCandidatesPerWindow());
         return manifest;
+    }
+
+    /** Names the faction sets the case matrix plays, in place of any it had. */
+    private void setFactionSets(ObjectNode manifest, List<List<Faction>> factionSets) {
+        var sets = manifest.putArray("factionSets");
+        factionSets.forEach(set -> {
+            var node = sets.addArray();
+            set.stream().map(Faction::name).forEach(node::add);
+        });
     }
 
     /** Orders dotted versions by their numbers, so 1.10.0 is newer than 1.2.0. */
@@ -500,7 +489,7 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
         var node = mapper.createObjectNode();
         node.put("id", SEARCH_ID);
         node.put(VERSION_FIELD, SEARCH_VERSION);
-        node.put("artifactDigest", candidate.effectiveRulesDigest());
+        node.put(ARTIFACT_DIGEST_FIELD, candidate.effectiveRulesDigest());
         var parameters = node.putObject("parameters");
         candidate
                 .overrides()
@@ -513,15 +502,29 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
         var seatCount = definition.huntPlayerCount();
         var node = mapper.createObjectNode();
         node.put("id", id);
-        var seats = node.putArray("seats");
+        var seats = node.putArray(SEATS_FIELD);
         for (var seat = 0; seat < seatCount; seat++) {
             seats.addObject()
-                    .put("seatIndex", seat)
-                    .put("policyId", entry.path("id").asString())
-                    .put("policyVersion", entry.path(VERSION_FIELD).asString())
-                    .put("policyDigest", entry.path("artifactDigest").asString());
+                    .put(SEAT_INDEX_FIELD, seat)
+                    .put(POLICY_ID_FIELD, entry.path("id").asString())
+                    .put(POLICY_VERSION_FIELD, entry.path(VERSION_FIELD).asString())
+                    .put("policyDigest", entry.path(ARTIFACT_DIGEST_FIELD).asString());
         }
         return node;
+    }
+
+    /** A hunt's manifest: the baseline rules as one variant, over the faction sets that hold the hunted faction. */
+    private ObjectNode huntManifest(
+            CampaignDefinition definition,
+            String name,
+            List<? extends JsonNode> policies,
+            List<? extends JsonNode> tables,
+            List<String> seeds,
+            LaneBundle simulator) {
+        var manifest = manifest(
+                definition, name, policies, tables, List.of(huntVariant(definition, simulator)), seeds, simulator);
+        setFactionSets(manifest, huntFactionSets(definition));
+        return manifest;
     }
 
     private ObjectNode huntVariant(CampaignDefinition definition, LaneBundle simulator) {
@@ -541,8 +544,7 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
             int waveIndex,
             List<Candidate> candidates,
             List<String> seeds) {
-        var simulator =
-                lanes.simulator().orElseThrow(() -> new CampaignPlayRefusedException("The simulator is not enabled"));
+        var simulator = lanes.simulator().orElseThrow(() -> new CampaignPlayRefusedException(SIMULATOR_DISABLED));
         var entries = candidates.stream().map(this::searchEntry).toList();
         var tables = new java.util.ArrayList<ObjectNode>();
         for (var index = 0; index < candidates.size(); index++) {
@@ -551,15 +553,8 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
         try {
             return experiments.freeze(
                     idempotencyKey,
-                    manifest(
-                            definition,
-                            definition.name() + ", wave " + waveIndex,
-                            entries,
-                            tables,
-                            List.of(huntVariant(definition, simulator)),
-                            seeds,
-                            simulator,
-                            huntFactionSets(definition)));
+                    huntManifest(
+                            definition, definition.name() + ", wave " + waveIndex, entries, tables, seeds, simulator));
         } catch (ExperimentRefusedException e) {
             throw new CampaignPlayRefusedException(e.getMessage(), e);
         }
@@ -576,21 +571,18 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
     @Override
     public UUID freezeHuntConfirmation(
             UUID idempotencyKey, CampaignDefinition definition, Candidate candidate, List<String> seeds) {
-        var simulator =
-                lanes.simulator().orElseThrow(() -> new SimulatorNotAvailableException("The simulator is not enabled"));
+        var simulator = lanes.simulator().orElseThrow(() -> new SimulatorNotAvailableException(SIMULATOR_DISABLED));
         var standard = bundles(List.of(STANDARD)).getFirst();
         var entry = searchEntry(candidate);
-        var manifest = manifest(
+        var manifest = huntManifest(
                 definition,
                 definition.name() + ", confirmation of " + candidate.id(),
                 List.of(entry, standard),
                 List.of(
                         uniformTable(definition, HuntPlan.CANDIDATE_TABLE, entry),
                         uniformTable(definition, HuntPlan.STANDARD_TABLE, standard)),
-                List.of(huntVariant(definition, simulator)),
                 seeds,
-                simulator,
-                huntFactionSets(definition));
+                simulator);
         try {
             return experiments.freeze(builtOn(idempotencyKey, simulator), manifest);
         } catch (ExperimentRefusedException e) {
