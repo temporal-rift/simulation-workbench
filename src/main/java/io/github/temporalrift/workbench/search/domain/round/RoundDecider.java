@@ -94,6 +94,26 @@ public final class RoundDecider {
     }
 
     /**
+     * The last round of a policy hunt: its candidates are ranked by score and every one is kept, so each is
+     * short-listed in rank order up to the short list's size. No gate or dominance applies: a hunt has none.
+     */
+    public static Outcome decideKeepingAll(
+            List<Assessment> assessments, SearchAlgorithm algorithm, int round, int nextSequence) {
+        var ordered = byCandidateId(assessments);
+        var ranked = ordered.stream().sorted(BEST_FIRST).toList();
+        var entries = new ArrayList<LogEntry>();
+        for (var assessment : ordered) {
+            entries.add(
+                    entry(assessment, round, nextSequence + entries.size(), new Verdict(Decision.KEPT, null, null)));
+        }
+        var shortList = ranked.stream()
+                .limit(algorithm.shortListSize())
+                .map(assessment -> assessment.candidate().id())
+                .toList();
+        return new Outcome(List.copyOf(entries), ranked, shortList);
+    }
+
+    /**
      * The entries that end a version 2 plan, after its last round is decided: each kept candidate that passes every
      * gate is short-listed in rank order, and each that fails a gate is discarded as not meeting the gates, with its
      * failing lines. One whose evaluation is invalid has no gate result, so it is discarded as outside the top

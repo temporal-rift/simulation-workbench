@@ -73,6 +73,27 @@ public interface CampaignExperiments {
             List<String> seeds,
             List<io.github.temporalrift.workbench.search.domain.campaign.SeatTable> tables);
 
+    /**
+     * Freezes the experiment that confirms the best candidate of a policy hunt, once per idempotency key combined with
+     * the builds of the simulator: one variant over the baseline rules and two tables of the hunt's player count,
+     * {@code candidate} whose seats all play the candidate's parameters and {@code standard} whose seats all play
+     * {@code faction-spread}, each over every given seed.
+     *
+     * @throws io.github.temporalrift.workbench.search.domain.campaign.SimulatorNotAvailableException when the
+     *     simulator is not enabled
+     * @throws io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException when the
+     *     experiment is refused
+     */
+    default UUID freezeHuntConfirmation(
+            UUID idempotencyKey, CampaignDefinition definition, Candidate candidate, List<String> seeds) {
+        throw new UnsupportedOperationException("This campaign source plays no policy hunt");
+    }
+
+    /** The newest policy parameter space version the service serves, which a hunt that names none uses. */
+    default int newestPolicyParameterSpaceVersion() {
+        return 1;
+    }
+
     /** Whether the simulator that plays a campaign is enabled. */
     boolean simulatorEnabled();
 

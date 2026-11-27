@@ -15,6 +15,7 @@ import io.github.temporalrift.workbench.search.domain.campaign.CampaignNotFoundE
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignState;
 import io.github.temporalrift.workbench.search.domain.campaign.Confirmation;
+import io.github.temporalrift.workbench.search.domain.campaign.HuntPlan;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignStateException;
 import io.github.temporalrift.workbench.search.domain.campaign.PolicyNotAvailableException;
 import io.github.temporalrift.workbench.search.domain.campaign.SeatTable;
@@ -73,12 +74,14 @@ public class StartConfirmationCommandHandler implements StartConfirmationUseCase
             return replayedOrRefused(campaignId, command, stored.campaign().state());
         }
         var definition = stored.campaign().definition();
-        var seedCount = evaluation.confirmationSeedCount(definition.criterionVersion());
+        var seedCount = definition.isHunt()
+                ? HuntPlan.confirmationSeeds(definition.huntPlayerCount())
+                : evaluation.confirmationSeedCount(definition.criterionVersion());
         var seeds = new ConfirmationSeeds(definition.confirmationMasterSeed()).seeds(seedCount);
         rejectOverlap(campaignId, seeds);
-        requirePlayable(definition);
-        var tables = evaluation.confirmationTables(definition.criterionVersion());
-        var confirmation = freezeAndStart(stored.campaign(), seedCount, seeds, tables);
+        var confirmation = definition.isHunt()
+                ? freezeAndStartHunt(stored.campaign(), seedCount, seeds)
+                : freezeAndStartRules(stored.campaign(), seedCount, seeds);
         for (var attempt = 0; attempt < ATTEMPTS; attempt++) {
             // A request with the same key that won the race answers for this one too.
             var won = updates.replayed(campaignId, command);
@@ -102,6 +105,36 @@ public class StartConfirmationCommandHandler implements StartConfirmationUseCase
             }
         }
         throw new IllegalStateException("Campaign " + campaignId + " keeps changing under the request");
+    }
+
+    private Confirmation freezeAndStartRules(Campaign campaign, int seedCount, List<String> seeds) {
+        var definition = campaign.definition();
+        requirePlayable(definition);
+        var tables = evaluation.confirmationTables(definition.criterionVersion());
+        return freezeAndStart(campaign, seedCount, seeds, tables);
+    }
+
+    /** The best candidate of a hunt on its own table and the standard seat on the other, one held run. */
+    private Confirmation freezeAndStartHunt(Campaign campaign, int seedCount, List<String> seeds) {
+        if (!experiments.simulatorEnabled()) {
+            throw new SimulatorNotAvailableException("The simulator is not enabled");
+        }
+        var best = campaign.shortList().getFirst();
+        var candidate = campaigns.candidates(campaign.campaignId()).stream()
+                .filter(found -> found.id().equals(best))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("The short-listed candidate " + best + " is gone"));
+        try {
+            var experimentId = experiments.freezeHuntConfirmation(
+                    ConfirmationKeys.experiment(campaign.campaignId(), best), campaign.definition(), candidate, seeds);
+            var runId = runs.startHeld(experimentId, ConfirmationKeys.run(campaign.campaignId(), best, experimentId));
+            return new Confirmation(seedCount, List.of(new Confirmation.Run(best, experimentId, runId, null)));
+        } catch (PolicyNotAvailableException e) {
+            throw e;
+        } catch (CampaignPlayRefusedException e) {
+            throw new SimulatorNotAvailableException(
+                    "The simulator cannot play this confirmation: " + e.getMessage(), e);
+        }
     }
 
     /** Runs that wait for their turn are held, so a setup that fails or loses leaves nothing playing. */

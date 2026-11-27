@@ -2,6 +2,7 @@ package io.github.temporalrift.workbench.search.application.command;
 
 import java.time.Clock;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -14,9 +15,12 @@ import io.github.temporalrift.workbench.search.domain.campaign.CampaignClaim;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignCreation;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignIdempotencyConflictException;
+import io.github.temporalrift.workbench.search.domain.campaign.CampaignKind;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException;
+import io.github.temporalrift.workbench.search.domain.campaign.HuntPlan;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignException;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignReason;
+import io.github.temporalrift.workbench.search.domain.campaign.PolicyRef;
 import io.github.temporalrift.workbench.search.domain.campaign.SearchAlgorithm;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignDefaults;
 import io.github.temporalrift.workbench.search.domain.port.out.CampaignExperiments;
@@ -91,6 +95,15 @@ public class CreateCampaignCommandHandler implements CreateCampaignUseCase {
     }
 
     private CampaignDefinition definitionOf(Command command) {
+        if (command.kind() == CampaignKind.POLICY_HUNT) {
+            return huntDefinitionOf(command);
+        }
+        if (command.faction() != null || command.policyParameterSpaceVersion() != null) {
+            throw new InvalidCampaignException(
+                    InvalidCampaignReason.INVALID_VALUE,
+                    command.faction() != null ? "faction" : "policyParameterSpaceVersion",
+                    "Only a policy hunt names a faction or a policy parameter space");
+        }
         var supplied = command.searchMasterSeed();
         if (supplied != null && supplied.equals(command.confirmationMasterSeed())) {
             throw new InvalidCampaignException(
@@ -119,6 +132,72 @@ public class CreateCampaignCommandHandler implements CreateCampaignUseCase {
                     searchSeed,
                     confirmationSeed,
                     algorithm);
+        } catch (IllegalArgumentException e) {
+            throw new InvalidCampaignException(InvalidCampaignReason.INVALID_VALUE, null, e.getMessage());
+        }
+    }
+
+    /**
+     * A policy hunt follows the hunt plan: it names its faction and exactly one player count, plays the standard
+     * {@code faction-spread} bundle against the candidates, and takes no algorithm, policies or criterion of its own.
+     */
+    private CampaignDefinition huntDefinitionOf(Command command) {
+        if (command.faction() == null) {
+            throw new InvalidCampaignException(
+                    InvalidCampaignReason.INVALID_VALUE, "faction", "A policy hunt names the faction it hunts");
+        }
+        if (command.playerCounts() == null || command.playerCounts().size() != 1) {
+            throw new InvalidCampaignException(
+                    InvalidCampaignReason.INVALID_VALUE,
+                    "playerCounts",
+                    "A policy hunt plays exactly one player count");
+        }
+        if (command.algorithm() != null) {
+            throw new InvalidCampaignException(
+                    InvalidCampaignReason.INVALID_VALUE, "algorithm", "A policy hunt follows the hunt plan");
+        }
+        if (command.policies() != null) {
+            throw new InvalidCampaignException(
+                    InvalidCampaignReason.INVALID_VALUE, "policies", "A policy hunt plays the bundles of its plan");
+        }
+        var supplied = command.searchMasterSeed();
+        if (supplied != null && supplied.equals(command.confirmationMasterSeed())) {
+            throw new InvalidCampaignException(
+                    InvalidCampaignReason.EQUAL_MASTER_SEEDS,
+                    "confirmationMasterSeed",
+                    "The search and confirmation master seeds must differ");
+        }
+        var searchSeed = supplied != null ? supplied : drawnDifferentFrom(command.confirmationMasterSeed());
+        var confirmationSeed = command.confirmationMasterSeed() != null
+                ? command.confirmationMasterSeed()
+                : drawnDifferentFrom(searchSeed);
+        JsonNode standard;
+        try {
+            standard = JsonNodeFactory.instance
+                    .arrayNode()
+                    .addAll(experiments.bundles(List.of(new PolicyRef("faction-spread", "1"))));
+        } catch (CampaignPlayRefusedException e) {
+            throw new InvalidCampaignException(InvalidCampaignReason.INVALID_VALUE, "policies", e.getMessage());
+        }
+        try {
+            return new CampaignDefinition(
+                    command.name(),
+                    command.baseline(),
+                    command.parameterSpaceVersion() != null
+                            ? command.parameterSpaceVersion()
+                            : defaults.parameterSpaceVersion(),
+                    command.criterionVersion() != null ? command.criterionVersion() : defaults.criterionVersion(),
+                    standard,
+                    command.playerCounts(),
+                    null,
+                    searchSeed,
+                    confirmationSeed,
+                    HuntPlan.algorithm(command.playerCounts().getFirst()),
+                    CampaignKind.POLICY_HUNT,
+                    command.faction(),
+                    command.policyParameterSpaceVersion() != null
+                            ? command.policyParameterSpaceVersion()
+                            : experiments.newestPolicyParameterSpaceVersion());
         } catch (IllegalArgumentException e) {
             throw new InvalidCampaignException(InvalidCampaignReason.INVALID_VALUE, null, e.getMessage());
         }
@@ -241,6 +320,16 @@ public class CreateCampaignCommandHandler implements CreateCampaignUseCase {
         identity.put("searchMasterSeed", command.searchMasterSeed());
         identity.put("confirmationMasterSeed", command.confirmationMasterSeed());
         identity.put("algorithm", algorithmIdentity(command.algorithm()));
+        // A rules search hashes as it always has: the hunt's inputs take part only when the request names them.
+        if (command.kind() != null) {
+            identity.put("kind", command.kind().name());
+        }
+        if (command.faction() != null) {
+            identity.put("faction", command.faction().name());
+        }
+        if (command.policyParameterSpaceVersion() != null) {
+            identity.put("policyParameterSpaceVersion", command.policyParameterSpaceVersion());
+        }
         return Sha256.hexUtf8(JsonText.canonical(identity, "a campaign request"));
     }
 }

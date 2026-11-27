@@ -76,6 +76,21 @@ public class BaselinePolicyCatalog implements PolicyCatalog {
     }
 
     @Override
+    public java.util.Optional<String> artifactDigest(String id, String version, Map<String, Object> parameters) {
+        if (!isSearch(id, version)) {
+            return java.util.Optional.empty();
+        }
+        var probe = verify(id, version, "0".repeat(64), parameters);
+        if (probe.verdict() != PolicyReferenceVerdict.DIGEST_MISMATCH
+                && probe.verdict() != PolicyReferenceVerdict.VALID) {
+            return java.util.Optional.empty();
+        }
+        var named = new HashMap<String, Integer>();
+        parameters.forEach((key, value) -> named.put(key, ((Number) value).intValue()));
+        return java.util.Optional.of(FactionSearchBundle.of(named).artifactDigest());
+    }
+
+    @Override
     public PolicyVerification verify(String id, String version, String artifactDigest, Map<String, Object> parameters) {
         if (!isSearch(id, version)) {
             return new PolicyVerification(verify(id, version, artifactDigest, parameters.size()), null);

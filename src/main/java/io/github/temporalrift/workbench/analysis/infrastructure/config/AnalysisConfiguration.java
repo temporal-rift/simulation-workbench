@@ -13,6 +13,7 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.module.SimpleModule;
 
 import io.github.temporalrift.workbench.analysis.CandidateScreening;
+import io.github.temporalrift.workbench.analysis.HuntTallies;
 import io.github.temporalrift.workbench.analysis.RunConfirmation;
 import io.github.temporalrift.workbench.analysis.application.command.CreateComparisonCommandHandler;
 import io.github.temporalrift.workbench.analysis.application.port.in.CreateComparisonUseCase;
@@ -30,6 +31,7 @@ import io.github.temporalrift.workbench.analysis.application.query.EvaluateScori
 import io.github.temporalrift.workbench.analysis.application.query.GetComparisonQueryHandler;
 import io.github.temporalrift.workbench.analysis.application.query.GetRunEvaluationQueryHandler;
 import io.github.temporalrift.workbench.analysis.application.query.GetRunReportQueryHandler;
+import io.github.temporalrift.workbench.analysis.application.query.HuntTalliesService;
 import io.github.temporalrift.workbench.analysis.application.query.ListComparisonsQueryHandler;
 import io.github.temporalrift.workbench.analysis.application.query.RescoreRunQueryHandler;
 import io.github.temporalrift.workbench.analysis.application.query.RunConfirmationService;
@@ -134,6 +136,11 @@ public class AnalysisConfiguration {
     @Bean
     GetRunEvaluationUseCase getRunEvaluationUseCase(RunSource runs, BalanceCriteria criteria, CaseFactsProvider facts) {
         return new GetRunEvaluationQueryHandler(runs, criteria, facts);
+    }
+
+    @Bean
+    HuntTallies huntTallies(RunSource runs) {
+        return new HuntTalliesService(runs);
     }
 
     @Bean

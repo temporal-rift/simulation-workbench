@@ -10,6 +10,15 @@ public interface PolicyCatalog {
 
     PolicyReferenceVerdict verify(String id, String version, String artifactDigest, int parameterCount);
 
+    /**
+     * The artifact digest of a parameterized bundle playing these parameters, or empty when the bundle is unknown or a
+     * parameter is outside its schema, range or step.
+     */
+    default java.util.Optional<String> artifactDigest(
+            String id, String version, java.util.Map<String, Object> parameters) {
+        return java.util.Optional.empty();
+    }
+
     /** Every served version of the policy parameter space, ascending; empty without a parameterized bundle. */
     default List<PolicyParameterSpaceDescriptor> parameterSpaces() {
         return List.of();

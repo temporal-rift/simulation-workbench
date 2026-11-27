@@ -1,5 +1,6 @@
 package io.github.temporalrift.workbench.search.infrastructure.adapter.out.experiment;
 
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -17,8 +18,10 @@ import io.github.temporalrift.workbench.experiment.ExperimentRefusedException;
 import io.github.temporalrift.workbench.experiment.LaneBundle;
 import io.github.temporalrift.workbench.policy.PolicyCatalog;
 import io.github.temporalrift.workbench.policy.PolicyDescriptor;
+import io.github.temporalrift.workbench.policy.PolicyParameterSpaceDescriptor;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignDefinition;
 import io.github.temporalrift.workbench.search.domain.campaign.CampaignPlayRefusedException;
+import io.github.temporalrift.workbench.search.domain.campaign.HuntPlan;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignException;
 import io.github.temporalrift.workbench.search.domain.campaign.InvalidCampaignReason;
 import io.github.temporalrift.workbench.search.domain.campaign.PolicyNotAvailableException;
@@ -74,6 +77,9 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
 
     @Override
     public ParameterGrid grid(CampaignDefinition definition) {
+        if (definition.isHunt()) {
+            return huntGrid(definition);
+        }
         try {
             return new ParameterGrid(
                     experiments
@@ -96,6 +102,12 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
 
     @Override
     public void check(CampaignDefinition definition) {
+        if (definition.isHunt() && policySpace(definition).isEmpty()) {
+            throw new InvalidCampaignException(
+                    InvalidCampaignReason.UNKNOWN_PARAMETER_SPACE,
+                    "policyParameterSpaceVersion",
+                    "Policy parameter space " + definition.policyParameterSpaceVersion() + " is not served");
+        }
         try {
             experiments.parameterAxes(definition.baselineRulesDigest(), definition.parameterSpaceVersion());
         } catch (ExperimentRefusedException e) {
@@ -112,6 +124,9 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
 
     @Override
     public CandidateValidation validation(CampaignDefinition definition) {
+        if (definition.isHunt()) {
+            return huntValidation(definition);
+        }
         return overrides -> {
             try {
                 var preview = experiments.previewVariant(
@@ -132,6 +147,9 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
             List<Candidate> candidates,
             List<String> seeds,
             List<SeatTable> tables) {
+        if (definition.isHunt()) {
+            return freezeHuntWave(idempotencyKey, definition, waveIndex, candidates, seeds);
+        }
         var simulator =
                 lanes.simulator().orElseThrow(() -> new CampaignPlayRefusedException("The simulator is not enabled"));
         var name = definition.name() + ", wave " + waveIndex;
@@ -225,6 +243,9 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
 
     @Override
     public int casesPerGame(CampaignDefinition definition, List<SeatTable> tables) {
+        if (definition.isHunt()) {
+            return HuntPlan.casesPerSeed(definition.huntPlayerCount());
+        }
         var seats = FactionSets.of(definition.playerCounts()).stream()
                 .mapToInt(List::size)
                 .sum();
@@ -314,6 +335,26 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
             List<ObjectNode> variants,
             List<String> seeds,
             LaneBundle simulator) {
+        return manifest(
+                definition,
+                name,
+                policies,
+                tables,
+                variants,
+                seeds,
+                simulator,
+                FactionSets.of(definition.playerCounts()));
+    }
+
+    private ObjectNode manifest(
+            CampaignDefinition definition,
+            String name,
+            List<? extends JsonNode> policies,
+            List<? extends JsonNode> tables,
+            List<ObjectNode> variants,
+            List<String> seeds,
+            LaneBundle simulator,
+            List<List<Faction>> factionSets) {
         var manifest = mapper.createObjectNode();
         manifest.put("schemaVersion", SCHEMA_VERSION);
         manifest.put("name", name);
@@ -331,7 +372,7 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
         var counts = manifest.putArray("playerCounts");
         definition.playerCounts().forEach(counts::add);
         var sets = manifest.putArray("factionSets");
-        FactionSets.of(definition.playerCounts()).forEach(set -> {
+        factionSets.forEach(set -> {
             var node = sets.addArray();
             set.stream().map(Faction::name).forEach(node::add);
         });
@@ -382,5 +423,178 @@ public class CampaignExperimentsAdapter implements CampaignExperiments {
         node.put("imageDigest", build.imageDigest());
         node.put("sourceRevision", build.sourceRevision());
         return node;
+    }
+
+    // ---- policy hunt ----------------------------------------------------------------------------------------
+
+    private static final String SEARCH_ID = "faction-search";
+    private static final String SEARCH_VERSION = "1.0.0";
+    private static final PolicyRef STANDARD = new PolicyRef("faction-spread", "1");
+
+    private Optional<PolicySpace> policySpace(CampaignDefinition definition) {
+        return catalog.parameterSpaces().stream()
+                .filter(space -> space.version() == definition.policyParameterSpaceVersion())
+                .findFirst()
+                .map(space -> new PolicySpace(
+                        space.parameters().stream()
+                                .collect(java.util.stream.Collectors.toMap(
+                                        PolicyParameterSpaceDescriptor.Parameter::key, parameter -> parameter)),
+                        space.searchedSubsets()
+                                .getOrDefault(definition.faction().name(), List.of())));
+    }
+
+    /** The parameters of a served policy parameter space, and the keys a hunt of the faction searches. */
+    private record PolicySpace(
+            Map<String, PolicyParameterSpaceDescriptor.Parameter> parameters, List<String> searched) {}
+
+    /** The axes of a hunt: the hunted faction's searched parameters, in key order, each at its default. */
+    private ParameterGrid huntGrid(CampaignDefinition definition) {
+        var space = policySpace(definition)
+                .orElseThrow(() -> new CampaignPlayRefusedException("The policy parameter space is not served"));
+        return new ParameterGrid(space.searched().stream()
+                .sorted()
+                .<ParameterGrid.Axis>map(key -> {
+                    var parameter = space.parameters().get(key);
+                    return new ParameterGrid.NumberAxis(
+                            key,
+                            BigDecimal.valueOf(parameter.min()),
+                            BigDecimal.valueOf(parameter.max()),
+                            BigDecimal.valueOf(parameter.step()),
+                            BigDecimal.valueOf(parameter.defaultValue()));
+                })
+                .toList());
+    }
+
+    /**
+     * A candidate of a hunt is one parameter set; what it "makes" is the artifact digest of the policy entry those
+     * parameters name, so two draws of one parameter set are one candidate.
+     */
+    private CandidateValidation huntValidation(CampaignDefinition definition) {
+        var space = policySpace(definition)
+                .orElseThrow(() -> new CampaignPlayRefusedException("The policy parameter space is not served"));
+        return overrides -> {
+            var parameters = new java.util.TreeMap<String, Integer>();
+            var kept = new java.util.TreeMap<String, ParameterValue>();
+            overrides.forEach((key, value) -> {
+                var parameter = space.parameters().get(key);
+                var number = value.json().asInt();
+                if (parameter != null && number != parameter.defaultValue()) {
+                    parameters.put(key, number);
+                    kept.put(key, value);
+                }
+            });
+            return catalog.artifactDigest(SEARCH_ID, SEARCH_VERSION, new java.util.LinkedHashMap<>(parameters))
+                    .map(digest -> new CandidateValidation.Validated(digest, kept));
+        };
+    }
+
+    /** The factions sets of the hunt's player count that hold the hunted faction. */
+    private static List<List<Faction>> huntFactionSets(CampaignDefinition definition) {
+        return FactionSets.of(definition.playerCounts()).stream()
+                .filter(set -> set.contains(definition.faction()))
+                .toList();
+    }
+
+    /** The policy entry of a hunt candidate, as a manifest states it. */
+    private ObjectNode searchEntry(Candidate candidate) {
+        var node = mapper.createObjectNode();
+        node.put("id", SEARCH_ID);
+        node.put(VERSION_FIELD, SEARCH_VERSION);
+        node.put("artifactDigest", candidate.effectiveRulesDigest());
+        var parameters = node.putObject("parameters");
+        candidate
+                .overrides()
+                .forEach((key, value) -> parameters.put(key, value.json().asInt()));
+        return node;
+    }
+
+    /** A table whose every seat plays the entry: only the hunted faction's seat reads the entry's parameters. */
+    private ObjectNode uniformTable(CampaignDefinition definition, String id, JsonNode entry) {
+        var seatCount = definition.huntPlayerCount();
+        var node = mapper.createObjectNode();
+        node.put("id", id);
+        var seats = node.putArray("seats");
+        for (var seat = 0; seat < seatCount; seat++) {
+            seats.addObject()
+                    .put("seatIndex", seat)
+                    .put("policyId", entry.path("id").asString())
+                    .put("policyVersion", entry.path(VERSION_FIELD).asString())
+                    .put("policyDigest", entry.path("artifactDigest").asString());
+        }
+        return node;
+    }
+
+    private ObjectNode huntVariant(CampaignDefinition definition, LaneBundle simulator) {
+        try {
+            var preview = experiments.previewVariant(
+                    definition.baselineRulesDigest(), definition.parameterSpaceVersion(), Map.of());
+            return variant(definition, "rules", Map.of(), preview.effectiveRulesDigest(), simulator);
+        } catch (ExperimentRefusedException e) {
+            throw new CampaignPlayRefusedException(e.getMessage(), e);
+        }
+    }
+
+    /** A wave of a hunt: one table per candidate, over the rules of the baseline. */
+    private UUID freezeHuntWave(
+            UUID idempotencyKey,
+            CampaignDefinition definition,
+            int waveIndex,
+            List<Candidate> candidates,
+            List<String> seeds) {
+        var simulator =
+                lanes.simulator().orElseThrow(() -> new CampaignPlayRefusedException("The simulator is not enabled"));
+        var entries = candidates.stream().map(this::searchEntry).toList();
+        var tables = new java.util.ArrayList<ObjectNode>();
+        for (var index = 0; index < candidates.size(); index++) {
+            tables.add(uniformTable(definition, candidates.get(index).id(), entries.get(index)));
+        }
+        try {
+            return experiments.freeze(
+                    idempotencyKey,
+                    manifest(
+                            definition,
+                            definition.name() + ", wave " + waveIndex,
+                            entries,
+                            tables,
+                            List.of(huntVariant(definition, simulator)),
+                            seeds,
+                            simulator,
+                            huntFactionSets(definition)));
+        } catch (ExperimentRefusedException e) {
+            throw new CampaignPlayRefusedException(e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public int newestPolicyParameterSpaceVersion() {
+        return catalog.parameterSpaces().stream()
+                .mapToInt(PolicyParameterSpaceDescriptor::version)
+                .max()
+                .orElse(1);
+    }
+
+    @Override
+    public UUID freezeHuntConfirmation(
+            UUID idempotencyKey, CampaignDefinition definition, Candidate candidate, List<String> seeds) {
+        var simulator =
+                lanes.simulator().orElseThrow(() -> new SimulatorNotAvailableException("The simulator is not enabled"));
+        var standard = bundles(List.of(STANDARD)).getFirst();
+        var entry = searchEntry(candidate);
+        var manifest = manifest(
+                definition,
+                definition.name() + ", confirmation of " + candidate.id(),
+                List.of(entry, standard),
+                List.of(
+                        uniformTable(definition, HuntPlan.CANDIDATE_TABLE, entry),
+                        uniformTable(definition, HuntPlan.STANDARD_TABLE, standard)),
+                List.of(huntVariant(definition, simulator)),
+                seeds,
+                simulator,
+                huntFactionSets(definition));
+        try {
+            return experiments.freeze(builtOn(idempotencyKey, simulator), manifest);
+        } catch (ExperimentRefusedException e) {
+            throw new CampaignPlayRefusedException(e.getMessage(), e);
+        }
     }
 }

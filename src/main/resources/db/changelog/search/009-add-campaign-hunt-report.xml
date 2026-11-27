@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+  <changeSet id="009-add-campaign-hunt-report" author="simulation-workbench">
+    <!-- The report of a policy hunt: what its search measured and, once confirmed, its classification. Absent for a rules search. -->
+    <addColumn tableName="campaign">
+      <column name="hunt_report_json" type="TEXT"/>
+    </addColumn>
+  </changeSet>
+</databaseChangeLog>
