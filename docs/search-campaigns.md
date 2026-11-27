@@ -81,6 +81,37 @@ the cases already played. A request that crashed after freezing is repeated into
 their idempotency keys derive from the campaign and the candidate (and, for the experiment, the simulator's builds, so a
 simulator rebuilt since the attempt freezes anew).
 
+**Policy hunts.** A campaign of `kind` `POLICY_HUNT` hunts one faction's best response at one table size instead of
+searching the rules. Its definition names a `faction`, exactly one entry of `playerCounts` and, optionally, a
+`policyParameterSpaceVersion` (the newest by default), and it follows the hunt plan, so it accepts no `algorithm` and no
+`policies`. A definition without a `kind` is a rules search, and a rules search that names a faction is refused.
+
+- **Candidates.** The first candidate plays the defaults, which is `faction-spread`; the other 63 are a Latin hypercube
+  sample of the faction's searched subset of the policy parameter space, every other parameter staying at its default.
+- **Tables.** Each candidate is one table of the wave, and every seat of it plays the candidate's `faction-search`
+  parameters, which act only on the seat that plays the hunted faction. Each game therefore has the hunted faction at a
+  seat against `faction-spread` play, and the case matrix is limited to the faction sets that hold it.
+- **The plan.** Round 0 plays 64 candidates on 32 games, round 1 the best 16 on 128 and round 2 the best 4 on 300; the
+  four are the short list. A seed plays one game per rotation of every faction set that holds the faction (5 at five
+  players, 16 at four, 18 at three), and a round plays the smallest whole number of seeds that gives at least its games, so
+  five players play 35, 130 and 300 games and the seeds extend from round to round. The objective is the faction's win
+  ratio, its win rate over the fair share `1 / playerCount`.
+- **The gate.** When the search ends, the cell is confirmed only if the best candidate's ratio over its 300 games is at
+  least 1.25. Otherwise the campaign is `COMPLETED` at once with a report whose `classification` is `NOT_CONFIRMED`, and no
+  confirmation game is played. A cell that passes stays `SEARCH_COMPLETED` until `POST .../confirmation`.
+- **Confirmation.** One run on fresh seeds derived from `confirmationMasterSeed`, with two tables over the same seeds: the
+  best candidate on every seat, and the standard `faction-spread` on every seat.
+- **The report.** `huntReport` states the faction and table size, the realized screening noise (the standard deviation of
+  the round-0 ratios), the share of round-0 candidates at or above 1.25 and, once confirmed, the candidate's ratio and its
+  95% interval, the standard seat's ratio, the normal ratio (the larger of 1.0 and the standard seat's) and the
+  parameters found. The cell is `EXPLOIT` at a ratio of at least 1.5 times the normal ratio, `FLAGGED` from 1.25 times
+  (at a normal ratio of 1.0, flagged from 1.25 and exploit from 1.5; at 2.0, flagged from 2.5 and exploit from 3.0) and
+  `BALANCE_NOISE` below that. A cell without a flag is evidence, not a guarantee, that no exploit exists, and results
+  characterize bot strategies only: they say nothing about balance among human players.
+- **Cost.** A five-player cell plays 5,296 games at most (64 x 32 + 16 x 128 + 4 x 300; the seeds extend, so the games
+  actually played are fewer), about 26,500 for the five cells and 4.2 hours at about 6,300 games an hour, plus about
+  0.1 hour per confirmed cell. See [the spike](spikes/search-bot.md).
+
 **Defaults of a new campaign.** A definition may leave out `parameterSpaceVersion`, `criterionVersion`, `policies`,
 `searchMasterSeed`, `confirmationMasterSeed` and `algorithm` (or any field of it). The service resolves each one when it
 accepts the campaign and freezes the result, so the campaign always reports the values it ran with: the algorithm comes
