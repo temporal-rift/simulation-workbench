@@ -1,5 +1,6 @@
 package io.github.temporalrift.workbench.analysis.application.port.in;
 
+import java.util.List;
 import java.util.UUID;
 
 import io.github.temporalrift.workbench.analysis.domain.scoring.RescoringResult;
@@ -10,5 +11,9 @@ public interface RescoreRunUseCase {
 
     RescoringResult handle(Query query);
 
-    record Query(UUID runId, ScoringEngine engine, String variantLabel, String tableId) {}
+    record Query(UUID runId, ScoringEngine engine, String variantLabel, String tableId, List<String> sweep) {
+        public Query(UUID runId, ScoringEngine engine, String variantLabel, String tableId) {
+            this(runId, engine, variantLabel, tableId, null);
+        }
+    }
 }

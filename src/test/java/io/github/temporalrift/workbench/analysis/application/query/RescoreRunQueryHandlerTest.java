@@ -39,6 +39,7 @@ class RescoreRunQueryHandlerTest {
 
     private final List<AnalyzedCase> cases = new ArrayList<>();
     private final Map<UUID, GameRecord> games = new java.util.HashMap<>();
+    private int caseReads;
     private final RunSource source = new RunSource() {
         @Override
         public Optional<UUID> experimentOf(UUID runId) {
@@ -47,6 +48,7 @@ class RescoreRunQueryHandlerTest {
 
         @Override
         public List<AnalyzedCase> cases(UUID runId) {
+            caseReads++;
             return List.copyOf(cases);
         }
 
@@ -90,6 +92,95 @@ class RescoreRunQueryHandlerTest {
 
     private RescoreRunUseCase.Query query(ScoringEngine engine) {
         return new RescoreRunUseCase.Query(RUN, engine, "v", "t");
+    }
+
+    @Test
+    void sweepMatchesStandaloneAndUsesOneUnfinishedSnapshot() {
+        add("1", CaseState.SUCCEEDED, 5, EndReason.TIMELINE_STABILIZED);
+        add("2", CaseState.RUNNING, 0, null);
+        var result = handler.handle(new RescoreRunUseCase.Query(
+                RUN, engine(5), "v", "t", List.of("reasonPoints.CHAIN_COMPLETED", "escalations.weaver-link.base")));
+        assertThat(caseReads).isEqualTo(1);
+        assertThat(result.complete()).isFalse();
+        assertThat(result.sensitivity()).hasSize(4);
+        var lower = new ScoringEngine(
+                5,
+                List.of(new ReasonPoints("CHAIN_LINK_MISSED", -1), new ReasonPoints("CHAIN_COMPLETED", 9)),
+                engine(5).escalations());
+        var standalone = handler.handle(query(lower));
+        var first = result.sensitivity().getFirst();
+        assertThat(first.direction()).isEqualTo(-1);
+        assertThat(first.cells()).hasSize(standalone.cells().size());
+        for (var cell : first.cells()) {
+            var base = result.cells().stream()
+                    .filter(c -> c.faction() == cell.faction())
+                    .findFirst()
+                    .orElseThrow();
+            var expected = standalone.cells().stream()
+                    .filter(c -> c.faction() == cell.faction())
+                    .findFirst()
+                    .orElseThrow();
+            assertThat(cell.ratio()).isEqualTo(expected.ratio());
+            assertThat(cell.delta()).isEqualTo(expected.ratio() - base.ratio());
+        }
+        assertThat(standalone.sensitivity()).isNull();
+    }
+
+    @Test
+    void sweepReportsOutOfRangeAndEvaluatesTheOtherDirection() {
+        add("1", CaseState.SUCCEEDED, 5, EndReason.TIMELINE_STABILIZED);
+        var atLimit = new ScoringEngine(
+                5,
+                engine(5).reasonPoints(),
+                List.of(new Escalation("weaver-link", List.of("CHAIN_LINK_ADDED"), 2, 20, Set.of(BetOutcome.MISSED))));
+        var result = handler.handle(
+                new RescoreRunUseCase.Query(RUN, atLimit, "v", "t", List.of("escalations.weaver-link.increment")));
+        assertThat(result.sensitivity().getFirst().status())
+                .isEqualTo(io.github.temporalrift.workbench.analysis.domain.scoring.RescoringResult.Status.EVALUATED);
+        assertThat(result.sensitivity().getLast().status())
+                .isEqualTo(
+                        io.github.temporalrift.workbench.analysis.domain.scoring.RescoringResult.Status.OUT_OF_RANGE);
+        assertThat(result.sensitivity().getLast().cells()).isEmpty();
+    }
+
+    @Test
+    void invalidAndDuplicateSweepPathsAreRefusedBeforeReadingCases() {
+        for (var paths : List.of(
+                List.of("reasonPoints.UNKNOWN"),
+                List.of("reasonPoints.CHAIN_COMPLETED", "reasonPoints.CHAIN_COMPLETED"),
+                List.of("maxEras"))) {
+            int badIndex = paths.size() - 1;
+            assertThatThrownBy(() -> handler.handle(new RescoreRunUseCase.Query(RUN, engine(5), "v", "t", paths)))
+                    .isInstanceOfSatisfying(
+                            InvalidScoringModelException.class,
+                            e -> assertThat(e.field()).isEqualTo("sweep[" + badIndex + "]"));
+        }
+        assertThat(caseReads).isZero();
+    }
+
+    @Test
+    void evaluatesMaximumSweepInOneCaseRead() {
+        for (int i = 0; i < 1000; i++) {
+            add("1", CaseState.SUCCEEDED, 5, EndReason.TIMELINE_STABILIZED);
+        }
+        var reasons = new ArrayList<ReasonPoints>();
+        reasons.add(new ReasonPoints("CHAIN_LINK_ADDED", 2));
+        for (int i = 1; i < 24; i++) {
+            reasons.add(new ReasonPoints("REASON_" + i, 1));
+        }
+        var engine = new ScoringEngine(5, reasons, List.of());
+        var configured = new java.util.HashMap<String, Integer>();
+        reasons.forEach(reason -> configured.put(reason.scoreReason(), reason.points()));
+        VariantScoring rules = (experiment, variant) -> Optional.of(new VariantScoring.Rules(configured, 5));
+        var paths = reasons.stream()
+                .map(reason -> "reasonPoints." + reason.scoreReason())
+                .toList();
+        var result = new RescoreRunQueryHandler(source, rules)
+                .handle(new RescoreRunUseCase.Query(RUN, engine, "v", "t", paths));
+        assertThat(result.sensitivity()).hasSize(48);
+        assertThat(result.sensitivity())
+                .allSatisfy(item -> assertThat(item.cells()).hasSize(3));
+        assertThat(caseReads).isEqualTo(1);
     }
 
     @Test

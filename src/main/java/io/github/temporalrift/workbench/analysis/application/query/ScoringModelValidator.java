@@ -30,8 +30,8 @@ final class ScoringModelValidator {
     private static final String ENGINE = "engine";
     private static final String ITEMS = " items";
     private static final String SCORE_REASON = ".scoreReason";
-    private static final int MAX_POINTS = 50;
-    private static final int MAX_INCREMENT = 20;
+    static final int MAX_POINTS = 50;
+    static final int MAX_INCREMENT = 20;
     private static final int MAX_ERAS = 10;
     private static final int MAX_REASON_POINTS = 64;
     private static final int MAX_ESCALATIONS = 8;

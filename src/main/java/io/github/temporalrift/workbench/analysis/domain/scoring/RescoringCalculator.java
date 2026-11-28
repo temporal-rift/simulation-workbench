@@ -26,8 +26,22 @@ public final class RescoringCalculator {
     /** One succeeded case and what the engine's race made of it. */
     public record Judgement(int playerCount, String seed, List<Faction> factions, Rescorer.Verdict verdict) {}
 
+    public record Ratio(int playerCount, Faction faction, double ratio) {}
+
     /** @param resamplingKey what the intervals' resampling derives from, so equal requests give equal intervals */
     public static RescoringResult calculate(boolean complete, String resamplingKey, List<Judgement> judgements) {
+        return calculate(complete, resamplingKey, judgements, true);
+    }
+
+    /** Calculates neighbor ratios without spending work on intervals that are not returned. */
+    public static List<Ratio> ratios(List<Judgement> judgements) {
+        return calculate(true, "", judgements, false).cells().stream()
+                .map(cell -> new Ratio(cell.playerCount(), cell.faction(), cell.ratio()))
+                .toList();
+    }
+
+    private static RescoringResult calculate(
+            boolean complete, String resamplingKey, List<Judgement> judgements, boolean intervals) {
         var byCount = new TreeMap<Integer, List<Judgement>>();
         judgements.forEach(item -> byCount.computeIfAbsent(item.playerCount(), count -> new ArrayList<>())
                 .add(item));
@@ -45,12 +59,13 @@ public final class RescoringCalculator {
                     judged.size(),
                     items.size() - judged.size(),
                     judged.isEmpty() ? null : (double) eras / judged.size()));
-            cells.addAll(cells(playerCount, resamplingKey, judged));
+            cells.addAll(cells(playerCount, resamplingKey, judged, intervals));
         });
         return new RescoringResult(complete, cells, counts);
     }
 
-    private static List<ScoringEvaluation.Cell> cells(int playerCount, String resamplingKey, List<Judgement> judged) {
+    private static List<ScoringEvaluation.Cell> cells(
+            int playerCount, String resamplingKey, List<Judgement> judged, boolean intervals) {
         var seeds = new TreeSet<>(BlockTallies.SEED_ORDER);
         judged.forEach(item -> seeds.add(item.seed()));
         var blockOf = new TreeMap<String, Integer>(BlockTallies.SEED_ORDER);
@@ -64,7 +79,7 @@ public final class RescoringCalculator {
                         .addRatio(block, verdict.shares().get(seat), 1, 0);
             }
         }
-        var bootstrap = blockOf.size() < 2
+        var bootstrap = !intervals || blockOf.size() < 2
                 ? null
                 : BlockBootstrap.of(blockOf.size(), SplitMix64.seededBy(STREAM, resamplingKey, "" + playerCount));
         var cells = new ArrayList<ScoringEvaluation.Cell>();
