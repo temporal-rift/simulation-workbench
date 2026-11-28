@@ -3,88 +3,83 @@
 
 Usage: python scripts/publish-play-style-population.py INITIAL REVISION FINAL RULES CONFIG OUTPUT
 """
-import hashlib
-import importlib.util
-import json
 import shutil
 import sys
 from pathlib import Path
 
-from play_style_evidence import faction_coverage, source_identity
+from play_style_evidence import (
+    faction_coverage,
+    file_sha256,
+    load_sibling,
+    read_json,
+    read_jsonl,
+    source_identity,
+    write_json,
+)
+
+study = load_sibling(__file__, "play-style-study.py", "study")
+merger = load_sibling(__file__, "merge-play-style-studies.py", "merger")
+checker = load_sibling(__file__, "check-mixed-play-styles.py", "checker")
+mixed = load_sibling(__file__, "mixed-play-style-tables.py", "mixed")
 
 
-def module(name, filename):
-    spec = importlib.util.spec_from_file_location(name, Path(__file__).with_name(filename))
-    value = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(value)
-    return value
+def _load_combined(initial, revision):
+    first = read_json(initial / "manifest.json")
+    second = read_json(revision / "manifest.json")
+    manifest, results = merger.merge(first, second,
+                                     read_json(initial / "results.json"), read_json(revision / "results.json"))
+    return first, manifest, results
 
 
-study = module("study", "play-style-study.py")
-merger = module("merger", "merge-play-style-studies.py")
-checker = module("checker", "check-mixed-play-styles.py")
-mixed = module("mixed", "mixed-play-style-tables.py")
-
-
-def read(path):
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def publish(initial, revision, final, rules, config, output):
-    if not all((directory / "completed").is_file() for directory in (initial, revision)):
-        raise ValueError("Both study runs must complete before publication")
-    first, second = read(initial / "manifest.json"), read(revision / "manifest.json")
-    first_results, second_results = read(initial / "results.json"), read(revision / "results.json")
-    manifest, results = merger.merge(first, second, first_results, second_results)
-    if hashlib.sha256(rules.read_bytes()).hexdigest() != first["variants"][0]["rulesArtifact"]["digest"]:
-        raise ValueError("The rules artifact does not match the study manifest")
-    by_digest = {p["artifactDigest"]: p for p in manifest["policies"]}
+def _validated_presets(manifest, results):
+    by_digest = {policy["artifactDigest"]: policy for policy in manifest["policies"]}
     if len(by_digest) != len(manifest["policies"]):
         raise ValueError("Duplicate policy digest in combined study")
     factions = {faction for group in manifest["factionSets"] for faction in group}
     presets = []
     for table in manifest["tables"]:
         name = table["id"]
-        if name == "spread":
+        if name == "spread" or faction_coverage(results["styles"][name]["cells"]) != factions:
             continue
-        passed = faction_coverage(results["styles"][name]["cells"])
-        if passed == factions:
-            digests = {seat["policyDigest"] for seat in table["seats"]}
-            if len(digests) != 1:
-                raise ValueError(f"Non-homogeneous validation table {name}")
-            policy = by_digest[digests.pop()]
-            if policy["artifactDigest"] != study.digest(policy["parameters"]):
-                raise ValueError(f"Policy digest mismatch for {name}")
-            if set(policy["parameters"]) & study.UNUSED_SPECIAL_AFFINITIES:
-                raise ValueError(f"Unused special affinity in {name}")
-            presets.append({"name": name, "version": "1.0.0",
-                            "factionCoverage": [faction for faction in study.FACTIONS if faction in passed],
-                            "policy": policy})
+        digests = {seat["policyDigest"] for seat in table["seats"]}
+        if len(digests) != 1:
+            raise ValueError(f"Non-homogeneous validation table {name}")
+        (digest,) = digests
+        policy = by_digest[digest]
+        if policy["artifactDigest"] != study.digest(policy["parameters"]):
+            raise ValueError(f"Policy digest mismatch for {name}")
+        if set(policy["parameters"]) & study.UNUSED_SPECIAL_AFFINITIES:
+            raise ValueError(f"Unused special affinity in {name}")
+        presets.append({"name": name, "version": "1.0.0",
+                        "factionCoverage": [faction for faction in study.FACTIONS if faction in factions],
+                        "policy": policy})
     if not 3 <= len(presets) <= 5:
         raise ValueError("Need between 3 and 5 validated presets")
-    revised = any(p["name"] == "special-heavy-revision" for p in presets)
-    mixed_source = final if revised else initial
-    if not (mixed_source / "completed").is_file():
-        raise ValueError("The selected mixed verification run must complete before publication")
+    return presets
+
+
+def _verify_mixed(mixed_source, manifest, results):
     expected_manifests = mixed.manifests(manifest, results)
-    mixed_evidence = {}
+    evidence = {}
     for players in (3, 4, 5):
         name = f"mixed-{players}"
-        mixed_manifest = read(mixed_source / "mixed" / f"{name}.json")
+        mixed_manifest = read_json(mixed_source / "mixed" / f"{name}.json")
         if mixed_manifest != expected_manifests[players]:
             raise ValueError(f"{name} differs from the expected mixed manifest")
-        with (mixed_source / f"{name}-cases.jsonl").open(encoding="utf-8") as source:
-            cases = [json.loads(line) for line in source if line.strip()]
+        cases = read_jsonl(mixed_source / f"{name}-cases.jsonl")
         report_path = mixed_source / f"{name}-report.json"
-        report = read(report_path)
-        observed = checker.check(mixed_manifest, read(mixed_source / f"{name}-experiment.json"), report, cases)
-        if observed != read(mixed_source / f"{name}-exposure.json"):
+        report = read_json(report_path)
+        observed = checker.check(mixed_manifest, read_json(mixed_source / f"{name}-experiment.json"), report, cases)
+        if observed != read_json(mixed_source / f"{name}-exposure.json"):
             raise ValueError(f"{name} exposure summary mismatch")
-        mixed_evidence[name] = {**source_identity(report, report_path, cases), **observed}
+        evidence[name] = {**source_identity(report, report_path, cases), **observed}
+    return evidence
+
+
+def _write_outputs(output, initial, revision, mixed_source, rules, config, presets, mixed_evidence):
     output.mkdir(parents=True, exist_ok=True)
-    (output / "presets.json").write_text(json.dumps({"policyParameterSpaceVersion": 1, "presets": presets}, indent=2) + "\n", encoding="utf-8", newline="\n")
-    (output / "mixed-evidence.json").write_text(json.dumps(mixed_evidence, indent=2) + "\n",
-                                              encoding="utf-8", newline="\n")
+    write_json(output / "presets.json", {"policyParameterSpaceVersion": 1, "presets": presets})
+    write_json(output / "mixed-evidence.json", mixed_evidence)
     for directory, prefix in ((initial, "initial"), (revision, "revision")):
         shutil.copyfile(directory / "manifest.json", output / f"{prefix}-validation.json")
         shutil.copyfile(directory / "results.json", output / f"{prefix}-measurements.json")
@@ -94,6 +89,21 @@ def publish(initial, revision, final, rules, config, output):
         shutil.copyfile(mixed_source / f"{name}-exposure.json", output / f"{name}-exposure.json")
     shutil.copyfile(rules, output / "effective-rules.json")
     shutil.copyfile(config, output / "simulator-config.yml")
+
+
+def publish(initial, revision, final, rules, config, output):
+    if not all((directory / "completed").is_file() for directory in (initial, revision)):
+        raise ValueError("Both study runs must complete before publication")
+    first, manifest, results = _load_combined(initial, revision)
+    if file_sha256(rules) != first["variants"][0]["rulesArtifact"]["digest"]:
+        raise ValueError("The rules artifact does not match the study manifest")
+    presets = _validated_presets(manifest, results)
+    revised = any(preset["name"] == "special-heavy-revision" for preset in presets)
+    mixed_source = final if revised else initial
+    if not (mixed_source / "completed").is_file():
+        raise ValueError("The selected mixed verification run must complete before publication")
+    mixed_evidence = _verify_mixed(mixed_source, manifest, results)
+    _write_outputs(output, initial, revision, mixed_source, rules, config, presets, mixed_evidence)
     return len(presets)
 
 

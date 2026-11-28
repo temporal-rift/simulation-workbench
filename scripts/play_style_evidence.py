@@ -1,7 +1,9 @@
 """Identity checks shared by the fixed play-style study scripts."""
 
 import hashlib
+import importlib.util
 import json
+from pathlib import Path
 
 
 def manifest_sha256(manifest):
@@ -11,8 +13,35 @@ def manifest_sha256(manifest):
 
 
 def file_sha256(path):
-    with open(path, "rb") as source:
+    """Return the hex SHA-256 digest of a file's bytes."""
+    with Path(path).open("rb") as source:
         return hashlib.file_digest(source, "sha256").hexdigest()
+
+
+def read_json(path):
+    """Read a JSON document."""
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def read_jsonl(path):
+    """Read a JSON-lines file, skipping blank lines."""
+    with Path(path).open(encoding="utf-8") as source:
+        return [json.loads(line) for line in source if line.strip()]
+
+
+def write_json(path, data):
+    """Write JSON with portable LF line endings."""
+    Path(path).write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8", newline="\n")
+
+
+def load_sibling(caller_file, filename, module_name):
+    """Import a sibling script that cannot be imported by name (e.g. hyphens)."""
+    spec = importlib.util.spec_from_file_location(module_name, Path(caller_file).with_name(filename))
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load sibling script {filename}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def source_identity(report, report_path, cases):

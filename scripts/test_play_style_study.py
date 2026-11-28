@@ -1,4 +1,3 @@
-import importlib.util
 import hashlib
 import itertools
 import json
@@ -8,22 +7,14 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from play_style_evidence import manifest_sha256
+from play_style_evidence import load_sibling, manifest_sha256
 
-
-def load(name, path):
-    spec = importlib.util.spec_from_file_location(name, Path(__file__).with_name(path))
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-study = load("study", "play-style-study.py")
-analysis = load("analysis", "analyze-play-styles.py")
-mixed = load("mixed", "mixed-play-style-tables.py")
-mixed_check = load("mixed_check", "check-mixed-play-styles.py")
-merge = load("merge", "merge-play-style-studies.py")
-publish = load("publish", "publish-play-style-population.py")
+study = load_sibling(__file__, "play-style-study.py", "study")
+analysis = load_sibling(__file__, "analyze-play-styles.py", "analysis")
+mixed = load_sibling(__file__, "mixed-play-style-tables.py", "mixed")
+mixed_check = load_sibling(__file__, "check-mixed-play-styles.py", "mixed_check")
+merge = load_sibling(__file__, "merge-play-style-studies.py", "merge")
+publish = load_sibling(__file__, "publish-play-style-population.py", "publish")
 
 
 def pooled_passes(factions=analysis.FACTIONS):
