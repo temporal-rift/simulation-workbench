@@ -97,33 +97,58 @@ class RescoreRunQueryHandlerTest {
     @Test
     void sweepMatchesStandaloneAndUsesOneUnfinishedSnapshot() {
         add("1", CaseState.SUCCEEDED, 5, EndReason.TIMELINE_STABILIZED);
+        var events = new ArrayList<>(games.get(cases.getFirst().caseId()).events());
+        for (int era = 1; era <= 3; era++) {
+            events.add(new GameEvent.ScoreRecorded(1, era, "CHAIN_COMPLETED", 10));
+        }
+        games.put(cases.getFirst().caseId(), new GameRecord(events, List.of(), List.of()));
         add("2", CaseState.RUNNING, 0, null);
         var result = handler.handle(new RescoreRunUseCase.Query(
                 RUN, engine(5), "v", "t", List.of("reasonPoints.CHAIN_COMPLETED", "escalations.weaver-link.base")));
         assertThat(caseReads).isEqualTo(1);
         assertThat(result.complete()).isFalse();
         assertThat(result.sensitivity()).hasSize(4);
-        var lower = new ScoringEngine(
-                5,
-                List.of(new ReasonPoints("CHAIN_LINK_MISSED", -1), new ReasonPoints("CHAIN_COMPLETED", 9)),
-                engine(5).escalations());
-        var standalone = handler.handle(query(lower));
-        var first = result.sensitivity().getFirst();
-        assertThat(first.direction()).isEqualTo(-1);
-        assertThat(first.cells()).hasSize(standalone.cells().size());
-        for (var cell : first.cells()) {
-            var base = result.cells().stream()
-                    .filter(c -> c.faction() == cell.faction())
-                    .findFirst()
-                    .orElseThrow();
-            var expected = standalone.cells().stream()
-                    .filter(c -> c.faction() == cell.faction())
-                    .findFirst()
-                    .orElseThrow();
-            assertThat(cell.ratio()).isEqualTo(expected.ratio());
-            assertThat(cell.delta()).isEqualTo(expected.ratio() - base.ratio());
+        var neighbors = List.of(
+                new ScoringEngine(
+                        5,
+                        List.of(new ReasonPoints("CHAIN_LINK_MISSED", -1), new ReasonPoints("CHAIN_COMPLETED", 9)),
+                        engine(5).escalations()),
+                new ScoringEngine(
+                        5,
+                        List.of(new ReasonPoints("CHAIN_LINK_MISSED", -1), new ReasonPoints("CHAIN_COMPLETED", 11)),
+                        engine(5).escalations()),
+                new ScoringEngine(
+                        5,
+                        engine(5).reasonPoints(),
+                        List.of(new Escalation(
+                                "weaver-link", List.of("CHAIN_LINK_ADDED"), 1, 2, Set.of(BetOutcome.MISSED)))),
+                new ScoringEngine(
+                        5,
+                        engine(5).reasonPoints(),
+                        List.of(new Escalation(
+                                "weaver-link", List.of("CHAIN_LINK_ADDED"), 3, 2, Set.of(BetOutcome.MISSED)))));
+        for (int i = 0; i < neighbors.size(); i++) {
+            var standalone = handler.handle(query(neighbors.get(i)));
+            var sensitivity = result.sensitivity().get(i);
+            assertThat(sensitivity.cells()).hasSize(standalone.cells().size());
+            for (var cell : sensitivity.cells()) {
+                var base = result.cells().stream()
+                        .filter(c -> c.faction() == cell.faction())
+                        .findFirst()
+                        .orElseThrow();
+                var expected = standalone.cells().stream()
+                        .filter(c -> c.faction() == cell.faction())
+                        .findFirst()
+                        .orElseThrow();
+                assertThat(cell.ratio()).isEqualTo(expected.ratio());
+                assertThat(cell.delta()).isEqualTo(expected.ratio() - base.ratio());
+            }
+            assertThat(standalone.sensitivity()).isNull();
         }
-        assertThat(standalone.sensitivity()).isNull();
+        assertThat(result.sensitivity().getFirst().cells())
+                .filteredOn(cell -> cell.faction() == Faction.WEAVERS)
+                .singleElement()
+                .satisfies(cell -> assertThat(cell.delta()).isEqualTo(1.5));
     }
 
     @Test
@@ -148,6 +173,7 @@ class RescoreRunQueryHandlerTest {
         for (var paths : List.of(
                 List.of("reasonPoints.UNKNOWN"),
                 List.of("reasonPoints.CHAIN_COMPLETED", "reasonPoints.CHAIN_COMPLETED"),
+                List.of("reasonPoints.CHAIN_COMPLETED", "reasonPoints.UNKNOWN"),
                 List.of("maxEras"))) {
             int badIndex = paths.size() - 1;
             assertThatThrownBy(() -> handler.handle(new RescoreRunUseCase.Query(RUN, engine(5), "v", "t", paths)))

@@ -47,7 +47,7 @@ class RescoreSweepBodyAdvice extends RequestBodyAdviceAdapter {
         tools.jackson.databind.JsonNode root;
         try {
             root = mapper.readTree(bytes);
-        } catch (JacksonException ex) {
+        } catch (JacksonException _) {
             throw new InvalidScoringModelException("body", "The request body is malformed");
         }
         var sweep = root == null ? null : root.get("sweep");

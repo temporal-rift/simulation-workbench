@@ -31,61 +31,75 @@ final class RescoreSweep {
             if (path == null || !seen.add(path)) {
                 throw ScoringModelValidator.invalid("sweep[" + index + "]", "parameter is null or repeated");
             }
-            var reason = REASON.matcher(path);
-            var escalation = ESCALATION.matcher(path);
-            if (reason.matches()
-                    && engine.reasonPoints().stream()
-                            .anyMatch(p -> p.scoreReason().equals(reason.group(1)))) {
-                var value = engine.reasonPoints().stream()
-                        .filter(p -> p.scoreReason().equals(reason.group(1)))
-                        .findFirst()
-                        .orElseThrow()
-                        .points();
-                for (int direction : new int[] {-1, 1}) {
-                    var points = engine.reasonPoints().stream()
-                            .map(p -> p.scoreReason().equals(reason.group(1))
-                                    ? new ReasonPoints(p.scoreReason(), p.points() + direction)
-                                    : p)
-                            .toList();
-                    moves.add(new Move(
-                            path,
-                            direction,
-                            Math.abs(value + direction) > ScoringModelValidator.MAX_POINTS
-                                    ? null
-                                    : new ScoringEngine(engine.maxEras(), points, engine.escalations())));
-                }
-            } else if (escalation.matches()
-                    && engine.escalations().stream().anyMatch(e -> e.name().equals(escalation.group(1)))) {
-                var item = engine.escalations().stream()
-                        .filter(e -> e.name().equals(escalation.group(1)))
-                        .findFirst()
-                        .orElseThrow();
-                boolean base = escalation.group(2).equals("base");
-                int value = base ? item.base() : item.increment();
-                int limit = base ? ScoringModelValidator.MAX_POINTS : ScoringModelValidator.MAX_INCREMENT;
-                for (int direction : new int[] {-1, 1}) {
-                    var escalations = engine.escalations().stream()
-                            .map(e -> e.name().equals(item.name())
-                                    ? new Escalation(
-                                            e.name(),
-                                            e.scoreReasons(),
-                                            e.base() + (base ? direction : 0),
-                                            e.increment() + (base ? 0 : direction),
-                                            e.resetOn())
-                                    : e)
-                            .toList();
-                    moves.add(new Move(
-                            path,
-                            direction,
-                            Math.abs(value + direction) > limit
-                                    ? null
-                                    : new ScoringEngine(engine.maxEras(), engine.reasonPoints(), escalations)));
-                }
-            } else {
-                throw ScoringModelValidator.invalid("sweep[" + index + "]", "unknown or malformed parameter");
-            }
+            moves.addAll(resolvePath(engine, path, index));
         }
         return List.copyOf(moves);
+    }
+
+    private static List<Move> resolvePath(ScoringEngine engine, String path, int index) {
+        var reason = REASON.matcher(path);
+        if (reason.matches()) {
+            var item = engine.reasonPoints().stream()
+                    .filter(p -> p.scoreReason().equals(reason.group(1)))
+                    .findFirst();
+            if (item.isPresent()) {
+                return reasonMoves(engine, path, item.orElseThrow());
+            }
+        }
+        var escalation = ESCALATION.matcher(path);
+        if (escalation.matches()) {
+            var item = engine.escalations().stream()
+                    .filter(e -> e.name().equals(escalation.group(1)))
+                    .findFirst();
+            if (item.isPresent()) {
+                return escalationMoves(
+                        engine, path, item.orElseThrow(), escalation.group(2).equals("base"));
+            }
+        }
+        throw ScoringModelValidator.invalid("sweep[" + index + "]", "unknown or malformed parameter");
+    }
+
+    private static List<Move> reasonMoves(ScoringEngine engine, String path, ReasonPoints item) {
+        var moves = new ArrayList<Move>();
+        for (int direction : new int[] {-1, 1}) {
+            ScoringEngine neighbor = null;
+            if (Math.abs(item.points() + direction) <= ScoringModelValidator.MAX_POINTS) {
+                var points = engine.reasonPoints().stream()
+                        .map(p -> p.scoreReason().equals(item.scoreReason())
+                                ? new ReasonPoints(p.scoreReason(), p.points() + direction)
+                                : p)
+                        .toList();
+                neighbor = new ScoringEngine(engine.maxEras(), points, engine.escalations());
+            }
+            moves.add(new Move(path, direction, neighbor));
+        }
+        return moves;
+    }
+
+    private static List<Move> escalationMoves(ScoringEngine engine, String path, Escalation item, boolean base) {
+        int value = base ? item.base() : item.increment();
+        int limit = base ? ScoringModelValidator.MAX_POINTS : ScoringModelValidator.MAX_INCREMENT;
+        var moves = new ArrayList<Move>();
+        for (int direction : new int[] {-1, 1}) {
+            ScoringEngine neighbor = null;
+            if (Math.abs(value + direction) <= limit) {
+                var escalations = engine.escalations().stream()
+                        .map(e -> e.name().equals(item.name()) ? movedEscalation(e, base, direction) : e)
+                        .toList();
+                neighbor = new ScoringEngine(engine.maxEras(), engine.reasonPoints(), escalations);
+            }
+            moves.add(new Move(path, direction, neighbor));
+        }
+        return moves;
+    }
+
+    private static Escalation movedEscalation(Escalation item, boolean base, int direction) {
+        return new Escalation(
+                item.name(),
+                item.scoreReasons(),
+                item.base() + (base ? direction : 0),
+                item.increment() + (base ? 0 : direction),
+                item.resetOn());
     }
 
     private RescoreSweep() {}

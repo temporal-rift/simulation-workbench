@@ -1,6 +1,7 @@
 package io.github.temporalrift.workbench.analysis.application.query;
 
 import java.util.ArrayList;
+import java.util.List;
 
 import io.github.temporalrift.workbench.analysis.application.port.in.RescoreRunUseCase;
 import io.github.temporalrift.workbench.analysis.domain.AnalysisResourceNotFoundException;
@@ -83,12 +84,20 @@ public class RescoreRunQueryHandler implements RescoreRunUseCase {
         if (query.sweep() == null) {
             return result;
         }
+        var sensitivity = sensitivity(moves, movedJudgements, result);
+        return new RescoringResult(complete, result.cells(), result.playerCounts(), sensitivity);
+    }
+
+    private static List<RescoringResult.Sensitivity> sensitivity(
+            List<RescoreSweep.Move> moves,
+            List<ArrayList<RescoringCalculator.Judgement>> movedJudgements,
+            RescoringResult result) {
         var sensitivity = new ArrayList<RescoringResult.Sensitivity>();
         for (int i = 0; i < moves.size(); i++) {
             var move = moves.get(i);
             if (move.engine() == null) {
                 sensitivity.add(new RescoringResult.Sensitivity(
-                        move.parameter(), move.direction(), RescoringResult.Status.OUT_OF_RANGE, java.util.List.of()));
+                        move.parameter(), move.direction(), RescoringResult.Status.OUT_OF_RANGE, List.of()));
                 continue;
             }
             var neighbor = RescoringCalculator.ratios(movedJudgements.get(i));
@@ -104,6 +113,6 @@ public class RescoreRunQueryHandler implements RescoreRunUseCase {
             sensitivity.add(new RescoringResult.Sensitivity(
                     move.parameter(), move.direction(), RescoringResult.Status.EVALUATED, cells));
         }
-        return new RescoringResult(complete, result.cells(), result.playerCounts(), sensitivity);
+        return sensitivity;
     }
 }
