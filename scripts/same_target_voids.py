@@ -44,7 +44,7 @@ def _collect(rows):
     for row in rows:
         payload = row["payload"]
         if row["type"] == "FactionAssigned":
-            factions[payload["playerId"]] = payload["faction"]
+            factions[(row["gameId"], payload["playerId"])] = payload["faction"]
         elif row["type"] in ("SpecialActionPlayed", "ActivistDeclarationRecorded"):
             commitments.append({"case": row["caseId"], "game": row["gameId"], "player": payload["playerId"],
                                 "era": payload["eraNumber"],
@@ -60,7 +60,7 @@ def _collect(rows):
 def _voided(commitments, factions, settlements):
     voided = []
     for commitment in commitments:
-        faction = factions.get(commitment["player"])
+        faction = factions.get((commitment["game"], commitment["player"]))
         if faction is None:
             continue
         wins, misses = BET_REASONS[faction]
@@ -79,19 +79,25 @@ def find_groups(cases, rows):
             continue
         buckets[(commitment["game"], commitment["era"]) + commitment["target"]].append(commitment)
     groups = []
-    for (game, era, event, outcome, player), members in sorted(buckets.items()):
+    for (game, era, event, outcome, player), members in sorted(
+            buckets.items(), key=lambda item: (item[0][0], item[0][1],
+                                               tuple("" if part is None else str(part)
+                                                     for part in item[0][2:]))):
         players = sorted({member["player"] for member in members})
         if len(players) < 2:
             continue
-        seats = seats_of[members[0]["case"]]["seats"]
+        seat_of = seats_of[members[0]["case"]]["seats"]
+        game_factions = {player: factions[(game, player)] for player in players
+                         if (game, player) in factions}
+        if any(faction not in seat_of for faction in game_factions.values()):
+            continue
         verifiable = all(settlements.get((game, player, era)) for player in players)
         erasure = any("ANNIHILATED_OUTCOME" in reasons
                       for (settled_game, _, settled_era), reasons in settlements.items()
                       if settled_game == game and settled_era == era)
         groups.append({"game": game, "era": era, "targetEvent": event, "targetOutcome": outcome,
                        "targetPlayer": player,
-                       "seats": sorted(seats[faction] for faction in
-                                       {factions[player] for player in players if player in factions}),
+                       "seats": sorted(seat_of[faction] for faction in game_factions.values()),
                        "players": players, "verifiable": verifiable,
                        "erasureAttributed": erasure and verifiable})
     return groups

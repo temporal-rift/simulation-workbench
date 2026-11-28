@@ -132,6 +132,27 @@ class SameTargetVoidsTest(unittest.TestCase):
                                            ("p1", "PROPHETS", "OTHER")]))]
         self.assertEqual(voids.analyze(cases, rows)["summary"]["groups"], 0)
 
+    def test_same_player_id_in_two_games_uses_each_game_faction(self):
+        cases = [case_row("c1", "g1", ["WEAVERS", "PROPHETS"]),
+                 case_row("c2", "g2", ["ERASERS", "PROPHETS"])]
+        rows = [event_row("c1", "g1", "FactionAssigned", assigned("g1", "p0", "WEAVERS")),
+                event_row("c1", "g1", "FactionAssigned", assigned("g1", "p1", "PROPHETS")),
+                event_row("c1", "g1", "SpecialActionPlayed", played("g1", 1, "p0", "THREAD", ("e", "o", None))),
+                event_row("c1", "g1", "ActivistDeclarationRecorded", declared("g1", 1, "p1", ("e", "o"))),
+                event_row("c1", "g1", "ScoresUpdated",
+                          scored("g1", 1, [("p0", "WEAVERS", "OTHER"), ("p1", "PROPHETS", "OTHER")])),
+                event_row("c2", "g2", "FactionAssigned", assigned("g2", "p0", "ERASERS")),
+                event_row("c2", "g2", "FactionAssigned", assigned("g2", "p1", "PROPHETS")),
+                event_row("c2", "g2", "SpecialActionPlayed",
+                          played("g2", 1, "p0", "ANNIHILATE", ("e", "o", None))),
+                event_row("c2", "g2", "ActivistDeclarationRecorded", declared("g2", 1, "p1", ("e", "o"))),
+                event_row("c2", "g2", "ScoresUpdated",
+                          scored("g2", 1, [("p0", "ERASERS", "OTHER"), ("p1", "PROPHETS", "OTHER")]))]
+        groups = {group["game"]: group for group in voids.analyze(cases, rows)["groups"]}
+        self.assertEqual(set(groups), {"g1", "g2"})
+        self.assertEqual(groups["g1"]["seats"], [0, 1])
+        self.assertEqual(groups["g2"]["seats"], [0, 1])
+
     def test_cli_round_trip(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
