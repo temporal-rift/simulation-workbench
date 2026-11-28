@@ -31,8 +31,8 @@ def read(path):
 
 
 def publish(initial, revision, final, rules, config, output):
-    if not all((directory / "completed").is_file() for directory in (initial, revision, final)):
-        raise ValueError("All study and verification runs must complete before publication")
+    if not all((directory / "completed").is_file() for directory in (initial, revision)):
+        raise ValueError("Both study runs must complete before publication")
     first, second = read(initial / "manifest.json"), read(revision / "manifest.json")
     first_results, second_results = read(initial / "results.json"), read(revision / "results.json")
     manifest, results = merger.merge(first, second, first_results, second_results)
@@ -64,6 +64,8 @@ def publish(initial, revision, final, rules, config, output):
         raise ValueError("Need between 3 and 5 validated presets")
     revised = any(p["name"] == "special-heavy-revision" for p in presets)
     mixed_source = final if revised else initial
+    if not (mixed_source / "completed").is_file():
+        raise ValueError("The selected mixed verification run must complete before publication")
     expected_manifests = mixed.manifests(manifest, results)
     mixed_evidence = {}
     for players in (3, 4, 5):

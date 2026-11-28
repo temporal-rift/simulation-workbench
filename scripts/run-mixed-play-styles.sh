@@ -9,14 +9,13 @@ root="$(cd "$(dirname "$0")" && pwd)"
 base="${WORKBENCH_URL:-http://localhost:8080}"
 issuer="${ISSUER_URL:-http://localhost:9000/default}"
 mkdir -p "$out"
-rm -f -- "$out/completed"
+rm -f -- "$out/completed" "$out/SHA256SUMS"
 python3 "$root/merge-play-style-studies.py" "$initial" "$revision" "$out"
 passes="$(jq -er '.styles["special-heavy-revision"].cells
   | [.[] | select(.playerCount == null and .passes == true) | .faction] | unique | length == 5 | tostring' \
   "$out/combined-results.json")"
 if [[ "$passes" == false ]]; then
   echo 'The revised style did not pass across all factions; initial mixed tables remain the measured population.'
-  touch "$out/completed"
   exit 0
 fi
 python3 "$root/mixed-play-style-tables.py" "$out/combined-manifest.json" "$out/combined-results.json" "$out/mixed"
