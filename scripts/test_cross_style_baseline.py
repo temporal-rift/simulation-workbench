@@ -30,18 +30,126 @@ def presets(*names):
         for name in names]}
 
 
-def game(name, commitments, settlements, seats=(0, 1)):
-    factions = ("WEAVERS", "PROPHETS", "REVISIONISTS", "ACTIVISTS", "ERASERS")
-    return {"game": name, "seats": [{"seat": seat, "faction": factions[seat]} for seat in seats],
-            "commitments": commitments, "settlements": settlements}
+def case_row(name, game, seats, state="SUCCEEDED"):
+    return {"runId": "run", "caseId": name, "seed": "1", "playerCount": len(seats), "state": state,
+            "tableId": "greedy", "seats": [{"seatIndex": seat, "faction": faction,
+                                            "policyId": "faction-greedy", "policyVersion": "2.0.0",
+                                            "policyDigest": "greedy-digest"}
+                                           for seat, faction in enumerate(seats)], "result": {},
+            "gameId": game}
 
 
-def commitment(seat, era=1, event="e", outcome="o"):
-    return {"seat": seat, "era": era, "event": event, "outcome": outcome}
+def event_row(case, game, kind, payload):
+    return {"caseId": case, "gameId": game, "type": kind, "payload": payload}
 
 
-def settlement(seat, era, reason):
-    return {"seat": seat, "era": era, "reason": reason}
+def assigned(game, player, faction):
+    return {"gameId": game, "playerId": player, "faction": faction}
+
+
+def played(game, era, player, action, target=None):
+    event, outcome, target_player = target or (None, None, None)
+    return {"gameId": game, "eraNumber": era, "roundNumber": 1, "playerId": player,
+            "faction": "WEAVERS", "specialAction": action,
+            "sourceEventId": None, "sourceOutcomeId": None,
+            "targetEventId": event, "targetOutcomeId": outcome, "targetPlayerId": target_player}
+
+
+def declared(game, era, player, target=None):
+    event, outcome = (target or (None, None))[:2]
+    return {"gameId": game, "eraNumber": era, "roundNumber": 1, "playerId": player, "mode": "RALLY",
+            "targetEventId": event, "targetOutcomeId": outcome}
+
+
+def scored(game, era, updates):
+    return {"gameId": game, "eraNumber": era,
+            "updates": [{"playerId": player, "faction": faction, "pointsDelta": 0,
+                         "reason": reason, "newTotal": 0}
+                        for player, faction, reason in updates]}
+
+
+class SameTargetVoidsTest(unittest.TestCase):
+    def test_verifiable_group_without_erasure(self):
+        cases = [case_row("c1", "g1", ["WEAVERS", "PROPHETS"])]
+        rows = [event_row("c1", "g1", "FactionAssigned", assigned("g1", "p0", "WEAVERS")),
+                event_row("c1", "g1", "FactionAssigned", assigned("g1", "p1", "PROPHETS")),
+                event_row("c1", "g1", "SpecialActionPlayed", played("g1", 1, "p0", "THREAD", ("e", "o", None))),
+                event_row("c1", "g1", "ActivistDeclarationRecorded", declared("g1", 1, "p1", ("e", "o"))),
+                event_row("c1", "g1", "ScoresUpdated",
+                          scored("g1", 1, [("p0", "WEAVERS", "OTHER"), ("p1", "PROPHETS", "OTHER")]))]
+        result = voids.analyze(cases, rows)
+        self.assertEqual(result["summary"],
+                         {"games": 1, "groups": 1, "verifiableGroups": 1,
+                          "incompleteGroups": 0, "erasureAttributedGroups": 0})
+        group, = result["groups"]
+        self.assertEqual((group["game"], group["era"], group["seats"]), ("g1", 1, [0, 1]))
+        self.assertTrue(group["verifiable"])
+        self.assertFalse(group["erasureAttributed"])
+
+    def test_erasure_attributed_only_with_outcome_in_era(self):
+        cases = [case_row("c1", "g1", ["WEAVERS", "PROPHETS"])]
+        base = [event_row("c1", "g1", "FactionAssigned", assigned("g1", "p0", "WEAVERS")),
+                event_row("c1", "g1", "FactionAssigned", assigned("g1", "p1", "PROPHETS")),
+                event_row("c1", "g1", "SpecialActionPlayed", played("g1", 1, "p0", "THREAD", ("e", "o", None))),
+                event_row("c1", "g1", "ActivistDeclarationRecorded", declared("g1", 1, "p1", ("e", "o")))]
+        settled_win = base + [event_row("c1", "g1", "ScoresUpdated",
+                                        scored("g1", 1, [("p0", "WEAVERS", "CHAIN_LINK_ADDED"),
+                                                         ("p1", "PROPHETS", "OTHER")]))]
+        # p0 lists its faction's win reason, so it is not voided and no two-player group forms.
+        self.assertEqual(voids.analyze(cases, settled_win)["groups"], [])
+        voided_pair = base + [event_row("c1", "g1", "ScoresUpdated",
+                                        scored("g1", 1, [("p0", "WEAVERS", "OTHER"),
+                                                         ("p1", "PROPHETS", "OTHER")]))]
+        group, = voids.analyze(cases, voided_pair)["groups"]
+        self.assertTrue(group["verifiable"])
+        self.assertFalse(group["erasureAttributed"])
+        group, = voids.analyze(cases, base)["groups"]
+        self.assertFalse(group["verifiable"])
+
+    def test_erasure_attributed_when_third_seat_records_annihilated_outcome(self):
+        cases = [case_row("c1", "g1", ["WEAVERS", "PROPHETS", "ERASERS"])]
+        rows = [event_row("c1", "g1", "FactionAssigned", assigned("g1", "p0", "WEAVERS")),
+                event_row("c1", "g1", "FactionAssigned", assigned("g1", "p1", "PROPHETS")),
+                event_row("c1", "g1", "FactionAssigned", assigned("g1", "p2", "ERASERS")),
+                event_row("c1", "g1", "SpecialActionPlayed", played("g1", 1, "p0", "THREAD", ("e", "o", None))),
+                event_row("c1", "g1", "ActivistDeclarationRecorded", declared("g1", 1, "p1", ("e", "o"))),
+                event_row("c1", "g1", "ScoresUpdated",
+                          scored("g1", 1, [("p0", "WEAVERS", "OTHER"), ("p1", "PROPHETS", "OTHER"),
+                                           ("p2", "ERASERS", "ANNIHILATED_OUTCOME")]))]
+        group, = voids.analyze(cases, rows)["groups"]
+        self.assertEqual(group["seats"], [0, 1])
+        self.assertTrue(group["verifiable"])
+        self.assertTrue(group["erasureAttributed"])
+
+    def test_settled_targetless_and_single_commitments_form_no_group(self):
+        cases = [case_row("c1", "g1", ["WEAVERS", "PROPHETS"])]
+        rows = [event_row("c1", "g1", "FactionAssigned", assigned("g1", "p0", "WEAVERS")),
+                event_row("c1", "g1", "FactionAssigned", assigned("g1", "p1", "PROPHETS")),
+                event_row("c1", "g1", "SpecialActionPlayed", played("g1", 1, "p0", "THREAD", ("e", "o", None))),
+                event_row("c1", "g1", "SpecialActionPlayed", played("g1", 1, "p1", "FORESIGHT")),
+                event_row("c1", "g1", "ScoresUpdated",
+                          scored("g1", 1, [("p0", "WEAVERS", "CHAIN_LINK_ADDED"),
+                                           ("p1", "PROPHETS", "OTHER")]))]
+        self.assertEqual(voids.analyze(cases, rows)["summary"]["groups"], 0)
+
+    def test_cli_round_trip(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cases = [case_row("c1", "g1", ["WEAVERS", "PROPHETS"])]
+            rows = [event_row("c1", "g1", "FactionAssigned", assigned("g1", "p0", "WEAVERS")),
+                    event_row("c1", "g1", "FactionAssigned", assigned("g1", "p1", "PROPHETS")),
+                    event_row("c1", "g1", "SpecialActionPlayed",
+                              played("g1", 1, "p0", "THREAD", ("e", "o", None))),
+                    event_row("c1", "g1", "ActivistDeclarationRecorded", declared("g1", 1, "p1", ("e", "o"))),
+                    event_row("c1", "g1", "ScoresUpdated",
+                              scored("g1", 1, [("p0", "WEAVERS", "OTHER"), ("p1", "PROPHETS", "OTHER")]))]
+            (root / "cases.jsonl").write_text("\n".join(map(json.dumps, cases)) + "\n", encoding="utf-8")
+            (root / "events.jsonl").write_text("\n".join(map(json.dumps, rows)) + "\n", encoding="utf-8")
+            subprocess.run([sys.executable, str(Path(voids.__file__)), str(root / "cases.jsonl"),
+                            str(root / "events.jsonl"), str(root / "out.json")], check=True)
+            result = json.loads((root / "out.json").read_text(encoding="utf-8"))
+            self.assertEqual(result["summary"]["verifiableGroups"], 1)
+            self.assertNotIn(b"\r\n", (root / "out.json").read_bytes())
 
 
 class CrossStyleBaselineTest(unittest.TestCase):
@@ -101,47 +209,6 @@ class CrossStyleBaselineTest(unittest.TestCase):
             self.assertTrue((root / "out" / "recording-4p.json").is_file())
             five = json.loads((root / "out" / "recording-5p.json").read_text(encoding="utf-8"))
             self.assertEqual(len(five["seeds"]), 40)
-
-
-class SameTargetVoidsTest(unittest.TestCase):
-    def test_verifiable_group_without_erasure(self):
-        games = [game("g1", [commitment(0), commitment(1)],
-                      [settlement(0, 1, "OTHER"), settlement(1, 1, "OTHER")])]
-        result = voids.analyze(games)
-        self.assertEqual(result["summary"],
-                         {"games": 1, "groups": 1, "verifiableGroups": 1,
-                          "incompleteGroups": 0, "erasureAttributedGroups": 0})
-        group, = result["groups"]
-        self.assertEqual((group["game"], group["era"], group["seats"]), ("g1", 1, [0, 1]))
-        self.assertTrue(group["verifiable"])
-        self.assertFalse(group["erasureAttributed"])
-
-    def test_erasure_attributed_only_with_outcome_in_era(self):
-        base = [commitment(0), commitment(1)]
-        with_erasure = game("g1", base, [settlement(0, 1, "OTHER"), settlement(1, 1, "ANNIHILATED_OUTCOME")])
-        without_records = game("g2", base, [])
-        groups = {group["game"]: group for group in voids.analyze([with_erasure, without_records])["groups"]}
-        self.assertTrue(groups["g1"]["erasureAttributed"])
-        self.assertFalse(groups["g2"]["verifiable"])
-        self.assertFalse(groups["g2"]["erasureAttributed"])
-
-    def test_settled_and_single_commitments_form_no_group(self):
-        games = [game("g1", [commitment(0, outcome="won"), commitment(1)],
-                      [settlement(0, 1, "CHAIN_LINK_ADDED"), settlement(1, 1, "OTHER")]),
-                 game("g2", [commitment(0, event="solo")], [settlement(0, 1, "OTHER")])]
-        self.assertEqual(voids.analyze(games)["summary"]["groups"], 0)
-
-    def test_cli_round_trip(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            games = [game("g1", [commitment(0), commitment(1)],
-                          [settlement(0, 1, "OTHER"), settlement(1, 1, "OTHER")])]
-            (root / "games.jsonl").write_text("\n".join(map(json.dumps, games)) + "\n", encoding="utf-8")
-            subprocess.run([sys.executable, str(Path(voids.__file__)), str(root / "games.jsonl"),
-                            str(root / "out.json")], check=True)
-            result = json.loads((root / "out.json").read_text(encoding="utf-8"))
-            self.assertEqual(result["summary"]["verifiableGroups"], 1)
-            self.assertNotIn(b"\r\n", (root / "out.json").read_bytes())
 
 
 if __name__ == "__main__":
