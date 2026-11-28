@@ -1,0 +1,109 @@
+{
+  "policyParameterSpaceVersion": 1,
+  "presets": [
+    {
+      "name": "cautious",
+      "version": "1.0.0",
+      "factionCoverage": [
+        "ERASERS",
+        "PROPHETS",
+        "REVISIONISTS",
+        "WEAVERS",
+        "ACTIVISTS"
+      ],
+      "policy": {
+        "id": "faction-search",
+        "version": "1.0.0",
+        "artifactDigest": "cf6b013b6992046547ebfc1c847d8ddd98bcd339d8abd43722c4c8d4676c5e16",
+        "parameters": {
+          "affinity.card.ACTIVISTS.NULLIFY": 8,
+          "affinity.card.ERASERS.NULLIFY": 8,
+          "affinity.card.PROPHETS.NULLIFY": 8,
+          "affinity.card.REVISIONISTS.NULLIFY": 8,
+          "affinity.card.WEAVERS.NULLIFY": 8
+        }
+      }
+    },
+    {
+      "name": "contrarian",
+      "version": "1.0.0",
+      "factionCoverage": [
+        "ERASERS",
+        "PROPHETS",
+        "REVISIONISTS",
+        "WEAVERS",
+        "ACTIVISTS"
+      ],
+      "policy": {
+        "id": "faction-search",
+        "version": "1.0.0",
+        "artifactDigest": "370cd0b07e2186f6ae042349751f669076177df98222afb58aae385767b9e9da",
+        "parameters": {
+          "affinity.card.ACTIVISTS.SUPPRESS": 8,
+          "affinity.card.ERASERS.SUPPRESS": 8,
+          "affinity.card.PROPHETS.SUPPRESS": 8,
+          "affinity.card.REVISIONISTS.SUPPRESS": 8,
+          "affinity.card.WEAVERS.SUPPRESS": 8,
+          "lean.suppress.ERASERS": 1
+        }
+      }
+    },
+    {
+      "name": "information-oriented",
+      "version": "1.0.0",
+      "factionCoverage": [
+        "ERASERS",
+        "PROPHETS",
+        "REVISIONISTS",
+        "WEAVERS",
+        "ACTIVISTS"
+      ],
+      "policy": {
+        "id": "faction-search",
+        "version": "1.0.0",
+        "artifactDigest": "00d51dd877d91d498f7d79d3a2fe6146919fb335b53f6384f22ebd826f31ab1b",
+        "parameters": {
+          "affinity.card.ACTIVISTS.DECOY": 8,
+          "affinity.card.ACTIVISTS.INTERCEPT": 8,
+          "affinity.card.ACTIVISTS.SCAN": 8,
+          "affinity.card.ACTIVISTS.TRACE": 8,
+          "affinity.card.ERASERS.DECOY": 8,
+          "affinity.card.ERASERS.INTERCEPT": 8,
+          "affinity.card.ERASERS.SCAN": 8,
+          "affinity.card.ERASERS.TRACE": 8,
+          "affinity.card.PROPHETS.DECOY": 8,
+          "affinity.card.PROPHETS.INTERCEPT": 8,
+          "affinity.card.PROPHETS.SCAN": 8,
+          "affinity.card.PROPHETS.TRACE": 8,
+          "affinity.card.REVISIONISTS.DECOY": 8,
+          "affinity.card.REVISIONISTS.INTERCEPT": 8,
+          "affinity.card.REVISIONISTS.SCAN": 8,
+          "affinity.card.REVISIONISTS.TRACE": 8,
+          "affinity.card.WEAVERS.DECOY": 8,
+          "affinity.card.WEAVERS.INTERCEPT": 8,
+          "affinity.card.WEAVERS.SCAN": 8,
+          "affinity.card.WEAVERS.TRACE": 8
+        }
+      }
+    },
+    {
+      "name": "special-heavy-revision",
+      "version": "1.0.0",
+      "factionCoverage": [
+        "REVISIONISTS"
+      ],
+      "policy": {
+        "id": "faction-search",
+        "version": "1.0.0",
+        "artifactDigest": "34955088cd043b942f5b3edb4334363436dd1379c16a32f18d1cbf025cb7496a",
+        "parameters": {
+          "affinity.special.ACTIVISTS.EXPOSE": 8,
+          "affinity.special.ERASERS.CORRUPT": 8,
+          "affinity.special.PROPHETS.SEAL": 8,
+          "affinity.special.REVISIONISTS.OBSCURE": 8,
+          "affinity.special.WEAVERS.REWEAVE": 8
+        }
+      }
+    }
+  ]
+}

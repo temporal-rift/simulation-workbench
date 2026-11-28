@@ -1,0 +1,292 @@
+{
+  "analysisSeed": 1,
+  "resamples": 2000,
+  "minimumEffect": 0.1,
+  "styles": {
+    "special-heavy-revision": {
+      "excludedSeeds": [],
+      "cells": [
+        {
+          "faction": "ERASERS",
+          "playerCount": null,
+          "blocks": 100,
+          "seatGamesPerSide": 3900,
+          "baselineCount": 14763,
+          "candidateCount": 13922,
+          "effect": -0.21564102564102564,
+          "interval": [
+            -0.2428205128205128,
+            -0.1894871794871795
+          ],
+          "passes": false
+        },
+        {
+          "faction": "ERASERS",
+          "playerCount": 3,
+          "blocks": 100,
+          "seatGamesPerSide": 1800,
+          "baselineCount": 5934,
+          "candidateCount": 5416,
+          "effect": -0.2877777777777778,
+          "interval": [
+            -0.33111111111111113,
+            -0.2461111111111111
+          ],
+          "passes": false
+        },
+        {
+          "faction": "ERASERS",
+          "playerCount": 4,
+          "blocks": 100,
+          "seatGamesPerSide": 1600,
+          "baselineCount": 6556,
+          "candidateCount": 6245,
+          "effect": -0.194375,
+          "interval": [
+            -0.2275,
+            -0.1625
+          ],
+          "passes": false
+        },
+        {
+          "faction": "ERASERS",
+          "playerCount": 5,
+          "blocks": 100,
+          "seatGamesPerSide": 500,
+          "baselineCount": 2273,
+          "candidateCount": 2261,
+          "effect": -0.024,
+          "interval": [
+            -0.078,
+            0.03
+          ],
+          "passes": false
+        },
+        {
+          "faction": "PROPHETS",
+          "playerCount": null,
+          "blocks": 100,
+          "seatGamesPerSide": 3900,
+          "baselineCount": 7800,
+          "candidateCount": 7800,
+          "effect": 0.0,
+          "interval": [
+            0.0,
+            0.0
+          ],
+          "passes": false
+        },
+        {
+          "faction": "PROPHETS",
+          "playerCount": 3,
+          "blocks": 100,
+          "seatGamesPerSide": 1800,
+          "baselineCount": 3600,
+          "candidateCount": 3600,
+          "effect": 0.0,
+          "interval": [
+            0.0,
+            0.0
+          ],
+          "passes": false
+        },
+        {
+          "faction": "PROPHETS",
+          "playerCount": 4,
+          "blocks": 100,
+          "seatGamesPerSide": 1600,
+          "baselineCount": 3200,
+          "candidateCount": 3200,
+          "effect": 0.0,
+          "interval": [
+            0.0,
+            0.0
+          ],
+          "passes": false
+        },
+        {
+          "faction": "PROPHETS",
+          "playerCount": 5,
+          "blocks": 100,
+          "seatGamesPerSide": 500,
+          "baselineCount": 1000,
+          "candidateCount": 1000,
+          "effect": 0.0,
+          "interval": [
+            0.0,
+            0.0
+          ],
+          "passes": false
+        },
+        {
+          "faction": "REVISIONISTS",
+          "playerCount": null,
+          "blocks": 100,
+          "seatGamesPerSide": 3900,
+          "baselineCount": 3,
+          "candidateCount": 38176,
+          "effect": 9.787948717948717,
+          "interval": [
+            9.766410256410257,
+            9.80923717948718
+          ],
+          "passes": true
+        },
+        {
+          "faction": "REVISIONISTS",
+          "playerCount": 3,
+          "blocks": 100,
+          "seatGamesPerSide": 1800,
+          "baselineCount": 1,
+          "candidateCount": 17715,
+          "effect": 9.841111111111111,
+          "interval": [
+            9.818888888888889,
+            9.863333333333333
+          ],
+          "passes": true
+        },
+        {
+          "faction": "REVISIONISTS",
+          "playerCount": 4,
+          "blocks": 100,
+          "seatGamesPerSide": 1600,
+          "baselineCount": 1,
+          "candidateCount": 15635,
+          "effect": 9.77125,
+          "interval": [
+            9.74375,
+            9.798125
+          ],
+          "passes": true
+        },
+        {
+          "faction": "REVISIONISTS",
+          "playerCount": 5,
+          "blocks": 100,
+          "seatGamesPerSide": 500,
+          "baselineCount": 1,
+          "candidateCount": 4826,
+          "effect": 9.65,
+          "interval": [
+            9.598,
+            9.702
+          ],
+          "passes": true
+        },
+        {
+          "faction": "WEAVERS",
+          "playerCount": null,
+          "blocks": 100,
+          "seatGamesPerSide": 3900,
+          "baselineCount": 0,
+          "candidateCount": 0,
+          "effect": 0.0,
+          "interval": [
+            0.0,
+            0.0
+          ],
+          "passes": false
+        },
+        {
+          "faction": "WEAVERS",
+          "playerCount": 3,
+          "blocks": 100,
+          "seatGamesPerSide": 1800,
+          "baselineCount": 0,
+          "candidateCount": 0,
+          "effect": 0.0,
+          "interval": [
+            0.0,
+            0.0
+          ],
+          "passes": false
+        },
+        {
+          "faction": "WEAVERS",
+          "playerCount": 4,
+          "blocks": 100,
+          "seatGamesPerSide": 1600,
+          "baselineCount": 0,
+          "candidateCount": 0,
+          "effect": 0.0,
+          "interval": [
+            0.0,
+            0.0
+          ],
+          "passes": false
+        },
+        {
+          "faction": "WEAVERS",
+          "playerCount": 5,
+          "blocks": 100,
+          "seatGamesPerSide": 500,
+          "baselineCount": 0,
+          "candidateCount": 0,
+          "effect": 0.0,
+          "interval": [
+            0.0,
+            0.0
+          ],
+          "passes": false
+        },
+        {
+          "faction": "ACTIVISTS",
+          "playerCount": null,
+          "blocks": 100,
+          "seatGamesPerSide": 3900,
+          "baselineCount": 9223,
+          "candidateCount": 9250,
+          "effect": 0.006923076923076923,
+          "interval": [
+            -0.003083333333333333,
+            0.016923076923076923
+          ],
+          "passes": false
+        },
+        {
+          "faction": "ACTIVISTS",
+          "playerCount": 3,
+          "blocks": 100,
+          "seatGamesPerSide": 1800,
+          "baselineCount": 3253,
+          "candidateCount": 3255,
+          "effect": 0.0011111111111111111,
+          "interval": [
+            -0.008333333333333333,
+            0.010555555555555556
+          ],
+          "passes": false
+        },
+        {
+          "faction": "ACTIVISTS",
+          "playerCount": 4,
+          "blocks": 100,
+          "seatGamesPerSide": 1600,
+          "baselineCount": 4248,
+          "candidateCount": 4261,
+          "effect": 0.008125,
+          "interval": [
+            -0.01,
+            0.026875
+          ],
+          "passes": false
+        },
+        {
+          "faction": "ACTIVISTS",
+          "playerCount": 5,
+          "blocks": 100,
+          "seatGamesPerSide": 500,
+          "baselineCount": 1722,
+          "candidateCount": 1734,
+          "effect": 0.024,
+          "interval": [
+            -0.022,
+            0.072
+          ],
+          "passes": false
+        }
+      ]
+    }
+  }
+}

@@ -1,1 +1,4 @@
 *.sh text eol=lf
+examples/play-styles/1.0.0/*.json text eol=lf
+examples/play-styles/1.0.0/effective-rules.json -text !eol whitespace=cr-at-eol
+examples/play-styles/1.0.0/simulator-config.yml -text whitespace=cr-at-eol

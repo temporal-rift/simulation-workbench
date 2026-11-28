@@ -1,0 +1,269 @@
+{
+  "schemaVersion": 2,
+  "name": "Mixed fixed styles: 3 players",
+  "variants": [
+    {
+      "label": "baseline",
+      "rulesArtifact": {
+        "digest": "8cbb3623dc043a06db8104c597d7f59892164c30a96d381ccd7911f7e1d9cb99"
+      },
+      "contentArtifact": {
+        "digest": "bcd07d59ad84792e3d62bae57949ca3884154d2942dbb39f89ab74d913492c4b"
+      },
+      "effectiveRulesDigest": "012e796ce478c359ad167d7b890b0f7cbe54c57b3d01eac840a96edc4487bdab",
+      "effectiveContentDigest": "bcd07d59ad84792e3d62bae57949ca3884154d2942dbb39f89ab74d913492c4b"
+    }
+  ],
+  "services": {
+    "gameService": {
+      "imageDigest": "sha256:7df58792de94149609e5ce8e0fd82d0895dbe2a87f779876e465742f991026fa",
+      "sourceRevision": "1fc13a9c6396affa8162d589ab570d703b5929dd"
+    },
+    "timelineService": {
+      "imageDigest": "sha256:5d10629fb1bd73c4246e8ed6a9d897005b92da817b51b00fd0552c5be51d4b67",
+      "sourceRevision": "63cd310c0d9f274815fca67363124da9377f4a42"
+    },
+    "readService": {
+      "imageDigest": "sha256:913c7fd27197d624f797117edbdc04bd133ffbd3082e12a5b99df801660a81e4",
+      "sourceRevision": "428a954e86f7cb44f33fb10b129e8e89fa9c0801"
+    }
+  },
+  "contracts": {
+    "action-api": "7.5.0",
+    "action-event": "9.7.0",
+    "chains-api": "2.0.0",
+    "projection-api": "10.7.0",
+    "scoring-api": "2.0.1",
+    "scoring-event": "3.3.0",
+    "session-api": "3.0.0",
+    "session-event": "7.5.0",
+    "timeline-event": "7.6.0"
+  },
+  "seeds": [
+    "42500",
+    "42501",
+    "42502",
+    "42503",
+    "42504"
+  ],
+  "playerCounts": [
+    3
+  ],
+  "factionSets": [
+    [
+      "ERASERS",
+      "PROPHETS",
+      "REVISIONISTS"
+    ],
+    [
+      "ERASERS",
+      "PROPHETS",
+      "WEAVERS"
+    ],
+    [
+      "ERASERS",
+      "PROPHETS",
+      "ACTIVISTS"
+    ],
+    [
+      "ERASERS",
+      "REVISIONISTS",
+      "WEAVERS"
+    ],
+    [
+      "ERASERS",
+      "REVISIONISTS",
+      "ACTIVISTS"
+    ],
+    [
+      "ERASERS",
+      "WEAVERS",
+      "ACTIVISTS"
+    ],
+    [
+      "PROPHETS",
+      "REVISIONISTS",
+      "WEAVERS"
+    ],
+    [
+      "PROPHETS",
+      "REVISIONISTS",
+      "ACTIVISTS"
+    ],
+    [
+      "PROPHETS",
+      "WEAVERS",
+      "ACTIVISTS"
+    ],
+    [
+      "REVISIONISTS",
+      "WEAVERS",
+      "ACTIVISTS"
+    ]
+  ],
+  "seatRotationMode": "CYCLIC",
+  "timingMode": "LOGICAL",
+  "policies": [
+    {
+      "id": "faction-search",
+      "version": "1.0.0",
+      "artifactDigest": "cf6b013b6992046547ebfc1c847d8ddd98bcd339d8abd43722c4c8d4676c5e16",
+      "parameters": {
+        "affinity.card.ACTIVISTS.NULLIFY": 8,
+        "affinity.card.ERASERS.NULLIFY": 8,
+        "affinity.card.PROPHETS.NULLIFY": 8,
+        "affinity.card.REVISIONISTS.NULLIFY": 8,
+        "affinity.card.WEAVERS.NULLIFY": 8
+      }
+    },
+    {
+      "id": "faction-search",
+      "version": "1.0.0",
+      "artifactDigest": "370cd0b07e2186f6ae042349751f669076177df98222afb58aae385767b9e9da",
+      "parameters": {
+        "affinity.card.ACTIVISTS.SUPPRESS": 8,
+        "affinity.card.ERASERS.SUPPRESS": 8,
+        "affinity.card.PROPHETS.SUPPRESS": 8,
+        "affinity.card.REVISIONISTS.SUPPRESS": 8,
+        "affinity.card.WEAVERS.SUPPRESS": 8,
+        "lean.suppress.ERASERS": 1
+      }
+    },
+    {
+      "id": "faction-search",
+      "version": "1.0.0",
+      "artifactDigest": "00d51dd877d91d498f7d79d3a2fe6146919fb335b53f6384f22ebd826f31ab1b",
+      "parameters": {
+        "affinity.card.ACTIVISTS.DECOY": 8,
+        "affinity.card.ACTIVISTS.INTERCEPT": 8,
+        "affinity.card.ACTIVISTS.SCAN": 8,
+        "affinity.card.ACTIVISTS.TRACE": 8,
+        "affinity.card.ERASERS.DECOY": 8,
+        "affinity.card.ERASERS.INTERCEPT": 8,
+        "affinity.card.ERASERS.SCAN": 8,
+        "affinity.card.ERASERS.TRACE": 8,
+        "affinity.card.PROPHETS.DECOY": 8,
+        "affinity.card.PROPHETS.INTERCEPT": 8,
+        "affinity.card.PROPHETS.SCAN": 8,
+        "affinity.card.PROPHETS.TRACE": 8,
+        "affinity.card.REVISIONISTS.DECOY": 8,
+        "affinity.card.REVISIONISTS.INTERCEPT": 8,
+        "affinity.card.REVISIONISTS.SCAN": 8,
+        "affinity.card.REVISIONISTS.TRACE": 8,
+        "affinity.card.WEAVERS.DECOY": 8,
+        "affinity.card.WEAVERS.INTERCEPT": 8,
+        "affinity.card.WEAVERS.SCAN": 8,
+        "affinity.card.WEAVERS.TRACE": 8
+      }
+    },
+    {
+      "id": "faction-search",
+      "version": "1.0.0",
+      "artifactDigest": "34955088cd043b942f5b3edb4334363436dd1379c16a32f18d1cbf025cb7496a",
+      "parameters": {
+        "affinity.special.ACTIVISTS.EXPOSE": 8,
+        "affinity.special.ERASERS.CORRUPT": 8,
+        "affinity.special.PROPHETS.SEAL": 8,
+        "affinity.special.REVISIONISTS.OBSCURE": 8,
+        "affinity.special.WEAVERS.REWEAVE": 8
+      }
+    }
+  ],
+  "tables": [
+    {
+      "id": "mixed-1",
+      "seats": [
+        {
+          "seatIndex": 0,
+          "policyId": "faction-search",
+          "policyVersion": "1.0.0",
+          "policyDigest": "cf6b013b6992046547ebfc1c847d8ddd98bcd339d8abd43722c4c8d4676c5e16"
+        },
+        {
+          "seatIndex": 1,
+          "policyId": "faction-search",
+          "policyVersion": "1.0.0",
+          "policyDigest": "370cd0b07e2186f6ae042349751f669076177df98222afb58aae385767b9e9da"
+        },
+        {
+          "seatIndex": 2,
+          "policyId": "faction-search",
+          "policyVersion": "1.0.0",
+          "policyDigest": "00d51dd877d91d498f7d79d3a2fe6146919fb335b53f6384f22ebd826f31ab1b"
+        }
+      ]
+    },
+    {
+      "id": "mixed-2",
+      "seats": [
+        {
+          "seatIndex": 0,
+          "policyId": "faction-search",
+          "policyVersion": "1.0.0",
+          "policyDigest": "370cd0b07e2186f6ae042349751f669076177df98222afb58aae385767b9e9da"
+        },
+        {
+          "seatIndex": 1,
+          "policyId": "faction-search",
+          "policyVersion": "1.0.0",
+          "policyDigest": "00d51dd877d91d498f7d79d3a2fe6146919fb335b53f6384f22ebd826f31ab1b"
+        },
+        {
+          "seatIndex": 2,
+          "policyId": "faction-search",
+          "policyVersion": "1.0.0",
+          "policyDigest": "34955088cd043b942f5b3edb4334363436dd1379c16a32f18d1cbf025cb7496a"
+        }
+      ]
+    },
+    {
+      "id": "mixed-3",
+      "seats": [
+        {
+          "seatIndex": 0,
+          "policyId": "faction-search",
+          "policyVersion": "1.0.0",
+          "policyDigest": "00d51dd877d91d498f7d79d3a2fe6146919fb335b53f6384f22ebd826f31ab1b"
+        },
+        {
+          "seatIndex": 1,
+          "policyId": "faction-search",
+          "policyVersion": "1.0.0",
+          "policyDigest": "34955088cd043b942f5b3edb4334363436dd1379c16a32f18d1cbf025cb7496a"
+        },
+        {
+          "seatIndex": 2,
+          "policyId": "faction-search",
+          "policyVersion": "1.0.0",
+          "policyDigest": "cf6b013b6992046547ebfc1c847d8ddd98bcd339d8abd43722c4c8d4676c5e16"
+        }
+      ]
+    },
+    {
+      "id": "mixed-4",
+      "seats": [
+        {
+          "seatIndex": 0,
+          "policyId": "faction-search",
+          "policyVersion": "1.0.0",
+          "policyDigest": "34955088cd043b942f5b3edb4334363436dd1379c16a32f18d1cbf025cb7496a"
+        },
+        {
+          "seatIndex": 1,
+          "policyId": "faction-search",
+          "policyVersion": "1.0.0",
+          "policyDigest": "cf6b013b6992046547ebfc1c847d8ddd98bcd339d8abd43722c4c8d4676c5e16"
+        },
+        {
+          "seatIndex": 2,
+          "policyId": "faction-search",
+          "policyVersion": "1.0.0",
+          "policyDigest": "370cd0b07e2186f6ae042349751f669076177df98222afb58aae385767b9e9da"
+        }
+      ]
+    }
+  ],
+  "concurrency": 12,
+  "caseWallTimeoutSeconds": 3600,
+  "maxRejectedCandidatesPerWindow": 10
+}
