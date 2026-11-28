@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Verify a mixed report and its exported case matrix against its manifest.
 
-Usage: python scripts/check-mixed-play-styles.py MANIFEST.json REPORT.json CASES.jsonl
+Usage: python scripts/check-mixed-play-styles.py MANIFEST.json EXPERIMENT.json REPORT.json CASES.jsonl
 """
 import collections
 import itertools
@@ -10,10 +10,13 @@ import math
 import sys
 from pathlib import Path
 
+from play_style_evidence import check_run
 
-def check(manifest, report, cases):
+
+def check(manifest, experiment, report, cases):
     if not report["complete"]:
         raise ValueError("Report is incomplete")
+    check_run(manifest, experiment, report, cases)
     players, = manifest["playerCounts"]
     tables = {tuple(seat["policyDigest"] for seat in table["seats"]): table for table in manifest["tables"]}
     if len(tables) != len(manifest["tables"]):
@@ -55,10 +58,11 @@ def check(manifest, report, cases):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 4:
+    if len(sys.argv) != 5:
         raise SystemExit(__doc__)
     manifest = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-    report = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
-    with Path(sys.argv[3]).open(encoding="utf-8") as source:
+    experiment = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+    report = json.loads(Path(sys.argv[3]).read_text(encoding="utf-8"))
+    with Path(sys.argv[4]).open(encoding="utf-8") as source:
         cases = [json.loads(line) for line in source if line.strip()]
-    print(json.dumps(check(manifest, report, cases), sort_keys=True))
+    print(json.dumps(check(manifest, experiment, report, cases), sort_keys=True))

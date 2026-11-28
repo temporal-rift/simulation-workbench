@@ -9,6 +9,7 @@ root="$(cd "$(dirname "$0")" && pwd)"
 base="${WORKBENCH_URL:-http://localhost:8080}"
 issuer="${ISSUER_URL:-http://localhost:9000/default}"
 mkdir -p "$out"
+rm -f -- "$out/completed"
 python3 "$root/merge-play-style-studies.py" "$initial" "$revision" "$out"
 passes="$(jq -er '.styles["special-heavy-revision"].cells | any(.playerCount == null and .passes == true) | tostring' \
   "$out/combined-results.json")"
@@ -46,7 +47,8 @@ for players in 3 4 5; do
   api "$base/api/v1/runs/$run_id/report" > "$out/$name-report.json"
   docker exec -i "$postgres" psql -U temporal_rift -d temporal_rift -At -v ON_ERROR_STOP=1 -v "run_id=$run_id" \
     < "$root/play-style-cases.sql" > "$out/$name-cases.jsonl"
-  python3 "$root/check-mixed-play-styles.py" "$manifest" "$out/$name-report.json" "$out/$name-cases.jsonl" \
+  python3 "$root/check-mixed-play-styles.py" "$manifest" "$out/$name-experiment.json" \
+    "$out/$name-report.json" "$out/$name-cases.jsonl" \
     > "$out/$name-exposure.json"
 done
 sha256sum "$out"/*.json "$out"/*.jsonl "$out"/mixed/*.json > "$out/SHA256SUMS"

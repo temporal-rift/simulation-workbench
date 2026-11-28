@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Compare exported succeeded-case facts, paired by full case coordinates and seed.
 
-Usage: python scripts/analyze-play-styles.py MANIFEST.json CASES.jsonl FACTS.jsonl RESULT.json
-Case lines contain caseId, seed, playerCount, state and seats. Fact lines contain caseId and
+Usage: python scripts/analyze-play-styles.py MANIFEST.json EXPERIMENT.json REPORT.json CASES.jsonl FACTS.jsonl RESULT.json
+Case lines contain runId, caseId, seed, playerCount, state and seats. Fact lines contain caseId and
 seats in the workbench's stored case-facts format. The manifest supplies the digest-to-table mapping.
 """
 
@@ -11,6 +11,8 @@ import random
 import sys
 from collections import defaultdict
 from pathlib import Path
+
+from play_style_evidence import check_run, manifest_sha256
 
 FACTIONS = ("ERASERS", "PROPHETS", "REVISIONISTS", "WEAVERS", "ACTIVISTS")
 SPECIAL = dict(zip(FACTIONS, ("ANNIHILATE", "FORESIGHT", "REWRITE", "THREAD", "EXPOSE")))
@@ -66,7 +68,8 @@ def analyze(manifest, cases, facts):
     expected_seeds = set(manifest["seeds"])
     if any(coordinate[0] not in expected_seeds for _, coordinate in indexed):
         raise ValueError("Unexpected seed")
-    result = {"analysisSeed": 1, "resamples": 2000, "minimumEffect": 0.1, "styles": {}}
+    result = {"manifestSha256": manifest_sha256(manifest), "analysisSeed": 1, "resamples": 2000,
+              "minimumEffect": 0.1, "styles": {}}
     baseline = {coord: case for (table, coord), case in indexed.items() if table == "spread"}
     for style in sorted(set(table_by_digest.values()) - {"spread"}):
         candidate = {coord: case for (table, coord), case in indexed.items() if table == style}
@@ -125,8 +128,10 @@ def analyze(manifest, cases, facts):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 5:
+    if len(sys.argv) != 7:
         raise SystemExit(__doc__)
-    result = analyze(json.loads(Path(sys.argv[1]).read_text(encoding="utf-8")),
-                     read_lines(sys.argv[2]), read_lines(sys.argv[3]))
-    Path(sys.argv[4]).write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8", newline="\n")
+    manifest, experiment, report = (json.loads(Path(path).read_text(encoding="utf-8")) for path in sys.argv[1:4])
+    cases = read_lines(sys.argv[4])
+    check_run(manifest, experiment, report, cases)
+    result = analyze(manifest, cases, read_lines(sys.argv[5]))
+    Path(sys.argv[6]).write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8", newline="\n")

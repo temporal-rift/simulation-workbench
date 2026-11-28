@@ -70,7 +70,8 @@ def publish(initial, revision, final, rules, config, output):
             raise ValueError(f"{name} does not use exactly the retained presets")
         with (mixed_source / f"{name}-cases.jsonl").open(encoding="utf-8") as source:
             cases = [json.loads(line) for line in source if line.strip()]
-        observed = checker.check(mixed_manifest, read(mixed_source / f"{name}-report.json"), cases)
+        observed = checker.check(mixed_manifest, read(mixed_source / f"{name}-experiment.json"),
+                                 read(mixed_source / f"{name}-report.json"), cases)
         if observed != read(mixed_source / f"{name}-exposure.json"):
             raise ValueError(f"{name} exposure summary mismatch")
     output.mkdir(parents=True, exist_ok=True)

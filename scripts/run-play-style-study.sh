@@ -7,6 +7,7 @@ root="$(cd "$(dirname "$0")" && pwd)"
 base="${WORKBENCH_URL:-http://localhost:8080}"
 issuer="${ISSUER_URL:-http://localhost:9000/default}"
 mkdir -p "$out"
+rm -f -- "$out/completed"
 token() {
   curl -fsS -X POST --data-urlencode grant_type=client_credentials --data-urlencode client_id=campaign \
     --data-urlencode client_secret=x --data-urlencode 'scope=simulation:read simulation:write' "$issuer/token" | jq -er .access_token
@@ -53,14 +54,15 @@ run() {
 }
 run smoke "$out/smoke-manifest.json"
 run validation "$out/manifest.json"
-python3 "$root/analyze-play-styles.py" "$out/manifest.json" "$out/validation-cases.jsonl" \
+python3 "$root/analyze-play-styles.py" "$out/manifest.json" "$out/validation-experiment.json" \
+  "$out/validation-report.json" "$out/validation-cases.jsonl" \
   "$out/validation-facts.jsonl" "$out/results.json"
 if [[ "${STYLE_STUDY_MODE:-initial}" != revision ]]; then
   python3 "$root/mixed-play-style-tables.py" "$out/manifest.json" "$out/results.json" "$out/mixed"
   for players in 3 4 5; do
     name="mixed-$players"
     run "$name" "$out/mixed/$name.json"
-    python3 "$root/check-mixed-play-styles.py" "$out/mixed/$name.json" "$out/$name-report.json" \
+    python3 "$root/check-mixed-play-styles.py" "$out/mixed/$name.json" "$out/$name-experiment.json" "$out/$name-report.json" \
       "$out/$name-cases.jsonl" > "$out/$name-exposure.json"
   done
 fi

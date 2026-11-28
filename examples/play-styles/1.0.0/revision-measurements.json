@@ -1,4 +1,5 @@
 {
+  "manifestSha256": "b8505880173ca429a63cf8d8f32ac94bbb29871691528bb8c7d8ea0d78b336b4",
   "analysisSeed": 1,
   "resamples": 2000,
   "minimumEffect": 0.1,

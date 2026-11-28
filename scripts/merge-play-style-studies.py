@@ -7,11 +7,25 @@ import json
 import sys
 from pathlib import Path
 
+from play_style_evidence import manifest_sha256
+
+
+def baseline(study):
+    tables = [table for table in study["tables"] if table["id"] == "spread"]
+    if len(tables) != 1 or not tables[0]["seats"]:
+        raise ValueError("Expected one populated spread baseline table")
+    return tuple((s["policyId"], s["policyVersion"], s["policyDigest"]) for s in tables[0]["seats"])
+
 
 def merge(initial, revision, initial_results, revision_results):
+    for label, manifest, results in (("Initial", initial, initial_results), ("Revision", revision, revision_results)):
+        if results.get("manifestSha256") != manifest_sha256(manifest):
+            raise ValueError(f"{label} measurements do not match the study manifest")
     for field in ("variants", "services", "contracts", "playerCounts", "factionSets", "seatRotationMode", "timingMode"):
         if initial[field] != revision[field]:
             raise ValueError(f"Studies differ in {field}")
+    if baseline(initial) != baseline(revision):
+        raise ValueError("Studies use different spread baselines")
     if set(initial["seeds"]) & set(revision["seeds"]):
         raise ValueError("Revision seeds overlap the initial study")
     for field in ("analysisSeed", "resamples", "minimumEffect"):

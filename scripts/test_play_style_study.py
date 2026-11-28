@@ -8,6 +8,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from play_style_evidence import manifest_sha256
+
 
 def load(name, path):
     spec = importlib.util.spec_from_file_location(name, Path(__file__).with_name(path))
@@ -41,7 +43,7 @@ class PlayStyleStudyTest(unittest.TestCase):
                         case_id = str(len(cases))
                         seats = [{"seatIndex": i, "faction": faction, "policyDigest": table}
                                  for i, faction in enumerate(ordered)]
-                        cases.append({"caseId": case_id, "seed": seed, "playerCount": len(group),
+                        cases.append({"caseId": case_id, "runId": "study-run", "seed": seed, "playerCount": len(group),
                                       "state": "SUCCEEDED", "seats": seats})
                         facts.append({"caseId": case_id, "seats": [
                             {"seat": i, "faction": faction,
@@ -64,9 +66,14 @@ class PlayStyleStudyTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+            (root / "experiment.json").write_text(
+                json.dumps({"manifest": manifest, "manifestDigest": "digest"}), encoding="utf-8")
+            (root / "report.json").write_text(
+                json.dumps({"runId": "study-run", "manifestDigest": "digest"}), encoding="utf-8")
             for name, entries in (("cases", cases), ("facts", facts)):
                 (root / f"{name}.jsonl").write_text("\n".join(map(json.dumps, entries)) + "\n", encoding="utf-8")
             subprocess.run([sys.executable, str(Path(analysis.__file__)), str(root / "manifest.json"),
+                            str(root / "experiment.json"), str(root / "report.json"),
                             str(root / "cases.jsonl"), str(root / "facts.jsonl"), str(root / "result.json")], check=True)
             self.assertNotIn(b"\r\n", (root / "result.json").read_bytes())
 
@@ -102,14 +109,29 @@ class PlayStyleStudyTest(unittest.TestCase):
         manifest, _, _ = self.fixture()
         manifest.update({"variants": [1], "services": {}, "contracts": {}, "playerCounts": [3, 4, 5],
                          "seatRotationMode": "CYCLIC", "timingMode": "LOGICAL", "policies": []})
-        other = dict(manifest, seeds=["4"], tables=[{"id": "spread"}, {"id": "revision"}])
-        combined, values = merge.merge(manifest, other, {"styles": {"one": {}}}, {"styles": {"two": {}}})
+        baseline = manifest["tables"][0]
+        baseline["seats"][0].update({"policyId": "faction-spread", "policyVersion": "1.0.0"})
+        other = dict(manifest, seeds=["4"], tables=[baseline, {"id": "revision"}])
+        def results(source, styles):
+            return {"manifestSha256": manifest_sha256(source), "styles": styles}
+
+        first = results(manifest, {"one": {}})
+        second = results(other, {"two": {}})
+        combined, values = merge.merge(manifest, other, first, second)
         self.assertEqual(combined["tables"][-1]["id"], "revision")
         self.assertEqual(set(values["styles"]), {"one", "two"})
+        with self.assertRaisesRegex(ValueError, "measurements do not match"):
+            merge.merge(manifest, other, first, results(manifest, {}))
+        overlapping = dict(other, seeds=["1"])
         with self.assertRaisesRegex(ValueError, "overlap"):
-            merge.merge(manifest, dict(other, seeds=["1"]), {"styles": {}}, {"styles": {}})
+            merge.merge(manifest, overlapping, first, results(overlapping, {}))
+        changed_rules = dict(other, variants=[2])
         with self.assertRaisesRegex(ValueError, "variants"):
-            merge.merge(manifest, dict(other, variants=[2]), {"styles": {}}, {"styles": {}})
+            merge.merge(manifest, changed_rules, first, results(changed_rules, {}))
+        changed_seat = dict(baseline["seats"][0], policyDigest="other-spread")
+        changed_baseline = dict(other, tables=[dict(baseline, seats=[changed_seat]), other["tables"][1]])
+        with self.assertRaisesRegex(ValueError, "different spread baselines"):
+            merge.merge(manifest, changed_baseline, first, results(changed_baseline, {}))
 
     def test_publication_rejects_incomplete_studies(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -150,13 +172,20 @@ class PlayStyleStudyTest(unittest.TestCase):
                 group = sorted(group)
                 for rotation in range(3):
                     factions = group[rotation:] + group[:rotation]
-                    cases.append({"seed": "1", "playerCount": 3, "state": "SUCCEEDED", "seats": [
+                    cases.append({"runId": "mixed-run", "seed": "1", "playerCount": 3, "state": "SUCCEEDED", "seats": [
                         {**seat, "faction": factions[seat["seatIndex"]]} for seat in table["seats"]]})
-        report = {"complete": True, "cohorts": cohorts}
-        self.assertEqual(mixed_check.check(manifest, report, cases)["exposurePerStyleFactionSeat"], 6)
+        experiment = {"manifest": manifest, "manifestDigest": "digest"}
+        report = {"complete": True, "runId": "mixed-run", "manifestDigest": "digest", "cohorts": cohorts}
+        self.assertEqual(mixed_check.check(manifest, experiment, report, cases)["exposurePerStyleFactionSeat"], 6)
+        with self.assertRaisesRegex(ValueError, "manifest digest mismatch"):
+            mixed_check.check(manifest, experiment, dict(report, manifestDigest="other"), cases)
+        with self.assertRaisesRegex(ValueError, "manifest digest mismatch"):
+            mixed_check.check(dict(manifest, seeds=["2"]), experiment, report, cases)
+        with self.assertRaisesRegex(ValueError, "run IDs do not match"):
+            mixed_check.check(manifest, experiment, report, [dict(cases[0], runId="other"), *cases[1:]])
         cohorts[0]["policyDigest"] = "incorrect"
         with self.assertRaisesRegex(ValueError, "digest mismatch"):
-            mixed_check.check(manifest, report, cases)
+            mixed_check.check(manifest, experiment, report, cases)
 
     def test_published_presets_are_covered_by_measurements_and_mixed_seats(self):
         root = Path(__file__).parents[1] / "examples" / "play-styles" / "1.0.0"
@@ -168,6 +197,10 @@ class PlayStyleStudyTest(unittest.TestCase):
         if revision.exists():
             results.update(json.loads(revision.read_text(encoding="utf-8"))["styles"])
         validation = json.loads((root / "initial-validation.json").read_text(encoding="utf-8"))
+        for study_name in ("initial", "revision"):
+            measurements = json.loads((root / f"{study_name}-measurements.json").read_text(encoding="utf-8"))
+            source = json.loads((root / f"{study_name}-validation.json").read_text(encoding="utf-8"))
+            self.assertEqual(measurements["manifestSha256"], manifest_sha256(source))
         rules_hash = hashlib.sha256((root / "effective-rules.json").read_bytes()).hexdigest()
         self.assertEqual(rules_hash, validation["variants"][0]["rulesArtifact"]["digest"])
         self.assertGreaterEqual(len(presets), 3)
