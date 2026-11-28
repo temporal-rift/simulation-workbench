@@ -1,26 +1,17 @@
 #!/usr/bin/env python3
 """Validate completed studies and write the versioned population data.
 
-Usage: python scripts/publish-play-style-population.py INITIAL REVISION FINAL RULES CONFIG OUTPUT
+Usage: python scripts/publish_play_style_population.py INITIAL REVISION FINAL RULES CONFIG OUTPUT
 """
 import shutil
 import sys
 from pathlib import Path
 
-from play_style_evidence import (
-    faction_coverage,
-    file_sha256,
-    load_sibling,
-    read_json,
-    read_jsonl,
-    source_identity,
-    write_json,
-)
-
-study = load_sibling(__file__, "play-style-study.py", "study")
-merger = load_sibling(__file__, "merge-play-style-studies.py", "merger")
-checker = load_sibling(__file__, "check-mixed-play-styles.py", "checker")
-mixed = load_sibling(__file__, "mixed-play-style-tables.py", "mixed")
+import check_mixed_play_styles as checker
+import merge_play_style_studies as merger
+import mixed_play_style_tables as mixed
+import play_style_study as study
+from play_style_evidence import faction_coverage, file_sha256, read_json, read_jsonl, source_identity, write_json
 
 
 def _load_combined(initial, revision):

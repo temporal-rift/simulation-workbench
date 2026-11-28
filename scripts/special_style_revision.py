@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Reproduce the exploratory secondary-special revision on fresh seeds.
 
-Usage: python scripts/special-style-revision.py POLICIES.json BUNDLES.json OUTPUT.json
+Usage: python scripts/special_style_revision.py POLICIES.json BUNDLES.json OUTPUT.json
 """
 import sys
 
-from play_style_evidence import load_sibling, read_json, write_json
+import play_style_study as study
 
-study = load_sibling(__file__, "play-style-study.py", "study")
+from play_style_evidence import read_json, write_json
 
 SECONDARY_SPECIALS = dict(zip(study.FACTIONS, ("CORRUPT", "SEAL", "OBSCURE", "REWEAVE", "EXPOSE")))
 AFFINITY_VALUE = 8

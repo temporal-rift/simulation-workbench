@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Create balanced mixed-table manifests from a completed study.
 
-Usage: python scripts/mixed-play-style-tables.py STUDY.json RESULTS.json OUTPUT_DIR
+Usage: python scripts/mixed_play_style_tables.py STUDY.json RESULTS.json OUTPUT_DIR
 Uniform seat rotation requires a passing pooled cell for every seated faction.
 """
 

@@ -1,7 +1,6 @@
 """Identity checks shared by the fixed play-style study scripts."""
 
 import hashlib
-import importlib.util
 import json
 from pathlib import Path
 
@@ -32,16 +31,6 @@ def read_jsonl(path):
 def write_json(path, data):
     """Write JSON with portable LF line endings."""
     Path(path).write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8", newline="\n")
-
-
-def load_sibling(caller_file, filename, module_name):
-    """Import a sibling script that cannot be imported by name (e.g. hyphens)."""
-    spec = importlib.util.spec_from_file_location(module_name, Path(caller_file).with_name(filename))
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Cannot load sibling script {filename}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 def source_identity(report, report_path, cases):

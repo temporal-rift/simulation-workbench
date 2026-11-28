@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Construct the preregistered homogeneous comparison from discovery responses.
 
-Usage: python scripts/play-style-study.py POLICIES.json BUNDLES.json MANIFEST.json
+Usage: python scripts/play_style_study.py POLICIES.json BUNDLES.json MANIFEST.json
 The input files are unmodified responses from the workbench discovery endpoints.
 """
 

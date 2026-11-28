@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Combine compatible, independently seeded initial and revision studies for mixed tables.
 
-Usage: python scripts/merge-play-style-studies.py INITIAL_DIR REVISION_DIR OUTPUT_DIR
+Usage: python scripts/merge_play_style_studies.py INITIAL_DIR REVISION_DIR OUTPUT_DIR
 """
 import sys
 from pathlib import Path

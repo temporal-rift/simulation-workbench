@@ -10,7 +10,7 @@ base="${WORKBENCH_URL:-http://localhost:8080}"
 issuer="${ISSUER_URL:-http://localhost:9000/default}"
 mkdir -p "$out"
 rm -f -- "$out/completed" "$out/SHA256SUMS"
-python3 "$root/merge-play-style-studies.py" "$initial" "$revision" "$out"
+python3 "$root/merge_play_style_studies.py" "$initial" "$revision" "$out"
 passes="$(jq -er '.styles["special-heavy-revision"].cells
   | [.[] | select(.playerCount == null and .passes == true) | .faction] | unique | length == 5 | tostring' \
   "$out/combined-results.json")"
@@ -18,7 +18,7 @@ if [[ "$passes" == false ]]; then
   echo 'The revised style did not pass across all factions; initial mixed tables remain the measured population.'
   exit 0
 fi
-python3 "$root/mixed-play-style-tables.py" "$out/combined-manifest.json" "$out/combined-results.json" "$out/mixed"
+python3 "$root/mixed_play_style_tables.py" "$out/combined-manifest.json" "$out/combined-results.json" "$out/mixed"
 token() {
   curl -fsS -X POST --data-urlencode grant_type=client_credentials --data-urlencode client_id=campaign \
     --data-urlencode client_secret=x --data-urlencode 'scope=simulation:read simulation:write' "$issuer/token" | jq -er .access_token
@@ -47,7 +47,7 @@ for players in 3 4 5; do
   api "$base/api/v1/runs/$run_id/report" > "$out/$name-report.json"
   docker exec -i "$postgres" psql -U temporal_rift -d temporal_rift -At -v ON_ERROR_STOP=1 -v "run_id=$run_id" \
     < "$root/play-style-cases.sql" > "$out/$name-cases.jsonl"
-  python3 "$root/check-mixed-play-styles.py" "$manifest" "$out/$name-experiment.json" \
+  python3 "$root/check_mixed_play_styles.py" "$manifest" "$out/$name-experiment.json" \
     "$out/$name-report.json" "$out/$name-cases.jsonl" \
     > "$out/$name-exposure.json"
 done

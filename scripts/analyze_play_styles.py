@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Compare exported succeeded-case facts, paired by full case coordinates and seed.
 
-Usage: python scripts/analyze-play-styles.py MANIFEST.json EXPERIMENT.json REPORT.json CASES.jsonl FACTS.jsonl RESULT.json
+Usage: python scripts/analyze_play_styles.py MANIFEST.json EXPERIMENT.json REPORT.json CASES.jsonl FACTS.jsonl RESULT.json
 Case lines contain runId, caseId, seed, playerCount, state and seats. Fact lines contain caseId and
 seats in the workbench's stored case-facts format. The manifest supplies the digest-to-table mapping.
 """

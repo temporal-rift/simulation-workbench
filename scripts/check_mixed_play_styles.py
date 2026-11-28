@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Verify a mixed report and its exported case matrix against its manifest.
 
-Usage: python scripts/check-mixed-play-styles.py MANIFEST.json EXPERIMENT.json REPORT.json CASES.jsonl
+Usage: python scripts/check_mixed_play_styles.py MANIFEST.json EXPERIMENT.json REPORT.json CASES.jsonl
 """
 import json
 import math

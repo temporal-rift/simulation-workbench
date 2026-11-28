@@ -7,14 +7,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from play_style_evidence import load_sibling, manifest_sha256
-
-study = load_sibling(__file__, "play-style-study.py", "study")
-analysis = load_sibling(__file__, "analyze-play-styles.py", "analysis")
-mixed = load_sibling(__file__, "mixed-play-style-tables.py", "mixed")
-mixed_check = load_sibling(__file__, "check-mixed-play-styles.py", "mixed_check")
-merge = load_sibling(__file__, "merge-play-style-studies.py", "merge")
-publish = load_sibling(__file__, "publish-play-style-population.py", "publish")
+import analyze_play_styles as analysis
+import check_mixed_play_styles as mixed_check
+import merge_play_style_studies as merge
+import mixed_play_style_tables as mixed
+import play_style_study as study
+import publish_play_style_population as publish
+from play_style_evidence import manifest_sha256
 
 
 def pooled_passes(factions=analysis.FACTIONS):

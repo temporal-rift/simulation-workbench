@@ -17,9 +17,9 @@ post() { api -X POST -H "Idempotency-Key: $(cat /proc/sys/kernel/random/uuid)" "
 api "$base/api/v1/policies" > "$out/policies.json"
 api "$base/api/v1/lane-bundles" | jq '{items: [.items[] | select(.laneCount > 1)]}' > "$out/bundles.json"
 if [[ "${STYLE_STUDY_MODE:-initial}" == revision ]]; then
-  python3 "$root/special-style-revision.py" "$out/policies.json" "$out/bundles.json" "$out/manifest.json"
+  python3 "$root/special_style_revision.py" "$out/policies.json" "$out/bundles.json" "$out/manifest.json"
 else
-  python3 "$root/play-style-study.py" "$out/policies.json" "$out/bundles.json" "$out/manifest.json"
+  python3 "$root/play_style_study.py" "$out/policies.json" "$out/bundles.json" "$out/manifest.json"
 fi
 # A fresh seed tests the actual workbench, all player counts and all candidate digests before the study.
 jq '.name = "Fixed style smoke" | .seeds = ["41999"]' "$out/manifest.json" > "$out/smoke-manifest.json"
@@ -54,15 +54,15 @@ run() {
 }
 run smoke "$out/smoke-manifest.json"
 run validation "$out/manifest.json"
-python3 "$root/analyze-play-styles.py" "$out/manifest.json" "$out/validation-experiment.json" \
+python3 "$root/analyze_play_styles.py" "$out/manifest.json" "$out/validation-experiment.json" \
   "$out/validation-report.json" "$out/validation-cases.jsonl" \
   "$out/validation-facts.jsonl" "$out/results.json"
 if [[ "${STYLE_STUDY_MODE:-initial}" != revision ]]; then
-  python3 "$root/mixed-play-style-tables.py" "$out/manifest.json" "$out/results.json" "$out/mixed"
+  python3 "$root/mixed_play_style_tables.py" "$out/manifest.json" "$out/results.json" "$out/mixed"
   for players in 3 4 5; do
     name="mixed-$players"
     run "$name" "$out/mixed/$name.json"
-    python3 "$root/check-mixed-play-styles.py" "$out/mixed/$name.json" "$out/$name-experiment.json" "$out/$name-report.json" \
+    python3 "$root/check_mixed_play_styles.py" "$out/mixed/$name.json" "$out/$name-experiment.json" "$out/$name-report.json" \
       "$out/$name-cases.jsonl" > "$out/$name-exposure.json"
   done
 fi
