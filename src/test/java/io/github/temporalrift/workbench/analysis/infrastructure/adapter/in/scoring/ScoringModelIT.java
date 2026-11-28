@@ -246,6 +246,22 @@ class ScoringModelIT {
     }
 
     @Test
+    void rescoringRejectsRepeatedAndMalformedSweepPathsAtTheirOriginalIndex() throws Exception {
+        var repeated = rescoring();
+        repeated.putArray("sweep").add("reasonPoints.ANNIHILATED_OUTCOME").add("reasonPoints.ANNIHILATED_OUTCOME");
+        rescore(repeated, READ)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.field").value("sweep[1]"));
+
+        var malformed = rescoring();
+        malformed.putArray("sweep").add("maxEras");
+        rescore(malformed, READ)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.field").value("sweep[0]"));
+    }
+
+    @Test
     void rescoringWithAnEngineThatPricesNoReasonIsRefusedNamingIt() throws Exception {
         var body = rescoring();
         ((ObjectNode) body.get("engine")).putArray("reasonPoints");

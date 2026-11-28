@@ -19,6 +19,8 @@ import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.RescoreRequest;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.Rescoring;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.RescoringPlayerCount;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.RescoringSensitivity;
+import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.RescoringSensitivityCell;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ScoringCell;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ScoringModelEvaluation;
 import io.github.temporalrift.workbench.shared.infrastructure.adapter.in.rest.v1.model.ScoringModelRequest;
@@ -59,11 +61,15 @@ final class ScoringModelApiMapper {
 
     static RescoreRunUseCase.Query rescoreQuery(UUID runId, RescoreRequest request) {
         return new RescoreRunUseCase.Query(
-                runId, engine(request.getEngine()), request.getVariantLabel(), request.getTableId());
+                runId,
+                engine(request.getEngine()),
+                request.getVariantLabel(),
+                request.getTableId(),
+                request.getSweep() == null ? null : List.copyOf(request.getSweep()));
     }
 
     static Rescoring rescoring(RescoringResult result) {
-        return new Rescoring()
+        var response = new Rescoring()
                 .complete(result.complete())
                 .cells(result.cells().stream().map(ScoringModelApiMapper::cell).toList())
                 .playerCounts(result.playerCounts().stream()
@@ -73,6 +79,23 @@ final class ScoringModelApiMapper {
                                 .truncatedCases(counts.truncatedCases())
                                 .meanEras(counts.meanEras() == null ? null : decimal(counts.meanEras())))
                         .toList());
+        if (result.sensitivity() != null) {
+            response.sensitivity(result.sensitivity().stream()
+                    .map(item -> new RescoringSensitivity()
+                            .parameter(item.parameter())
+                            .direction(RescoringSensitivity.DirectionEnum.fromValue(item.direction()))
+                            .status(RescoringSensitivity.StatusEnum.fromValue(
+                                    item.status().name()))
+                            .cells(item.cells().stream()
+                                    .map(cell -> new RescoringSensitivityCell()
+                                            .playerCount(cell.playerCount())
+                                            .faction(faction(cell.faction()))
+                                            .ratio(decimal(cell.ratio()))
+                                            .delta(decimal(cell.delta())))
+                                    .toList()))
+                    .toList());
+        }
+        return response;
     }
 
     static EvaluateScoringModelUseCase.Query query(ScoringModelRequest request) {
