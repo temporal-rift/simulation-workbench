@@ -10,6 +10,8 @@ import shutil
 import sys
 from pathlib import Path
 
+from play_style_evidence import faction_coverage, source_identity
+
 
 def module(name, filename):
     spec = importlib.util.spec_from_file_location(name, Path(__file__).with_name(filename))
@@ -21,6 +23,7 @@ def module(name, filename):
 study = module("study", "play-style-study.py")
 merger = module("merger", "merge-play-style-studies.py")
 checker = module("checker", "check-mixed-play-styles.py")
+mixed = module("mixed", "mixed-play-style-tables.py")
 
 
 def read(path):
@@ -36,46 +39,50 @@ def publish(initial, revision, final, rules, config, output):
     if hashlib.sha256(rules.read_bytes()).hexdigest() != first["variants"][0]["rulesArtifact"]["digest"]:
         raise ValueError("The rules artifact does not match the study manifest")
     by_digest = {p["artifactDigest"]: p for p in manifest["policies"]}
+    if len(by_digest) != len(manifest["policies"]):
+        raise ValueError("Duplicate policy digest in combined study")
+    factions = {faction for group in manifest["factionSets"] for faction in group}
     presets = []
     for table in manifest["tables"]:
         name = table["id"]
         if name == "spread":
             continue
-        passed = []
-        for cell in results["styles"][name]["cells"]:
-            if cell["playerCount"] is not None:
-                continue
-            expected = (cell.get("blocks", 0) >= 80 and cell.get("interval", [float("-inf")])[0] > 0.1)
-            if cell.get("passes", False) != expected:
-                raise ValueError(f"Inconsistent pass verdict for {name}/{cell['faction']}")
-            if expected:
-                passed.append(cell["faction"])
-        if passed:
+        passed = faction_coverage(results["styles"][name]["cells"])
+        if passed == factions:
             digests = {seat["policyDigest"] for seat in table["seats"]}
             if len(digests) != 1:
                 raise ValueError(f"Non-homogeneous validation table {name}")
             policy = by_digest[digests.pop()]
             if policy["artifactDigest"] != study.digest(policy["parameters"]):
                 raise ValueError(f"Policy digest mismatch for {name}")
-            presets.append({"name": name, "version": "1.0.0", "factionCoverage": passed, "policy": policy})
+            if set(policy["parameters"]) & study.UNUSED_SPECIAL_AFFINITIES:
+                raise ValueError(f"Unused special affinity in {name}")
+            presets.append({"name": name, "version": "1.0.0",
+                            "factionCoverage": [faction for faction in study.FACTIONS if faction in passed],
+                            "policy": policy})
     if not 3 <= len(presets) <= 5:
         raise ValueError("Need between 3 and 5 validated presets")
     revised = any(p["name"] == "special-heavy-revision" for p in presets)
     mixed_source = final if revised else initial
-    expected_digests = {p["policy"]["artifactDigest"] for p in presets}
+    expected_manifests = mixed.manifests(manifest, results)
+    mixed_evidence = {}
     for players in (3, 4, 5):
         name = f"mixed-{players}"
         mixed_manifest = read(mixed_source / "mixed" / f"{name}.json")
-        if {p["artifactDigest"] for p in mixed_manifest["policies"]} != expected_digests:
-            raise ValueError(f"{name} does not use exactly the retained presets")
+        if mixed_manifest != expected_manifests[players]:
+            raise ValueError(f"{name} differs from the expected mixed manifest")
         with (mixed_source / f"{name}-cases.jsonl").open(encoding="utf-8") as source:
             cases = [json.loads(line) for line in source if line.strip()]
-        observed = checker.check(mixed_manifest, read(mixed_source / f"{name}-experiment.json"),
-                                 read(mixed_source / f"{name}-report.json"), cases)
+        report_path = mixed_source / f"{name}-report.json"
+        report = read(report_path)
+        observed = checker.check(mixed_manifest, read(mixed_source / f"{name}-experiment.json"), report, cases)
         if observed != read(mixed_source / f"{name}-exposure.json"):
             raise ValueError(f"{name} exposure summary mismatch")
+        mixed_evidence[name] = {**source_identity(report, report_path, cases), **observed}
     output.mkdir(parents=True, exist_ok=True)
     (output / "presets.json").write_text(json.dumps({"policyParameterSpaceVersion": 1, "presets": presets}, indent=2) + "\n", encoding="utf-8", newline="\n")
+    (output / "mixed-evidence.json").write_text(json.dumps(mixed_evidence, indent=2) + "\n",
+                                              encoding="utf-8", newline="\n")
     for directory, prefix in ((initial, "initial"), (revision, "revision")):
         shutil.copyfile(directory / "manifest.json", output / f"{prefix}-validation.json")
         shutil.copyfile(directory / "results.json", output / f"{prefix}-measurements.json")

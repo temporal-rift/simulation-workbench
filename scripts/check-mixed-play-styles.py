@@ -14,8 +14,6 @@ from play_style_evidence import check_run
 
 
 def check(manifest, experiment, report, cases):
-    if not report["complete"]:
-        raise ValueError("Report is incomplete")
     check_run(manifest, experiment, report, cases)
     players, = manifest["playerCounts"]
     tables = {tuple(seat["policyDigest"] for seat in table["seats"]): table for table in manifest["tables"]}

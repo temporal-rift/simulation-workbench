@@ -2,7 +2,7 @@
 """Create balanced mixed-table manifests from a completed study.
 
 Usage: python scripts/mixed-play-style-tables.py STUDY.json RESULTS.json OUTPUT_DIR
-Only candidates with a passing pooled faction cell enter the population.
+Uniform seat rotation requires a passing pooled cell for every seated faction.
 """
 
 import copy
@@ -10,10 +10,13 @@ import json
 import sys
 from pathlib import Path
 
+from play_style_evidence import faction_coverage
+
 
 def manifests(study, results):
+    factions = {faction for group in study["factionSets"] for faction in group}
     passing = [name for name, result in sorted(results["styles"].items())
-               if any(cell.get("playerCount") is None and cell.get("passes") is True for cell in result["cells"])]
+               if faction_coverage(result["cells"]) == factions]
     if not 3 <= len(passing) <= 5:
         raise ValueError(f"Need 3 to 5 validated styles; found {len(passing)}")
     tables = {table["id"]: table for table in study["tables"]}

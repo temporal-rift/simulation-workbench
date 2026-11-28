@@ -1,0 +1,26 @@
+{
+  "mixed-3": {
+    "runId": "2dfcb79c-bb3d-41e6-a6ec-bc8bb5da99d9",
+    "manifestDigest": "7f3b435b6c5e6ebcf31a497c3fc4b8d50bf91929545a48a46d2f926a3e61e11e",
+    "reportSha256": "ffefc9d485bc97be75e3d6e3090df7129df387a7e66e13c33ce1373a6f806866",
+    "caseRowsSha256": "f06bcc06bf8cd2e58bfa3a67d05979a1c63ebcb8d4ed5f932f3c6bad6d98ba2c",
+    "cases": 450,
+    "exposurePerStyleFactionSeat": 30
+  },
+  "mixed-4": {
+    "runId": "44c804f6-a27c-4005-a312-3b4afa4ae990",
+    "manifestDigest": "661f2cf62e50fac71371668da2f5fcf9513114e8780a839d7d3d4b647d0e342a",
+    "reportSha256": "2e154721c37a96257b3da8d1d0441623c9fe5952b002092cb618a8289b6970ff",
+    "caseRowsSha256": "574a91fd9f9cfa772f8069cc57e0b156458a021c5c064fcd7b2ef27046c0aa41",
+    "cases": 300,
+    "exposurePerStyleFactionSeat": 20
+  },
+  "mixed-5": {
+    "runId": "4c4efe20-d288-402c-9de3-90a78407492a",
+    "manifestDigest": "901e0de120aa2b74472e7cf761b6b10b5d6729792566f10eb7dcce9c43cf4b1b",
+    "reportSha256": "4c2ae8d8f449e8fea532ee3fef46c4082743fc8dd1002256cb7b4897ad822fad",
+    "caseRowsSha256": "3361f75ad736027820c38bd245a88d8d1e1538ccfd4d24d46906b2bd17f990f2",
+    "cases": 75,
+    "exposurePerStyleFactionSeat": 5
+  }
+}

@@ -13,6 +13,13 @@ from pathlib import Path
 
 FACTIONS = ("ERASERS", "PROPHETS", "REVISIONISTS", "WEAVERS", "ACTIVISTS")
 SPECIALS = dict(zip(FACTIONS, ("ANNIHILATE", "FORESIGHT", "REWRITE", "THREAD", "EXPOSE")))
+# These special scores use a counter or protection threshold for every target.
+UNUSED_SPECIAL_AFFINITIES = {
+    "affinity.special.ACTIVISTS.EXPOSE",
+    "affinity.special.ERASERS.CORRUPT",
+    "affinity.special.WEAVERS.REWEAVE",
+    "affinity.special.WEAVERS.TAPESTRY",
+}
 
 
 def digest(parameters):

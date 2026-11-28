@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the prespecified secondary-special revision from discovery responses.
+"""Reproduce the exploratory secondary-special revision on fresh seeds.
 
 Usage: python scripts/special-style-revision.py POLICIES.json BUNDLES.json OUTPUT.json
 """

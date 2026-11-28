@@ -11,10 +11,11 @@ issuer="${ISSUER_URL:-http://localhost:9000/default}"
 mkdir -p "$out"
 rm -f -- "$out/completed"
 python3 "$root/merge-play-style-studies.py" "$initial" "$revision" "$out"
-passes="$(jq -er '.styles["special-heavy-revision"].cells | any(.playerCount == null and .passes == true) | tostring' \
+passes="$(jq -er '.styles["special-heavy-revision"].cells
+  | [.[] | select(.playerCount == null and .passes == true) | .faction] | unique | length == 5 | tostring' \
   "$out/combined-results.json")"
 if [[ "$passes" == false ]]; then
-  echo 'The revised style did not pass; initial mixed tables remain the measured population.'
+  echo 'The revised style did not pass across all factions; initial mixed tables remain the measured population.'
   touch "$out/completed"
   exit 0
 fi

@@ -3,6 +3,18 @@
   "analysisSeed": 1,
   "resamples": 2000,
   "minimumEffect": 0.1,
+  "caseCountsByTable": {
+    "special-heavy-revision": {
+      "expected": 5500,
+      "exported": 5500,
+      "nonSucceeded": 0
+    },
+    "spread": {
+      "expected": 5500,
+      "exported": 5500,
+      "nonSucceeded": 0
+    }
+  },
   "styles": {
     "special-heavy-revision": {
       "excludedSeeds": [],
@@ -14,6 +26,8 @@
           "seatGamesPerSide": 3900,
           "baselineCount": 14763,
           "candidateCount": 13922,
+          "baselineSpecialAttempts": 14763,
+          "candidateSpecialAttempts": 13922,
           "effect": -0.21564102564102564,
           "interval": [
             -0.2428205128205128,
@@ -28,6 +42,8 @@
           "seatGamesPerSide": 1800,
           "baselineCount": 5934,
           "candidateCount": 5416,
+          "baselineSpecialAttempts": 5934,
+          "candidateSpecialAttempts": 5416,
           "effect": -0.2877777777777778,
           "interval": [
             -0.33111111111111113,
@@ -42,6 +58,8 @@
           "seatGamesPerSide": 1600,
           "baselineCount": 6556,
           "candidateCount": 6245,
+          "baselineSpecialAttempts": 6556,
+          "candidateSpecialAttempts": 6245,
           "effect": -0.194375,
           "interval": [
             -0.2275,
@@ -56,6 +74,8 @@
           "seatGamesPerSide": 500,
           "baselineCount": 2273,
           "candidateCount": 2261,
+          "baselineSpecialAttempts": 2273,
+          "candidateSpecialAttempts": 2261,
           "effect": -0.024,
           "interval": [
             -0.078,
@@ -70,6 +90,8 @@
           "seatGamesPerSide": 3900,
           "baselineCount": 7800,
           "candidateCount": 7800,
+          "baselineSpecialAttempts": 7830,
+          "candidateSpecialAttempts": 7836,
           "effect": 0.0,
           "interval": [
             0.0,
@@ -84,6 +106,8 @@
           "seatGamesPerSide": 1800,
           "baselineCount": 3600,
           "candidateCount": 3600,
+          "baselineSpecialAttempts": 3617,
+          "candidateSpecialAttempts": 3618,
           "effect": 0.0,
           "interval": [
             0.0,
@@ -98,6 +122,8 @@
           "seatGamesPerSide": 1600,
           "baselineCount": 3200,
           "candidateCount": 3200,
+          "baselineSpecialAttempts": 3210,
+          "candidateSpecialAttempts": 3206,
           "effect": 0.0,
           "interval": [
             0.0,
@@ -112,6 +138,8 @@
           "seatGamesPerSide": 500,
           "baselineCount": 1000,
           "candidateCount": 1000,
+          "baselineSpecialAttempts": 1003,
+          "candidateSpecialAttempts": 1012,
           "effect": 0.0,
           "interval": [
             0.0,
@@ -126,6 +154,8 @@
           "seatGamesPerSide": 3900,
           "baselineCount": 3,
           "candidateCount": 38176,
+          "baselineSpecialAttempts": 4,
+          "candidateSpecialAttempts": 38198,
           "effect": 9.787948717948717,
           "interval": [
             9.766410256410257,
@@ -140,6 +170,8 @@
           "seatGamesPerSide": 1800,
           "baselineCount": 1,
           "candidateCount": 17715,
+          "baselineSpecialAttempts": 1,
+          "candidateSpecialAttempts": 17721,
           "effect": 9.841111111111111,
           "interval": [
             9.818888888888889,
@@ -154,6 +186,8 @@
           "seatGamesPerSide": 1600,
           "baselineCount": 1,
           "candidateCount": 15635,
+          "baselineSpecialAttempts": 1,
+          "candidateSpecialAttempts": 15649,
           "effect": 9.77125,
           "interval": [
             9.74375,
@@ -168,6 +202,8 @@
           "seatGamesPerSide": 500,
           "baselineCount": 1,
           "candidateCount": 4826,
+          "baselineSpecialAttempts": 2,
+          "candidateSpecialAttempts": 4828,
           "effect": 9.65,
           "interval": [
             9.598,
@@ -182,11 +218,10 @@
           "seatGamesPerSide": 3900,
           "baselineCount": 0,
           "candidateCount": 0,
-          "effect": 0.0,
-          "interval": [
-            0.0,
-            0.0
-          ],
+          "baselineSpecialAttempts": 0,
+          "candidateSpecialAttempts": 0,
+          "status": "INSUFFICIENT_SAMPLE",
+          "reason": "NO_ACCEPTED_PLAYS",
           "passes": false
         },
         {
@@ -196,11 +231,10 @@
           "seatGamesPerSide": 1800,
           "baselineCount": 0,
           "candidateCount": 0,
-          "effect": 0.0,
-          "interval": [
-            0.0,
-            0.0
-          ],
+          "baselineSpecialAttempts": 0,
+          "candidateSpecialAttempts": 0,
+          "status": "INSUFFICIENT_SAMPLE",
+          "reason": "NO_ACCEPTED_PLAYS",
           "passes": false
         },
         {
@@ -210,11 +244,10 @@
           "seatGamesPerSide": 1600,
           "baselineCount": 0,
           "candidateCount": 0,
-          "effect": 0.0,
-          "interval": [
-            0.0,
-            0.0
-          ],
+          "baselineSpecialAttempts": 0,
+          "candidateSpecialAttempts": 0,
+          "status": "INSUFFICIENT_SAMPLE",
+          "reason": "NO_ACCEPTED_PLAYS",
           "passes": false
         },
         {
@@ -224,11 +257,10 @@
           "seatGamesPerSide": 500,
           "baselineCount": 0,
           "candidateCount": 0,
-          "effect": 0.0,
-          "interval": [
-            0.0,
-            0.0
-          ],
+          "baselineSpecialAttempts": 0,
+          "candidateSpecialAttempts": 0,
+          "status": "INSUFFICIENT_SAMPLE",
+          "reason": "NO_ACCEPTED_PLAYS",
           "passes": false
         },
         {
@@ -238,6 +270,8 @@
           "seatGamesPerSide": 3900,
           "baselineCount": 9223,
           "candidateCount": 9250,
+          "baselineSpecialAttempts": 9223,
+          "candidateSpecialAttempts": 9250,
           "effect": 0.006923076923076923,
           "interval": [
             -0.003083333333333333,
@@ -252,6 +286,8 @@
           "seatGamesPerSide": 1800,
           "baselineCount": 3253,
           "candidateCount": 3255,
+          "baselineSpecialAttempts": 3253,
+          "candidateSpecialAttempts": 3255,
           "effect": 0.0011111111111111111,
           "interval": [
             -0.008333333333333333,
@@ -266,6 +302,8 @@
           "seatGamesPerSide": 1600,
           "baselineCount": 4248,
           "candidateCount": 4261,
+          "baselineSpecialAttempts": 4248,
+          "candidateSpecialAttempts": 4261,
           "effect": 0.008125,
           "interval": [
             -0.01,
@@ -280,6 +318,8 @@
           "seatGamesPerSide": 500,
           "baselineCount": 1722,
           "candidateCount": 1734,
+          "baselineSpecialAttempts": 1722,
+          "candidateSpecialAttempts": 1734,
           "effect": 0.024,
           "interval": [
             -0.022,
@@ -289,5 +329,12 @@
         }
       ]
     }
+  },
+  "source": {
+    "runId": "97f6eda8-1661-4328-8166-2a77aac3707b",
+    "manifestDigest": "a2f55012a8f223d521dc70d064a39e171b1039941541c34e9c8ffd7ef1846b84",
+    "reportSha256": "0fea6d4c16151aa108dc11577c82a28da32415190740eab7c23b371a3a9fd3c2",
+    "caseRowsSha256": "d8e0c7a9a17082ae3d5180b02c854bd74c77e927125d357624acba03b7f1ab2b",
+    "factsSha256": "d17f7d396e4cc55540d5623e0ffe8fdb13b9169e6e08be5e1ae6d370a91014f1"
   }
 }

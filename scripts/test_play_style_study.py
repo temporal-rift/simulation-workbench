@@ -26,6 +26,11 @@ merge = load("merge", "merge-play-style-studies.py")
 publish = load("publish", "publish-play-style-population.py")
 
 
+def pooled_passes(factions=analysis.FACTIONS):
+    return [{"faction": faction, "playerCount": None, "blocks": 80, "interval": [0.2, 0.3], "passes": True}
+            for faction in factions]
+
+
 class PlayStyleStudyTest(unittest.TestCase):
     def fixture(self):
         factions = list(analysis.FACTIONS)
@@ -60,6 +65,10 @@ class PlayStyleStudyTest(unittest.TestCase):
         self.assertEqual(cell["interval"], [1, 1])
         self.assertFalse(cell["passes"])  # Three seed blocks are not enough evidence.
         self.assertEqual(result, analysis.analyze(manifest, cases, facts))
+        special = result["styles"]["special-heavy"]["cells"][0]
+        self.assertEqual(special["status"], "INSUFFICIENT_SAMPLE")
+        self.assertEqual(special["reason"], "NO_ACCEPTED_PLAYS")
+        self.assertNotIn("interval", special)
 
     def test_analysis_cli_writes_portable_line_endings(self):
         manifest, cases, facts = self.fixture()
@@ -69,7 +78,7 @@ class PlayStyleStudyTest(unittest.TestCase):
             (root / "experiment.json").write_text(
                 json.dumps({"manifest": manifest, "manifestDigest": "digest"}), encoding="utf-8")
             (root / "report.json").write_text(
-                json.dumps({"runId": "study-run", "manifestDigest": "digest"}), encoding="utf-8")
+                json.dumps({"complete": True, "runId": "study-run", "manifestDigest": "digest"}), encoding="utf-8")
             for name, entries in (("cases", cases), ("facts", facts)):
                 (root / f"{name}.jsonl").write_text("\n".join(map(json.dumps, entries)) + "\n", encoding="utf-8")
             subprocess.run([sys.executable, str(Path(analysis.__file__)), str(root / "manifest.json"),
@@ -84,6 +93,10 @@ class PlayStyleStudyTest(unittest.TestCase):
         cases.pop(missing)
         result = analysis.analyze(manifest, cases, facts)
         self.assertEqual(result["styles"]["cautious"]["excludedSeeds"], ["2"])
+        cases[0]["state"] = "FAILED"
+        result = analysis.analyze(manifest, cases, facts)
+        self.assertEqual(result["styles"]["cautious"]["excludedSeeds"], ["1", "2"])
+        self.assertEqual(result["caseCountsByTable"]["spread"]["nonSucceeded"], 1)
         with self.assertRaisesRegex(ValueError, "Duplicate case"):
             analysis.analyze(manifest, cases + [cases[0]], facts)
 
@@ -145,13 +158,17 @@ class PlayStyleStudyTest(unittest.TestCase):
         manifest["policies"] = [{"id": "faction-search", "version": "1.0.0", "artifactDigest": name,
                                  "parameters": {}} for name in styles]
         manifest.update({"name": "study", "playerCounts": [3, 4, 5]})
-        results = {"styles": {name: {"cells": [{"playerCount": None, "passes": True}]} for name in styles}}
+        results = {"styles": {name: {"cells": pooled_passes()} for name in styles}}
         for players, table_manifest in mixed.manifests(manifest, results).items():
             for seat in range(players):
                 self.assertCountEqual([table["seats"][seat]["policyDigest"] for table in table_manifest["tables"]], styles)
             self.assertTrue(all(len(group) == players for group in table_manifest["factionSets"]))
-        results["styles"][styles[0]]["cells"][0]["passes"] = False
-        results["styles"][styles[1]]["cells"][0]["passes"] = False
+        results["styles"][styles[0]]["cells"] = pooled_passes(("REVISIONISTS",))
+        five_player = mixed.manifests(manifest, results)[5]
+        self.assertNotIn(styles[0], [p["artifactDigest"] for p in five_player["policies"]])
+        for seat in range(5):
+            self.assertCountEqual([table["seats"][seat]["policyDigest"] for table in five_player["tables"]], styles[1:])
+        results["styles"][styles[1]]["cells"] = []
         with self.assertRaisesRegex(ValueError, "Need 3 to 5"):
             mixed.manifests(manifest, results)
 
@@ -160,7 +177,7 @@ class PlayStyleStudyTest(unittest.TestCase):
         styles = [t["id"] for t in manifest["tables"] if t["id"] != "spread"]
         manifest["policies"] = [{"id": "faction-search", "version": "1.0.0", "artifactDigest": name,
                                  "parameters": {}} for name in styles]
-        results = {"styles": {name: {"cells": [{"playerCount": None, "passes": True}]} for name in styles}}
+        results = {"styles": {name: {"cells": pooled_passes()} for name in styles}}
         manifest = mixed.manifests(manifest, results)[3]
         manifest["seeds"] = ["1"]
         cases, cohorts = [], []
@@ -201,21 +218,32 @@ class PlayStyleStudyTest(unittest.TestCase):
             measurements = json.loads((root / f"{study_name}-measurements.json").read_text(encoding="utf-8"))
             source = json.loads((root / f"{study_name}-validation.json").read_text(encoding="utf-8"))
             self.assertEqual(measurements["manifestSha256"], manifest_sha256(source))
+            self.assertRegex(measurements["source"]["factsSha256"], r"^[0-9a-f]{64}$")
+        for cell in results["information-oriented"]["cells"]:
+            self.assertLessEqual(cell["baselineDecoyCount"], cell["baselineCount"])
+            self.assertLessEqual(cell["candidateDecoyCount"], cell["candidateCount"])
         rules_hash = hashlib.sha256((root / "effective-rules.json").read_bytes()).hexdigest()
         self.assertEqual(rules_hash, validation["variants"][0]["rulesArtifact"]["digest"])
         self.assertGreaterEqual(len(presets), 3)
         for preset in presets:
             policy = preset["policy"]
             self.assertEqual(policy["artifactDigest"], study.digest(policy["parameters"]))
+            self.assertFalse(set(policy["parameters"]) & study.UNUSED_SPECIAL_AFFINITIES)
             passed = [cell["faction"] for cell in results[preset["name"]]["cells"]
                       if cell["playerCount"] is None and cell.get("passes")]
             self.assertEqual(preset["factionCoverage"], passed)
+            self.assertCountEqual(preset["factionCoverage"], analysis.FACTIONS)
         for players in (3, 4, 5):
             manifest = json.loads((root / f"mixed-{players}.json").read_text(encoding="utf-8"))
             digests = {p["policy"]["artifactDigest"] for p in presets}
             self.assertEqual({p["artifactDigest"] for p in manifest["policies"]}, digests)
             for seat in range(players):
                 self.assertEqual({t["seats"][seat]["policyDigest"] for t in manifest["tables"]}, digests)
+        evidence = json.loads((root / "mixed-evidence.json").read_text(encoding="utf-8"))
+        for name, record in evidence.items():
+            exposure = json.loads((root / f"{name}-exposure.json").read_text(encoding="utf-8"))
+            self.assertEqual(record["cases"], exposure["cases"])
+            self.assertRegex(record["caseRowsSha256"], r"^[0-9a-f]{64}$")
 
     def test_published_pooled_counts_match_player_count_strata(self):
         root = Path(__file__).parents[1] / "examples" / "play-styles" / "1.0.0"
@@ -231,6 +259,10 @@ class PlayStyleStudyTest(unittest.TestCase):
                     strata = [c for c in cells if c["playerCount"] is not None]
                     for field in ("seatGamesPerSide", "baselineCount", "candidateCount"):
                         self.assertEqual(pooled[field], sum(c[field] for c in strata))
+                    if pooled.get("reason") == "NO_ACCEPTED_PLAYS":
+                        self.assertEqual((pooled["baselineCount"], pooled["candidateCount"]), (0, 0))
+                        self.assertFalse(pooled["passes"])
+                        continue
                     self.assertAlmostEqual(pooled["effect"],
                                            (pooled["candidateCount"] - pooled["baselineCount"]) / pooled["seatGamesPerSide"])
 

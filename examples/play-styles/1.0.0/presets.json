@@ -85,25 +85,6 @@
           "affinity.card.WEAVERS.TRACE": 8
         }
       }
-    },
-    {
-      "name": "special-heavy-revision",
-      "version": "1.0.0",
-      "factionCoverage": [
-        "REVISIONISTS"
-      ],
-      "policy": {
-        "id": "faction-search",
-        "version": "1.0.0",
-        "artifactDigest": "34955088cd043b942f5b3edb4334363436dd1379c16a32f18d1cbf025cb7496a",
-        "parameters": {
-          "affinity.special.ACTIVISTS.EXPOSE": 8,
-          "affinity.special.ERASERS.CORRUPT": 8,
-          "affinity.special.PROPHETS.SEAL": 8,
-          "affinity.special.REVISIONISTS.OBSCURE": 8,
-          "affinity.special.WEAVERS.REWEAVE": 8
-        }
-      }
     }
   ]
 }

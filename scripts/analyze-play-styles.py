@@ -12,7 +12,7 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-from play_style_evidence import check_run, manifest_sha256
+from play_style_evidence import check_run, file_sha256, manifest_sha256, source_identity
 
 FACTIONS = ("ERASERS", "PROPHETS", "REVISIONISTS", "WEAVERS", "ACTIVISTS")
 SPECIAL = dict(zip(FACTIONS, ("ANNIHILATE", "FORESIGHT", "REWRITE", "THREAD", "EXPOSE")))
@@ -22,12 +22,30 @@ CARD_MEASURES = {"cautious": {"NULLIFY"}, "contrarian": {"SUPPRESS"},
 PER_SEED = {3: 30, 4: 20, 5: 5}
 
 
-def measure(seat, style):
+def special_action(seat, style):
     if style == "special-heavy":
-        return seat["specialAccepts"].get(SPECIAL[seat["faction"]], 0)
+        return SPECIAL[seat["faction"]]
     if style == "special-heavy-revision":
-        return seat["specialAccepts"].get(SPECIAL_REVISION[seat["faction"]], 0)
-    return sum(value for key, value in seat["cardsPlayed"].items() if key.split("/", 1)[0] in CARD_MEASURES[style])
+        return SPECIAL_REVISION[seat["faction"]]
+    return None
+
+
+def card_count(seat, cards):
+    return sum(value for key, value in seat["cardsPlayed"].items() if key.split("/", 1)[0] in cards)
+
+
+def measure(seat, style):
+    action = special_action(seat, style)
+    return seat["specialAccepts"].get(action, 0) if action else card_count(seat, CARD_MEASURES[style])
+
+
+def diagnostic_count(seat, style):
+    action = special_action(seat, style)
+    if action:
+        return seat.get("specialAttempts", {}).get(action, 0)
+    if style == "information-oriented":
+        return card_count(seat, {"DECOY"})
+    return 0
 
 
 def percentile(values, probability):
@@ -43,6 +61,9 @@ def read_lines(path):
 
 
 def analyze(manifest, cases, facts):
+    for table in manifest["tables"]:
+        if len({seat["policyDigest"] for seat in table["seats"]}) != 1:
+            raise ValueError("Each study table must have one policy digest")
     table_by_digest = {table["seats"][0]["policyDigest"]: table["id"] for table in manifest["tables"]}
     table_names = set(table_by_digest.values())
     if ("spread" not in table_names or len(table_names) != len(manifest["tables"]
@@ -68,12 +89,19 @@ def analyze(manifest, cases, facts):
     expected_seeds = set(manifest["seeds"])
     if any(coordinate[0] not in expected_seeds for _, coordinate in indexed):
         raise ValueError("Unexpected seed")
+    case_counts = {table: {"expected": len(expected_seeds) * sum(PER_SEED.values()),
+                           "exported": 0, "nonSucceeded": 0} for table in table_names}
+    for (table, _), case in indexed.items():
+        case_counts[table]["exported"] += 1
+        if case["state"] != "SUCCEEDED":
+            case_counts[table]["nonSucceeded"] += 1
     result = {"manifestSha256": manifest_sha256(manifest), "analysisSeed": 1, "resamples": 2000,
-              "minimumEffect": 0.1, "styles": {}}
+              "minimumEffect": 0.1, "caseCountsByTable": dict(sorted(case_counts.items())), "styles": {}}
     baseline = {coord: case for (table, coord), case in indexed.items() if table == "spread"}
     for style in sorted(set(table_by_digest.values()) - {"spread"}):
         candidate = {coord: case for (table, coord), case in indexed.items() if table == style}
         blocks = defaultdict(list)
+        diagnostics = defaultdict(lambda: [0, 0])
         exclusions = []
         for seed in sorted(expected_seeds, key=int):
             left = {coord: case for coord, case in baseline.items() if coord[0] == seed}
@@ -101,6 +129,12 @@ def analyze(manifest, cases, facts):
                     if before[seat]["faction"] != faction or after[seat]["faction"] != faction:
                         raise ValueError(f"Fact faction mismatch for {coord}")
                     blocks[seed].append((coord[1], faction, measure(before[seat], style), measure(after[seat], style)))
+                    diagnostic_before = diagnostic_count(before[seat], style)
+                    diagnostic_after = diagnostic_count(after[seat], style)
+                    for count in (None, coord[1]):
+                        pair = diagnostics[faction, count]
+                        pair[0] += diagnostic_before
+                        pair[1] += diagnostic_after
         cells = []
         for faction in FACTIONS:
             for count in (None, 3, 4, 5):
@@ -113,16 +147,24 @@ def analyze(manifest, cases, facts):
                     cells.append({"faction": faction, "playerCount": count, "status": "INSUFFICIENT_SAMPLE"})
                     continue
                 before, after = sum(s[0] for s in sums), sum(s[1] for s in sums)
+                cell = {"faction": faction, "playerCount": count, "blocks": len(sums),
+                        "seatGamesPerSide": total, "baselineCount": before, "candidateCount": after}
+                diagnostic_before, diagnostic_after = diagnostics[faction, count]
+                if style in ("special-heavy", "special-heavy-revision"):
+                    cell.update(baselineSpecialAttempts=diagnostic_before, candidateSpecialAttempts=diagnostic_after)
+                    if before + after == 0:
+                        cells.append(dict(cell, status="INSUFFICIENT_SAMPLE", reason="NO_ACCEPTED_PLAYS", passes=False))
+                        continue
+                if style == "information-oriented":
+                    cell.update(baselineDecoyCount=diagnostic_before, candidateDecoyCount=diagnostic_after)
                 randomizer = random.Random(1)
                 samples = []
                 for _ in range(2000):
                     drawn = randomizer.choices(sums, k=len(sums))
                     samples.append(sum(b - a for a, b, _ in drawn) / sum(n for _, _, n in drawn))
                 low, high = percentile(samples, .025), percentile(samples, .975)
-                cells.append({"faction": faction, "playerCount": count, "blocks": len(sums),
-                              "seatGamesPerSide": total, "baselineCount": before, "candidateCount": after,
-                              "effect": (after - before) / total, "interval": [low, high],
-                              "passes": len(sums) >= 80 and low > 0.1})
+                cells.append(dict(cell, effect=(after - before) / total, interval=[low, high],
+                                  passes=len(sums) >= 80 and low > 0.1))
         result["styles"][style] = {"excludedSeeds": exclusions, "cells": cells}
     return result
 
@@ -134,4 +176,5 @@ if __name__ == "__main__":
     cases = read_lines(sys.argv[4])
     check_run(manifest, experiment, report, cases)
     result = analyze(manifest, cases, read_lines(sys.argv[5]))
+    result["source"] = dict(source_identity(report, sys.argv[3], cases), factsSha256=file_sha256(sys.argv[5]))
     Path(sys.argv[6]).write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8", newline="\n")
